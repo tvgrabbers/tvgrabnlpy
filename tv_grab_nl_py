@@ -287,11 +287,11 @@ def usage():
     print '--config-file = name of the configuration file (default = ~/.xmltv/tv_grab_py.conf'
     print '--output      = file where to put the output'
     print '--days        = # number of days to grab'
-    print '--offset      = # day offset from where to grab (0 is today, 1 tommorow, etc)'
+    print '--offset      = # day offset from where to grab (0 is today, 1 tomorow, etc)'
     print '--slow        = also grab descriptions of programming'
     print '--quiet       = suppress all output'
     print '----'
-    print '--compat      = append tvgids.nl to the xmltv id (use this is you were using tv_grab_nl)'
+    print '--compat      = append tvgids.nl to the xmltv id (use this if you were using tv_grab_nl)'
     print '--logos       = insert urls to channel icons (mythfilldatabase will then use these)'
     print '--nocattrans  = do not translate the grabbed genres into MythTV-genres'
     print '--cache       = cache descriptions and use the file to store'
@@ -489,6 +489,9 @@ def get_channel_all_days(channel, quiet=0):
     #  normal begin and end times
     times = re.compile('([0-9]+:[0-9]+) - ([0-9]+:[0-9]+)')
 
+    #  normal begin and end times
+    start_time_only = re.compile('([0-9]+:[0-9]+) -')
+
     # day switch
     dayswitch = re.compile('<h4>.*?</h4>')
 
@@ -517,6 +520,11 @@ def get_channel_all_days(channel, quiet=0):
             if t != None:
                 start_time = t.group(1)
                 stop_time  = t.group(2)
+            else:
+                start_only = start_time_only.search(detail.group(1))
+                if start_only != None:
+                    start_time = start_only.group(1)
+                    stop_time = None
 
             program_url  = 'http://www.tvgids.nl/programmadetail/?ID=' + detail.group(2)
             program_name = detail.group(3)
@@ -551,6 +559,19 @@ def parse_programs(programs, offset=0, quiet=0):
     # good programs
     good_programs = []
 
+    # pre-parse the list and try to fix the missing stop times on certain channels
+    for i in range(len(programs)):
+        if programs[i]['start'] != None:
+            # if the stop time is None try to get the start time of the 
+            # following program
+            if programs[i]['stop'] == None:
+                try:
+                    if programs[i+1]['start'] != None:
+                        programs[i]['stop'] = programs[i+1]['start']
+                except:
+                    pass
+
+    # now really go over the list
     for i in range(len(programs)):
 
         # The common case: start and end times are present and are not
@@ -699,9 +720,10 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 # Fix detection of movies based on description as tvgids.nl sometimes 
                 # categorises a movie as e.g. "Komedie". 
                 genre = content;
-                if programs[i]['detail1'].lower().find('film')      != -1 and \
-                   programs[i]['detail1'].lower().find('tekenfilm') == -1 and \
-                   programs[i]['detail1'].lower().find('filmpje')   == -1:
+                if     programs[i]['detail1'].lower().find('film')      != -1 \
+                   or  programs[i]['detail1'].lower().find('Komedie')   ==  0 \
+                   and programs[i]['detail1'].lower().find('tekenfilm') == -1 \
+                   and programs[i]['detail1'].lower().find('filmpje')   == -1:
                     genre = 'film'
 
                 if nocattrans:
