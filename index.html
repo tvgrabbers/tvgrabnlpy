@@ -1,0 +1,224 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html>
+<head>
+  <title>tv_grab_nl_py : een xmltv compatibele grabber (voorheen tv_grab_nl_pdb)</title>
+  <link href="main.css" rel="stylesheet" type="text/css" />
+</head>
+<body topmargin="0" leftmargin="0">
+
+<div id="leftnav">
+<h1>Menu</h1>
+<ul>
+  <li><a href="#top">top</a></li>
+  <li><a href="#nieuws">nieuws</a></li>
+  <li><a href="#download">download</a></li>
+  <li><a href="#installatie">installatie</a></li>
+  <li><a href="#gebruik">gebruik</a></li>
+  <li><a href="#problemen">problemen</a></li>
+  <li><a href="#contact">contact</a></li>
+</ul>
+
+</div>
+
+<div id="content">
+
+<a name="top"<h2>tv_grab_nl_py</h2></a>
+
+<p>tv_grab_nl_py is een <a
+href="http://membled.com/work/apps/xmltv/">xmltv</a>-compatibele grabber
+geschreven in <a href="http://www.python.org">python</a>
+die TV-programmainformatie ophaalt bij <a
+href="http://www.tvgids.nl">TVGids</a>. Prettige eigenschappen van deze
+grabber zijn:
+<ul>
+<li>detailinformatie wordt gecached</li>
+<li>categorie-informatie wordt geconverteerd zodat de kleurcodering
+werkt in de EPG van <a href="http://www.mythtv.org">MythTV</a></li>
+<li>instelbaar aantal dagen dat met detailinformatie wordt opgehaald</li>
+<li>links naar zenderlogo's worden automatisch toegevoegd.
+</ul>
+</p>
+
+<a name="nieuws"<h2>nieuws</h2></a>
+
+<p>
+<ul>
+<li><tt>2005/12/18</tt>
+tv_grab_nl_pdb is verherbenoemd naar tv_grab_nl_py. Het blijft een niet
+echt lekker bekkende naam, maar aangezien steeds meer mensen een bijdrage
+leveren aan het scriptje en ik altijd al een hekel heb gehad aan het
+gebruiken van mijn initialen is het nu tv_grab_nl_py geworden.
+Tegelijkertijd ben ik overgestapt van CVS naar SVN waardoor ook de
+versienummering anders wordt. De laatste versie van tv_grab_nl_pdb is
+0.48, de eerste versie van tv_grab_nl_py is 7. 
+</li>
+<li>In deze nieuwe versie is de overlapdetectie behoorlijk verbeterd,
+meer informatie over het programma (zoals
+acteur/actrice/presentator/stereo/breedbeeld/teletekst) wordt
+overgenomen en de filmdetectie is beter.
+<li>
+De belangrijkste verandering voor de gebruiker is dat de zenderconfiguratie niet meer
+standaard in
+<tt>tv_grab_nl_pdb.conf</tt>, maar in <tt>tv_grab_nl_py.conf</tt> staat.
+Alleen de naam is veranderd, dus upgraden is een kwestie van simpel een
+kopie maken.
+</li>
+</ul>
+</p>
+
+<a name="download"><h2>download</h2></a>
+
+Alle voorgaande versies zijn <a href="download">hier</a> hier te vinden.
+De nieuwste versie is <a href="download/tv_grab_nl_py">tv_grab_nl_py</a>. 
+
+<a name="installatie"><h2>installatie</h2></a>
+
+<h3>algemeen</h3>
+
+<ul>
+<li>Download de laatste versie en hernoem deze zo nodig naar <tt>tv_grab_nl_py</tt></li>
+<li>Maak een backup van je bestaande grabber: <tt>mv /usr/bin/tv_grab_nl
+    /usr/bin/tv_grab_nl.backup</tt></li>
+
+<li>Maak een symlink naar de nieuwe grabber: <tt>ln -s
+    /waar/ik/de/grabber/neerzet/tv_grab_nl_py /usr/bin/tv_grab_nl</tt></li>
+
+<li>Maak de grabber executable: <tt>chmod ugo+x /waar/ik/de/grabber/neerzet/tv_grab_nl_py</tt></li>
+</ul>
+
+<h3>configuratie</h3>
+
+<ul>
+<li>Haal de lijst met tv kanalen op: <tt>tv_grab_nl_py --configure</tt></li>
+
+<li>De lijst wordt standaard neergezet in:
+<tt>${HOME}/.xmltv/tv_grab_nl_py.conf</tt>, als die directory niet
+bestaat dan wordt deze automatisch aangemaakt. Alternatief is de
+<tt>--config-file</tt> optie.
+
+<li>Edit de gedownloade lijst, haal de regels met kanalen die je niet
+wilt grabben weg of zet er een <tt>#</tt> voor</li>
+</ul>
+
+<h3>opties</h3>
+
+<ul>
+<li><tt>tv_grab_nl_py --help</tt>
+<li> Als je voorheen <tt>tv_grab_nl</tt> gebruikte, geef dan de
+<tt>--compat</tt> optie mee of zet <tt>compat = 1</tt> in het script
+(zo rond regel 953), dan worden de correcte xmltvid's gegenereerd.
+<li>Standaard worden logo's automatisch toegevoegd aan de xmldata. De
+optie is <tt>--logos=1</tt> of zet <tt>logos = 1</tt>, uitzetten kan natuurlijk ook. 
+Let op: mythfilldatabase trekt de logo's binnen en zet ze neer in
+<tt>${HOME}/.mythtv/channels</tt> (dus, de homedirectory van de user die
+mythfilldatabase draait). Oude logo's worden niet overschreven, dus als
+je al je logo's nieuw wilt hebben maak dan deze directory even leeg.
+Met dank aan Michel van der Laan zijn er de volgende logo's:<br><br>
+ <img src="../logos/gif/30x30/animal-planet.gif">
+ <img src="../logos/gif/30x30/animal-planet-simple.gif">
+ <img src="../logos/gif/30x30/ard.gif">
+ <img src="../logos/gif/30x30/at5.gif">
+ <img src="../logos/gif/30x30/bbc1.gif">
+ <img src="../logos/gif/30x30/bbc2.gif">
+ <img src="../logos/gif/30x30/bbc3.gif">
+ <img src="../logos/gif/30x30/bbc4.gif">
+ <img src="../logos/gif/30x30/bbc-world.gif">
+ <img src="../logos/gif/30x30/bvn.gif">
+ <img src="../logos/gif/30x30/canal+blue.gif">
+ <img src="../logos/gif/30x30/canal+.gif">
+ <img src="../logos/gif/30x30/canal+red.gif">
+ <img src="../logos/gif/30x30/canal+yellow.gif">
+ <img src="../logos/gif/30x30/canvas_color.gif">
+ <img src="../logos/gif/30x30/canvas-mono.gif">
+ <img src="../logos/gif/30x30/canvas-text.gif">
+ <img src="../logos/gif/30x30/cartoonnetwork.gif">
+ <img src="../logos/gif/30x30/cn.gif">
+ <img src="../logos/gif/30x30/cnn.gif">
+ <img src="../logos/gif/30x30/discover-spacey.gif">
+ <img src="../logos/gif/30x30/discovery-color.gif">
+ <img src="../logos/gif/30x30/discovery-mono.gif">
+ <img src="../logos/gif/30x30/een.gif">
+ <img src="../logos/gif/30x30/mtv-color.gif">
+ <img src="../logos/gif/30x30/mtv-mono.gif">
+ <img src="../logos/gif/30x30/ned1.gif">
+ <img src="../logos/gif/30x30/ned2.gif">
+ <img src="../logos/gif/30x30/ned3.gif">
+ <img src="../logos/gif/30x30/net5.gif">
+ <img src="../logos/gif/30x30/ngc.gif">
+ <img src="../logos/gif/30x30/ngc-red.gif">
+ <img src="../logos/gif/30x30/rai.gif">
+ <img src="../logos/gif/30x30/rtl4.gif">
+ <img src="../logos/gif/30x30/rtl5.gif">
+ <img src="../logos/gif/30x30/rtl7.gif">
+ <img src="../logos/gif/30x30/rtvnh.gif">
+ <img src="../logos/gif/30x30/rtvu.gif">
+ <img src="../logos/gif/30x30/rtvu-simple.gif">
+ <img src="../logos/gif/30x30/sbs6.gif">
+ <img src="../logos/gif/30x30/talpa-mono.gif">
+ <img src="../logos/gif/30x30/tmf.gif">
+ <img src="../logos/gif/30x30/trt.gif">
+ <img src="../logos/gif/30x30/tv5.gif">
+ <img src="../logos/gif/30x30/veronica-full.gif">
+ <img src="../logos/gif/30x30/veronica.gif">
+ <img src="../logos/gif/30x30/wdr.gif">
+ <img src="../logos/gif/30x30/zdf.gif">
+ <img src="../logos/gif/30x30/zdf-simple.gif">
+</li>
+</ul>
+
+<h3>configuratie-opties</h3>
+
+<ul>
+
+<LI> Optioneel kun je <tt>cron</tt> gebruiken om dagelijks de informatie
+te verversen:
+        <UL>
+        <LI> Save het volgende stukje in <tt>~/bin/mythfilldatabasecron</tt>
+        <pre>
+        #!/bin/bash
+        export QTDIR=/usr/lib/qt3
+        /usr/local/bin/mythfilldatabase
+        </pre>
+        <LI> Edit de crontab: <tt>crontab -e</tt> en voeg een regel toe
+	met:
+        <pre>24 05 * * * /home/paul/bin/mythfilldatabasecron</pre>
+        </UL>
+        <LI> Klaar!
+</ul>
+
+
+<a name="problemen"<h2>problemen</h2></a>
+
+<ul>
+<li> <em>"Mijn data is een dag verschoven."</em><br> 
+     Dit kan komen doordat de grabber draait tussen 00:00 en 04:00. Op die tijden gaat tvgids er nog
+     van uit dat je data voor "vandaag" wilt hebben. Je krijg dan precies een
+     dag verschoven de data binnen. Simpele oplossing is om ergens na 04:00 te
+     grabben. </li>
+<li> <em>"Er komt geen data binnen via mythfilldatabase, en hij download wel alles."</em><br> 
+     Waarschijnlijk gebruikte je eerst <tt>tv_grab_nl</tt>? Gebruik de
+     --compat flag of edit het script en zet <tt>compat = 1</tt?>. Dit
+     zorgt ervoor dat de xmltvid volgens <tt>tv_grab_nl</tt> standaard
+     wordt doorgegeven.</li>
+<li> ... suggesties? </li>
+</ul>
+
+
+<a name="contact"<h2>contact</h2></a>
+
+<ul>
+<li> Suggesties, problemen, patches, etc. kun je mailen naar <tt>paul|at|pwdebruin|dot|net</tt></li>
+<li> De laatste grote verbeteringen zijn toegevoegd door Michael Heus
+(regisseur, acteur, presentatorinformatie, overlapverwijdering, tips
+van tvgids, stereo, breedbeeld, zwart-wit, en betere filmdetectie).
+<li> De logo's komen uit de collectie van Michel van der Laan 
+</ul>
+Andere mensen die
+een bijdrage hebben geleverd zijn: Huub Bouma, Roy van der Kuil, Remco Rotteveel, Mark Wormgoor, Dennis van
+Onselaar en Hugo van der Kooij.
+
+</div>
+
+</body>
+</html>
