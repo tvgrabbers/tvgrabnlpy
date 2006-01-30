@@ -707,7 +707,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 # categorises a movie as e.g. "Komedie". 
                 genre = content;
                 if     programs[i]['detail1'].lower().find('film')      != -1 \
-                   or  programs[i]['detail1'].lower().find('Komedie')   ==  0 \
+                   or  programs[i]['detail1'].lower().find('komedie')   ==  0 \
                    and programs[i]['detail1'].lower().find('tekenfilm') == -1 \
                    and programs[i]['detail1'].lower().find('filmpje')   == -1:
                     genre = 'film'
