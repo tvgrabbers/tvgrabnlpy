@@ -1019,9 +1019,10 @@ def main():
     for blah in f.readlines():
         blah = blah.lstrip()
         blah = blah.replace('\n','')
-        if blah[0] != '#':
-            channel = blah.split()
-            channels[channel[0]] = " ".join(channel[1:])
+        if blah:
+            if blah[0] != '#':
+                channel = blah.split()
+                channels[channel[0]] = " ".join(channel[1:])
 
     # channels are now in channels dict keyed on channel id
 
