@@ -885,7 +885,7 @@ def xmlefy_programs(programs, channel, compat=0, nocattrans=0):
                 desc_line.replace('\n', ' ')
                 if len(desc_line) > desc_len: 
                     spacepos = desc_line[0:desc_len-3].rfind(' ') 
-                    desc_line = desc_line[0:spacepos]
+                    desc_line = desc_line[0:spacepos] + '...'
                 output.append('    <desc lang="nl">%s</desc>\n' % desc_line)
         
         # Process credits section if present.
