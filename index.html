@@ -44,13 +44,39 @@ werkt in de EPG van <a href="http://www.mythtv.org">MythTV</a></li>
 
 <p>
 <ul>
+<li><tt>2006/08/01</tt> Versie 21 "Het Overlapfestival" - is uit. Het is
+bij tvgids.nl ook vakantie en er zijn flink wat gevallen waar de
+begintijd van een programma een paar minuten voor de eindtijd van het
+vorige programma ligt. Het gevolg is dat mythfilldatabase programmering
+weigert. In deze nieuwe versie wordt het overlappende interval gehalveerd 
+en de eind- en begintijd worden aangepast:
+<pre>
+        # 10:55 - 12:00 Lala
+        # 11:55 - 12:20 Wawa
+        # word:
+        # 10:55 - 11.57 Lala
+        # 11:57 - 12:20 Wawa
+        # 
+        # en ook:
+        # 
+        # 10:55 - 11:50 Lala
+        # 12:00 - 12:20 Wawa
+        # wordt:
+        # 10:55 - 11.55 Lala
+        # 11:55 - 12:20 Wawa
+</pre>
+De maximale grootte van het te beschouwen interval is in te stellen met
+de globale variabele "max_overlap" die default op 10 minuten staat.
+
 <li><tt>2006/07/16</tt> Versie 19 "Het Schlagerfestival" - is uit. Bij
 het afkappen van lange beschrijvingen werd er soms misgeknipt (dank aan
 Michael Heus). 
+
 <li><tt>2006/02/02</tt>
 Versie 12 is uit. Geen grote wijzigingen, alleen drie kleine
 robustificerende aanpassingen (met dank aan Huub Bouma, Bart Post en
 Sander Tuit).
+
 <li><tt>2006/01/07</tt>
 Versie 9 is uit. Michael Heus had een iets mooiere fix voor het
 eindtijdenprobleem.
