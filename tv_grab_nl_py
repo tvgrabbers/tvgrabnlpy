@@ -69,7 +69,7 @@ Onselen, Hugo van der Kooij
 
 # Modules we need
 import re, urllib, getopt, sys
-import time, random
+import time, random 
 import htmlentitydefs, os, os.path, pickle
 from string import replace, split, strip
 from threading import Thread
@@ -103,6 +103,9 @@ nice_time = [1, 3]
 # Maximum number of characters to use for program description.
 # This is a MythTV-specific setting.
 desc_len = 475
+
+# Maximum length in minutes of overlapping programming to correct
+max_overlap = 10
 
 # Create a category translation dictionary
 # Look in mythtv/themes/blue/ui.xml for all category names
@@ -363,6 +366,38 @@ def calc_timezone(t):
 
     return t+' %s' % timezone
 
+def duration(t1,t2):
+    """
+    Calculates the duration of a program (24h times)
+    in minutes. [h2,m2] can be on the next day.
+
+    duration(23,10,23,15) -> 5
+    duration(23,10,0,20)  -> 70
+    """
+    h1 = int(t1[0:2])
+    m1 = int(t1[3:5])
+    h2 = int(t2[0:2])
+    m2 = int(t2[3:5])
+    if h2<h1:
+        hd = 23-h1 + h2
+        md = 60-m1 + m2
+    else:
+        hd = h2-h1
+        md = m2-m1
+        if md<0:
+            md = 60+md
+            hd = hd - 1
+    return hd*60+md
+
+def time_adjust(t1, minutes):
+    """
+    Adds (or subtracts) minutes from time t1
+    time_adjust('11:35', -5) --> '11:30'
+    """
+    h = int(t1[0:2])
+    m = int(t1[3:5])+minutes
+    nh,nm = divmod(h*60+m,60)
+    return '%02d:%02d' % (nh % 24,nm)
 
 def get_page_internal(url, quiet=0):
     """
@@ -555,9 +590,47 @@ def parse_programs(programs, offset=0, quiet=0):
 
         # Try to correct missing end time by taking start time from next program on schedule
         if (programs[i]['stop'] == None and i < len(programs)-1):
-           if not quiet:
-               sys.stderr.write('Oops, "%s" has no end time. Trying to fix...\n' % programs[i]['name'])
-           programs[i]['stop'] = programs[i+1]['start']
+            if not quiet:
+                sys.stderr.write('Oops, "%s" has no end time. Trying to fix...\n' % programs[i]['name'])
+            programs[i]['stop'] = programs[i+1]['start']
+
+        # PdB: Fix tvgids start-before-end x minute interval overlap.  An overlap (positive or
+        # negative) is halved and each half is assigned to the adjacent programmes. The maximum
+        # overlap length between programming is set by the global variable 'max_overlap' and is 
+        # default 10 minutes. Example:
+        #
+        # 10:55 - 12:00 Lala
+        # 11:55 - 12:20 Wawa
+        # is transformed in:
+        # 10:55 - 11.57 Lala
+        # 11:57 - 12:20 Wawa
+        # 
+        # and also:
+        # 
+        # 10:55 - 11:50 Lala
+        # 12:00 - 12:20 Wawa
+        # is transformed in:
+        # 10:55 - 11.55 Lala
+        # 11:55 - 12:20 Wawa
+         
+
+        if (programs[i]['stop'] != None and i < len(programs)-1):
+            if programs[i+1]['start'] != None:
+                stop  = programs[i]['stop']
+                start = programs[i+1]['start']
+                interval = duration(stop, start)
+                if 0 < abs(interval) <= max_overlap:
+                    if not quiet:
+                        sys.stderr.write('"%s" and "%s" overlap %s minutes. Adjusting times.\n' % \
+                            (programs[i]['name'],programs[i+1]['name'], interval))
+                    # strategy 1: use stop time
+                    #programs[i+1]['start'] = programs[i]['stop']
+                    # strategy 2: use start time
+                    #programs[i]['stop'] = programs[i+1]['start']
+                    # strategy 3: subdivide the interval
+                    programs[i]['stop']    = time_adjust(programs[i]['stop'],abs((interval/2))) 
+                    programs[i+1]['start'] = programs[i]['stop']
+                    # strategy 4: clump the programming?
 
         # The common case: start and end times are present and are not
         # equal to each other (yes, this can happen)
