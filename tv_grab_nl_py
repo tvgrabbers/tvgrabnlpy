@@ -69,7 +69,7 @@ Onselen, Hugo van der Kooij
 
 # Modules we need
 import re, urllib, getopt, sys
-import time, random 
+import time, random, datetime
 import htmlentitydefs, os, os.path, pickle
 from string import replace, split, strip
 from threading import Thread
@@ -106,6 +106,13 @@ desc_len = 475
 
 # Maximum length in minutes of overlapping programming to correct
 max_overlap = 10
+
+# Strategy to use for correcting overlapping prgramming:
+# 'average' = use average of stop and start of next program
+# 'stop'    = use stop time of program and adjust start time of next
+# 'start'   = use start time of next program and adjust stop of previous
+# 'none'    = do not use any strategy and see what happens
+overlap_strategy = 'average'
 
 # Create a category translation dictionary
 # Look in mythtv/themes/blue/ui.xml for all category names
@@ -269,9 +276,11 @@ class ProgramCache:
         Removes all cached programming before today.
         Also removes erroneously cached programming.
         """
-        now = int(time.strftime('%Y%m%d'))
+        #now = int(time.strftime('%Y%m%d'))
+        now = time.localtime() 
+        dnow = datetime.datetime(now[0],now[1],now[2])
         for key in self.pdict.keys():
-                if int(self.pdict[key]['stop'][0:8]) < now:
+                if self.pdict[key].has_key('stop-time') and self.pdict[key]['stop-time'] < dnow:
                     del self.pdict[key]
                 # normally, these entries should not be present in the 
                 # cache, but people may have caches filled with these
@@ -301,6 +310,9 @@ def usage():
     print '--clean_cache = clean the cache file before fetching'
     print '--clear_cache = empties the cache file before fetching data'
     print '--slowdays    = grab slowdays initial days and the rest in fast mode'
+    print '--max_overlap = maximum length of overlap between programming to correct [minutes]'
+    print '--overlap_strategy = what strategy to use to correct overlaps (check top of source code)'
+
 
 def filter_line_identity(m, defs=htmlentitydefs.entitydefs):
     # callback: translate one entity to its ISO Latin value
@@ -366,38 +378,70 @@ def calc_timezone(t):
 
     return t+' %s' % timezone
 
-def duration(t1,t2):
+def format_timezone(td):
     """
-    Calculates the duration of a program (24h times)
-    in minutes. [h2,m2] can be on the next day.
+    Given a datetime object, returns a string in XMLTV format
+    """
+    tstr = td.strftime('%Y%m%d%H%M00')
+    return calc_timezone(tstr)
 
-    duration(23,10,23,15) -> 5
-    duration(23,10,0,20)  -> 70
-    """
-    h1 = int(t1[0:2])
-    m1 = int(t1[3:5])
-    h2 = int(t2[0:2])
-    m2 = int(t2[3:5])
-    if h2<h1:
-        hd = 23-h1 + h2
-        md = 60-m1 + m2
-    else:
-        hd = h2-h1
-        md = m2-m1
-        if md<0:
-            md = 60+md
-            hd = hd - 1
-    return hd*60+md
+#def duration(t1,t2):
+    #"""
+    #Calculates the duration of a program (24h times)
+    #in minutes. [h2,m2] can be on the next day.
+#
+    #duration(23,10,23,15) -> 5
+    #duration(23,10,0,20)  -> 70
+    #"""
+    #h1 = int(t1[0:2])
+    #m1 = int(t1[3:5])
+    #h2 = int(t2[0:2])
+    #m2 = int(t2[3:5])
+    #if h2<h1:
+        #hd = 23-h1 + h2
+        #md = 60-m1 + m2
+    #else:
+        #hd = h2-h1
+        #md = m2-m1
+        #if md<0:
+            #md = 60+md
+            #hd = hd - 1
+    #return hd*60+md
 
-def time_adjust(t1, minutes):
-    """
-    Adds (or subtracts) minutes from time t1
-    time_adjust('11:35', -5) --> '11:30'
-    """
-    h = int(t1[0:2])
-    m = int(t1[3:5])+minutes
-    nh,nm = divmod(h*60+m,60)
-    return '%02d:%02d' % (nh % 24,nm)
+#def time_adjust(t1, minutes):
+    #"""
+    #Adds (or subtracts) minutes from time t1
+    #time_adjust('11:35', -5) --> '11:30'
+    #"""
+    #h = int(t1[0:2])
+    #m = int(t1[3:5])+minutes
+    #nh,nm = divmod(h*60+m,60)
+    #return '%02d:%02d' % (nh % 24,nm)
+
+#def str_to_datetime(date_string):
+    #"""
+    #Converts a string in the format "20061231142500"
+    #to a datetime object
+    #"""
+    #year   = int(date_string[0:4])
+    #month  = int(date_string[4:6])
+    #day    = int(date_string[6:8])
+    #hour   = int(date_string[8:10])
+    #minute = int(date_string[10:12])
+    #return datetime.datetime(year,month,day,hour,minute)
+
+#def average_dates(date1, date2):
+    #"""
+    #Given two dates in the format "20061231142500"
+    #calculate the mean time.
+    #Return a tuple with the mean time in the same format and 
+    #the datetime.timedelta object.
+    #"""
+    ## create time1
+    #t1 = str_to_datetime(date1)
+    #t2 = str_to_datetime(date2)
+    #a = t1 + (t2-t1)/2
+    #return ("%s%02d%02d%02d%02d00" % (a.year,a.month,a.day,a.hour,a.minute),t2-t1)
 
 def get_page_internal(url, quiet=0):
     """
@@ -576,6 +620,92 @@ def get_channel_all_days(channel, quiet=0):
     # done
     return programs
 
+def make_daytime(time_string, offset=0, cutoff='00:00', stoptime=False):
+    """
+    Given a string '11:35' and an offset from today,
+    return a datetime object. The cuttoff specifies the point where the 
+    new day starts.
+
+    Examples:
+    In [2]:make_daytime('11:34',0)
+    Out[2]:datetime.datetime(2006, 8, 3, 11, 34)
+
+    In [3]:make_daytime('11:34',1)
+    Out[3]:datetime.datetime(2006, 8, 4, 11, 34)
+
+    In [7]:make_daytime('11:34',0,'12:00')
+    Out[7]:datetime.datetime(2006, 8, 4, 11, 34)
+
+    In [4]:make_daytime('11:34',0,'11:34',False)
+    Out[4]:datetime.datetime(2006, 8, 3, 11, 34)
+
+    In [5]:make_daytime('11:34',0,'11:34',True)
+    Out[5]:datetime.datetime(2006, 8, 4, 11, 34)
+
+    """
+    h = int(time_string[0:2])
+    m = int(time_string[3:5])
+    hm = int(time_string.replace(':',''))
+    chm = int(cutoff.replace(':',''))
+
+    # check for the cutoff, if the time is before the cutoff then 
+    # add a day
+    extra_day = 0
+    if (hm < chm) or (stoptime==True and hm == chm):
+        extra_day = 1
+
+    # and create a datetime object, DST is handled at a later point
+    pt = time.localtime()
+    dt = datetime.datetime(pt[0],pt[1],pt[2],h,m)
+    dt = dt + datetime.timedelta(offset+extra_day)
+    return dt
+
+def correct_times(programs, quiet=0):
+    """
+    Parse a list of programs as generated by get_channel_all_days()  and
+    convert begin and end times to xmltv compatible times in datetime objects.  
+    """
+    if programs == []:
+        return programs
+    
+    # the start time of programming for this day, times *before* this time are 
+    # assumed to be on the next day
+    day_start_time = '06:00'
+
+    # initialise using the start time of the first program on this day
+    if programs[0]['start'] != None:
+        day_start_time = programs[0]['start']
+
+    for program in programs:
+
+        # convert the times 
+        if program['start'] != None:
+            program['start-time'] = make_daytime(program['start'], program['offset'], day_start_time)
+        else:
+            program['start-time'] = None
+
+        if program['stop'] != None:
+            program['stop-time'] = make_daytime(program['stop'], program['offset'], day_start_time, stoptime=True)
+
+            # extra correction, needed because the stop time of a program may be on the next day, after the
+            # day cutoff. For example: 
+            # 06:00 - 23:40 Long Program
+            # 23:40 - 00:10 Lala
+            # 00:10 - 08:00 Wawa 
+            # This puts the end date of Wawa on the current, instead of the next day. There is no way to detect
+            # this with a single cutoff in make_daytime. Therefore, check if there is a day difference between
+            # start and stop dates and correct if necessary.
+            if program['start-time'] != None:
+                # make two dates
+                start = program['start-time']
+                stop  = program['stop-time']
+                single_day = datetime.timedelta(1)
+                startdate = datetime.datetime(start.year,start.month,start.day)
+                stopdate  = datetime.datetime(stop.year,stop.month,stop.day)
+                if startdate - stopdate == single_day:
+                    program['stop-time'] = program['stop-time'] + single_day
+        else:
+            program['stop-time'] = None
 
 def parse_programs(programs, offset=0, quiet=0):
     """
@@ -586,13 +716,38 @@ def parse_programs(programs, offset=0, quiet=0):
     # good programs
     good_programs = []
 
+    # calculate absolute start and stop times
+    correct_times(programs, quiet)
+
+    # next, correct for missing end time and copy over all good programming to the 
+    # good_programs list
     for i in range(len(programs)):
 
         # Try to correct missing end time by taking start time from next program on schedule
-        if (programs[i]['stop'] == None and i < len(programs)-1):
+        if (programs[i]['stop-time'] == None and i < len(programs)-1):
             if not quiet:
                 sys.stderr.write('Oops, "%s" has no end time. Trying to fix...\n' % programs[i]['name'])
-            programs[i]['stop'] = programs[i+1]['start']
+            programs[i]['stop-time'] = programs[i+1]['start-time']
+
+        # The common case: start and end times are present and are not
+        # equal to each other (yes, this can happen)
+        if programs[i]['start-time'] != None and \
+           programs[i]['stop-time']  != None and \
+           programs[i]['start-time'] != programs[i]['stop-time']:
+            good_programs.append(programs[i])
+
+
+    # Try to exclude programs that only identify a group or broadcaster and have overlapping start/end times with
+    # the actual programs
+    for i in range(len(good_programs)-2,-1,-1):
+          
+        if good_programs[i]['start-time'] <= good_programs[i+1]['start-time'] and \
+           good_programs[i]['stop-time']  >= good_programs[i+1]['stop-time']:
+            if not quiet:
+                sys.stderr.write('Deleting grouping/broadcaster: %s\n' % good_programs[i]['name'])
+            del good_programs[i]
+
+    for i in range(len(good_programs)-1):
 
         # PdB: Fix tvgids start-before-end x minute interval overlap.  An overlap (positive or
         # negative) is halved and each half is assigned to the adjacent programmes. The maximum
@@ -613,84 +768,30 @@ def parse_programs(programs, offset=0, quiet=0):
         # 10:55 - 11.55 Lala
         # 11:55 - 12:20 Wawa
          
+        stop  = good_programs[i]['stop-time']
+        start = good_programs[i+1]['start-time']
+        dt    = start-stop
+        avg   = stop + dt / 2
+        overlap = 24*60*60*dt.days + dt.seconds
 
-        if (programs[i]['stop'] != None and i < len(programs)-1):
-            if programs[i+1]['start'] != None:
-                stop  = programs[i]['stop']
-                start = programs[i+1]['start']
-                interval = duration(stop, start)
-                if 0 < abs(interval) <= max_overlap:
-                    if not quiet:
-                        sys.stderr.write('"%s" and "%s" overlap %s minutes. Adjusting times.\n' % \
-                            (programs[i]['name'],programs[i+1]['name'], interval))
-                    # strategy 1: use stop time
-                    #programs[i+1]['start'] = programs[i]['stop']
-                    # strategy 2: use start time
-                    #programs[i]['stop'] = programs[i+1]['start']
-                    # strategy 3: subdivide the interval
-                    programs[i]['stop']    = time_adjust(programs[i]['stop'],abs((interval/2))) 
-                    programs[i+1]['start'] = programs[i]['stop']
-                    # strategy 4: clump the programming?
-
-        # The common case: start and end times are present and are not
-        # equal to each other (yes, this can happen)
-        if programs[i]['start'] != None and \
-           programs[i]['stop']  != None and \
-           programs[i]['start'] != programs[i]['stop']:
-            good_programs.append(programs[i])
-
-    # store enough dates such that an offset is an index into a list of actual dates
-    dates = [time.strftime('%Y%m%d', time.gmtime(time.time()+x*86400)) for x in range(0,20)]
-
-    # and finally, modify the start/end times to xmltv format
-    for poffset in range(0,7):
-        add_offset = 0
-
-        for c in range(len(good_programs)):
-
-            if good_programs[c]['offset'] != poffset:
-                continue
-            start = good_programs[c]['start'].replace(':','')
-            stop  = good_programs[c]['stop'].replace(':','')
-            offset = good_programs[c]['offset']
-
-            # check for clumped programming
-            # crude solution for now, make it more elegant later
-            if c < len(good_programs)-1:
-                nstart = good_programs[c+1]['start'].replace(':','')
-                nstop  = good_programs[c+1]['stop'].replace(':','')
-                noffset = good_programs[c+1]['offset']
-                if nstart == start and nstop == stop and offset==noffset:
-                    good_programs[c]['clumpidx'] = '0/2'
-                    good_programs[c+1]['clumpidx'] = '1/2'
-
-
-            if stop=='0000' or (int(stop)<int(start)):
-                good_programs[c]['start'] = dates[poffset+add_offset]+start +'00'
-                good_programs[c]['stop']  = dates[poffset+add_offset+1]+stop +'00'
-
-                if (c < len(good_programs)-1) and (start > good_programs[c+1]['start'].replace(':','')):
-                   add_offset = 1
-
-            elif start=='0000':
-                add_offset = 1
-                # assign the new times
-                good_programs[c]['start'] = dates[poffset+add_offset]+start+'00'
-                good_programs[c]['stop']  = dates[poffset+add_offset]+stop +'00'
-
-            else:
-                # assign base converted times
-                good_programs[c]['start'] = dates[poffset+add_offset]+start+'00'
-                good_programs[c]['stop']  = dates[poffset+add_offset]+stop +'00'
-
-    # Try to exclude programs that only identify a group or broadcaster and have overlapping start/end times with
-    # the actual programs
-    for i in range(len(good_programs)-2,-1,-1):
-          
-        if good_programs[i]['start'] <= good_programs[i+1]['start'] and good_programs[i]['stop'] >= good_programs[i+1]['stop']:
+        # check for the size of the overlap
+        if 0 < abs(overlap) < max_overlap*60:
             if not quiet:
-                sys.stderr.write('Deleting grouping/broadcaster: %s\n' % good_programs[i]['name'])
-            del good_programs[i]
+                sys.stderr.write('"%s" and "%s" overlap %s minutes. Adjusting times.\n' % \
+                    (good_programs[i]['name'],good_programs[i+1]['name'],overlap / 60))
+                # stop-time of previous program wins
+                if overlap_strategy == 'stop':
+                    good_programs[i+1]['start-time'] = good_programs[i]['stop-time']
+                # start-time of next program wins
+                elif overlap_strategy == 'start':
+                    good_programs[i]['stop-time'] = good_programs[i+1]['start-time']
+                # average the difference
+                elif overlap_strategy == 'average':
+                    good_programs[i]['stop-time']    = avg
+                    good_programs[i+1]['start-time'] = avg
+                # leave as is
+                else:
+                    pass
 
     # done, nothing to see here, please move on 
     return good_programs
@@ -728,14 +829,12 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                     sys.stderr.write(' [cached]')
                 # copy the cached information, except the start/end times and rating, 
                 # these may have changed.
-                tstart = programs[i]['start']
-                tstop  = programs[i]['stop']
-                offset = programs[i]['offset']
+                tstart = programs[i]['start-time']
+                tstop  = programs[i]['stop-time']
                 rating = programs[i]['star-rating']
                 programs[i] = cached_program
-                programs[i]['start'] = tstart
-                programs[i]['stop']  = tstop
-                programs[i]['offset'] = offset
+                programs[i]['start-time'] = tstart
+                programs[i]['stop-time']  = tstop
                 programs[i]['star-rating'] = rating
                 continue
         else:
@@ -867,7 +966,7 @@ def xmlefy_programs(programs, channel, compat=0, nocattrans=0):
             print program
 
         output.append('  <programme start="%s" stop="%s" channel="%s%s" %s> \n' % \
-            (calc_timezone(program['start']), calc_timezone(program['stop']),\
+            (format_timezone(program['start-time']), format_timezone(program['stop-time']),\
              channel, compat and '.tvgids.nl' or '', clumpidx))
 
         output.append('    <title lang="nl">%s</title>\n' % filter_line(program['name']))
@@ -946,6 +1045,7 @@ def main():
                                                        "cache=", "clean_cache", 
                                                        "slowdays=","compat",
                                                        "nocattrans","config-file=",
+                                                       "max_overlap=", "overlap_strategy=",
                                                        "clear_cache", "quiet","logos"])
     except getopt.GetoptError:
         usage()
@@ -966,6 +1066,7 @@ def main():
     # fetch data in slow mode, i.e. grab all the detail information,
     # slow means slow, because for each program a web page needs to be fetched
     slow        = 1
+    #slow        = 0
 
     # number of days to fetch in slow mode. For example: --days 5 --slowdays 2, will 
     # fetch the first two days in slow mode (with all the details) and the remaining three
@@ -997,7 +1098,7 @@ def main():
     clear_cache = 0
 
     # seed the random generator
-    random.seed()
+    random.seed(time.time())
 
     for o, a in opts:
         if o in ("-h", "--help"):
@@ -1069,6 +1170,10 @@ def main():
             clear_cache = 1
         if o == "--cache":
             program_cache_file = a
+        if o == "--max_overlap":
+            max_overlap = int(a)
+        if o == "--overlap_strategy":
+            overlap_strategy = a
 
     # get configfile if available
     try:
