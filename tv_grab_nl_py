@@ -69,10 +69,20 @@ Onselen, Hugo van der Kooij
 
 # Modules we need
 import re, urllib, getopt, sys
-import time, random, datetime
+import time, random
 import htmlentitydefs, os, os.path, pickle
 from string import replace, split, strip
 from threading import Thread
+
+# Extra check for the datetime module 
+try:
+    import datetime
+except:
+    sys.stderr.write('This script needs the datetime module that was introduced in Python version 2.3.\n')
+    sys.stderr.write('You are running:\n')
+    sys.stderr.write('%s\n' % sys.version)
+    sys.exit(1)
+
 
 # do extra debug stuff
 debug = 1
