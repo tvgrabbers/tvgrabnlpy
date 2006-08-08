@@ -124,6 +124,11 @@ max_overlap = 10
 # 'none'    = do not use any strategy and see what happens
 overlap_strategy = 'average'
 
+# Experimental strategy for clumping overlapping programming, all programs that overlap more
+# than max_overlap minutes, but less than the length of the shortest program are clumped 
+# together. Highly experimental and disabled for now.
+do_clump = False
+
 # Create a category translation dictionary
 # Look in mythtv/themes/blue/ui.xml for all category names
 # The keys are the categories used by tvgids.nl (lowercase please)
@@ -750,6 +755,32 @@ def parse_programs(programs, offset=0, quiet=0):
             else:
                pass
 
+    # Experimental strategy to make sure programming does not disappear. All programs that overlap more
+    # than the maximum overlap length, but less than the shortest length of the two programs are 
+    # clumped.
+    if do_clump:
+        for i in range(len(good_programs)-1):
+         
+            stop  = good_programs[i]['stop-time']
+            start = good_programs[i+1]['start-time']
+            dt    = stop-start
+            overlap = 24*60*60*dt.days + dt.seconds
+
+            length0 = good_programs[i]['stop-time']   - good_programs[i]['start-time']
+            length1 = good_programs[i+1]['stop-time'] - good_programs[i+1]['start-time']
+
+            l0 = length0.days*24*60*60 + length0.seconds    
+            l1 = length1.days*24*60*60 + length0.seconds    
+
+            if abs(overlap) >= max_overlap*60 <= min(l0,l1)*60 and \
+                not good_programs[i].has_key('clumpidx')   and \
+                not good_programs[i+1].has_key('clumpidx'):
+                good_programs[i]['clumpidx']   = '0/2'
+                good_programs[i+1]['clumpidx'] = '1/2'
+                good_programs[i]['stop-time'] = good_programs[i+1]['stop-time']
+                good_programs[i+1]['start-time'] = good_programs[i]['start-time']
+            
+
     # done, nothing to see here, please move on 
     return good_programs
 
@@ -784,15 +815,21 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         if (cached_program != None):
                 if not quiet:
                     sys.stderr.write(' [cached]')
-                # copy the cached information, except the start/end times and rating, 
+                # copy the cached information, except the start/end times, rating and clumping, 
                 # these may have changed.
                 tstart = programs[i]['start-time']
                 tstop  = programs[i]['stop-time']
                 rating = programs[i]['star-rating']
+                try:
+                    clump  = programs[i]['clumpidx']
+                except:
+                    clump = False
                 programs[i] = cached_program
                 programs[i]['start-time'] = tstart
                 programs[i]['stop-time']  = tstop
                 programs[i]['star-rating'] = rating
+                if clump:
+                    programs[i]['clumpidx'] = clump
                 continue
         else:
             # be nice to tvgids.nl
