@@ -44,6 +44,18 @@ werkt in de EPG van <a href="http://www.mythtv.org">MythTV</a></li>
 
 <p>
 <ul>
+<li><tt>2006/08/08</tt> Versie 28 is uit. Michael Heus en ik hebben
+alles robuuster gemaakt voor mogelijke overlaps, maar er is natuurlijk een grens aan wat er
+gedaan kan worden aan de soms wel heel erg lastig te interpreteren data
+van tvgids.nl. In deze versie worden overlaps gecorrigeerd voor zover
+mogelijk. Standaard is de overlapstrategie zoals aangegeven als
+hieronder bij versie 23, maar er is ook de mogelijkheid om de eindtijd
+of de starttijd leidend te laten zijn. Zie de source en beneden voor meer
+informatie (--max_overlap en --overlap_strategy). Verder is een gedeelte
+van de code voor het plaatsen van programma's op de juiste datum
+herschreven. Voordeel is dat er nu geen problemen meer zijn rond een
+dagovergang. <strong>Nadeel is dat python versie >= 2.3 nu nodig is
+vanwege de datetime module</strong>.
 <li><tt>2006/08/01</tt> Versie 23 "Het Overlapfestival" - is uit. Het is
 bij tvgids.nl ook vakantie en er zijn flink wat gevallen waar de
 begintijd van een programma een paar minuten voor de eindtijd van het
@@ -219,6 +231,26 @@ Met dank aan Michel van der Laan zijn er de volgende logo's:<br><br>
  <img src="../logos/gif/30x30/zdf.gif">
  <img src="../logos/gif/30x30/zdf-simple.gif">
 </li>
+<li> <tt>--max_overlap</tt> de maximale lengte van de positieve of
+negative overlap in minuten die nog gecorrigeerd zal worden. Standaard
+10 minuten.
+</li>
+<li> <tt>--overlap_strategy</tt> de strategie die wordt gevolgd bij het
+corrigeren van een overlap:
+<ul>
+<li> <tt>"average"</tt> (default), middel het overlappende interval
+en pas de begin- en eindtijden van de omliggende programma's aan
+<li><tt>"stop"</tt> de eindtijd van het eerste programma is leidend, dit
+is een handige strategie om te gebruiken om iets meer kans te hebben het
+einde van een programma te vangen
+<li><tt>"start"</tt> de starttijd van het tweede programma is leidend, dit
+is een handige strategie om iets meer kans te hebben het begin van een
+programma te vangen.
+<li><tt>"none"</tt> doe niets met overlappende programma's. De kans is
+groot dat een gedeelte van de programmering door mythfilldatabase
+niet geaccepteerd wordt.
+</li>
+</ul>
 </ul>
 
 <h3>configuratie-opties</h3>
