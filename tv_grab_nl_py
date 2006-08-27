@@ -332,7 +332,7 @@ def usage():
 def filter_line_identity(m, defs=htmlentitydefs.entitydefs):
     # callback: translate one entity to its ISO Latin value
     k = m.group(1)
-    if k.startswith("#"):
+    if k.startswith("#") and k[1:] in xrange(256):
         return chr(int(k[1:]))
 
     try:
