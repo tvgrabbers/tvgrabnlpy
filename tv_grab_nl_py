@@ -216,10 +216,11 @@ logo_names = {
             90 : [1, 'bvn'],
             92 : [0, 'talpa-mono'],
             100 : [1, 'tvutrecht'],
-            101 : [1, 'tvwest'],
+            101 : [0, 'tvwest'],
             102 : [1, 'tvrijnmond'],
             103 : [1, 'tvnoordholland'],
             105 : [1, 'spiceplatinum'],
+            108 : [0, 'tvnoord'],
             107 : [0, 'canal+yellow']}
 
 # Work in progress, the idea is to cache program categories and
