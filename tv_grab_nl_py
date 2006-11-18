@@ -187,6 +187,7 @@ logo_names = {
             18 : [0, 'ngc'],
             19 : [1, 'eurosport'],
             20 : [1, 'tcm'],
+            21 : [1, 'cartoonnetwork'],
             24 : [0, 'canal+red'],
             25 : [0, 'mtv-color'],
             26 : [0, 'cnn'],
@@ -214,14 +215,18 @@ logo_names = {
             87 : [1, 'tve'],
             89 : [1, 'nick'],
             90 : [1, 'bvn'],
+            91 : [0, 'thebox'],
             92 : [0, 'talpa-mono'],
+            99 : [1, 'sport1_1'],
             100 : [1, 'tvutrecht'],
             101 : [0, 'tvwest'],
             102 : [1, 'tvrijnmond'],
             103 : [1, 'tvnoordholland'],
+            104 : [1, 'bbcprime'],
             105 : [1, 'spiceplatinum'],
+            107 : [0, 'canal+yellow'],
             108 : [0, 'tvnoord'],
-            107 : [0, 'canal+yellow']}
+            114 : [0, 'omroepbrabant']}
 
 # Work in progress, the idea is to cache program categories and
 # descriptions to eliminate a lot of page fetches from tvgids.nl
@@ -260,9 +265,10 @@ class ProgramCache:
 
     def dump(self, filename):
         """
-        Dumps a pickled cache
+        Dumps a pickled cache, and makes sure it is valid
         """
-        pickle.dump(self.pdict, open(filename, 'w'))
+        pickle.dump(self.pdict, open(filename+'.tmp', 'w'))
+        os.rename(filename+'.tmp', filename)
 
     
     def query(self, program_id):
@@ -292,18 +298,14 @@ class ProgramCache:
         Removes all cached programming before today.
         Also removes erroneously cached programming.
         """
-        #now = int(time.strftime('%Y%m%d'))
         now = time.localtime() 
         dnow = datetime.datetime(now[0],now[1],now[2])
         for key in self.pdict.keys():
-                if self.pdict[key].has_key('stop-time') and self.pdict[key]['stop-time'] < dnow:
+            try:
+                if self.pdict[key]['stop-time'] < dnow or self.pdict[key]['name'].lower() == 'onbekend':
                     del self.pdict[key]
-                # normally, these entries should not be present in the 
-                # cache, but people may have caches filled with these
-                # entries before they upgraded to a newer version of this
-                # script
-                elif self.pdict[key]['name'].lower() == 'onbekend':
-                    del self.pdict[key]
+            except:
+                pass    
 
 
 def usage():
@@ -366,6 +368,7 @@ def filter_line(s):
     s = replace(s,'&','&amp;')
 
     return s
+    
 
 def calc_timezone(t):
     """
@@ -1212,6 +1215,8 @@ def main():
 
     num_chans = len(channels.keys())
     channel_cnt = 0
+    if program_cache != None:
+        program_cache.clean()
 
     fluffy = channels.keys()
     nfluffy = len(fluffy)
@@ -1236,6 +1241,10 @@ def main():
                title_split(program)
 
         print xmlefy_programs(blah, id, compat, nocattrans)
+
+        # save the cache after each channel fetch 
+        if program_cache != None:
+            program_cache.dump(program_cache_file)
     
         # be nice to tvgids.nl
         time.sleep(random.randint(nice_time[0], nice_time[1]))
@@ -1246,11 +1255,6 @@ def main():
     # close the outputfile if necessary
     if output != None:
         output.close()
-
-    # save the cache if necessary
-    if program_cache != None:
-        program_cache.clean()
-        program_cache.dump(program_cache_file)
 
     # and return success
     sys.exit(0)
