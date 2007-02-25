@@ -68,7 +68,7 @@ Onselen, Hugo van der Kooij, Han Holl, Ian Mcdonald, Udo van den Heuvel.
 """ 
 
 # Modules we need
-import re, urllib, getopt, sys
+import re, urllib2, getopt, sys
 import time, random
 import htmlentitydefs, os, os.path, pickle
 from string import replace, split, strip
@@ -111,7 +111,7 @@ global_timeout = 10
 # Also, it appears tvgids.nl throttles its output.
 # So there, there is not point in lowering these numbers, if you 
 # are in a hurry, use the (default) fast mode.
-nice_time = [1, 3]
+nice_time = [1, 2]
 
 # Maximum number of characters to use for program description.
 # This is a MythTV-specific setting.
@@ -415,8 +415,12 @@ def get_page_internal(url, quiet=0):
     Optionally, returns None if processing takes longer than
     the specified number of timeout seconds.
     """
+    txtdata = None
+    txtheaders = {'Keep-Alive' : '300' }
     try:
-        fp = urllib.urlopen(url)
+        #fp = urllib2.urlopen(url)
+        rurl = urllib2.Request(url, txtdata, txtheaders)
+        fp = urllib2.urlopen(rurl)
         lines = fp.readlines()
         page = "".join(lines)
         return page
