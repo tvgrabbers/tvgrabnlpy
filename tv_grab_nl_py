@@ -63,7 +63,7 @@ Several other people have provided feedback and patches (these are the
 people I could find in my email archive, if you are missing from this
 list let me know):
 Huub Bouma, Roy van der Kuil, Remco Rotteveel, Mark Wormgoor, Dennis van
-Onselen, Hugo van der Kooij
+Onselen, Hugo van der Kooij, Han Holl, Ian Mcdonald, Udo van den Heuvel.
 
 """ 
 
@@ -73,6 +73,7 @@ import time, random
 import htmlentitydefs, os, os.path, pickle
 from string import replace, split, strip
 from threading import Thread
+from xml.sax import saxutils
 
 # Extra check for the datetime module 
 try:
@@ -94,6 +95,8 @@ except:
     pass
 
 # globals
+# compile only one time
+r_entity = re.compile(r'&(#x[0-9A-Fa-f]+|#[0-9]+|[A-Za-z]+);')
 
 tvgids = 'http://www.tvgids.nl/'
 uitgebreid_zoeken = tvgids + 'zoeken'
@@ -139,19 +142,19 @@ cattrans = { 'amusement'        : 'Talk',
              'educatief'        : 'Educational',
              'erotiek'          : 'Adult',
              'film'             : 'Movies',
-             'muziek'           : 'Music',
+             'muziek'           : 'Art/Music',
              'informatief'      : 'Educational',
-             'jeugd'            : 'Kids',
-             'kunst/cultuur'    : 'arts/culture',
+             'jeugd'            : 'Children',
+             'kunst/cultuur'    : 'Arts/Culture',
              'misdaad'          : 'Crime/Mystery',
              'muziek'           : 'Music',
-             'natuur'           : 'Nature',
+             'natuur'           : 'Science/Nature',
              'nieuws/actualiteiten' : 'News',
              'overige'          : 'Unknown',
              'religieus'        : 'Religion',
-             'serie/soap'       : 'SERIE',
+             'serie/soap'       : 'Drama',
              'sport'            : 'Sports',
-             'theater'          : 'music/ballet/dance',
+             'theater'          : 'Arts/Culture',
              'wetenschap'       : 'Science/Nature'}
 
 # Create a role translation dictionary for the xmltv credits part
@@ -220,7 +223,7 @@ logo_names = {
             99 : [1, 'sport1_1'],
             100 : [1, 'tvutrecht'],
             101 : [0, 'tvwest'],
-            102 : [1, 'tvrijnmond'],
+            102 : [0, 'tvrijnmond'],
             103 : [1, 'tvnoordholland'],
             104 : [1, 'bbcprime'],
             105 : [1, 'spiceplatinum'],
@@ -349,23 +352,23 @@ def filter_line(s):
     """
 
     # do the latin1 stuff
-    pattern = re.compile("&(\S+?);")
-    s = pattern.sub(filter_line_identity, s)
+    s = r_entity.sub(filter_line_identity, s)
 
     s = replace(s,'&nbsp;',' ')
-    s = replace(s,'\r',' ')
-    x = re.compile('(<.*?>)')
-    s = x.sub('', s)
 
-    # A couple of characters which are not legal in Latin-1, we have
-    # to guess what they are.
-    #
+    # Ik vermoed dat de volgende drie regels overbodig zijn, maar ze doen
+    # niet veel kwaad -- Han Holl
+    s = replace(s,'\r',' ')
+    x = re.compile('(<.*?>)') # Udo
+    s = x.sub('', s) #Udo
+
     s = replace(s, '~Q', "'")
     s = replace(s, '~R', "'")
 
     # Hmm, not sure if I understand this. Without it, mythfilldatabase barfs
     # on program names like "Steinbrecher &..."
-    s = replace(s,'&','&amp;')
+    # We most create valid XML -- Han Holl
+    s = saxutils.escape(s)
 
     return s
     
@@ -388,6 +391,8 @@ def calc_timezone(t):
     hour = int(t[8:10])
     minute = int(t[10:12])
 
+    td = {'CET': '+0100', 'CEST': '+0200'}
+
     pt = time.mktime((year,month,day,hour,minute,0,0,0,-1))
     timezone=''
     try:
@@ -395,7 +400,7 @@ def calc_timezone(t):
     except:
         sys.stderr.write('Cannot convert time to timezone')
 
-    return t+' %s' % timezone
+    return t+' %s' % td[timezone]
 
 def format_timezone(td):
     """
@@ -1032,7 +1037,7 @@ def main():
 
     # Parse command line options
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "output=", 
+        opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "output=", "capabilities", 
                                                        "offset=", "days=", 
                                                        "configure", "slow",
                                                        "cache=", "clean_cache", 
@@ -1081,7 +1086,16 @@ def main():
     nocattrans  = 0
     
     # default configuration file locations
-    xmltv_dir   = os.environ['HOME']+'/.xmltv'
+    hpath = ''
+    if os.environ.has_key('HOME'):
+        hpath = os.environ['HOME']
+    # extra test for windows users
+    elif os.environ.has_key('HOMEPATH'):
+        hpath = os.environ['HOMEPATH']
+
+    # hpath = ''
+    xmltv_dir   = hpath+'/.xmltv'
+
     program_cache_file = xmltv_dir+'/program_cache'
     config_file = xmltv_dir+'/tv_grab_nl_py.conf'
 
@@ -1100,6 +1114,13 @@ def main():
 
         if o == "--quiet":
             quiet = 1;
+
+        if o == "--capabilities":
+            print "baseline"
+            print "cache"
+            print "manualconfig"
+            sys.exit(0)
+
 
     for o, a in opts:
         if o == "--config-file":
@@ -1248,6 +1269,8 @@ def main():
     
         # be nice to tvgids.nl
         time.sleep(random.randint(nice_time[0], nice_time[1]))
+        if program_cache != None:
+            program_cache.dump(program_cache_file)
 
     # print footer stuff
     print "</tv>"
