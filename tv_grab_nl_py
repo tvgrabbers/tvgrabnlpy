@@ -318,6 +318,7 @@ def usage():
     print '--help, -h    = print this info'
     print '--configure   = create configfile (overwrites existing file)'
     print '--config-file = name of the configuration file (default = ~/.xmltv/tv_grab_py.conf'
+    print '--capabilities = xmltv required option'
     print '--output      = file where to put the output'
     print '--days        = # number of days to grab'
     print '--offset      = # day offset from where to grab (0 is today, 1 tomorow, etc)'
@@ -818,7 +819,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
     for i in fetch_order:
         counter += 1
         if programs[i]['offset'] >= slowdays:
-                continue
+            continue
         
         if not quiet:
             sys.stderr.write('\n(%3.0f%%) %s: %s ' % (100*float(counter)/float(nprograms), i, programs[i]['name']))
