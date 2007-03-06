@@ -319,9 +319,10 @@ def usage():
     print '--configure   = create configfile (overwrites existing file)'
     print '--config-file = name of the configuration file (default = ~/.xmltv/tv_grab_py.conf'
     print '--capabilities = xmltv required option'
+    print '--description = prints a short description of the grabber'
     print '--output      = file where to put the output'
     print '--days        = # number of days to grab'
-    print '--offset      = # day offset from where to grab (0 is today, 1 tomorow, etc)'
+    print '--preferredmethod = returns the preferred method to be called'
     print '--slow        = also grab descriptions of programming'
     print '--quiet       = suppress all output'
     print '----'
@@ -1043,10 +1044,10 @@ def main():
     # Parse command line options
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "output=", "capabilities", 
-                                                       "offset=", "days=", 
+                                                       "preferredmethod", "days=", 
                                                        "configure", "slow",
                                                        "cache=", "clean_cache", 
-                                                       "slowdays=","compat",
+                                                       "slowdays=","compat","description",
                                                        "nocattrans","config-file=",
                                                        "max_overlap=", "overlap_strategy=",
                                                        "clear_cache", "quiet","logos"])
@@ -1059,9 +1060,6 @@ def main():
     # where the output goes
     output      = None
     output_file = None
-
-    # offset from today, i.e. today = 0, tomorrow = 1, etc 
-    offset      = 0
 
     # the total number of days to fetch 
     days        = 7
@@ -1120,12 +1118,19 @@ def main():
         if o == "--quiet":
             quiet = 1;
 
-        if o == "--capabilities":
-            print "baseline"
-            print "cache"
-            print "manualconfig"
+        if o == "--description":
+            print "The Netherlands (tv_grab_nl_py $Rev$)"
             sys.exit(0)
 
+        if o == "--capabilities":
+            print "cache"
+            print "manualconfig"
+            print "preferredmethod"
+            sys.exit(0)
+
+        if o == '--preferredmethod':
+            print 'allatonce'
+            sys.exit(0)
 
     for o, a in opts:
         if o == "--config-file":
@@ -1155,9 +1160,6 @@ def main():
 
         if o == "--nocattrans":
             nocattrans = 1
-
-        if o == "--offset":
-            offset = int(a)
 
         if o == "--slow":
             slow = 1
