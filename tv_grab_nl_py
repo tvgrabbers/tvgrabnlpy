@@ -229,6 +229,7 @@ logo_names = {
             105 : [1, 'spiceplatinum'],
             107 : [0, 'canal+yellow'],
             108 : [0, 'tvnoord'],
+            109 : [0, 'omropfryslan'],
             114 : [0, 'omroepbrabant']}
 
 # Work in progress, the idea is to cache program categories and
@@ -393,12 +394,15 @@ def calc_timezone(t):
     hour = int(t[8:10])
     minute = int(t[10:12])
 
-    td = {'CET': '+0100', 'CEST': '+0200'}
+    #td = {'CET': '+0100', 'CEST': '+0200'}
+    #td = {'CET': '+0100', 'CEST': '+0200', 'W. Europe Standard Time' : '+0100', 'West-Europa (standaardtijd)' : '+0100'}
+    td = {0 : '+0100', 1 : '+0200'}
 
     pt = time.mktime((year,month,day,hour,minute,0,0,0,-1))
     timezone=''
     try:
-        timezone = time.tzname[(time.localtime(pt))[-1]]
+        #timezone = time.tzname[(time.localtime(pt))[-1]]
+        timezone = (time.localtime(pt))[-1]
     except:
         sys.stderr.write('Cannot convert time to timezone')
 
@@ -577,6 +581,8 @@ def get_channel_all_days(channel, days, quiet=0):
             tdict['start'] = start_time
             tdict['stop']  = stop_time
             tdict['name']  = program_name
+            if tdict['name'] == '':
+                tdict['name' = 'onbekend'
             tdict['url']   = program_url
             tdict['ID']    = detail.group(2)
             tdict['offset'] = offset
