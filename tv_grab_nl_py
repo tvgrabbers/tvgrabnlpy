@@ -582,7 +582,7 @@ def get_channel_all_days(channel, days, quiet=0):
             tdict['stop']  = stop_time
             tdict['name']  = program_name
             if tdict['name'] == '':
-                tdict['name' = 'onbekend'
+                tdict['name'] = 'onbekend'
             tdict['url']   = program_url
             tdict['ID']    = detail.group(2)
             tdict['offset'] = offset
