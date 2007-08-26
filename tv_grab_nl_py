@@ -113,10 +113,6 @@ global_timeout = 10
 # are in a hurry, use the (default) fast mode.
 nice_time = [1, 2]
 
-# Maximum number of characters to use for program description.
-# This is a MythTV-specific setting.
-desc_len = 475
-
 # Maximum length in minutes of gaps/overlaps between programs to correct
 max_overlap = 10
 
@@ -324,6 +320,7 @@ def usage():
     print '--configure   = create configfile (overwrites existing file)'
     print '--config-file = name of the configuration file (default = ~/.xmltv/tv_grab_py.conf'
     print '--capabilities = xmltv required option'
+    print '--desc-length = maximum allowed length of programme descriptions in bytes.'
     print '--description = prints a short description of the grabber'
     print '--output      = file where to put the output'
     print '--days        = # number of days to grab'
@@ -964,7 +961,7 @@ def title_split(program):
        program['titel aflevering'] = program['name'][colonpos+1:len(program['name'])].strip()
        program['name'] =  program['name'][0:colonpos].strip()
 
-def xmlefy_programs(programs, channel, compat=0, nocattrans=0):
+def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
     """
     Given a list of programming (from get_channels())
     returns a string with the xml equivalent
@@ -1057,7 +1054,8 @@ def main():
                                                        "preferredmethod", "days=", 
                                                        "configure", "slow",
                                                        "cache=", "clean_cache", 
-                                                       "slowdays=","compat","description",
+                                                       "slowdays=","compat",
+                                                       "desc-length=","description",
                                                        "nocattrans","config-file=",
                                                        "max_overlap=", "overlap_strategy=",
                                                        "clear_cache", "quiet","logos"])
@@ -1097,7 +1095,11 @@ def main():
     # enable this option if you do not want the tvgids categories being translated into
     # MythTV-categories (genres)
     nocattrans  = 0
-    
+
+    # Maximum number of characters to use for program description.
+    # Different values may work better in different versions of MythTV.
+    desc_len = 475
+ 
     # default configuration file locations
     hpath = ''
     if os.environ.has_key('HOME'):
@@ -1141,6 +1143,12 @@ def main():
         if o == '--preferredmethod':
             print 'allatonce'
             sys.exit(0)
+
+        if o == '--desc-length':
+            # Use the requested length for programme descriptions.
+            desc_len = int(a)
+            if not quiet:
+                sys.stderr.write('Using description length: %d\n' % desc_len)
 
     for o, a in opts:
         if o == "--config-file":
@@ -1278,7 +1286,7 @@ def main():
             for program in blah:
                title_split(program)
 
-        print xmlefy_programs(blah, id, compat, nocattrans)
+        print xmlefy_programs(blah, id, desc_len, compat, nocattrans)
 
         # save the cache after each channel fetch 
         if program_cache != None:
