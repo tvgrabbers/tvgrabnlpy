@@ -877,9 +877,15 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
 
         # now parse the details
         for descript in descriptions:
-            programs[i]['detail1'] = filter_line(descript.group(1)).strip()
-            programs[i]['detail2'] = filter_line(descript.group(2)).strip()
-            programs[i]['detail3'] = filter_line(descript.group(3)).strip()
+            # Remove sponsored link from description if present.
+            for line_nr in [1,2,3]:
+                d_str = 'detail' + str(line_nr)
+                programs[i][d_str] = descript.group(line_nr)
+                sponsor_pos = programs[i][d_str].rfind('<i>Gesponsorde link:</i>')
+                if sponsor_pos > 0:
+                    programs[i][d_str] = programs[i][d_str][0:sponsor_pos]
+
+                programs[i][d_str] = filter_line(programs[i][d_str]).strip()
 
         for d in details:
             type = d.group(1).strip().lower()
