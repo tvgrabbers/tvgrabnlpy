@@ -423,7 +423,7 @@ def get_page_internal(url, quiet=0):
     the specified number of timeout seconds.
     """
     txtdata = None
-    txtheaders = {'Keep-Alive' : '300' }
+    txtheaders = {'keep-alive' : '300' }
     try:
         #fp = urllib2.urlopen(url)
         rurl = urllib2.Request(url, txtdata, txtheaders)
@@ -1033,13 +1033,13 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
         if program.has_key('video') and program['video'] != {}:
             output.append('    <video>\n');
             if program['video'].has_key('breedbeeld'):
-                output.append('           <aspect>"16:9"</aspect>\n')
+                output.append('           <aspect>16:9</aspect>\n')
             if program['video'].has_key('blackwhite'):
                 output.append('           <colour>no</colour>\n')
             output.append('    </video>\n')
 
         if program.has_key('stereo'):
-            output.append('    <audio><stereo>yes</stereo></audio>\n')
+            output.append('    <audio><stereo>stereo</stereo></audio>\n')
  
         if program.has_key('teletekst'):
             output.append('    <subtitles type="teletext" />\n')
