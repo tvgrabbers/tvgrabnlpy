@@ -715,6 +715,12 @@ def parse_programs(programs, offset=0, quiet=0):
            programs[i]['start-time'] != programs[i]['stop-time']:
             good_programs.append(programs[i])
 
+    # Han Holl: try to exclude programs that stop before they begin
+    for i in range(len(good_programs)-1,-1,-1):
+        if good_programs[i]['stop-time'] <= good_programs[i]['start-time']:
+            if not quiet:
+                sys.stderr.write('Deleting invalid stop/start time: %s\n' % good_programs[i]['name'])
+            del good_programs[i]
 
     # Try to exclude programs that only identify a group or broadcaster and have overlapping start/end times with
     # the actual programs
