@@ -423,7 +423,8 @@ def get_page_internal(url, quiet=0):
     the specified number of timeout seconds.
     """
     txtdata = None
-    txtheaders = {'keep-alive' : '300' }
+    txtheaders = {'Keep-Alive' : '300',
+                  'User-agent' : 'Mozilla/5.0' }
     try:
         #fp = urllib2.urlopen(url)
         rurl = urllib2.Request(url, txtdata, txtheaders)
