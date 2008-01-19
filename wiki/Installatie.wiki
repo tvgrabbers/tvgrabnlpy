@@ -1,5 +1,3 @@
-#summary Installatie.
-
 = Installatie =
 
 == Algemeen ==
@@ -9,41 +7,34 @@
   * Maak een symlink naar de nieuwe grabber: `ln -s /waar/ik/de/grabber/neerzet/tv_grab_nl_py /usr/bin/tv_grab_nl`
   * Maak de grabber executable: `chmod ugo+x /waar/ik/de/grabber/neerzet/tv_grab_nl_py`
 
-==Configuratie ==
+== Configuratie ==
 
     * Haal de lijst met tv kanalen op: `tv_grab_nl_py --configure of: tv_grab_nl --configure` al naar gelang hoe een en ander gesymlinked is.
     * De lijst wordt standaard neergezet in: ${HOME}/.xmltv/tv_grab_nl_py.conf, als die directory niet bestaat dan wordt deze automatisch aangemaakt. Alternatief is de --config-file optie.
     * Edit de gedownloade lijst, haal de regels met kanalen die je niet wilt grabben weg of zet er een # voor
     * De eerste keer kan de grabber er een behoorlijke tijd over doen om detailinformatie op te halen. Het beste kun je eerst de informatie ophalen in fast mode (--slow=0), dan heb je snel een overzicht (maar zonder detailinformatie). Daarna kun je de grabber aanzetten om alles op te halen. De opgehaalde informatie wordt gecached, en de volgende keer zal het aanmerkelijk sneller gaan. Om een idee te geven: ik haal voor 21 kanalen informatie op en dit duurt ongeveer 24 minuten. 
 
-==Opties==
+== Opties ==
 
   * `tv_grab_nl_py --help`
   * Als je voorheen tv_grab_nl gebruikte, geef dan de `--compat` optie mee of zet compat = 1 in het script (zo rond regel 953), dan worden de correcte xmltvid's gegenereerd.
-  * Standaard worden logo's automatisch toegevoegd aan de xmldata. De optie is `--logos=1` of zet logos = 1, uitzetten kan natuurlijk ook. Let op: mythfilldatabase trekt de logo's binnen en zet ze neer in ${HOME}/.mythtv/channels (dus, de homedirectory van de user die mythfilldatabase draait). Oude logo's worden niet overschreven, dus als je al je logo's nieuw wilt hebben maak dan deze directory even leeg. Met dank aan Michel van der Laan zijn er de volgende logo's LogoPage
+  * Standaard worden logo's automatisch toegevoegd aan de xmldata. De optie is `--logos=1` of zet logos = 1, uitzetten kan natuurlijk ook. Let op: mythfilldatabase trekt de logo's binnen en zet ze neer in ${HOME}/.mythtv/channels (dus, de homedirectory van de user die mythfilldatabase draait). Oude logo's worden niet overschreven, dus als je al je logo's nieuw wilt hebben maak dan deze directory even leeg. Met dank aan Michel van der Laan zijn er de volgende logo's: LogoPage
 
-    * --max_overlap de maximale lengte van de positieve of negative overlap in minuten die nog gecorrigeerd zal worden. Standaard 10 minuten.
-    * --overlap_strategy de strategie die wordt gevolgd bij het corrigeren van een overlap:
-          o "average" (default), middel het overlappende interval en pas de begin- en eindtijden van de omliggende programma's aan
-          o "stop" de eindtijd van het eerste programma is leidend, dit is een handige strategie om te gebruiken om iets meer kans te hebben het einde van een programma te vangen
-          o "start" de starttijd van het tweede programma is leidend, dit is een handige strategie om iets meer kans te hebben het begin van een programma te vangen.
-          o "none" doe niets met overlappende programma's. De kans is groot dat een gedeelte van de programmering door mythfilldatabase niet geaccepteerd wordt.
+ 
+== Configuratie-opties ==
 
-configuratie-opties
+  * Optioneel kun je cron gebruiken om dagelijks de informatie te verversen:
+    * Save het volgende stukje in ~/bin/mythfilldatabasecron
+{{{
+#!/bin/bash
+export QTDIR=/usr/lib/qt3
+/usr/local/bin/mythfilldatabase
+}}}                    
+    * Edit de crontab: crontab -e en voeg een regel toe met:
+{{{
+24 05 * * * /home/paul/bin/mythfilldatabasecron
+}}}
 
-    * Optioneel kun je cron gebruiken om dagelijks de informatie te verversen:
-          o Save het volgende stukje in ~/bin/mythfilldatabasecron
-
-                    #!/bin/bash
-                    export QTDIR=/usr/lib/qt3
-                    /usr/local/bin/mythfilldatabase
-                    
-
-          o Edit de crontab: crontab -e en voeg een regel toe met:
-
-            24 05 * * * /home/paul/bin/mythfilldatabasecron
-
-    * Klaar! 
 
 problemen
 
