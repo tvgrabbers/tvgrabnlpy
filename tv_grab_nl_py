@@ -228,6 +228,20 @@ logo_names = {
             109 : [0, 'omropfryslan'],
             114 : [0, 'omroepbrabant']}
 
+# A selection of user agents we will impersonate, in an attempt to be less
+# conspicuous to the tvgids.nl police.
+
+user_agents = [ 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)',
+       'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
+       'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322)',
+       'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.7) Gecko/20060909 Firefox/1.5.0.7',
+       'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)',
+       'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.9) Gecko/20071105 Firefox/2.0.0.9',
+       'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
+       'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.8) Gecko/20071022 Ubuntu/7.10 (gutsy) Firefox/2.0.0.8'
+       ]
+
+
 # Work in progress, the idea is to cache program categories and
 # descriptions to eliminate a lot of page fetches from tvgids.nl
 # for programs that do not have interesting/changing descriptions
@@ -424,7 +438,7 @@ def get_page_internal(url, quiet=0):
     """
     txtdata = None
     txtheaders = {'Keep-Alive' : '300',
-                  'User-agent' : 'Mozilla/5.0' }
+                  'User-Agent' : user_agents[random.randint(0, len(user_agents)-1)] }
     try:
         #fp = urllib2.urlopen(url)
         rurl = urllib2.Request(url, txtdata, txtheaders)
@@ -911,6 +925,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 if    (programs[i]['detail1'].lower().find('film')      != -1 \
                    or  programs[i]['detail1'].lower().find('komedie')   != -1)\
                    and programs[i]['detail1'].lower().find('tekenfilm') == -1 \
+                   and programs[i]['detail1'].lower().find('animatiekomedie') == -1 \
                    and programs[i]['detail1'].lower().find('filmpje')   == -1:
                     genre = 'film'
 
@@ -1149,6 +1164,7 @@ def main():
             sys.exit(0)
 
         if o == "--capabilities":
+            print "baseline"
             print "cache"
             print "manualconfig"
             print "preferredmethod"
@@ -1182,7 +1198,7 @@ def main():
             if not quiet:
                 sys.stderr.write('Creating config file: %s\n' % config_file)
             get_channels(config_file)
-            sys.exit(2)
+            sys.exit(0)
 
         if o == "--days":
             days = int(a)
