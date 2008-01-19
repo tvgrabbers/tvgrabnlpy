@@ -1,5 +1,6 @@
 == Contact ==
 
   * Suggesties, problemen, patches, etc. kun je mailen naar paul|at|pwdebruin|dot|net
-  * De mailinglist kan misschien helpen.
+  * Er is een mailinglijst voor tv_grab_nl_py. Voordat je kunt posten zul je je eerst moeten aanmelden [http://pwdebruin.net/mailman/listinfo/tv_grab_nl_py_pwdebruin.net].
+  * Er is een [http://pwdebruin.net/pipermail/tv_grab_nl_py_pwdebruin.net/ archief] van de mailinglist beschikbaar
   
