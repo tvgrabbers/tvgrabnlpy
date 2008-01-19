@@ -1,0 +1,7 @@
+==Problemen==
+
+  * "Mijn data is een dag verschoven."
+    Dit kan komen doordat de grabber draait tussen 00:00 en 04:00. Op die tijden gaat tvgids er nog van uit dat je data voor "vandaag" wilt hebben. Je krijg dan precies een dag verschoven de data binnen. Simpele oplossing is om ergens na 04:00 te grabben.
+  * "Er komt geen data binnen via mythfilldatabase, en hij download wel alles."
+    Waarschijnlijk gebruikte je eerst tv_grab_nl? Gebruik de --compat flag of edit het script en zet compat = 1. Dit zorgt ervoor dat de xmltvid volgens tv_grab_nl standaard wordt doorgegeven.
+  * ... suggesties?
