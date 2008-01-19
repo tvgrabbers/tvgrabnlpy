@@ -10,15 +10,15 @@
 == Configuratie ==
 
     * Haal de lijst met tv kanalen op: `tv_grab_nl_py --configure of: tv_grab_nl --configure` al naar gelang hoe een en ander gesymlinked is.
-    * De lijst wordt standaard neergezet in: ${HOME}/.xmltv/tv_grab_nl_py.conf, als die directory niet bestaat dan wordt deze automatisch aangemaakt. Alternatief is de --config-file optie.
+    * De lijst wordt standaard neergezet in: `${HOME}/.xmltv/tv_grab_nl_py.conf`, als die directory niet bestaat dan wordt deze automatisch aangemaakt. Alternatief is de `--config-file` optie.
     * Edit de gedownloade lijst, haal de regels met kanalen die je niet wilt grabben weg of zet er een # voor
-    * De eerste keer kan de grabber er een behoorlijke tijd over doen om detailinformatie op te halen. Het beste kun je eerst de informatie ophalen in fast mode (--slow=0), dan heb je snel een overzicht (maar zonder detailinformatie). Daarna kun je de grabber aanzetten om alles op te halen. De opgehaalde informatie wordt gecached, en de volgende keer zal het aanmerkelijk sneller gaan. Om een idee te geven: ik haal voor 21 kanalen informatie op en dit duurt ongeveer 24 minuten. 
+    * De eerste keer kan de grabber er een behoorlijke tijd over doen om detailinformatie op te halen. Het beste kun je eerst de informatie ophalen in fast mode (`--slow=0`), dan heb je snel een overzicht (maar zonder detailinformatie). Daarna kun je de grabber aanzetten om alles op te halen. De opgehaalde informatie wordt gecached, en de volgende keer zal het aanmerkelijk sneller gaan. Om een idee te geven: ik haal voor 21 kanalen informatie op en dit duurt ongeveer 24 minuten. 
 
 == Opties ==
 
   * `tv_grab_nl_py --help`
   * Als je voorheen tv_grab_nl gebruikte, geef dan de `--compat` optie mee of zet compat = 1 in het script (zo rond regel 953), dan worden de correcte xmltvid's gegenereerd.
-  * Standaard worden logo's automatisch toegevoegd aan de xmldata. De optie is `--logos=1` of zet logos = 1, uitzetten kan natuurlijk ook. Let op: mythfilldatabase trekt de logo's binnen en zet ze neer in ${HOME}/.mythtv/channels (dus, de homedirectory van de user die mythfilldatabase draait). Oude logo's worden niet overschreven, dus als je al je logo's nieuw wilt hebben maak dan deze directory even leeg. Met dank aan Michel van der Laan zijn er de volgende logo's: LogoPage
+  * Standaard worden logo's automatisch toegevoegd aan de xmldata. De optie is `--logos=1` of zet logos = 1, uitzetten kan natuurlijk ook. Let op: mythfilldatabase trekt de logo's binnen en zet ze neer in `${HOME}/.mythtv/channels` (dus, de homedirectory van de user die mythfilldatabase draait). Oude logo's worden niet overschreven, dus als je al je logo's nieuw wilt hebben maak dan deze directory even leeg. Met dank aan Michel van der Laan zijn er de volgende logo's: LogoPage
 
  
 == Configuratie-opties ==
@@ -35,18 +35,3 @@ export QTDIR=/usr/lib/qt3
 24 05 * * * /home/paul/bin/mythfilldatabasecron
 }}}
 
-
-problemen
-
-    * "Mijn data is een dag verschoven."
-      Dit kan komen doordat de grabber draait tussen 00:00 en 04:00. Op die tijden gaat tvgids er nog van uit dat je data voor "vandaag" wilt hebben. Je krijg dan precies een dag verschoven de data binnen. Simpele oplossing is om ergens na 04:00 te grabben.
-    * "Er komt geen data binnen via mythfilldatabase, en hij download wel alles."
-      Waarschijnlijk gebruikte je eerst tv_grab_nl? Gebruik de --compat flag of edit het script en zet compat = 1. Dit zorgt ervoor dat de xmltvid volgens tv_grab_nl standaard wordt doorgegeven.
-    * ... suggesties?
-
-contact
-
-    * Suggesties, problemen, patches, etc. kun je mailen naar paul|at|pwdebruin|dot|net
-    * De mailinglist kan misschien helpen.
-    * De laatste grote verbeteringen zijn toegevoegd door Michael Heus (regisseur, acteur, presentatorinformatie, overlapverwijdering, tips van tvgids, stereo, breedbeeld, zwart-wit, en betere filmdetectie).
-    * De logo's komen uit de collectie van Michel van der Laan 
