@@ -671,6 +671,8 @@ def correct_times(programs, quiet=0):
         day_start_time = programs[0]['start']
 
     for program in programs:
+        if program['start'] == program['stop']:
+            program['stop'] = None
 
         # convert the times 
         if program['start'] != None:
@@ -775,7 +777,7 @@ def parse_programs(programs, offset=0, quiet=0):
         overlap = 24*60*60*dt.days + dt.seconds
 
         # check for the size of the overlap
-        if 0 < abs(overlap) < max_overlap*60:
+        if 0 < abs(overlap) <= max_overlap*60:
             if not quiet:
                 if overlap > 0:
                     sys.stderr.write('"%s" and "%s" overlap %s minutes. Adjusting times.\n' % \
