@@ -637,8 +637,7 @@ def make_daytime(time_string, offset=0, cutoff='00:00', stoptime=False):
     Out[5]:datetime.datetime(2006, 8, 4, 11, 34)
 
     """
-    h = int(time_string[0:2])
-    m = int(time_string[3:5])
+    h,m = [int(x) for x in time_string.split(':')];
     hm = int(time_string.replace(':',''))
     chm = int(cutoff.replace(':',''))
 
