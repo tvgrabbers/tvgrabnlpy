@@ -281,10 +281,11 @@ class ProgramCache:
         """
         Dumps a pickled cache, and makes sure it is valid
         """
-        try:
-            os.remove(filename)
-        except:
-            sys.stderr.write('Cannot remove %s, check permissions' % filename)
+        if os.access(filename, F_OK):
+            try:
+                os.remove(filename)
+            except:
+                sys.stderr.write('Cannot remove %s, check permissions' % filename)
         pickle.dump(self.pdict, open(filename+'.tmp', 'w'))
         os.rename(filename+'.tmp', filename)
 
