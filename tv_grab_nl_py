@@ -281,7 +281,7 @@ class ProgramCache:
         """
         Dumps a pickled cache, and makes sure it is valid
         """
-        if os.access(filename, F_OK):
+        if os.access(filename, os.F_OK):
             try:
                 os.remove(filename)
             except:
