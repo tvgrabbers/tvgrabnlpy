@@ -57,7 +57,7 @@ it now also includes:
  - Star-rating for programs tipped by tvgids.nl
  - Black&White, Stereo and URL info
  - Better detection of Movies
- - and more... 
+ - and much, much more... 
 
 Several other people have provided feedback and patches (these are the
 people I could find in my email archive, if you are missing from this
@@ -534,82 +534,99 @@ def get_channel_all_days(channel, days, quiet=0):
     The output is a list of programming in order where each row
     contains a dictionary with program information.
     """
-
+    
+    now = datetime.datetime.now()
+    
     programs = []
 
+    # Tvgids shows programs per channel per day, so we loop over the number of days
+    # we are required to grab
     for offset in range(0, days):
-	channel_url = 'http://www.tvgids.nl/zoeken/?q=&d=%i&z=%s&t=&g=&v=0' % (offset, channel)
-	#	channel_url = 'http://www.tvgids.nl/zoeken/?trefwoord=Titel+of+trefwoord&interval=0&timeslot='+\
-	#           '&station=%s&periode=%i&genre=&order=0' % (channel,days-1)
+    
+        channel_url = 'http://www.tvgids.nl/zoeken/?d=%i&z=%s' % (offset, channel)
 
-	if offset > 0:
-		time.sleep(random.randint(nice_time[0], nice_time[1]))
+	# For historic purposes, the old style url that gave us a full week in advance:
+        #       channel_url = 'http://www.tvgids.nl/zoeken/?trefwoord=Titel+of+trefwoord&interval=0&timeslot='+\
+        #           '&station=%s&periode=%i&genre=&order=0' % (channel,days-1)
+	# Sniff, we miss you...
 
-    	# get the raw programming for the day
-    	total = get_page(channel_url, quiet)
-    	if total == None:
-        	return programs
+        if offset > 0:
+                time.sleep(random.randint(nice_time[0], nice_time[1]))
 
-    	# Setup a number of regexps
+        # get the raw programming for the day
+        total = get_page(channel_url, quiet)
 
-    	# match  <tr .*>.*</tr> 
-    	# 1 = optional "class=progTip"
-    	# 2 = program info
-    	getrow = re.compile('<a href="/programma/(.*?)</a>',re.DOTALL)
+        if total == None:
+                return programs
 
-    	# match the required program info
-    	# 1 = ID
-    	# 2 = times
-    	# 3 = program name
-    	parserow = re.compile('(.*?)/.*<span class="time">(.*?)</span>.*<span class="title">(.*?)</span>', re.DOTALL)
+        # Setup a number of regexps
 
-    	#  normal begin and end times
-    	times = re.compile('([0-9]+:[0-9]+) - ([0-9]+:[0-9]+)?')
+        # checkday will match only the day of the month embedded in H2 tags, e.g.
+	#    <h2>zondag 19 oktober 2008</h2>
+        checkday = re.compile('<h2>.*?\ (.*?)\ (.*?)\ .*?</h2>',re.DOTALL)
 
-    	# day switch
-    	dayswitch = re.compile('<h4>.*?</h4>')
+        # getrow will locate each row with program details 
+        getrow = re.compile('<a href="/programma/(.*?)</a>',re.DOTALL)
 
-    	# and find relevant programming info
-    	allrows = getrow.finditer(total)
+        # parserow matches the required program info, with groups:
+        # 1 = program ID
+        # 2 = broadcast times
+        # 3 = program name
+        parserow = re.compile('(.*?)/.*<span class="time">(.*?)</span>.*<span class="title">(.*?)</span>', re.DOTALL)
 
-    	for r in allrows:
-        	detail = parserow.search(r.group(1))
+        #  normal begin and end times
+        times = re.compile('([0-9]+:[0-9]+) - ([0-9]+:[0-9]+)?')
 
-        	if detail != None: 
+	# Get the day of month listed on the page as well as the expected date we are grabbing and compare these.
+	# If these do not match, we skip parsing the programs on the page and issue a warning.
+	dayno = int(checkday.search(total).group(1))
+	expected = now + datetime.timedelta(days=offset)
+	
+	if (dayno != expected.day):
+	    sys.stderr.write('\nOops, did not expect page %s to list programs for "%s %s", skipping it...\n' % (channel_url,checkday.search(total).group(1),checkday.search(total).group(2)))
+	    continue
+	
 
-            		# default times
-            		start_time = None
-            		stop_time  = None
+        # and find relevant programming info
+        allrows = getrow.finditer(total)
 
-            		# parse for begin and end times
-            		t  = times.search(detail.group(2))
+        for r in allrows:
+                detail = parserow.search(r.group(1))
 
-            		if t != None:
-                		start_time = t.group(1)
-                		stop_time  = t.group(2)
+                if detail != None: 
 
-            		#program_url  = 'http://www.tvgids.nl/programmadetail/?ID=' + detail.group(2)
-            		program_url  = 'http://www.tvgids.nl/programma/' + detail.group(1) + '/'
-            		program_name = detail.group(3)
+                        # default times
+                        start_time = None
+                        stop_time  = None
 
-            		# store time, name and detail url in a dictionary 
-            		tdict = {}
-            		tdict['start'] = start_time
-            		tdict['stop']  = stop_time
-            		tdict['name']  = program_name
-            		if tdict['name'] == '':
-                		tdict['name'] = 'onbekend'
-            		tdict['url']   = program_url
-            		tdict['ID']    = detail.group(1)
-            		tdict['offset'] = offset
+                        # parse for begin and end times
+                        t  = times.search(detail.group(2))
 
-            		#Add star rating if tipped by tvgids.nl
-            		tdict['star-rating'] = '';
-            		if r.group(1).find('Tip') != -1:
-                		tdict['star-rating'] = '4/5'
+                        if t != None:
+                                start_time = t.group(1)
+                                stop_time  = t.group(2)
 
-            		# and append the program to the list of programs
-            		programs.append(tdict)
+                        program_url  = 'http://www.tvgids.nl/programma/' + detail.group(1) + '/'
+                        program_name = detail.group(3)
+
+                        # store time, name and detail url in a dictionary 
+                        tdict = {}
+                        tdict['start'] = start_time
+                        tdict['stop']  = stop_time
+                        tdict['name']  = program_name
+                        if tdict['name'] == '':
+                                tdict['name'] = 'onbekend'
+                        tdict['url']   = program_url
+                        tdict['ID']    = detail.group(1)
+                        tdict['offset'] = offset
+
+                        #Add star rating if tipped by tvgids.nl
+                        tdict['star-rating'] = '';
+                        if r.group(1).find('Tip') != -1:
+                                tdict['star-rating'] = '4/5'
+
+                        # and append the program to the list of programs
+                        programs.append(tdict)
 
     # done
     return programs
@@ -833,14 +850,13 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
     Given a list of programs, from get_channel, retrieve program information
     """
 
-    # detail regexp now also allows detection of <td class=personen> tags
-    detail      = re.compile('<li>.*<strong>(.*?):</strong>.*<br />(.*?)</li>', re.DOTALL)
-    #detaildiv   = re.compile('<div>(.*?)</div>', re.DOTALL)
+    # This regexp tries to find details such as Genre, Acteurs, Jaar van Premiere etc.
+    detail      = re.compile('<li>.*?<strong>(.*?):</strong>.*?<br />(.*?)</li>', re.DOTALL)
 
-    description = re.compile('<div class="description">.*<span class="text">(.*?)</span>',re.DOTALL)
+    # These regexps find the description area, the program type and descriptive text
+    description = re.compile('<div class="description">.*?<p class="text">(.*?)</div>',re.DOTALL)
+    descrtype = re.compile('<span class="type">(.*?)</span>',re.DOTALL)
     descrline = re.compile('<p>(.*?)</p>',re.DOTALL)
-    # regexp for finding persons in list of roles
-    person      = re.compile('(.+?)(\.\ [^:]*\:\ |en\/of|e\.a.*|\/|\ en\ |<br\ />|;\ )',re.DOTALL)
 
     # randomize detail requests
     nprograms = len(programs)
@@ -889,8 +905,8 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 sys.stderr.write(' [normal fetch]')
             total = get_page(programs[i]['url'])
             details = detail.finditer(total)
-		
-	    descrspan = description.search(total);
+                
+            descrspan = description.search(total);
             descriptions = descrline.finditer(descrspan.group(1))
         except:
             # if we cannot find the description page, 
@@ -903,23 +919,45 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         programs[i]['video']   = {}
 
         # now parse the details
-	line_nr = 1;
+	
+        line_nr = 1;
+	
+	# First, we try to find the program type in the description section.
+	# Note that this is not the same as the generic genres (these are searched later on), but a more descriptive one like "Culinair programma" 
+	# If present, we store this as first part of the regular description:
+
+	programs[i]['detail1'] = descrtype.search(descrspan.group(1)).group(1).capitalize()
+	if programs[i]['detail1'] != '':
+	   line_nr = line_nr + 1
+
+	# Secondly, we add one or more lines of the program description that are present.
+    
         for descript in descriptions:
-            # Remove sponsored link from description if present.
             d_str = 'detail' + str(line_nr)
             programs[i][d_str] = descript.group(1)
+
+            # Remove sponsored link from description if present.
             sponsor_pos = programs[i][d_str].rfind('<i>Gesponsorde link:</i>')
             if sponsor_pos > 0:
                 programs[i][d_str] = programs[i][d_str][0:sponsor_pos]
 
             programs[i][d_str] = filter_line(programs[i][d_str]).strip()
-	    line_nr = line_nr + 1
-
+            line_nr = line_nr + 1
+	
+	# Finally, we check out all program details. These are generically denoted as:
+	#
+	#   <li><strong>(TYPE):</strong><br />(CONTENT)</li> 
+	#
+	# Some examples:
+	#
+	#   <li><strong>Genre:</strong><br />16 oktober 2008</li>
+	#   <li><strong>Genre:</strong><br />Amusement</li>
+									    
         for d in details:
             type = d.group(1).strip().lower()
             content_asis = d.group(2).strip()
-
             content = filter_line(content_asis).strip()
+	    
             if content == '':
                 continue
 
@@ -947,13 +985,16 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
             # Parse persons and their roles for credit info
             elif roletrans.has_key(type):
                 programs[i]['credits'][roletrans[type]] = []
-                #persons = person.finditer(detaildiv.search(content_asis).group(1))
-		persons = content_asis.split(',');
+
+                persons = content_asis.split(',');
+
                 for name in persons:
                     if name.find(':') != -1:
                         name = name.split(':')[1]
                     if name.find('-') != -1:
                         name = name.split('-')[0]
+                    if name.find('e.a') != -1:
+                        name = name.split('e.a')[0]
                     programs[i]['credits'][roletrans[type]].append(filter_line(name.strip()))
 
             elif type == 'bijzonderheden':
@@ -968,10 +1009,13 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
             elif type == 'url':
                 programs[i]['infourl'] = content
             else:
+		# In unmatched cases, we still add the parsed type and content to the program details.
+		# Some of these will lead to xmltv output during the xmlefy_programs step
                 programs[i][type] = content
 
         # do not cache programming that is unknown at the time
         # of fetching.
+	
         if programs[i]['name'].lower() != 'onbekend':
             program_cache.add(programs[i])
 
@@ -1022,7 +1066,7 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
 
         desc = []
         for detail_row in ['detail1','detail2','detail3']:
-                if program.has_key(detail_row) and program[detail_row] != '' and  program[detail_row].find('geen detailgegevens bekend') == -1:
+                if program.has_key(detail_row) and program[detail_row] != '' and program[detail_row].find('geen detailgegevens bekend') == -1:
                         desc.append('%s ' % program[detail_row])
         if desc != []:
                 # join and remove newlines from descriptions
@@ -1207,7 +1251,8 @@ def main():
             sys.exit(0)
 
         if o == "--days":
-            days = int(a)
+	    # limit days to maximum supported by tvgids.nl
+            days = min(int(a),6)
 
         if o == "--compat":
             compat = 1
@@ -1235,7 +1280,8 @@ def main():
                 sys.exit(2)
 
         if o == "--slowdays":
-            slowdays = int(a)
+	    # limit slowdays to maximum supported by tvgids.nl
+            slowdays = min(int(a),6)
             # slowdays implies slow == 1
             slow = 1
 
@@ -1348,4 +1394,3 @@ if __name__ == '__main__':
     main()
 
 # vim:tw=0:et:sw=4
-
