@@ -99,7 +99,7 @@ except:
 r_entity = re.compile(r'&(#x[0-9A-Fa-f]+|#[0-9]+|[A-Za-z]+);')
 
 tvgids = 'http://www.tvgids.nl/'
-uitgebreid_zoeken = tvgids + 'zoeken'
+uitgebreid_zoeken = tvgids + 'zoeken/'
 
 # how many seconds to wait before we timeout on a 
 # url fetch, 10 seconds seems reasonable
@@ -545,10 +545,10 @@ def get_channel_all_days(channel, days, quiet=0):
     
         channel_url = 'http://www.tvgids.nl/zoeken/?d=%i&z=%s' % (offset, channel)
 
-	# For historic purposes, the old style url that gave us a full week in advance:
+        # For historic purposes, the old style url that gave us a full week in advance:
         #       channel_url = 'http://www.tvgids.nl/zoeken/?trefwoord=Titel+of+trefwoord&interval=0&timeslot='+\
         #           '&station=%s&periode=%i&genre=&order=0' % (channel,days-1)
-	# Sniff, we miss you...
+        # Sniff, we miss you...
 
         if offset > 0:
                 time.sleep(random.randint(nice_time[0], nice_time[1]))
@@ -561,9 +561,9 @@ def get_channel_all_days(channel, days, quiet=0):
 
         # Setup a number of regexps
 
-        # checkday will match only the day of the month embedded in H2 tags, e.g.
-	#    <h2>zondag 19 oktober 2008</h2>
-        checkday = re.compile('<h2>.*?\ (.*?)\ (.*?)\ .*?</h2>',re.DOTALL)
+        # checktitle will match the title row in H2 tags of the daily overview page, e.g.
+        #    <h2>zondag 19 oktober 2008</h2>
+        checktitle = re.compile('<h2>(.*?)</h2>',re.DOTALL)
 
         # getrow will locate each row with program details 
         getrow = re.compile('<a href="/programma/(.*?)</a>',re.DOTALL)
@@ -577,15 +577,18 @@ def get_channel_all_days(channel, days, quiet=0):
         #  normal begin and end times
         times = re.compile('([0-9]+:[0-9]+) - ([0-9]+:[0-9]+)?')
 
-	# Get the day of month listed on the page as well as the expected date we are grabbing and compare these.
-	# If these do not match, we skip parsing the programs on the page and issue a warning.
-	dayno = int(checkday.search(total).group(1))
-	expected = now + datetime.timedelta(days=offset)
-	
-	if (dayno != expected.day):
-	    sys.stderr.write('\nOops, did not expect page %s to list programs for "%s %s", skipping it...\n' % (channel_url,checkday.search(total).group(1),checkday.search(total).group(2)))
-	    continue
-	
+        # Get the day of month listed on the page as well as the expected date we are grabbing and compare these.
+        # If these do not match, we skip parsing the programs on the page and issue a warning.
+        #dayno = int(checkday.search(total).group(1))
+ 
+        title = checktitle.search(total).group(1)
+        dayno = title.split(' ')[1];
+        expected = now + datetime.timedelta(days=offset)
+        
+        if (not dayno.isdigit() or int(dayno) != expected.day):
+            sys.stderr.write('\nOops, did not expect page %s to list programs for "%s", skipping it...\n' % (channel_url,title,))
+            continue
+        
 
         # and find relevant programming info
         allrows = getrow.finditer(total)
@@ -919,18 +922,18 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         programs[i]['video']   = {}
 
         # now parse the details
-	
+        
         line_nr = 1;
-	
-	# First, we try to find the program type in the description section.
-	# Note that this is not the same as the generic genres (these are searched later on), but a more descriptive one like "Culinair programma" 
-	# If present, we store this as first part of the regular description:
+        
+        # First, we try to find the program type in the description section.
+        # Note that this is not the same as the generic genres (these are searched later on), but a more descriptive one like "Culinair programma" 
+        # If present, we store this as first part of the regular description:
 
-	programs[i]['detail1'] = descrtype.search(descrspan.group(1)).group(1).capitalize()
-	if programs[i]['detail1'] != '':
-	   line_nr = line_nr + 1
+        programs[i]['detail1'] = descrtype.search(descrspan.group(1)).group(1).capitalize()
+        if programs[i]['detail1'] != '':
+           line_nr = line_nr + 1
 
-	# Secondly, we add one or more lines of the program description that are present.
+        # Secondly, we add one or more lines of the program description that are present.
     
         for descript in descriptions:
             d_str = 'detail' + str(line_nr)
@@ -943,21 +946,21 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
 
             programs[i][d_str] = filter_line(programs[i][d_str]).strip()
             line_nr = line_nr + 1
-	
-	# Finally, we check out all program details. These are generically denoted as:
-	#
-	#   <li><strong>(TYPE):</strong><br />(CONTENT)</li> 
-	#
-	# Some examples:
-	#
-	#   <li><strong>Genre:</strong><br />16 oktober 2008</li>
-	#   <li><strong>Genre:</strong><br />Amusement</li>
-									    
+        
+        # Finally, we check out all program details. These are generically denoted as:
+        #
+        #   <li><strong>(TYPE):</strong><br />(CONTENT)</li> 
+        #
+        # Some examples:
+        #
+        #   <li><strong>Genre:</strong><br />16 oktober 2008</li>
+        #   <li><strong>Genre:</strong><br />Amusement</li>
+                                                                            
         for d in details:
             type = d.group(1).strip().lower()
             content_asis = d.group(2).strip()
             content = filter_line(content_asis).strip()
-	    
+            
             if content == '':
                 continue
 
@@ -1009,13 +1012,13 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
             elif type == 'url':
                 programs[i]['infourl'] = content
             else:
-		# In unmatched cases, we still add the parsed type and content to the program details.
-		# Some of these will lead to xmltv output during the xmlefy_programs step
+                # In unmatched cases, we still add the parsed type and content to the program details.
+                # Some of these will lead to xmltv output during the xmlefy_programs step
                 programs[i][type] = content
 
         # do not cache programming that is unknown at the time
         # of fetching.
-	
+        
         if programs[i]['name'].lower() != 'onbekend':
             program_cache.add(programs[i])
 
@@ -1251,7 +1254,7 @@ def main():
             sys.exit(0)
 
         if o == "--days":
-	    # limit days to maximum supported by tvgids.nl
+            # limit days to maximum supported by tvgids.nl
             days = min(int(a),6)
 
         if o == "--compat":
@@ -1280,7 +1283,7 @@ def main():
                 sys.exit(2)
 
         if o == "--slowdays":
-	    # limit slowdays to maximum supported by tvgids.nl
+            # limit slowdays to maximum supported by tvgids.nl
             slowdays = min(int(a),6)
             # slowdays implies slow == 1
             slow = 1
