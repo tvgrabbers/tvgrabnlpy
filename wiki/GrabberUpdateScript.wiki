@@ -10,7 +10,7 @@ Save as "grab-tv_grab_nl_py.sh"
 
 <knip>
 
-`
+{{{
 #!/bin/sh
 
 # Get the page from Google Code telling us which is the current version
@@ -34,6 +34,6 @@ echo "Retrieved $TV_GRAB_NL_PY_file from Google Code and saved it as \"tv_grab_n
 
 # We're done...
 exit 0
-`
+}}}
 
 <knap>
