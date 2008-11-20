@@ -217,7 +217,7 @@ logo_names = {
             91 : [0, 'comedy_central'],
             92 : [0, 'rtl8'],
             99 : [1, 'sport1_1'],
-            100 : [1, 'tvutrecht'],
+            100 : [0, 'rtvu'],
             101 : [0, 'tvwest'],
             102 : [0, 'tvrijnmond'],
             103 : [1, 'tvnoordholland'],
