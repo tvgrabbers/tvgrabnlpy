@@ -510,12 +510,12 @@ def get_channels(file, quiet=0):
     for station in stations:
         m = channel_re.finditer(station.group(0))           
         for p in m:
-            a = int(p.group(1))
-            b = p.group(2)
-            # just to make sure we receive sane values, 
-            # there are no channels above 200 (yet). 
-            if a>0 and a<200:
+            try:
+                a = int(p.group(1))
+                b = p.group(2)
                 channels[a] = b
+            except:
+                sys.stderr.write('Oops, [%s,%s] does not look like a valid                                                        channel, skipping it...\n' % (p.group(1),p.group(2)))
 
     # sort on channel number (arbitrary but who cares)
     keys = channels.keys()
