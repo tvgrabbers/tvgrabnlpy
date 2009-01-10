@@ -344,7 +344,7 @@ def usage():
     print '--quiet       = suppress all output'
     print '----'
     print '--compat      = append tvgids.nl to the xmltv id (use this if you were using tv_grab_nl)'
-    print '--logos       = insert urls to channel icons (mythfilldatabase will then use these)'
+    print '--logos 0/1   = insert urls to channel icons (mythfilldatabase will then use these)'
     print '--nocattrans  = do not translate the grabbed genres into MythTV-genres'
     print '--cache       = cache descriptions and use the file to store'
     print '--clean_cache = clean the cache file before fetching'
@@ -1140,7 +1140,7 @@ def main():
                                                        "desc-length=","description",
                                                        "nocattrans","config-file=",
                                                        "max_overlap=", "overlap_strategy=",
-                                                       "clear_cache", "quiet","logos"])
+                                                       "clear_cache", "quiet","logos="])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -1287,6 +1287,9 @@ def main():
             slowdays = min(int(a),6)
             # slowdays implies fast == 0
             fast = 0
+
+        if o == "--logos":
+            logos = int(a)
 
         if o == "--clean_cache":
             clean_cache = 1
