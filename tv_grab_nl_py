@@ -1134,7 +1134,7 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "output=", "capabilities", 
                                                        "preferredmethod", "days=", 
-                                                       "configure", "fast",
+                                                       "configure", "fast", "slow",
                                                        "cache=", "clean_cache", 
                                                        "slowdays=","compat",
                                                        "desc-length=","description",
