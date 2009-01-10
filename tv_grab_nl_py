@@ -340,7 +340,7 @@ def usage():
     print '--output      = file where to put the output'
     print '--days        = # number of days to grab'
     print '--preferredmethod = returns the preferred method to be called'
-    print '--slow        = also grab descriptions of programming'
+    print '--fast        = do not grab descriptions of programming'
     print '--quiet       = suppress all output'
     print '----'
     print '--compat      = append tvgids.nl to the xmltv id (use this if you were using tv_grab_nl)'
@@ -515,7 +515,7 @@ def get_channels(file, quiet=0):
                 b = p.group(2)
                 channels[a] = b
             except:
-                sys.stderr.write('Oops, [%s,%s] does not look like a valid                                                        channel, skipping it...\n' % (p.group(1),p.group(2)))
+                sys.stderr.write('Oops, [%s,%s] does not look like a valid channel, skipping it...\n' % (p.group(1),p.group(2)))
 
     # sort on channel number (arbitrary but who cares)
     keys = channels.keys()
@@ -1134,7 +1134,7 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "output=", "capabilities", 
                                                        "preferredmethod", "days=", 
-                                                       "configure", "slow",
+                                                       "configure", "fast",
                                                        "cache=", "clean_cache", 
                                                        "slowdays=","compat",
                                                        "desc-length=","description",
@@ -1154,10 +1154,10 @@ def main():
     # the total number of days to fetch 
     days        = 5
 
-    # fetch data in slow mode, i.e. grab all the detail information,
-    # slow means slow, because for each program a web page needs to be fetched
-    slow        = 1
-    #slow        = 0
+    # Fetch data in fast mode, i.e. do NOT grab all the detail information,
+    # fast means fast, because as it then does not have to fetch a web page for each program
+    # Default: fast=0
+    fast        = 0
 
     # number of days to fetch in slow mode. For example: --days 5 --slowdays 2, will 
     # fetch the first two days in slow mode (with all the details) and the remaining three
@@ -1263,8 +1263,8 @@ def main():
         if o == "--nocattrans":
             nocattrans = 1
 
-        if o == "--slow":
-            slow = 1
+        if o == "--fast":
+            fast = 1
 
         if o == "--output":
             output_file = a
@@ -1285,8 +1285,8 @@ def main():
         if o == "--slowdays":
             # limit slowdays to maximum supported by tvgids.nl
             slowdays = min(int(a),6)
-            # slowdays implies slow == 1
-            slow = 1
+            # slowdays implies fast == 0
+            fast = 0
 
         if o == "--clean_cache":
             clean_cache = 1
@@ -1360,7 +1360,7 @@ def main():
         blah = parse_programs(info, None, quiet)
 
         # fetch descriptions
-        if slow:
+        if not fast:
            get_descriptions(blah, program_cache, nocattrans, quiet, slowdays)
         
         # Split titles with colon in it
@@ -1397,3 +1397,4 @@ if __name__ == '__main__':
     main()
 
 # vim:tw=0:et:sw=4
+
