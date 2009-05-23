@@ -1069,7 +1069,7 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
 
         desc = []
         for detail_row in ['detail1','detail2','detail3']:
-                if program.has_key(detail_row) and program[detail_row] != '' and program[detail_row].find('geen detailgegevens bekend') == -1:
+                if program.has_key(detail_row) and not re.search('geen detailgegevens be(?:kend|schikbaar)', program[detail_row]):
                         desc.append('%s ' % program[detail_row])
         if desc != []:
                 # join and remove newlines from descriptions
