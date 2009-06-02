@@ -581,17 +581,18 @@ def get_channel_all_days(channel, days, quiet=0):
         # If these do not match, we skip parsing the programs on the page and issue a warning.
         #dayno = int(checkday.search(total).group(1))
  
-        title = checktitle.search(total).group(1)
         title = checktitle.search(total)
         if title:
             title = title.group(1)
             dayno = title.split()[1]
         else:
-            dayno = '-1'
+            sys.stderr.write('\nOops, there was a problem with page %s. Skipping it...\n' % (channel_url))
+            continue
+
         expected = now + datetime.timedelta(days=offset)
         
         if (not dayno.isdigit() or int(dayno) != expected.day):
-            sys.stderr.write('\nOops, did not expect page %s to list programs for "%s", skipping it...\n' % (channel_url,title,))
+            sys.stderr.write('\nOops, did not expect page %s to list programs for "%s", skipping it...\n' % (channel_url,title))
             continue
         
 
