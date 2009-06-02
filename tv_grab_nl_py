@@ -587,7 +587,7 @@ def get_channel_all_days(channel, days, quiet=0):
             title = title.group(1)
             dayno = title.split()[1]
         else:
-            dayno = -1
+            dayno = '-1'
         expected = now + datetime.timedelta(days=offset)
         
         if (not dayno.isdigit() or int(dayno) != expected.day):
