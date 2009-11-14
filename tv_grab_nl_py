@@ -84,6 +84,12 @@ except:
     sys.stderr.write('%s\n' % sys.version)
     sys.exit(1)
 
+# XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
+if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
+    try:
+        urllib2.urlopen('http://localhost.localdomain')
+    except:
+        pass
 
 # do extra debug stuff
 debug = 1
@@ -275,7 +281,11 @@ class ProgramCache:
         """
         Loads a pickled cache dict from file
         """
-        self.pdict = pickle.load(open(filename,'r'))
+        try:
+            self.pdict = pickle.load(open(filename,'r'))
+        except:
+            sys.stderr.write('Error loading cache file: %s (possibly corrupt)' % filename)
+            sys.exit(2)
 
     def dump(self, filename):
         """
