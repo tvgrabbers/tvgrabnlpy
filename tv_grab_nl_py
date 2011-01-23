@@ -161,7 +161,8 @@ cattrans = { 'amusement'        : 'Talk',
 
 # Create a role translation dictionary for the xmltv credits part
 # The keys are the roles used by tvgids.nl (lowercase please)
-roletrans = {'regie'             : 'director',
+roletrans = {'regisseur'         : 'director',
+             'regie'             : 'director',
              'acteurs'           : 'actor',
              'presentatie'       : 'presenter',
              'scenario'          : 'writer'}
@@ -455,7 +456,7 @@ def get_page_internal(url, quiet=0):
         rurl = urllib2.Request(url, txtdata, txtheaders)
         fp = urllib2.urlopen(rurl)
         lines = fp.readlines()
-        page = "".join(lines)
+        page = "".join(lines).expandtabs(0)
         return page
     except:
         if not quiet:
@@ -870,12 +871,23 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
     """
 
     # This regexp tries to find details such as Genre, Acteurs, Jaar van Premiere etc.
-    detail      = re.compile('<li>.*?<strong>(.*?):</strong>.*?<br />(.*?)</li>', re.DOTALL)
+    detail      = re.compile('<li>.*?<strong>(.*?):</strong>(.*?)</li>', re.DOTALL)
 
-    # These regexps find the description area, the program type and descriptive text
-    description = re.compile('<div class="description">.*?<div class="text"(.*?)<div class="clearer"></div>',re.DOTALL)
-    descrtype = re.compile('<div class="type">(.*?)</div>',re.DOTALL)
+    # These regexps find the main description area and lines of descriptive text in this area
+    description = re.compile('<div id="prog-content">(.*?)</div>',re.DOTALL)
     descrline = re.compile('<p>(.*?)</p>',re.DOTALL)
+
+    # These regexps try to find the subgenre of the program, e.g. Fantasy-familiefilm, Comedyserie, 
+    # Woonprogramma, Culinair Programma etc.
+    # descrtype searches for the subgenre in the description area, e.g.:
+    #      <strong>Woonprogramma</strong><p>Nance, Tooske, Ellemieke, Marlayne en Viktor helpen mensen...
+    #
+    # addprogtype searches for the subgenre in the special "mijn TV agenda" link, e.g.:
+    #      <a href="#perstvgids" title="Plaats dit programma in mijn TV Agenda" 
+    #                  onclick="addProg('10281755','Informatief','Woonprogramma.',event);return false;">
+
+    descrtype = re.compile('<strong>([^<]*)</strong>',re.DOTALL)
+    addprogtype = re.compile("addProg\(.*?,.*?,'(.*?)',.*?\)",re.DOTALL)
 
     # randomize detail requests
     nprograms = len(programs)
@@ -941,11 +953,20 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         
         line_nr = 1;
         
-        # First, we try to find the program type in the description section.
-        # Note that this is not the same as the generic genres (these are searched later on), but a more descriptive one like "Culinair programma" 
-        # If present, we store this as first part of the regular description:
+        # First, we try to find the program type in the special "mijn TV Agenda" link, if not found there we
+        # search for a type in the description section.
+        # Note that this type is not the same as the generic genres (these are searched later on), 
+        # but a more descriptive one like "Culinair programma" 
+        # 
 
-        programs[i]['detail1'] = descrtype.search(descrspan.group(1)).group(1).capitalize()
+        programs[i]['detail1'] = ''
+        if addprogtype.search(total) != None:
+           programs[i]['detail1'] = addprogtype.search(total).group(1).capitalize()
+
+        elif descrtype.search(descrspan.group(1)) != None:
+           programs[i]['detail1'] = descrtype.search(descrspan.group(1)).group(1).capitalize()
+
+        # If a type was found, we store this as first part of the regular detailed description.
         if programs[i]['detail1'] != '':
            line_nr = line_nr + 1
 
@@ -965,12 +986,12 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         
         # Finally, we check out all program details. These are generically denoted as:
         #
-        #   <li><strong>(TYPE):</strong><br />(CONTENT)</li> 
+        #   <li><strong>(TYPE):</strong>(CONTENT)</li> 
         #
         # Some examples:
         #
-        #   <li><strong>Genre:</strong><br />16 oktober 2008</li>
-        #   <li><strong>Genre:</strong><br />Amusement</li>
+        #   <li><strong>Datum:</strong>16 oktober 2008</li>
+        #   <li><strong>Genre:</strong>Amusement</li>
                                                                             
         for d in details:
             type = d.group(1).strip().lower()
