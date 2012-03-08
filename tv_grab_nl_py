@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-# $LastChangedDate$
-# $Rev$
-# $Author$
+# $LastChangedDate: 2011-04-04 20:57:151 +0100 (ma, 04 apr 2011) $
+# $Rev: 106 $
+# $Author: pauldebruin@gmail.com $
 
 """
 SYNOPSIS
@@ -1058,7 +1058,7 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
                 if len(desc_line) > desc_len: 
                     spacepos = desc_line[0:desc_len-3].rfind(' ') 
                     desc_line = desc_line[0:spacepos] + '...'
-                output.append(u'    <desc lang="nl">%s</desc>\n' % unicode(desc_line,errors='ignore'))
+                output.append('    <desc lang="nl">%s</desc>\n' % desc_line)
         
         # Process credits section if present.
         # This will generate director/actor/presenter info.
@@ -1105,7 +1105,14 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
         #     output.append('    <star-rating><value>%s</value></star-rating>\n' % program['star-rating'])
                 
         output.append('  </programme>\n')
-    return u''.join(output)
+    #return ''.join(output)
+    res = u''
+    for a in output:
+       try:
+            res+= a.decode("utf-8", "replace")
+       except:
+           res+= a.encode("ascii", "ignore")
+    return res
 
 def main():
 
@@ -1192,7 +1199,7 @@ def main():
             quiet = 1;
 
         if o == "--description":
-            print "The Netherlands (tv_grab_nl_py $Rev$)"
+            print "The Netherlands (tv_grab_nl_py $Rev: 106 $)"
             sys.exit(0)
 
         if o == "--capabilities":
@@ -1313,7 +1320,7 @@ def main():
     # print header stuff
     print '<?xml version="1.0" encoding="ISO-8859-1"?>'
     print '<!DOCTYPE tv SYSTEM "xmltv.dtd">'
-    print '<tv generator-info-name="tv_grab_nl_py $Rev$">'
+    print '<tv generator-info-name="tv_grab_nl_py $Rev: 106 $">'
 
     # first do the channel info
     for key in channels.keys():
