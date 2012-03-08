@@ -74,6 +74,8 @@ import htmlentitydefs, os, os.path, pickle
 from string import replace, split, strip
 from threading import Thread
 from xml.sax import saxutils
+import StringIO
+import json
 
 # Extra check for the datetime module 
 try:
@@ -105,7 +107,7 @@ except:
 r_entity = re.compile(r'&(#x[0-9A-Fa-f]+|#[0-9]+|[A-Za-z]+);')
 
 tvgids = 'http://www.tvgids.nl/'
-uitgebreid_zoeken = tvgids + 'zoeken/'
+uitgebreid_eoeken = tvgids + 'json/lists/programs.php'
 
 # how many seconds to wait before we timeout on a 
 # url fetch, 10 seconds seems reasonable
@@ -555,100 +557,40 @@ def get_channel_all_days(channel, days, quiet=0):
     # we are required to grab
     for offset in range(0, days):
     
-        channel_url = 'http://www.tvgids.nl/zoeken/?d=%i&z=%s' % (offset, channel)
-
-        # For historic purposes, the old style url that gave us a full week in advance:
-        #       channel_url = 'http://www.tvgids.nl/zoeken/?trefwoord=Titel+of+trefwoord&interval=0&timeslot='+\
-        #           '&station=%s&periode=%i&genre=&order=0' % (channel,days-1)
-        # Sniff, we miss you...
+        channel_url = 'http://www.tvgids.nl/json/lists/programs.php?channels=%s&day=%s' % (channel, offset)
 
         if offset > 0:
                 time.sleep(random.randint(nice_time[0], nice_time[1]))
-
         # get the raw programming for the day
-        total = get_page(channel_url, quiet)
-
-        if total == None:
+        req = urllib2.Request(channel_url)
+        opener = urllib2.build_opener()
+        response = opener.open(req)
+        data = response.read()
+        if not data:
                 return programs
-
-        # Setup a number of regexps
-
-        # checktitle will match the title row in H2 tags of the daily overview page, e.g.
-        #    <h2>zondag 19 oktober 2008</h2>
-        checktitle = re.compile('<h2>(.*?)</h2>',re.DOTALL)
-
-        # getrow will locate each row with program details 
-        getrow = re.compile('<a href="/programma/(.*?)</a>',re.DOTALL)
-
-        # parserow matches the required program info, with groups:
-        # 1 = program ID
-        # 2 = broadcast times
-        # 3 = program name
-        parserow = re.compile('(.*?)/.*<span class="time">(.*?)</span>.*<span class="title">(.*?)</span>', re.DOTALL)
-
-        #  normal begin and end times
-        times = re.compile('([0-9]+:[0-9]+) - ([0-9]+:[0-9]+)?')
-
-        # Get the day of month listed on the page as well as the expected date we are grabbing and compare these.
-        # If these do not match, we skip parsing the programs on the page and issue a warning.
-        #dayno = int(checkday.search(total).group(1))
- 
-        title = checktitle.search(total)
-        if title:
-            title = title.group(1)
-            dayno = title.split()[1]
-        else:
-            sys.stderr.write('\nOops, there was a problem with page %s. Skipping it...\n' % (channel_url))
-            continue
+        content = StringIO.StringIO(data)
+        total = json.load(content)
 
         expected = now + datetime.timedelta(days=offset)
         
-        if (not dayno.isdigit() or int(dayno) != expected.day):
-            sys.stderr.write('\nOops, did not expect page %s to list programs for "%s", skipping it...\n' % (channel_url,title))
-            continue
-        
-
         # and find relevant programming info
-        allrows = getrow.finditer(total)
-
-        for r in allrows:
-                detail = parserow.search(r.group(1))
-
-                if detail != None: 
-
-                        # default times
-                        start_time = None
-                        stop_time  = None
-
-                        # parse for begin and end times
-                        t  = times.search(detail.group(2))
-
-                        if t != None:
-                                start_time = t.group(1)
-                                stop_time  = t.group(2)
-
-                        program_url  = 'http://www.tvgids.nl/programma/' + detail.group(1) + '/'
-                        program_name = detail.group(3)
-
-                        # store time, name and detail url in a dictionary 
-                        tdict = {}
-                        tdict['start'] = start_time
-                        tdict['stop']  = stop_time
-                        tdict['name']  = program_name
-                        if tdict['name'] == '':
-                                tdict['name'] = 'onbekend'
-                        tdict['url']   = program_url
-                        tdict['ID']    = detail.group(1)
-                        tdict['offset'] = offset
-
-                        #Add star rating if tipped by tvgids.nl
-                        tdict['star-rating'] = '';
-                        if r.group(1).find('Tip') != -1:
-                                tdict['star-rating'] = '4/5'
-
-                        # and append the program to the list of programs
-                        programs.append(tdict)
-
+        v= total.values()[0]
+        if isinstance(v, dict):
+                v=v.values()
+        for r in v:
+                program_url  = 'http://www.tvgids.nl/programma/' + r['db_id'] + '/'
+               	tdict = {}
+                tdict['start'] = r['datum_start'][10:-3]
+                tdict['stop']  = r['datum_end'][10:-3]
+                tdict['name']  = r['titel']
+                if tdict['name'] == '':
+                        dict['name'] = 'onbekend'
+                tdict['url']   = program_url
+                tdict['ID']    = r['db_id']
+                tdict['offset'] = offset
+                tdict['genre'] = r['genre']
+                # and append the program to the list of programs
+                programs.append(tdict)
     # done
     return programs
 
@@ -913,7 +855,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 # these may have changed.
                 tstart = programs[i]['start-time']
                 tstop  = programs[i]['stop-time']
-                rating = programs[i]['star-rating']
+                rating = '' #programs[i]['star-rating']
                 try:
                     clump  = programs[i]['clumpidx']
                 except:
@@ -967,8 +909,9 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         elif descrtype.search(descrspan.group(1)) != None:
            programs[i]['detail1'] = descrtype.search(descrspan.group(1)).group(1).capitalize()
 
-        # If a type was found, we store this as first part of the regular detailed description.
+        # If a type was found, we store this as first part of the regular detailed description and remove unwanted chars
         if programs[i]['detail1'] != '':
+           programs[i]['detail1'] = filter_line(programs[i]['detail1'])
            line_nr = line_nr + 1
 
         # Secondly, we add one or more lines of the program description that are present.
@@ -1100,10 +1043,10 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
             (format_timezone(program['start-time']), format_timezone(program['stop-time']),\
              channel, compat and '.tvgids.nl' or '', clumpidx))
 
-        output.append('    <title lang="nl">%s</title>\n' % filter_line(program['name']))
+        output.append(u'    <title lang="nl">%s</title>\n' % filter_line(program['name']))
 
         if program.has_key('titel aflevering') and program['titel aflevering'] != '':
-                output.append('    <sub-title lang="nl">%s</sub-title>\n' % filter_line(program['titel aflevering']))
+                output.append(u'    <sub-title lang="nl">%s</sub-title>\n' % filter_line(program['titel aflevering']))
 
         desc = []
         for detail_row in ['detail1','detail2','detail3']:
@@ -1116,7 +1059,7 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
                 if len(desc_line) > desc_len: 
                     spacepos = desc_line[0:desc_len-3].rfind(' ') 
                     desc_line = desc_line[0:spacepos] + '...'
-                output.append('    <desc lang="nl">%s</desc>\n' % desc_line)
+                output.append(u'    <desc lang="nl">%s</desc>\n' % unicode(desc_line,errors='ignore'))
         
         # Process credits section if present.
         # This will generate director/actor/presenter info.
@@ -1159,12 +1102,11 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
             output.append('    <subtitles type="teletext" />\n')
 
         # Set star-rating if applicable
-        if program['star-rating'] != '':
-             output.append('    <star-rating><value>%s</value></star-rating>\n' % program['star-rating'])
+        #if program['star-rating'] != '':
+        #     output.append('    <star-rating><value>%s</value></star-rating>\n' % program['star-rating'])
                 
         output.append('  </programme>\n')
-    
-    return "".join(output)
+    return u''.join(output)
 
 def main():
 
@@ -1457,4 +1399,5 @@ if __name__ == '__main__':
     main()
 
 # vim:tw=0:et:sw=4
+
 
