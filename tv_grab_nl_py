@@ -68,7 +68,7 @@ Onselen, Hugo van der Kooij, Han Holl, Ian Mcdonald, Udo van den Heuvel.
 """ 
 
 # Modules we need
-import re, urllib2, getopt, sys
+import re, urllib2, getopt, sys, codecs
 import time, random
 import htmlentitydefs, os, os.path, pickle
 from string import replace, split, strip
@@ -534,6 +534,7 @@ def get_channels(file, quiet=0):
 
     # and create a file with the channels
     f = open(file,'w')
+    f.write("# encoding: iso-8859-1\n")
     for k in keys:
         f.write("%s %s\n" % (k, channels[k]))
     f.close()
@@ -1342,9 +1343,12 @@ def main():
     # get configfile if available
     try:
         f = open(config_file,'r')
-    except:
-        sys.stderr.write('Config file %s not found.\n' % config_file)
-        sys.stderr.write('Re-run me with the --configure flag.\n')
+    except IOError as e:
+        if e.errno == 2:
+            sys.stderr.write('Config file %s not found.\n' % config_file)
+            sys.stderr.write('Re-run me with the --configure flag.\n')
+        else:
+            sys.stderr.write('Config file %s: %s.\n' % (config_file, e.strerror))
         sys.exit(1)
 
     #check for cache
@@ -1358,25 +1362,41 @@ def main():
     channels = {}
 
     # Read the channel stuff
-    for blah in f.readlines():
-        blah = blah.lstrip()
-        blah = blah.replace('\n','')
-        if blah:
-            if blah[0] != '#':
-                channel = blah.split()
-                channels[channel[0]] = " ".join(channel[1:])
+    configencoding = 'iso-8859-1'
+    for line in f.readlines():
+        line = line.lstrip()
+        line = line.replace('\n','')
+        if line:
+            if line[0] != '#':
+                channel = line.split(None, 1)
+                channels[channel[0]] = channel[1].decode(configencoding)
+            else:
+                match = re.match(r'#\s*(\w+):\s*(.+)', line)
+                if match is not None and match.group(1) == "encoding":
+                    configencoding = match.group(2)
+                    try:
+                        codecs.getencoder(configencoding)
+                    except LookupError:
+                        sys.stderr.write('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
+                        sys.exit(1)
+    
+    try:
+        f.close()
+    except IOError:
+        pass
 
     # channels are now in channels dict keyed on channel id
 
     # print header stuff
-    print '<?xml version="1.0" encoding="ISO-8859-1"?>'
+    encoding = 'ISO-8859-1'
+    print '<?xml version="1.0" encoding="%s"?>' % encoding
     print '<!DOCTYPE tv SYSTEM "xmltv.dtd">'
     print '<tv generator-info-name="tv_grab_nl_py $Rev$">'
 
     # first do the channel info
     for key in channels.keys():
         print '  <channel id="%s%s">' % (key, compat and '.tvgids.nl' or '')
-        print '    <display-name lang="nl">%s</display-name>' % channels[key]
+        print '    <display-name lang="nl">%s</display-name>' % channels[key].encode(encoding)
         if (logos):
             ikey = int(key)
             if logo_names.has_key(ikey):
@@ -1395,7 +1415,7 @@ def main():
         channel_cnt += 1
         if not quiet:
                 sys.stderr.write('\n\nNow fetching %s(xmltvid=%s%s) (channel %s of %s)\n' % \
-                    (channels[id], id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy))
+                    (channels[id].encode('iso-8859-1'), id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy))
         info = get_channel_all_days(id,  days, quiet)
         blah = parse_programs(info, None, quiet)
 
