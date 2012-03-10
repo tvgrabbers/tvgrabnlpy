@@ -84,7 +84,7 @@ except:
     sys.stderr.write('This script needs the datetime module that was introduced in Python version 2.3.\n')
     sys.stderr.write('You are running:\n')
     sys.stderr.write('%s\n' % sys.version)
-    sys.exit(1)
+    raise
 
 import sys,codecs,locale
 
@@ -290,7 +290,7 @@ class ProgramCache:
             self.pdict = pickle.load(open(filename,'r'))
         except:
             sys.stderr.write('Error loading cache file: %s (possibly corrupt)' % filename)
-            sys.exit(2)
+            self.clear()
 
     def dump(self, filename):
         """
@@ -1143,7 +1143,7 @@ def main():
                                                        "clear_cache", "quiet","logos="])
     except getopt.GetoptError:
         usage()
-        sys.exit(2)
+        return(2)
 
     # DEFAULT OPTIONS - Edit if you know what you are doing
 
@@ -1210,25 +1210,25 @@ def main():
     for o, a in opts:
         if o in ("-h", "--help"):
             usage()
-            sys.exit(1)
+            return(1)
 
         if o == "--quiet":
             quiet = 1;
 
         if o == "--description":
             print "The Netherlands (tv_grab_nl_py $Rev: 106 $)"
-            sys.exit(0)
+            return(0)
 
         if o == "--capabilities":
             print "baseline"
             print "cache"
             print "manualconfig"
             print "preferredmethod"
-            sys.exit(0)
+            return(0)
 
         if o == '--preferredmethod':
             print 'allatonce'
-            sys.exit(0)
+            return(0)
 
         if o == '--desc-length':
             # Use the requested length for programme descriptions.
@@ -1254,7 +1254,7 @@ def main():
             if not quiet:
                 sys.stderr.write('Creating config file: %s\n' % config_file)
             get_channels(config_file)
-            sys.exit(0)
+            return(0)
 
         if o == "--days":
             # limit days to maximum supported by tvgids.nl
@@ -1283,7 +1283,7 @@ def main():
             except:
                 if not quiet:
                     sys.stderr.write('Cannot write to outputfile: %s\n' % output_file)
-                sys.exit(2)
+                return(2)
 
         if o == "--slowdays":
             # limit slowdays to maximum supported by tvgids.nl
@@ -1314,7 +1314,7 @@ def main():
             sys.stderr.write('Re-run me with the --configure flag.\n')
         else:
             sys.stderr.write('Config file %s: %s.\n' % (config_file, e.strerror))
-        sys.exit(1)
+        return(1)
 
     #check for cache
     program_cache = ProgramCache(program_cache_file)
@@ -1343,7 +1343,7 @@ def main():
                         codecs.getencoder(configencoding)
                     except LookupError:
                         sys.stderr.write('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
-                        sys.exit(1)
+                        return(1)
     
     try:
         f.close()
@@ -1415,11 +1415,11 @@ def main():
         output.close()
 
     # and return success
-    sys.exit(0)
+    return(0)
 
 # allow this to be a module
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
 
 # vim:tw=0:et:sw=4
 
