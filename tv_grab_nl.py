@@ -1298,7 +1298,7 @@ def main():
 
     # get configfile if available
     try:
-        f = open(config_file,'r')
+        f = open(config_file,'rb')
     except IOError as e:
         if e.errno == 2:
             sys.stderr.write('Config file %s not found.\n' % config_file)
@@ -1321,25 +1321,26 @@ def main():
     configencoding = 'utf-8'
     reconfigline = re.compile(r'#\s*(\w+):\s*(.+)')
     for byteline in f.readlines():
-        match = reconfigline.match(byteline)
-        if match is not None and match.group(1) == "encoding":
-            configencoding = match.group(2)
-            try:
-                codecs.getencoder(configencoding)
-            except LookupError:
-                sys.stderr.write('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
-                return(1)
-            continue
         try:
-            line = byteline.decode(configencoding, 'replace')
+            line = byteline.decode(configencoding)
             line = line.lstrip()
             line = line.replace('\n','')
-            if line[0] != '#':
-                channel = line.split(None, 1) # split on first whitespace
-                channels[channel[0]] = channel[1]
         except UnicodeError:
-            sys.stderr.write('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
+            sys.stderr.write('Config file %s is not encoded in %s.\n' % (config_file, configencoding))
             return(1)
+        if line [0] == '#':
+            match = reconfigline.match(line)
+            if match is not None and match.group(1) == "encoding":
+                configencoding = match.group(2)
+                try:
+                    codecs.getencoder(configencoding)
+                except LookupError:
+                    sys.stderr.write('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
+                    return(1)
+            continue
+        else:
+            channel = line.split(None, 1) # split on first whitespace
+            channels[channel[0]] = channel[1]
     
     try:
         f.close()
