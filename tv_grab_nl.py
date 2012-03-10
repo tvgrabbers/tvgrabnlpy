@@ -1409,12 +1409,14 @@ def main():
     # print footer stuff
     xml.append("</tv>")
 
+    # print result to stdout
+    xml = "".join(xml)
+    print(xml.encode('utf-8'))
+
     # close the outputfile if necessary
     if output != None:
         output.close()
 
-    xml = "".join(xml)
-    print(xml.encode('utf-8'))
     # and return success
     return(0)
 
