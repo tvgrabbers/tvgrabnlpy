@@ -80,7 +80,7 @@ import json
 # Extra check for the datetime module 
 try:
     import datetime
-except:
+except ImportError:
     sys.stderr.write('This script needs the datetime module that was introduced in Python version 2.3.\n')
     sys.stderr.write('You are running:\n')
     sys.stderr.write('%s\n' % sys.version)
@@ -92,7 +92,7 @@ import sys,codecs,locale
 if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
     try:
         urllib2.urlopen('http://localhost.localdomain')
-    except:
+    except Exception:
         pass
 
 # do extra debug stuff
@@ -100,7 +100,7 @@ debug = 1
 
 try:
     import redirect
-except:
+except ImportError:
     debug = 0
     pass
 
@@ -288,7 +288,7 @@ class ProgramCache:
         """
         try:
             self.pdict = pickle.load(open(filename,'r'))
-        except:
+        except Exception:
             sys.stderr.write('Error loading cache file: %s (possibly corrupt)' % filename)
             self.clear()
 
@@ -299,7 +299,7 @@ class ProgramCache:
         if os.access(filename, os.F_OK):
             try:
                 os.remove(filename)
-            except:
+            except Exception:
                 sys.stderr.write('Cannot remove %s, check permissions' % filename)
         pickle.dump(self.pdict, open(filename+'.tmp', 'w'))
         os.rename(filename+'.tmp', filename)
@@ -312,7 +312,7 @@ class ProgramCache:
 
         try:
             return self.pdict[program_id]
-        except:
+        except LookupError:
             return None
 
     def add(self, program):
@@ -338,7 +338,7 @@ class ProgramCache:
             try:
                 if self.pdict[key]['stop-time'] < dnow or self.pdict[key]['name'].lower() == 'onbekend':
                     del self.pdict[key]
-            except:
+            except LookupError:
                 pass    
 
 
@@ -434,7 +434,7 @@ def calc_timezone(t):
     try:
         #timezone = time.tzname[(time.localtime(pt))[-1]]
         timezone = (time.localtime(pt))[-1]
-    except:
+    except LookupError:
         sys.stderr.write('Cannot convert time to timezone')
 
     return t+' %s' % td[timezone]
@@ -462,7 +462,7 @@ def get_page_internal(url, quiet=0):
         lines = fp.readlines()
         page = "".join(lines).expandtabs(0)
         return page
-    except:
+    except Exception:
         if not quiet:
             sys.stderr.write('Cannot open url: %s\n' % url)
         return None
@@ -490,7 +490,7 @@ def get_page(url, quiet=0):
         fu.start()
         fu.join(global_timeout)
         return fu.result
-    except:
+    except Exception:
         if not quiet:
             sys.stderr.write('get_page timed out on (>%s s): %s\n' % (global_timeout, url))
         return None
@@ -529,7 +529,7 @@ def get_channels(file, quiet=0):
                 a = int(p.group(1))
                 b = filter_line(p.group(2))
                 channels[a] = b
-            except:
+            except Exception:
                 sys.stderr.write('Oops, [%s,%s] does not look like a valid channel, skipping it...\n' % (p.group(1),p.group(2)))
 
     # sort on channel number (arbitrary but who cares)
@@ -860,7 +860,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 rating = '' #programs[i]['star-rating']
                 try:
                     clump  = programs[i]['clumpidx']
-                except:
+                except LookupError:
                     clump = False
                 programs[i] = cached_program
                 programs[i]['start-time'] = tstart
@@ -884,7 +884,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 
             descrspan = description.search(total);
             descriptions = descrline.finditer(descrspan.group(1))
-        except:
+        except Exception:
             # if we cannot find the description page, 
             # go to next in the loop
             if not quiet:
@@ -964,7 +964,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 else:
                     try:
                         programs[i]['genre'] = cattrans[genre.lower()]
-                    except:
+                    except LookupError:
                         programs[i]['genre'] = ''
 
 
@@ -1038,7 +1038,7 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
         try:
             if program.has_key('clumpidx'):
                 clumpidx = 'clumpidx="'+program['clumpidx']+'"'
-        except:
+        except LookupError:
             print program
 
         output.append(u'  <programme start="%s" stop="%s" channel="%s%s" %s> \n' % \
@@ -1280,7 +1280,7 @@ def main():
                     sys.stdout = blah
                 else:
                     sys.stdout = output
-            except:
+            except Exception:
                 if not quiet:
                     sys.stderr.write('Cannot write to outputfile: %s\n' % output_file)
                 return(2)
