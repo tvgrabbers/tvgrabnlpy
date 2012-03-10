@@ -844,7 +844,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
             continue
         
         if not quiet:
-            sys.stderr.write('\n(%3.0f%%) %s: %s ' % (100*float(counter)/float(nprograms), i, programs[i]['name'].encode("utf-8")))
+            sys.stderr.write('\n(%3.0f%%) %s: %s ' % (100*float(counter)/float(nprograms), i, programs[i]['name']))
 
         # check the cache for this program's ID
         cached_program = program_cache.query(programs[i]['ID'])
@@ -1024,10 +1024,10 @@ def title_split(program):
        program['titel aflevering'] = program['name'][colonpos+1:len(program['name'])].strip()
        program['name'] =  program['name'][0:colonpos].strip()
 
-def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0, encoding="utf-8"):
+def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
     """
     Given a list of programming (from get_channels())
-    returns a string with the xml equivalent
+    returns a unicode string with the xml equivalent
     """
     output = []
     for program in programs:
@@ -1039,12 +1039,11 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0, encodin
         except:
             print program
 
-        output.append('  <programme start="%s" stop="%s" channel="%s%s" %s> \n' % \
+        output.append(u'  <programme start="%s" stop="%s" channel="%s%s" %s> \n' % \
             (format_timezone(program['start-time']), format_timezone(program['stop-time']),\
              channel, compat and '.tvgids.nl' or '', clumpidx))
 
-        app = u'    <title lang="nl">%s</title>\n'.encode(encoding) % filter_line(program['name'])
-        output.append(app)
+        output.append(u'    <title lang="nl">%s</title>\n' % filter_line(program['name']))
 
         if program.has_key('titel aflevering') and program['titel aflevering'] != '':
                 output.append(u'    <sub-title lang="nl">%s</sub-title>\n' % filter_line(program['titel aflevering']))
@@ -1060,58 +1059,55 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0, encodin
                 if len(desc_line) > desc_len: 
                     spacepos = desc_line[0:desc_len-3].rfind(' ') 
                     desc_line = desc_line[0:spacepos] + '...'
-                output.append('    <desc lang="nl">%s</desc>\n' % desc_line)
+                output.append(u'    <desc lang="nl">%s</desc>\n' % desc_line)
         
         # Process credits section if present.
         # This will generate director/actor/presenter info.
         if program.has_key('credits') and program['credits'] != {}:
-            output.append('    <credits>\n')
+            output.append(u'    <credits>\n')
             for role in program['credits']:
                 for name in program['credits'][role]:
                     if name != '':
-                        output.append('       <%s>%s</%s>\n' % (role, name, role))
-            output.append('    </credits>\n')
+                        output.append(u'       <%s>%s</%s>\n' % (role, name, role))
+            output.append(u'    </credits>\n')
 
         if program.has_key('jaar van premiere') and program['jaar van premiere'] != '':
-                output.append('    <date>%s</date>\n' % program['jaar van premiere'])
+                output.append(u'    <date>%s</date>\n' % program['jaar van premiere'])
 
         if program.has_key('genre') and program['genre'] != '':
-                output.append('    <category')
+                output.append(u'    <category')
                 if nocattrans:
-                   output.append(' lang="nl"')
-                output.append ('>%s</category>\n' % program['genre'])
+                   output.append(u' lang="nl"')
+                output.append (u'>%s</category>\n' % program['genre'])
         
         if program.has_key('infourl') and program['infourl'] != '':
-                output.append('    <url>%s</url>\n' % program['infourl']) 
+                output.append(u'    <url>%s</url>\n' % program['infourl']) 
 
         if program.has_key('aflevering') and program['aflevering'] != '':
-                output.append('    <episode-num system="onscreen">%s</episode-num>\n' % filter_line(program['aflevering']))
+                output.append(u'    <episode-num system="onscreen">%s</episode-num>\n' % filter_line(program['aflevering']))
 
         # Process video section if present
         if program.has_key('video') and program['video'] != {}:
-            output.append('    <video>\n');
+            output.append(u'    <video>\n');
             if program['video'].has_key('breedbeeld'):
-                output.append('           <aspect>16:9</aspect>\n')
+                output.append(u'           <aspect>16:9</aspect>\n')
             if program['video'].has_key('blackwhite'):
-                output.append('           <colour>no</colour>\n')
-            output.append('    </video>\n')
+                output.append(u'           <colour>no</colour>\n')
+            output.append(u'    </video>\n')
 
         if program.has_key('stereo'):
-            output.append('    <audio><stereo>stereo</stereo></audio>\n')
+            output.append(u'    <audio><stereo>stereo</stereo></audio>\n')
  
         if program.has_key('teletekst'):
-            output.append('    <subtitles type="teletext" />\n')
+            output.append(u'    <subtitles type="teletext" />\n')
 
         # Set star-rating if applicable
         #if program['star-rating'] != '':
         #     output.append('    <star-rating><value>%s</value></star-rating>\n' % program['star-rating'])
                 
-        output.append('  </programme>\n')
-    #return ''.join(output)
-    res = u''
-    for a in output:
-        res+= a.decode(encoding, "replace")
-    return res
+        output.append(u'  </programme>\n')
+    return u''.join(output)
+
 
 def main():
 
@@ -1309,7 +1305,7 @@ def main():
     channels = {}
 
     # Read the channel stuff
-    configencoding = 'iso-8859-1'
+    configencoding = 'utf-8'
     for line in f.readlines():
         line = line.lstrip()
         line = line.replace('\n','')
@@ -1335,7 +1331,7 @@ def main():
     # channels are now in channels dict keyed on channel id
 
     # print header stuff
-    encoding = 'ISO-8859-1'
+    encoding = 'UTF-8'
     print '<?xml version="1.0" encoding="%s"?>' % encoding
     print '<!DOCTYPE tv SYSTEM "xmltv.dtd">'
     print '<tv generator-info-name="tv_grab_nl_py $Rev$">'
@@ -1378,7 +1374,7 @@ def main():
             for program in blah:
                title_split(program)
 
-        print xmlefy_programs(blah, id, desc_len, compat, nocattrans, encoding=encoding)
+        print xmlefy_programs(blah, id, desc_len, compat, nocattrans).encode(xmlencoding)
 
         # save the cache after each channel fetch 
         if program_cache != None:
