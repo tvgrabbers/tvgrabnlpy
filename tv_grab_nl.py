@@ -1419,6 +1419,7 @@ def main():
             program_cache.dump(program_cache_file)
     
         # be nice to tvgids.nl
+        
         time.sleep(random.randint(nice_time[0], nice_time[1]))
         if program_cache != None:
             program_cache.dump(program_cache_file)
@@ -1430,7 +1431,7 @@ def main():
     if output != None:
         output.close()
 
-    xml = "\n".join(xml)
+    xml = "".join(xml)
     print xml.encode('utf-8')
     # and return success
     return(0)
