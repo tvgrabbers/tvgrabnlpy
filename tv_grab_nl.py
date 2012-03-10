@@ -1121,16 +1121,15 @@ def set_stderr_encoding():
     This is especially important if the stderr output is piped to a logfile, because Python will only set
     """
     # NOTE: If the stderr is piped to a logfile, Python will set the 
-    if sys.stderr.encoding.upper() != 'UTF-8':
-        encoding = sys.stderr.encoding or locale.getpreferredencoding()
-        try:
-            encoder = codecs.getwriter(encoding)
-        except LookupError:
-            sys.stderr.write("Warning: unknown encoding %s specified in locale().\n" % encoding)
-            encoder = codecs.getwriter('UTF-8')
-        if encoding.upper() != 'UTF-8':
-             sys.stderr.write("Warning: stderr in %s format. Diacritical signs are represented in XML-coded format." % encoding)
-        sys.stderr = encoder(sys.stderr, 'xmlcharrefreplace')
+    encoding = sys.stderr.encoding or locale.getpreferredencoding()
+    try:
+        encoder = codecs.getwriter(encoding)
+    except LookupError:
+        sys.stderr.write("Warning: unknown encoding %s specified in locale().\n" % encoding)
+        encoder = codecs.getwriter('UTF-8')
+    if encoding.upper() != 'UTF-8':
+         sys.stderr.write("Warning: stderr in %s format. Diacritical signs are represented in XML-coded format." % encoding)
+    sys.stderr = encoder(sys.stderr, 'xmlcharrefreplace')
 
 
 def main():
