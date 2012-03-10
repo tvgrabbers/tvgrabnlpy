@@ -1128,22 +1128,6 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
     return output
 
 
-def set_stderr_encoding():
-    """Make sure that the encoding of stderr is correct.
-    This is especially important if the stderr output is piped to a logfile, because Python will only set
-    """
-    # NOTE: If the stderr is piped to a logfile, Python will set the 
-    encoding = sys.stderr.encoding or locale.getpreferredencoding()
-    try:
-        encoder = codecs.getwriter(encoding)
-    except LookupError:
-        sys.stderr.write("Warning: unknown encoding %s specified in locale().\n" % encoding)
-        encoder = codecs.getwriter('UTF-8')
-    if encoding.upper() != 'UTF-8':
-         sys.stderr.write("Warning: stderr in %s format. Diacritical signs are represented in XML-coded format." % encoding)
-    sys.stderr = encoder(sys.stderr, 'xmlcharrefreplace')
-
-
 def main():
 
     # Parse command line options
@@ -1219,9 +1203,6 @@ def main():
 
     # seed the random generator
     random.seed(time.time())
-
-    # set the stderr encoding (required if the output is piped to a logfile)
-    set_stderr_encoding()
 
     for o, a in opts:
         if o in ("-h", "--help"):
@@ -1432,7 +1413,7 @@ def main():
         output.close()
 
     xml = "".join(xml)
-    print xml.encode('utf-8')
+    print(xml.encode('utf-8'))
     # and return success
     return(0)
 
