@@ -1274,12 +1274,7 @@ def main():
             try:
                 output = open(output_file,'w')
                 # and redirect output
-                if debug:
-                    debug_file = open('/tmp/kaas.xml','w')
-                    blah = redirect.Tee(output, debug_file) 
-                    sys.stdout = blah
-                else:
-                    sys.stdout = output
+                sys.stdout = output
             except Exception:
                 if not quiet:
                     sys.stderr.write('Cannot write to outputfile: %s\n' % output_file)
@@ -1382,21 +1377,21 @@ def main():
                 sys.stderr.write('\n\nNow fetching %s(xmltvid=%s%s) (channel %s of %s)\n' % \
                     (channels[id].encode(encoding), id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy))
         info = get_channel_all_days(id,  days, quiet)
-        blah = parse_programs(info, None, quiet)
+        programs = parse_programs(info, None, quiet)
 
         # fetch descriptions
         if not fast:
-           get_descriptions(blah, program_cache, nocattrans, quiet, slowdays)
+           get_descriptions(programs, program_cache, nocattrans, quiet, slowdays)
         
         # Split titles with colon in it
         # Note: this only takes place if all days retrieved are also grabbed with details (slowdays=days)
         # otherwise this function might change some titles after a few grabs and thus may result in
         # loss of programmed recordings for these programs.
         if slowdays == days:
-            for program in blah:
+            for program in programs:
                title_split(program)
 
-        print xmlefy_programs(blah, id, desc_len, compat, nocattrans).encode(xmlencoding)
+        print xmlefy_programs(programs, id, desc_len, compat, nocattrans).encode(xmlencoding)
 
         # save the cache after each channel fetch 
         if program_cache != None:
