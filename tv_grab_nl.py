@@ -67,45 +67,54 @@ Onselen, Hugo van der Kooij, Han Holl, Ian Mcdonald, Udo van den Heuvel.
 
 """ 
 
+# Python 3 compatibility
+from __future__ import unicode_literals
+# from __future__ import print_function
+
 # Modules we need
-import re, urllib2, getopt, sys, codecs
+import re, getopt, sys, codecs
 import time, random
-import htmlentitydefs, os, os.path, pickle
-from string import replace, split, strip
+import os, os.path, pickle
+try:
+    import urllib.request as urllib
+except ImportError:
+    import urllib2 as urllib
+try:
+    from html.entities import name2codepoint
+except ImportError:
+    from htmlentitydefs import name2codepoint
 from threading import Thread
 from xml.sax import saxutils
+import io
+import json
+
+
 
 # Extra check for the datetime module 
 try:
     import datetime
-except:
+except ImportError:
     sys.stderr.write('This script needs the datetime module that was introduced in Python version 2.3.\n')
     sys.stderr.write('You are running:\n')
     sys.stderr.write('%s\n' % sys.version)
-    sys.exit(1)
+    raise
+
+import sys,codecs,locale
 
 # XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
 if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
     try:
-        urllib2.urlopen('http://localhost.localdomain')
-    except:
+        urllib.urlopen('http://localhost.localdomain')
+    except Exception:
         pass
 
-# do extra debug stuff
-debug = 1
-
-try:
-    import redirect
-except:
-    debug = 0
-    pass
 
 # globals
 # compile only one time
 r_entity = re.compile(r'&(#x[0-9A-Fa-f]+|#[0-9]+|[A-Za-z]+);')
 
 tvgids = 'http://www.tvgids.nl/'
-uitgebreid_zoeken = tvgids + 'zoeken/'
+uitgebreid_zoeken = tvgids + 'json/lists/programs.php'
 
 # how many seconds to wait before we timeout on a 
 # url fetch, 10 seconds seems reasonable
@@ -284,9 +293,9 @@ class ProgramCache:
         """
         try:
             self.pdict = pickle.load(open(filename,'r'))
-        except:
+        except Exception:
             sys.stderr.write('Error loading cache file: %s (possibly corrupt)' % filename)
-            sys.exit(2)
+            self.clear()
 
     def dump(self, filename):
         """
@@ -295,7 +304,7 @@ class ProgramCache:
         if os.access(filename, os.F_OK):
             try:
                 os.remove(filename)
-            except:
+            except Exception:
                 sys.stderr.write('Cannot remove %s, check permissions' % filename)
         pickle.dump(self.pdict, open(filename+'.tmp', 'w'))
         os.rename(filename+'.tmp', filename)
@@ -308,7 +317,7 @@ class ProgramCache:
 
         try:
             return self.pdict[program_id]
-        except:
+        except LookupError:
             return None
 
     def add(self, program):
@@ -334,45 +343,47 @@ class ProgramCache:
             try:
                 if self.pdict[key]['stop-time'] < dnow or self.pdict[key]['name'].lower() == 'onbekend':
                     del self.pdict[key]
-            except:
+            except LookupError:
                 pass    
 
 
 def usage():
-    print 'tv_grab_nl_py: A grabber that grabs tvguide data from tvgids.nl\n'
-    print 'and stores it in XMLTV-combatible format.\n'
-    print 'Usage:'
-    print '--help, -h    = print this info'
-    print '--configure   = create configfile (overwrites existing file)'
-    print '--config-file = name of the configuration file (default = ~/.xmltv/tv_grab_py.conf'
-    print '--capabilities = xmltv required option'
-    print '--desc-length = maximum allowed length of programme descriptions in bytes.'
-    print '--description = prints a short description of the grabber'
-    print '--output      = file where to put the output'
-    print '--days        = # number of days to grab'
-    print '--preferredmethod = returns the preferred method to be called'
-    print '--fast        = do not grab descriptions of programming'
-    print '--slow        = grab descriptions of programming'
-    print '--quiet       = suppress all output'
-    print '--compat      = append tvgids.nl to the xmltv id (use this if you were using tv_grab_nl)'
-    print '--logos 0/1   = insert urls to channel icons (mythfilldatabase will then use these)'
-    print '--nocattrans  = do not translate the grabbed genres into MythTV-genres'
-    print '--cache       = cache descriptions and use the file to store'
-    print '--clean_cache = clean the cache file before fetching'
-    print '--clear_cache = empties the cache file before fetching data'
-    print '--slowdays    = grab slowdays initial days and the rest in fast mode'
-    print '--max_overlap = maximum length of overlap between programming to correct [minutes]'
-    print '--overlap_strategy = what strategy to use to correct overlaps (check top of source code)'
+    print('tv_grab_nl_py: A grabber that grabs tvguide data from tvgids.nl\n')
+    print('and stores it in XMLTV-combatible format.\n')
+    print('Usage:')
+    print('--help, -h    = print this info')
+    print('--configure   = create configfile (overwrites existing file)')
+    print('--config-file = name of the configuration file (default = ~/.xmltv/tv_grab_py.conf')
+    print('--capabilities = xmltv required option')
+    print('--desc-length = maximum allowed length of programme descriptions in bytes.')
+    print('--description = prints a short description of the grabber')
+    print('--output      = file where to put the output')
+    print('--days        = # number of days to grab')
+    print('--preferredmethod = returns the preferred method to be called')
+    print('--fast        = do not grab descriptions of programming')
+    print('--slow        = grab descriptions of programming')
+    print('--quiet       = suppress all output')
+    print('--compat      = append tvgids.nl to the xmltv id (use this if you were using tv_grab_nl)')
+    print('--logos 0/1   = insert urls to channel icons (mythfilldatabase will then use these)')
+    print('--nocattrans  = do not translate the grabbed genres into MythTV-genres')
+    print('--cache       = cache descriptions and use the file to store')
+    print('--clean_cache = clean the cache file before fetching')
+    print('--clear_cache = empties the cache file before fetching data')
+    print('--slowdays    = grab slowdays initial days and the rest in fast mode')
+    print('--max_overlap = maximum length of overlap between programming to correct [minutes]')
+    print('--overlap_strategy = what strategy to use to correct overlaps (check top of source code)'
+)
 
-
-def filter_line_identity(m, defs=htmlentitydefs.entitydefs):
-    # callback: translate one entity to its ISO Latin value
+def filter_line_identity(m, defs=name2codepoint):
+    # callback: translate one entity to its Unicode value
     k = m.group(1)
-    if k.startswith("#") and k[1:] in xrange(256):
-        return chr(int(k[1:]))
-
     try:
-        return defs[k]
+        if k.startswith("#x"):
+            return unichr(int(k[1:], 16))
+        elif k.startswith("#"):
+            return unichr(int(k[1:]))
+        else:
+            return unichr(defs[k])
     except KeyError:
         return m.group(0) # use as is
 
@@ -381,19 +392,19 @@ def filter_line(s):
     Removes unwanted stuff in strings (adapted from tv_grab_be)
     """
 
-    # do the latin1 stuff
+    # convert escapse HTML entities to their Unicode equivalent
     s = r_entity.sub(filter_line_identity, s)
 
-    s = replace(s,'&nbsp;',' ')
+    s.replace('&nbsp;',' ')
 
     # Ik vermoed dat de volgende drie regels overbodig zijn, maar ze doen
     # niet veel kwaad -- Han Holl
-    s = replace(s,'\r',' ')
+    s.replace('\r',' ')
     x = re.compile('(<.*?>)') # Udo
     s = x.sub('', s) #Udo
 
-    s = replace(s, '~Q', "'")
-    s = replace(s, '~R', "'")
+    s.replace('~Q', "'")
+    s.replace('~R', "'")
 
     # Hmm, not sure if I understand this. Without it, mythfilldatabase barfs
     # on program names like "Steinbrecher &..."
@@ -430,7 +441,7 @@ def calc_timezone(t):
     try:
         #timezone = time.tzname[(time.localtime(pt))[-1]]
         timezone = (time.localtime(pt))[-1]
-    except:
+    except LookupError:
         sys.stderr.write('Cannot convert time to timezone')
 
     return t+' %s' % td[timezone]
@@ -452,13 +463,21 @@ def get_page_internal(url, quiet=0):
     txtheaders = {'Keep-Alive' : '300',
                   'User-Agent' : user_agents[random.randint(0, len(user_agents)-1)] }
     try:
-        #fp = urllib2.urlopen(url)
-        rurl = urllib2.Request(url, txtdata, txtheaders)
-        fp = urllib2.urlopen(rurl)
-        lines = fp.readlines()
-        page = "".join(lines).expandtabs(0)
+        #fp = urllib.urlopen(url)
+        rurl = urllib.Request(url, txtdata, txtheaders)
+        fp = urllib.urlopen(rurl)
+        bytes = fp.read()
+        page = None
+        try:
+            page = bytes.decode('iso-8859-1', 'strict') # This is what tvgids.nl currently uses as encoding
+            # TODO: the encoding should be determined from the HTTP headers and/or the HTML head.
+        except UnicodeDecodeError:
+            if not quiet:
+                sys.stderr.write('Cannot decode url: %s\n' % url)
+            page = bytes.decode('utf-8', 'replace') # At least gets the ASCII correct
+        
         return page
-    except:
+    except Exception:
         if not quiet:
             sys.stderr.write('Cannot open url: %s\n' % url)
         return None
@@ -485,8 +504,9 @@ def get_page(url, quiet=0):
         fu = FetchURL(url, quiet)
         fu.start()
         fu.join(global_timeout)
-        return fu.result
-    except:
+        page = fu.result.translate("\n\t") # remove tabs and returns
+        return page
+    except Exception:
         if not quiet:
             sys.stderr.write('get_page timed out on (>%s s): %s\n' % (global_timeout, url))
         return None
@@ -525,16 +545,16 @@ def get_channels(file, quiet=0):
                 a = int(p.group(1))
                 b = filter_line(p.group(2))
                 channels[a] = b
-            except:
+            except Exception:
                 sys.stderr.write('Oops, [%s,%s] does not look like a valid channel, skipping it...\n' % (p.group(1),p.group(2)))
 
     # sort on channel number (arbitrary but who cares)
-    keys = channels.keys()
+    keys = list(channels.keys())
     keys.sort()
 
     # and create a file with the channels
     f = open(file,'w')
-    f.write("# encoding: iso-8859-1\n")
+    f.write("# encoding: utf-8\n")
     for k in keys:
         f.write("%s %s\n" % (k, channels[k]))
     f.close()
@@ -555,100 +575,39 @@ def get_channel_all_days(channel, days, quiet=0):
     # we are required to grab
     for offset in range(0, days):
     
-        channel_url = 'http://www.tvgids.nl/zoeken/?d=%i&z=%s' % (offset, channel)
-
-        # For historic purposes, the old style url that gave us a full week in advance:
-        #       channel_url = 'http://www.tvgids.nl/zoeken/?trefwoord=Titel+of+trefwoord&interval=0&timeslot='+\
-        #           '&station=%s&periode=%i&genre=&order=0' % (channel,days-1)
-        # Sniff, we miss you...
+        channel_url = 'http://www.tvgids.nl/json/lists/programs.php?channels=%s&day=%s' % (channel, offset)
 
         if offset > 0:
                 time.sleep(random.randint(nice_time[0], nice_time[1]))
-
         # get the raw programming for the day
-        total = get_page(channel_url, quiet)
-
-        if total == None:
-                return programs
-
-        # Setup a number of regexps
-
-        # checktitle will match the title row in H2 tags of the daily overview page, e.g.
-        #    <h2>zondag 19 oktober 2008</h2>
-        checktitle = re.compile('<h2>(.*?)</h2>',re.DOTALL)
-
-        # getrow will locate each row with program details 
-        getrow = re.compile('<a href="/programma/(.*?)</a>',re.DOTALL)
-
-        # parserow matches the required program info, with groups:
-        # 1 = program ID
-        # 2 = broadcast times
-        # 3 = program name
-        parserow = re.compile('(.*?)/.*<span class="time">(.*?)</span>.*<span class="title">(.*?)</span>', re.DOTALL)
-
-        #  normal begin and end times
-        times = re.compile('([0-9]+:[0-9]+) - ([0-9]+:[0-9]+)?')
-
-        # Get the day of month listed on the page as well as the expected date we are grabbing and compare these.
-        # If these do not match, we skip parsing the programs on the page and issue a warning.
-        #dayno = int(checkday.search(total).group(1))
- 
-        title = checktitle.search(total)
-        if title:
-            title = title.group(1)
-            dayno = title.split()[1]
-        else:
-            sys.stderr.write('\nOops, there was a problem with page %s. Skipping it...\n' % (channel_url))
-            continue
+        req = urllib.Request(channel_url)
+        opener = urllib.build_opener()
+        response = opener.open(req)
+        data = response.read()
+        if not data:
+            return programs
+        total = json.loads(data)
 
         expected = now + datetime.timedelta(days=offset)
         
-        if (not dayno.isdigit() or int(dayno) != expected.day):
-            sys.stderr.write('\nOops, did not expect page %s to list programs for "%s", skipping it...\n' % (channel_url,title))
-            continue
-        
-
         # and find relevant programming info
-        allrows = getrow.finditer(total)
-
-        for r in allrows:
-                detail = parserow.search(r.group(1))
-
-                if detail != None: 
-
-                        # default times
-                        start_time = None
-                        stop_time  = None
-
-                        # parse for begin and end times
-                        t  = times.search(detail.group(2))
-
-                        if t != None:
-                                start_time = t.group(1)
-                                stop_time  = t.group(2)
-
-                        program_url  = 'http://www.tvgids.nl/programma/' + detail.group(1) + '/'
-                        program_name = detail.group(3)
-
-                        # store time, name and detail url in a dictionary 
-                        tdict = {}
-                        tdict['start'] = start_time
-                        tdict['stop']  = stop_time
-                        tdict['name']  = program_name
-                        if tdict['name'] == '':
-                                tdict['name'] = 'onbekend'
-                        tdict['url']   = program_url
-                        tdict['ID']    = detail.group(1)
-                        tdict['offset'] = offset
-
-                        #Add star rating if tipped by tvgids.nl
-                        tdict['star-rating'] = '';
-                        if r.group(1).find('Tip') != -1:
-                                tdict['star-rating'] = '4/5'
-
-                        # and append the program to the list of programs
-                        programs.append(tdict)
-
+        v= total.values()[0]
+        if isinstance(v, dict):
+                v=list(v.values())
+        for r in v:
+                program_url  = 'http://www.tvgids.nl/programma/' + r['db_id'] + '/'
+                tdict = {}
+                tdict['start'] = r['datum_start'][10:-3]
+                tdict['stop']  = r['datum_end'][10:-3]
+                tdict['name']  = r['titel']
+                if tdict['name'] == '':
+                        dict['name'] = 'onbekend'
+                tdict['url']   = program_url
+                tdict['ID']    = r['db_id']
+                tdict['offset'] = offset
+                tdict['genre'] = r['genre']
+                # and append the program to the list of programs
+                programs.append(tdict)
     # done
     return programs
 
@@ -810,7 +769,7 @@ def parse_programs(programs, offset=0, quiet=0):
         stop  = good_programs[i]['stop-time']
         start = good_programs[i+1]['start-time']
         dt    = stop-start
-        avg   = start + dt / 2
+        avg   = start + dt // 2
         overlap = 24*60*60*dt.days + dt.seconds
 
         # check for the size of the overlap
@@ -818,10 +777,10 @@ def parse_programs(programs, offset=0, quiet=0):
             if not quiet:
                 if overlap > 0:
                     sys.stderr.write('"%s" and "%s" overlap %s minutes. Adjusting times.\n' % \
-                        (good_programs[i]['name'],good_programs[i+1]['name'],overlap / 60))
+                        (good_programs[i]['name'],good_programs[i+1]['name'],overlap // 60))
                 else:
                     sys.stderr.write('"%s" and "%s" have gap of %s minutes. Adjusting times.\n' % \
-                        (good_programs[i]['name'],good_programs[i+1]['name'],abs(overlap) / 60))
+                        (good_programs[i]['name'],good_programs[i+1]['name'],abs(overlap) // 60))
 
             # stop-time of previous program wins
             if overlap_strategy == 'stop':
@@ -855,8 +814,8 @@ def parse_programs(programs, offset=0, quiet=0):
             l1 = length1.days*24*60*60 + length0.seconds    
 
             if abs(overlap) >= max_overlap*60 <= min(l0,l1)*60 and \
-                not good_programs[i].has_key('clumpidx')   and \
-                not good_programs[i+1].has_key('clumpidx'):
+                'clumpidx' not in good_programs[i]   and \
+                'clumpidx' not in good_programs[i+1]:
                 good_programs[i]['clumpidx']   = '0/2'
                 good_programs[i+1]['clumpidx'] = '1/2'
                 good_programs[i]['stop-time'] = good_programs[i+1]['stop-time']
@@ -892,7 +851,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
 
     # randomize detail requests
     nprograms = len(programs)
-    fetch_order = range(0,nprograms)
+    fetch_order = list(range(0,nprograms))
     random.shuffle(fetch_order)
 
     counter = 0
@@ -913,10 +872,10 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 # these may have changed.
                 tstart = programs[i]['start-time']
                 tstop  = programs[i]['stop-time']
-                rating = programs[i]['star-rating']
+                rating = '' #programs[i]['star-rating']
                 try:
                     clump  = programs[i]['clumpidx']
-                except:
+                except LookupError:
                     clump = False
                 programs[i] = cached_program
                 programs[i]['start-time'] = tstart
@@ -937,10 +896,11 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 sys.stderr.write(' [normal fetch]')
             total = get_page(programs[i]['url'])
             details = detail.finditer(total)
-                
-            descrspan = description.search(total);
+            
+            descrspan = description.search(total)
             descriptions = descrline.finditer(descrspan.group(1))
-        except:
+            
+        except Exception as e:
             # if we cannot find the description page, 
             # go to next in the loop
             if not quiet:
@@ -967,13 +927,15 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         elif descrtype.search(descrspan.group(1)) != None:
            programs[i]['detail1'] = descrtype.search(descrspan.group(1)).group(1).capitalize()
 
-        # If a type was found, we store this as first part of the regular detailed description.
+        # If a type was found, we store this as first part of the regular detailed description and remove unwanted chars
         if programs[i]['detail1'] != '':
+           programs[i]['detail1'] = filter_line(programs[i]['detail1'])
            line_nr = line_nr + 1
 
         # Secondly, we add one or more lines of the program description that are present.
     
         for descript in descriptions:
+            # descript is a re.Match object
             d_str = 'detail' + str(line_nr)
             programs[i][d_str] = descript.group(1)
 
@@ -995,14 +957,14 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         #   <li><strong>Genre:</strong>Amusement</li>
                                                                             
         for d in details:
-            type = d.group(1).strip().lower()
+            ctype = d.group(1).strip().lower()
             content_asis = d.group(2).strip()
             content = filter_line(content_asis).strip()
             
             if content == '':
                 continue
 
-            elif type == 'genre':
+            elif ctype == 'genre':
 
                 # Fix detection of movies based on description as tvgids.nl sometimes 
                 # categorises a movie as e.g. "Komedie", "Misdaadkomedie", "Detectivefilm". 
@@ -1019,13 +981,13 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 else:
                     try:
                         programs[i]['genre'] = cattrans[genre.lower()]
-                    except:
+                    except LookupError:
                         programs[i]['genre'] = ''
 
 
             # Parse persons and their roles for credit info
-            elif roletrans.has_key(type):
-                programs[i]['credits'][roletrans[type]] = []
+            elif ctype in roletrans:
+                programs[i]['credits'][roletrans[ctype]] = []
 
                 persons = content_asis.split(',');
 
@@ -1036,9 +998,9 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                         name = name.split('-')[0]
                     if name.find('e.a') != -1:
                         name = name.split('e.a')[0]
-                    programs[i]['credits'][roletrans[type]].append(filter_line(name.strip()))
+                    programs[i]['credits'][roletrans[ctype]].append(filter_line(name.strip()))
 
-            elif type == 'bijzonderheden':
+            elif ctype == 'bijzonderheden':
                 if content.find('Breedbeeld') != -1:
                     programs[i]['video']['breedbeeld'] = 1
                 if content.find('Zwart') != -1: 
@@ -1047,12 +1009,12 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                     programs[i]['teletekst'] = 1
                 if content.find('Stereo') != -1: 
                     programs[i]['stereo'] = 1
-            elif type == 'url':
+            elif ctype == 'url':
                 programs[i]['infourl'] = content
             else:
                 # In unmatched cases, we still add the parsed type and content to the program details.
                 # Some of these will lead to xmltv output during the xmlefy_programs step
-                programs[i][type] = content
+                programs[i][ctype] = content
 
         # do not cache programming that is unknown at the time
         # of fetching.
@@ -1071,8 +1033,8 @@ def title_split(program):
     This function attempts to fix this, by splitting the name at a ': '.
     """
     
-    if  (program.has_key('titel aflevering') and program['titel aflevering'] != '')  \
-     or (program.has_key('genre') and program['genre'].lower() in ['movies','film']):
+    if  ('titel aflevering' in program and program['titel aflevering'] != '')  \
+     or ('genre' in program and program['genre'].lower() in ['movies','film']):
        return
 
  
@@ -1084,17 +1046,17 @@ def title_split(program):
 def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
     """
     Given a list of programming (from get_channels())
-    returns a string with the xml equivalent
+    returns a unicode string with the xml equivalent
     """
     output = []
     for program in programs:
 
         clumpidx = ''
         try:
-            if program.has_key('clumpidx'):
+            if 'clumpidx' in program:
                 clumpidx = 'clumpidx="'+program['clumpidx']+'"'
-        except:
-            print program
+        except LookupError:
+            print(program)
 
         output.append('  <programme start="%s" stop="%s" channel="%s%s" %s> \n' % \
             (format_timezone(program['start-time']), format_timezone(program['stop-time']),\
@@ -1102,12 +1064,12 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
 
         output.append('    <title lang="nl">%s</title>\n' % filter_line(program['name']))
 
-        if program.has_key('titel aflevering') and program['titel aflevering'] != '':
+        if 'titel aflevering' in program and program['titel aflevering'] != '':
                 output.append('    <sub-title lang="nl">%s</sub-title>\n' % filter_line(program['titel aflevering']))
 
         desc = []
         for detail_row in ['detail1','detail2','detail3']:
-                if program.has_key(detail_row) and not re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', program[detail_row]):
+                if detail_row in program and not re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', program[detail_row]):
                         desc.append('%s ' % program[detail_row])
         if desc != []:
                 # join and remove newlines from descriptions
@@ -1120,7 +1082,7 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
         
         # Process credits section if present.
         # This will generate director/actor/presenter info.
-        if program.has_key('credits') and program['credits'] != {}:
+        if 'credits' in program and program['credits'] != {}:
             output.append('    <credits>\n')
             for role in program['credits']:
                 for name in program['credits'][role]:
@@ -1128,43 +1090,59 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
                         output.append('       <%s>%s</%s>\n' % (role, name, role))
             output.append('    </credits>\n')
 
-        if program.has_key('jaar van premiere') and program['jaar van premiere'] != '':
+        if 'jaar van premiere' in program and program['jaar van premiere'] != '':
                 output.append('    <date>%s</date>\n' % program['jaar van premiere'])
 
-        if program.has_key('genre') and program['genre'] != '':
+        if 'genre' in program and program['genre'] != '':
                 output.append('    <category')
                 if nocattrans:
                    output.append(' lang="nl"')
                 output.append ('>%s</category>\n' % program['genre'])
         
-        if program.has_key('infourl') and program['infourl'] != '':
+        if 'infourl' in program and program['infourl'] != '':
                 output.append('    <url>%s</url>\n' % program['infourl']) 
 
-        if program.has_key('aflevering') and program['aflevering'] != '':
+        if 'aflevering' in program and program['aflevering'] != '':
                 output.append('    <episode-num system="onscreen">%s</episode-num>\n' % filter_line(program['aflevering']))
 
         # Process video section if present
-        if program.has_key('video') and program['video'] != {}:
+        if 'video' in program and program['video'] != {}:
             output.append('    <video>\n');
-            if program['video'].has_key('breedbeeld'):
+            if 'breedbeeld' in program['video']:
                 output.append('           <aspect>16:9</aspect>\n')
-            if program['video'].has_key('blackwhite'):
+            if 'blackwhite' in program['video']:
                 output.append('           <colour>no</colour>\n')
             output.append('    </video>\n')
 
-        if program.has_key('stereo'):
+        if 'stereo' in program:
             output.append('    <audio><stereo>stereo</stereo></audio>\n')
  
-        if program.has_key('teletekst'):
+        if 'teletekst' in program:
             output.append('    <subtitles type="teletext" />\n')
 
         # Set star-rating if applicable
-        if program['star-rating'] != '':
-             output.append('    <star-rating><value>%s</value></star-rating>\n' % program['star-rating'])
+        #if program['star-rating'] != '':
+        #     output.append('    <star-rating><value>%s</value></star-rating>\n' % program['star-rating'])
                 
         output.append('  </programme>\n')
-    
-    return "".join(output)
+    return ''.join(output)
+
+
+def set_stderr_encoding():
+    """Make sure that the encoding of stderr is correct.
+    This is especially important if the stderr output is piped to a logfile, because Python will only set
+    """
+    # NOTE: If the stderr is piped to a logfile, Python will set the 
+    encoding = sys.stderr.encoding or locale.getpreferredencoding()
+    try:
+        encoder = codecs.getwriter(encoding)
+    except LookupError:
+        sys.stderr.write("Warning: unknown encoding %s specified in locale().\n" % encoding)
+        encoder = codecs.getwriter('UTF-8')
+    if encoding.upper() != 'UTF-8':
+         sys.stderr.write("Warning: stderr in %s format. Diacritical signs are represented in XML-coded format." % encoding)
+    sys.stderr = encoder(sys.stderr, 'xmlcharrefreplace')
+
 
 def main():
 
@@ -1181,7 +1159,7 @@ def main():
                                                        "clear_cache", "quiet","logos="])
     except getopt.GetoptError:
         usage()
-        sys.exit(2)
+        return(2)
 
     # DEFAULT OPTIONS - Edit if you know what you are doing
 
@@ -1222,10 +1200,10 @@ def main():
  
     # default configuration file locations
     hpath = ''
-    if os.environ.has_key('HOME'):
+    if 'HOME' in os.environ:
         hpath = os.environ['HOME']
     # extra test for windows users
-    elif os.environ.has_key('HOMEPATH'):
+    elif 'HOMEPATH' in os.environ:
         hpath = os.environ['HOMEPATH']
 
     # hpath = ''
@@ -1242,28 +1220,31 @@ def main():
     # seed the random generator
     random.seed(time.time())
 
+    # set the stderr encoding (required if the output is piped to a logfile)
+    set_stderr_encoding()
+
     for o, a in opts:
         if o in ("-h", "--help"):
             usage()
-            sys.exit(1)
+            return(1)
 
         if o == "--quiet":
             quiet = 1;
 
         if o == "--description":
-            print "The Netherlands (tv_grab_nl_py $Rev$)"
-            sys.exit(0)
+            print("The Netherlands (tv_grab_nl_py $Rev: 106 $)")
+            return(0)
 
         if o == "--capabilities":
-            print "baseline"
-            print "cache"
-            print "manualconfig"
-            print "preferredmethod"
-            sys.exit(0)
+            print("baseline")
+            print("cache")
+            print("manualconfig")
+            print("preferredmethod")
+            return(0)
 
         if o == '--preferredmethod':
-            print 'allatonce'
-            sys.exit(0)
+            print('allatonce')
+            return(0)
 
         if o == '--desc-length':
             # Use the requested length for programme descriptions.
@@ -1289,7 +1270,7 @@ def main():
             if not quiet:
                 sys.stderr.write('Creating config file: %s\n' % config_file)
             get_channels(config_file)
-            sys.exit(0)
+            return(0)
 
         if o == "--days":
             # limit days to maximum supported by tvgids.nl
@@ -1308,17 +1289,11 @@ def main():
             output_file = a
             try:
                 output = open(output_file,'w')
-                # and redirect output
-                if debug:
-                    debug_file = open('/tmp/kaas.xml','w')
-                    blah = redirect.Tee(output, debug_file) 
-                    sys.stdout = blah
-                else:
-                    sys.stdout = output
-            except:
+                sys.stdout = output
+            except Exception:
                 if not quiet:
                     sys.stderr.write('Cannot write to outputfile: %s\n' % output_file)
-                sys.exit(2)
+                return(2)
 
         if o == "--slowdays":
             # limit slowdays to maximum supported by tvgids.nl
@@ -1349,7 +1324,7 @@ def main():
             sys.stderr.write('Re-run me with the --configure flag.\n')
         else:
             sys.stderr.write('Config file %s: %s.\n' % (config_file, e.strerror))
-        sys.exit(1)
+        return(1)
 
     #check for cache
     program_cache = ProgramCache(program_cache_file)
@@ -1362,7 +1337,7 @@ def main():
     channels = {}
 
     # Read the channel stuff
-    configencoding = 'iso-8859-1'
+    configencoding = 'utf-8'
     for line in f.readlines():
         line = line.lstrip()
         line = line.replace('\n','')
@@ -1378,7 +1353,7 @@ def main():
                         codecs.getencoder(configencoding)
                     except LookupError:
                         sys.stderr.write('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
-                        sys.exit(1)
+                        return(1)
     
     try:
         f.close()
@@ -1388,21 +1363,21 @@ def main():
     # channels are now in channels dict keyed on channel id
 
     # print header stuff
-    encoding = 'ISO-8859-1'
-    print '<?xml version="1.0" encoding="%s"?>' % encoding
-    print '<!DOCTYPE tv SYSTEM "xmltv.dtd">'
-    print '<tv generator-info-name="tv_grab_nl_py $Rev$">'
+    xmlencoding = 'UTF-8'
+    print('<?xml version="1.0" encoding="%s"?>' % xmlencoding)
+    print('<!DOCTYPE tv SYSTEM "xmltv.dtd">')
+    print('<tv generator-info-name="tv_grab_nl_py $Rev$">')
 
     # first do the channel info
     for key in channels.keys():
-        print '  <channel id="%s%s">' % (key, compat and '.tvgids.nl' or '')
-        print '    <display-name lang="nl">%s</display-name>' % channels[key].encode(encoding)
+        print('  <channel id="%s%s">' % (key, compat and '.tvgids.nl' or ''))
+        print('    <display-name lang="nl">%s</display-name>' % channels[key].encode(xmlencoding))
         if (logos):
             ikey = int(key)
-            if logo_names.has_key(ikey):
+            if ikey in logo_names:
                 full_logo_url = logo_provider[logo_names[ikey][0]]+logo_names[ikey][1]+'.gif'
-                print '    <icon src="%s" />' % full_logo_url
-        print '  </channel>'
+                print('    <icon src="%s" />' % full_logo_url)
+        print('  </channel>')
 
     num_chans = len(channels.keys())
     channel_cnt = 0
@@ -1415,23 +1390,23 @@ def main():
         channel_cnt += 1
         if not quiet:
                 sys.stderr.write('\n\nNow fetching %s(xmltvid=%s%s) (channel %s of %s)\n' % \
-                    (channels[id].encode('iso-8859-1'), id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy))
+                    (channels[id].encode(xmlencoding), id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy))
         info = get_channel_all_days(id,  days, quiet)
-        blah = parse_programs(info, None, quiet)
+        programs = parse_programs(info, None, quiet)
 
         # fetch descriptions
         if not fast:
-           get_descriptions(blah, program_cache, nocattrans, quiet, slowdays)
+           get_descriptions(programs, program_cache, nocattrans, quiet, slowdays)
         
         # Split titles with colon in it
         # Note: this only takes place if all days retrieved are also grabbed with details (slowdays=days)
         # otherwise this function might change some titles after a few grabs and thus may result in
         # loss of programmed recordings for these programs.
         if slowdays == days:
-            for program in blah:
+            for program in programs:
                title_split(program)
 
-        print xmlefy_programs(blah, id, desc_len, compat, nocattrans)
+        print(xmlefy_programs(programs, id, desc_len, compat, nocattrans).encode(xmlencoding))
 
         # save the cache after each channel fetch 
         if program_cache != None:
@@ -1443,18 +1418,17 @@ def main():
             program_cache.dump(program_cache_file)
 
     # print footer stuff
-    print "</tv>"
+    print("</tv>")
 
     # close the outputfile if necessary
     if output != None:
         output.close()
 
     # and return success
-    sys.exit(0)
+    return(0)
 
 # allow this to be a module
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
 
-# vim:tw=0:et:sw=4
 
