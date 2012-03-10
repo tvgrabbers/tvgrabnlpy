@@ -1319,7 +1319,7 @@ def main():
     # channels are now in channels dict keyed on channel id
 
     # print header stuff
-    print '<?xml version="1.0" encoding="ISO-8859-1"?>'
+    print '<?xml version="1.0" encoding="UTF-8"?>'
     print '<!DOCTYPE tv SYSTEM "xmltv.dtd">'
     print '<tv generator-info-name="tv_grab_nl_py $Rev: 106 $">'
 
@@ -1361,7 +1361,7 @@ def main():
             for program in blah:
                title_split(program)
 
-        print xmlefy_programs(blah, id, desc_len, compat, nocattrans).encode("ascii", "ignore")
+        print xmlefy_programs(blah, id, desc_len, compat, nocattrans).encode("utf-8")
 
         # save the cache after each channel fetch 
         if program_cache != None:
