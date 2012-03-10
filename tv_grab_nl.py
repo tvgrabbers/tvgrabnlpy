@@ -575,9 +575,8 @@ def get_channel_all_days(channel, days, quiet=0):
         response = opener.open(req)
         data = response.read()
         if not data:
-                return programs
-        content = io.StringIO(data)
-        total = json.load(content)
+            return programs
+        total = json.loads(data)
 
         expected = now + datetime.timedelta(days=offset)
         
@@ -587,7 +586,7 @@ def get_channel_all_days(channel, days, quiet=0):
                 v=list(v.values())
         for r in v:
                 program_url  = 'http://www.tvgids.nl/programma/' + r['db_id'] + '/'
-               	tdict = {}
+                tdict = {}
                 tdict['start'] = r['datum_start'][10:-3]
                 tdict['stop']  = r['datum_end'][10:-3]
                 tdict['name']  = r['titel']
