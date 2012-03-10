@@ -80,9 +80,9 @@ try:
 except ImportError:
     import urllib2 as urllib
 try:
-    from html.entities import entitydefs
+    from html.entities import name2codepoint
 except ImportError:
-    from htmlentitydefs import entitydefs
+    from htmlentitydefs import name2codepoint
 from string import replace, split, strip
 from threading import Thread
 from xml.sax import saxutils
@@ -375,14 +375,16 @@ def usage():
     print('--overlap_strategy = what strategy to use to correct overlaps (check top of source code)'
 )
 
-def filter_line_identity(m, defs=entitydefs):
-    # callback: translate one entity to its ISO Latin value
+def filter_line_identity(m, defs=name2codepoint):
+    # callback: translate one entity to its Unicode value
     k = m.group(1)
-    if k.startswith("#") and k[1:] in range(256):
-        return chr(int(k[1:]))
-
     try:
-        return defs[k]
+        if k.startswith("#x"):
+            return unichr(int(k[1:], 16))
+        elif k.startswith("#"):
+            return unichr(int(k[1:]))
+        else:
+            return unichr(defs[k])
     except KeyError:
         return m.group(0) # use as is
 
@@ -391,7 +393,7 @@ def filter_line(s):
     Removes unwanted stuff in strings (adapted from tv_grab_be)
     """
 
-    # do the latin1 stuff
+    # convert escapse HTML entities to their Unicode equivalent
     s = r_entity.sub(filter_line_identity, s)
 
     s = replace(s,'&nbsp;',' ')
@@ -465,8 +467,16 @@ def get_page_internal(url, quiet=0):
         #fp = urllib.urlopen(url)
         rurl = urllib.Request(url, txtdata, txtheaders)
         fp = urllib.urlopen(rurl)
-        lines = fp.readlines()
-        page = "".join(lines).expandtabs(0)
+        bytes = fp.read()
+        page = None
+        try:
+            page = bytes.decode('iso-8859-1', 'strict') # This is what tvgids.nl currently uses as encoding
+            # TODO: the encoding should be determined from the HTTP headers and/or the HTML head.
+        except UnicodeDecodeError:
+            if not quiet:
+                sys.stderr.write('Cannot decode url: %s\n' % url)
+            page = bytes.decode('utf-8', 'replace') # At least gets the ASCII correct
+        
         return page
     except Exception:
         if not quiet:
@@ -495,7 +505,8 @@ def get_page(url, quiet=0):
         fu = FetchURL(url, quiet)
         fu.start()
         fu.join(global_timeout)
-        return fu.result
+        page = fu.result.translate("\n\t") # remove tabs and returns
+        return page
     except Exception:
         if not quiet:
             sys.stderr.write('get_page timed out on (>%s s): %s\n' % (global_timeout, url))
@@ -886,10 +897,11 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 sys.stderr.write(' [normal fetch]')
             total = get_page(programs[i]['url'])
             details = detail.finditer(total)
-                
-            descrspan = description.search(total);
+            
+            descrspan = description.search(total)
             descriptions = descrline.finditer(descrspan.group(1))
-        except Exception:
+            
+        except Exception as e:
             # if we cannot find the description page, 
             # go to next in the loop
             if not quiet:
@@ -924,6 +936,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         # Secondly, we add one or more lines of the program description that are present.
     
         for descript in descriptions:
+            # descript is a re.Match object
             d_str = 'detail' + str(line_nr)
             programs[i][d_str] = descript.group(1)
 
@@ -945,14 +958,14 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         #   <li><strong>Genre:</strong>Amusement</li>
                                                                             
         for d in details:
-            type = d.group(1).strip().lower()
+            ctype = d.group(1).strip().lower()
             content_asis = d.group(2).strip()
             content = filter_line(content_asis).strip()
             
             if content == '':
                 continue
 
-            elif type == 'genre':
+            elif ctype == 'genre':
 
                 # Fix detection of movies based on description as tvgids.nl sometimes 
                 # categorises a movie as e.g. "Komedie", "Misdaadkomedie", "Detectivefilm". 
@@ -974,8 +987,8 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
 
 
             # Parse persons and their roles for credit info
-            elif type in roletrans:
-                programs[i]['credits'][roletrans[type]] = []
+            elif ctype in roletrans:
+                programs[i]['credits'][roletrans[ctype]] = []
 
                 persons = content_asis.split(',');
 
@@ -986,9 +999,9 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                         name = name.split('-')[0]
                     if name.find('e.a') != -1:
                         name = name.split('e.a')[0]
-                    programs[i]['credits'][roletrans[type]].append(filter_line(name.strip()))
+                    programs[i]['credits'][roletrans[ctype]].append(filter_line(name.strip()))
 
-            elif type == 'bijzonderheden':
+            elif ctype == 'bijzonderheden':
                 if content.find('Breedbeeld') != -1:
                     programs[i]['video']['breedbeeld'] = 1
                 if content.find('Zwart') != -1: 
@@ -997,12 +1010,12 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                     programs[i]['teletekst'] = 1
                 if content.find('Stereo') != -1: 
                     programs[i]['stereo'] = 1
-            elif type == 'url':
+            elif ctype == 'url':
                 programs[i]['infourl'] = content
             else:
                 # In unmatched cases, we still add the parsed type and content to the program details.
                 # Some of these will lead to xmltv output during the xmlefy_programs step
-                programs[i][type] = content
+                programs[i][ctype] = content
 
         # do not cache programming that is unknown at the time
         # of fetching.
@@ -1351,15 +1364,15 @@ def main():
     # channels are now in channels dict keyed on channel id
 
     # print header stuff
-    encoding = 'UTF-8'
-    print('<?xml version="1.0" encoding="%s"?>' % encoding)
+    xmlencoding = 'UTF-8'
+    print('<?xml version="1.0" encoding="%s"?>' % xmlencoding)
     print('<!DOCTYPE tv SYSTEM "xmltv.dtd">')
     print('<tv generator-info-name="tv_grab_nl_py $Rev$">')
 
     # first do the channel info
     for key in channels.keys():
         print('  <channel id="%s%s">' % (key, compat and '.tvgids.nl' or ''))
-        print('    <display-name lang="nl">%s</display-name>' % channels[key].encode(encoding))
+        print('    <display-name lang="nl">%s</display-name>' % channels[key].encode(xmlencoding))
         if (logos):
             ikey = int(key)
             if ikey in logo_names:
@@ -1378,7 +1391,7 @@ def main():
         channel_cnt += 1
         if not quiet:
                 sys.stderr.write('\n\nNow fetching %s(xmltvid=%s%s) (channel %s of %s)\n' % \
-                    (channels[id].encode(encoding), id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy))
+                    (channels[id].encode(xmlencoding), id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy))
         info = get_channel_all_days(id,  days, quiet)
         programs = parse_programs(info, None, quiet)
 
