@@ -109,7 +109,7 @@ except:
 r_entity = re.compile(r'&(#x[0-9A-Fa-f]+|#[0-9]+|[A-Za-z]+);')
 
 tvgids = 'http://www.tvgids.nl/'
-uitgebreid_eoeken = tvgids + 'json/lists/programs.php'
+uitgebreid_zoeken = tvgids + 'json/lists/programs.php'
 
 # how many seconds to wait before we timeout on a 
 # url fetch, 10 seconds seems reasonable
