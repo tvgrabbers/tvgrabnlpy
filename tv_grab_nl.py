@@ -1056,7 +1056,7 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
             if 'clumpidx' in program:
                 clumpidx = 'clumpidx="'+program['clumpidx']+'"'
         except LookupError:
-            print(program)
+            clumpidx = ""
 
         output.append('  <programme start="%s" stop="%s" channel="%s%s" %s> \n' % \
             (format_timezone(program['start-time']), format_timezone(program['stop-time']),\
@@ -1125,7 +1125,7 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
         #     output.append('    <star-rating><value>%s</value></star-rating>\n' % program['star-rating'])
                 
         output.append('  </programme>\n')
-    return ''.join(output)
+    return output
 
 
 def set_stderr_encoding():
@@ -1338,22 +1338,27 @@ def main():
 
     # Read the channel stuff
     configencoding = 'utf-8'
-    for line in f.readlines():
-        line = line.lstrip()
-        line = line.replace('\n','')
-        if line:
+    reconfigline = re.compile(r'#\s*(\w+):\s*(.+)')
+    for byteline in f.readlines():
+        match = reconfigline.match(byteline)
+        if match is not None and match.group(1) == "encoding":
+            configencoding = match.group(2)
+            try:
+                codecs.getencoder(configencoding)
+            except LookupError:
+                sys.stderr.write('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
+                return(1)
+            continue
+        try:
+            line = byteline.decode(configencoding, 'replace')
+            line = line.lstrip()
+            line = line.replace('\n','')
             if line[0] != '#':
-                channel = line.split(None, 1)
-                channels[channel[0]] = channel[1].decode(configencoding)
-            else:
-                match = re.match(r'#\s*(\w+):\s*(.+)', line)
-                if match is not None and match.group(1) == "encoding":
-                    configencoding = match.group(2)
-                    try:
-                        codecs.getencoder(configencoding)
-                    except LookupError:
-                        sys.stderr.write('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
-                        return(1)
+                channel = line.split(None, 1) # split on first whitespace
+                channels[channel[0]] = channel[1]
+        except UnicodeError:
+            sys.stderr.write('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
+            return(1)
     
     try:
         f.close()
@@ -1364,20 +1369,21 @@ def main():
 
     # print header stuff
     xmlencoding = 'UTF-8'
-    print('<?xml version="1.0" encoding="%s"?>' % xmlencoding)
-    print('<!DOCTYPE tv SYSTEM "xmltv.dtd">')
-    print('<tv generator-info-name="tv_grab_nl_py $Rev$">')
+    xml = []
+    xml.append('<?xml version="1.0" encoding="%s"?>' % xmlencoding)
+    xml.append('<!DOCTYPE tv SYSTEM "xmltv.dtd">')
+    xml.append('<tv generator-info-name="tv_grab_nl_py $Rev$">')
 
     # first do the channel info
     for key in channels.keys():
-        print('  <channel id="%s%s">' % (key, compat and '.tvgids.nl' or ''))
-        print('    <display-name lang="nl">%s</display-name>' % channels[key].encode(xmlencoding))
+        xml.append('  <channel id="%s%s">' % (key, compat and '.tvgids.nl' or ''))
+        xml.append('    <display-name lang="nl">%s</display-name>' % channels[key])
         if (logos):
             ikey = int(key)
             if ikey in logo_names:
                 full_logo_url = logo_provider[logo_names[ikey][0]]+logo_names[ikey][1]+'.gif'
-                print('    <icon src="%s" />' % full_logo_url)
-        print('  </channel>')
+                xml.append('    <icon src="%s" />' % full_logo_url)
+        xml.append('  </channel>')
 
     num_chans = len(channels.keys())
     channel_cnt = 0
@@ -1390,7 +1396,7 @@ def main():
         channel_cnt += 1
         if not quiet:
                 sys.stderr.write('\n\nNow fetching %s(xmltvid=%s%s) (channel %s of %s)\n' % \
-                    (channels[id].encode(xmlencoding), id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy))
+                    (channels[id], id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy))
         info = get_channel_all_days(id,  days, quiet)
         programs = parse_programs(info, None, quiet)
 
@@ -1406,7 +1412,7 @@ def main():
             for program in programs:
                title_split(program)
 
-        print(xmlefy_programs(programs, id, desc_len, compat, nocattrans).encode(xmlencoding))
+        xml.extend(xmlefy_programs(programs, id, desc_len, compat, nocattrans))
 
         # save the cache after each channel fetch 
         if program_cache != None:
@@ -1418,12 +1424,14 @@ def main():
             program_cache.dump(program_cache_file)
 
     # print footer stuff
-    print("</tv>")
+    xml.append("</tv>")
 
     # close the outputfile if necessary
     if output != None:
         output.close()
 
+    xml = "\n".join(xml)
+    print xml.encode('utf-8')
     # and return success
     return(0)
 
