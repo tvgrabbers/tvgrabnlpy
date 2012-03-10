@@ -109,14 +109,6 @@ if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
     except Exception:
         pass
 
-# do extra debug stuff
-debug = 1
-
-try:
-    import redirect
-except ImportError:
-    debug = 0
-    pass
 
 # globals
 # compile only one time
@@ -1287,7 +1279,6 @@ def main():
             output_file = a
             try:
                 output = open(output_file,'w')
-                # and redirect output
                 sys.stdout = output
             except Exception:
                 if not quiet:
