@@ -83,7 +83,6 @@ try:
     from html.entities import name2codepoint
 except ImportError:
     from htmlentitydefs import name2codepoint
-from string import replace, split, strip
 from threading import Thread
 from xml.sax import saxutils
 import io
@@ -396,16 +395,16 @@ def filter_line(s):
     # convert escapse HTML entities to their Unicode equivalent
     s = r_entity.sub(filter_line_identity, s)
 
-    s = replace(s,'&nbsp;',' ')
+    s.replace('&nbsp;',' ')
 
     # Ik vermoed dat de volgende drie regels overbodig zijn, maar ze doen
     # niet veel kwaad -- Han Holl
-    s = replace(s,'\r',' ')
+    s.replace('\r',' ')
     x = re.compile('(<.*?>)') # Udo
     s = x.sub('', s) #Udo
 
-    s = replace(s, '~Q', "'")
-    s = replace(s, '~R', "'")
+    s.replace('~Q', "'")
+    s.replace('~R', "'")
 
     # Hmm, not sure if I understand this. Without it, mythfilldatabase barfs
     # on program names like "Steinbrecher &..."
