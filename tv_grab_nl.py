@@ -1037,12 +1037,15 @@ def title_split(program):
     Some channels have the annoying habit of adding the subtitle to the title of a program. 
     This function attempts to fix this, by splitting the name at a ': '.
     """
+
+    # Some programs (BBC3 when this happened) have no genre. If none, then set to a default
+    if program['genre'] is None:
+        program['genre'] = 'overige';
     
     if  ('titel aflevering' in program and program['titel aflevering'] != '')  \
      or ('genre' in program and program['genre'].lower() in ['movies','film']):
        return
 
- 
     colonpos =  program['name'].rfind(': ') 
     if colonpos > 0:
        program['titel aflevering'] = program['name'][colonpos+1:len(program['name'])].strip()
