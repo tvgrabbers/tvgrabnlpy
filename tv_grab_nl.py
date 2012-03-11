@@ -467,6 +467,18 @@ def format_timezone(td):
     tstr = td.strftime('%Y%m%d%H%M00')
     return calc_timezone(tstr)
 
+def find_html_encoding(httphead, htmlhead):
+    # look for the text '<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />'
+    # in the first 600 bytes of the HTTP page
+    m = re.search(r'<meta[^>]+\bcharset=["\']?([A-Za-z0-9\-]+)\b', htmlhead[:512].decode('ascii', 'ignore'))
+    if m:
+        return m.group(1)
+    # Find a HTTP header: Content-Type: text/html; charset=UTF-8
+    m = re.search(r'\bcharset=([A-Za-z0-9\-]+)\b', httphead.info().getheader('Content-Type'))
+    if m:
+        return m.group(1)
+    return 'iso-8859-1' # the default HTTP encoding.
+
 def get_page_internal(url, quiet=0):
     """
     Retrieves the url and returns a string with the contents.
@@ -481,16 +493,18 @@ def get_page_internal(url, quiet=0):
         rurl = urllib.Request(url, txtdata, txtheaders)
         fp = urllib.urlopen(rurl)
         bytes = fp.read()
+        encoding = "default encoding"
         page = None
         try:
-            page = bytes.decode('iso-8859-1', 'strict') # This is what tvgids.nl currently uses as encoding
-            # TODO: the encoding should be determined from the HTTP headers and/or the HTML head.
-        except UnicodeDecodeError:
-            log('Cannot decode url: %s\n' % url, quiet)
-            page = bytes.decode('utf-8', 'replace') # At least gets the ASCII correct
-        
+            encoding = find_html_encoding(fp, bytes)
+            page = bytes.decode(encoding, 'strict')
+        except Exception:
+            log('Cannot decode url %s as %s\n' % (url, encoding), quiet)
+            raise
+            page = bytes.decode('Windows-1252', 'ignore') # At least gets it somewhat correct
         return page
     except Exception:
+        raise
         log('Cannot open url: %s\n' % url, quiet)
         return None
 
@@ -591,15 +605,7 @@ def get_channel_all_days(channel, days, quiet=0):
         if offset > 0:
                 time.sleep(random.randint(nice_time[0], nice_time[1]))
         # get the raw programming for the day
-        req = urllib.Request(channel_url)
-        opener = urllib.build_opener()
-        response = opener.open(req)
-        data = response.read()
-        if not data:
-            return programs
-        # TODO: determine encoding from HTTP headers. (how does urllib handle that?)
-        # The headers currently include "Content-Type: application/json; charset=utf-8", so we use utf-8.
-        strdata = data.decode('utf-8', 'ignore')
+        strdata = get_page(channel_url, quiet)
         total = json.loads(strdata)
 
         expected = now + datetime.timedelta(days=offset)
