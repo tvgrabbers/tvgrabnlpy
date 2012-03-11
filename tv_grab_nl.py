@@ -590,6 +590,8 @@ def get_channel_all_days(channel, days, quiet=0):
         data = response.read()
         if not data:
             return programs
+        # TODO: determine encoding from HTTP headers. (how does urllib handle that?)
+        # The headers currently include "Content-Type: application/json; charset=utf-8", so we use utf-8.
         strdata = data.decode('utf-8', 'ignore')
         total = json.loads(strdata)
 
