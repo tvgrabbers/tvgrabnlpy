@@ -182,7 +182,7 @@ roletrans = {'regisseur'         : 'director',
 
 # We have two sources of logos, the first provides the nice ones, but is not 
 # complete. We use the tvgids logos to fill the missing bits.
-logo_provider = [ 'http://visualisation.tudelft.nl/~paul/logos/gif/64x64/',
+logo_provider = [ 'http://graphics.tudelft.nl/~paul/logos/gif/64x64/',
                   'http://static.tvgids.nl/gfx/zenders/' ]
 
 logo_names = { 
