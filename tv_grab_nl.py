@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-# $LastChangedDate$
-# $Rev$
-# $Author$
-
 """
 SYNOPSIS
 
@@ -92,8 +88,6 @@ try:
 except NameError:
     unichr = chr    # Python 3
 
-
-
 # Extra check for the datetime module 
 try:
     import datetime
@@ -104,6 +98,10 @@ except ImportError:
     raise
 
 import sys,codecs,locale
+
+
+VERSION = "2012-03-11 12:03"
+
 
 # XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
 if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
@@ -1145,7 +1143,7 @@ def main():
                                                        "configure", "fast", "slow",
                                                        "cache=", "clean_cache", 
                                                        "slowdays=","compat",
-                                                       "desc-length=","description",
+                                                       "desc-length=","description","version",
                                                        "nocattrans","config-file=",
                                                        "max_overlap=", "overlap_strategy=",
                                                        "clear_cache", "quiet","logos="])
@@ -1220,8 +1218,8 @@ def main():
         if o == "--quiet":
             quiet = 1;
 
-        if o == "--description":
-            print("The Netherlands (tv_grab_nl_py $Rev: 106 $)")
+        if o == "--description" or o == "--version":
+            print("The Netherlands (tv_grab_nl_py version %s)" % VERSION)
             return(0)
 
         if o == "--capabilities":
