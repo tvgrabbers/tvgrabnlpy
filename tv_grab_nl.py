@@ -87,6 +87,10 @@ from threading import Thread
 from xml.sax import saxutils
 import io
 import json
+try:
+    unichr(42)
+except NameError:
+    unichr = chr    # Python 3
 
 
 
@@ -586,12 +590,13 @@ def get_channel_all_days(channel, days, quiet=0):
         data = response.read()
         if not data:
             return programs
-        total = json.loads(data)
+        strdata = data.decode('utf-8', 'ignore')
+        total = json.loads(strdata)
 
         expected = now + datetime.timedelta(days=offset)
         
         # and find relevant programming info
-        v= total.values()[0]
+        v = list(total.values())[0]
         if isinstance(v, dict):
                 v=list(v.values())
         for r in v:
