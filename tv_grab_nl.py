@@ -262,6 +262,16 @@ user_agents = [ 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)',
        ]
 
 
+def log(message, quiet=False):
+    # Prints a warning to stderr.
+    # Note: The function encodes all ouput to utf-8. This may be wrong.
+    # TODO: use sys.stdout.encoding, locale.getpreferredencoding(), sys.getfilesystemencoding(), and/or 
+    #       os.environ["PYTHONIOENCODING"] to determine the correct encoding.
+    # TODO: use logging module
+    if not quiet:
+        sys.stderr.write(message.encode("utf-8"))
+
+
 # Work in progress, the idea is to cache program categories and
 # descriptions to eliminate a lot of page fetches from tvgids.nl
 # for programs that do not have interesting/changing descriptions
@@ -298,7 +308,7 @@ class ProgramCache:
         try:
             self.pdict = pickle.load(open(filename,'r'))
         except Exception:
-            sys.stderr.write('Error loading cache file: %s (possibly corrupt)' % filename)
+            log('Error loading cache file: %s (possibly corrupt)' % filename)
             self.clear()
 
     def dump(self, filename):
@@ -309,7 +319,7 @@ class ProgramCache:
             try:
                 os.remove(filename)
             except Exception:
-                sys.stderr.write('Cannot remove %s, check permissions' % filename)
+                log('Cannot remove %s, check permissions' % filename)
         pickle.dump(self.pdict, open(filename+'.tmp', 'w'))
         os.rename(filename+'.tmp', filename)
 
@@ -446,7 +456,7 @@ def calc_timezone(t):
         #timezone = time.tzname[(time.localtime(pt))[-1]]
         timezone = (time.localtime(pt))[-1]
     except LookupError:
-        sys.stderr.write('Cannot convert time to timezone')
+        log('Cannot convert time to timezone')
 
     return t+' %s' % td[timezone]
 
@@ -476,14 +486,12 @@ def get_page_internal(url, quiet=0):
             page = bytes.decode('iso-8859-1', 'strict') # This is what tvgids.nl currently uses as encoding
             # TODO: the encoding should be determined from the HTTP headers and/or the HTML head.
         except UnicodeDecodeError:
-            if not quiet:
-                sys.stderr.write('Cannot decode url: %s\n' % url)
+            log('Cannot decode url: %s\n' % url, quiet)
             page = bytes.decode('utf-8', 'replace') # At least gets the ASCII correct
         
         return page
     except Exception:
-        if not quiet:
-            sys.stderr.write('Cannot open url: %s\n' % url)
+        log('Cannot open url: %s\n' % url, quiet)
         return None
 
 class FetchURL(Thread):
@@ -511,8 +519,7 @@ def get_page(url, quiet=0):
         page = fu.result.translate("\n\t") # remove tabs and returns
         return page
     except Exception:
-        if not quiet:
-            sys.stderr.write('get_page timed out on (>%s s): %s\n' % (global_timeout, url))
+        log('get_page timed out on (>%s s): %s\n' % (global_timeout, url), quiet)
         return None
 
 def get_channels(file, quiet=0):
@@ -550,7 +557,7 @@ def get_channels(file, quiet=0):
                 b = filter_line(p.group(2))
                 channels[a] = b
             except Exception:
-                sys.stderr.write('Oops, [%s,%s] does not look like a valid channel, skipping it...\n' % (p.group(1),p.group(2)))
+                log('Oops, [%s,%s] does not look like a valid channel, skipping it...\n' % (p.group(1),p.group(2)))
 
     # sort on channel number (arbitrary but who cares)
     keys = list(channels.keys())
@@ -724,8 +731,7 @@ def parse_programs(programs, offset=0, quiet=0):
 
         # Try to correct missing end time by taking start time from next program on schedule
         if (programs[i]['stop-time'] == None and i < len(programs)-1):
-            if not quiet:
-                sys.stderr.write('Oops, "%s" has no end time. Trying to fix...\n' % programs[i]['name'])
+            log('Oops, "%s" has no end time. Trying to fix...\n' % programs[i]['name'], quiet)
             programs[i]['stop-time'] = programs[i+1]['start-time']
 
         # The common case: start and end times are present and are not
@@ -738,8 +744,7 @@ def parse_programs(programs, offset=0, quiet=0):
     # Han Holl: try to exclude programs that stop before they begin
     for i in range(len(good_programs)-1,-1,-1):
         if good_programs[i]['stop-time'] <= good_programs[i]['start-time']:
-            if not quiet:
-                sys.stderr.write('Deleting invalid stop/start time: %s\n' % good_programs[i]['name'])
+            log('Deleting invalid stop/start time: %s\n' % good_programs[i]['name'], quiet)
             del good_programs[i]
 
     # Try to exclude programs that only identify a group or broadcaster and have overlapping start/end times with
@@ -748,8 +753,7 @@ def parse_programs(programs, offset=0, quiet=0):
           
         if good_programs[i]['start-time'] <= good_programs[i+1]['start-time'] and \
            good_programs[i]['stop-time']  >= good_programs[i+1]['stop-time']:
-            if not quiet:
-                sys.stderr.write('Deleting grouping/broadcaster: %s\n' % good_programs[i]['name'])
+            log('Deleting grouping/broadcaster: %s\n' % good_programs[i]['name'], quiet)
             del good_programs[i]
 
     for i in range(len(good_programs)-1):
@@ -781,13 +785,12 @@ def parse_programs(programs, offset=0, quiet=0):
 
         # check for the size of the overlap
         if 0 < abs(overlap) <= max_overlap*60:
-            if not quiet:
-                if overlap > 0:
-                    sys.stderr.write('"%s" and "%s" overlap %s minutes. Adjusting times.\n' % \
-                        (good_programs[i]['name'],good_programs[i+1]['name'],overlap // 60))
-                else:
-                    sys.stderr.write('"%s" and "%s" have gap of %s minutes. Adjusting times.\n' % \
-                        (good_programs[i]['name'],good_programs[i+1]['name'],abs(overlap) // 60))
+            if overlap > 0:
+                log('"%s" and "%s" overlap %s minutes. Adjusting times.\n' % \
+                    (good_programs[i]['name'],good_programs[i+1]['name'],overlap // 60), quiet)
+            else:
+                log('"%s" and "%s" have gap of %s minutes. Adjusting times.\n' % \
+                    (good_programs[i]['name'],good_programs[i+1]['name'],abs(overlap) // 60), quiet)
 
             # stop-time of previous program wins
             if overlap_strategy == 'stop':
@@ -867,14 +870,12 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         if programs[i]['offset'] >= slowdays:
             continue
         
-        if not quiet:
-            sys.stderr.write('\n(%3.0f%%) %s: %s ' % (100*float(counter)/float(nprograms), i, programs[i]['name']))
+        log('\n(%3.0f%%) %s: %s ' % (100*float(counter)/float(nprograms), i, programs[i]['name']), quiet)
 
         # check the cache for this program's ID
         cached_program = program_cache.query(programs[i]['ID'])
         if (cached_program != None):
-                if not quiet:
-                    sys.stderr.write(' [cached]')
+                log(' [cached]', quiet)
                 # copy the cached information, except the start/end times, rating and clumping, 
                 # these may have changed.
                 tstart = programs[i]['start-time']
@@ -899,8 +900,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         descriptions = ()
         details = ()
         try:
-            if not quiet:
-                sys.stderr.write(' [normal fetch]')
+            log(' [normal fetch]', quiet)
             total = get_page(programs[i]['url'])
             details = detail.finditer(total)
             
@@ -910,8 +910,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         except Exception as e:
             # if we cannot find the description page, 
             # go to next in the loop
-            if not quiet:
-                sys.stderr.write(' [fetch failed or timed out]')
+            log(' [fetch failed or timed out]', quiet)
             continue
         # define containers
         programs[i]['credits'] = {}
@@ -1029,8 +1028,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         if programs[i]['name'].lower() != 'onbekend':
             program_cache.add(programs[i])
 
-    if not quiet:
-        sys.stderr.write('\ndone...\n\n')
+    log('\ndone...\n\n', quiet)
                     
     # done
       
@@ -1237,26 +1235,22 @@ def main():
         if o == '--desc-length':
             # Use the requested length for programme descriptions.
             desc_len = int(a)
-            if not quiet:
-                sys.stderr.write('Using description length: %d\n' % desc_len)
+            log('Using description length: %d\n' % desc_len, quiet)
 
     for o, a in opts:
         if o == "--config-file":
             # use the provided name for configuration
             config_file = a
-            if not quiet:
-                sys.stderr.write('Using config file: %s\n' % config_file)
+            log('Using config file: %s\n' % config_file, quiet)
 
     for o, a in opts:
         if o == "--configure":
             # check for the ~.xmltv dir
             if not os.path.exists(xmltv_dir):
-                if not quiet:
-                    sys.stderr.write('You do not have the ~/.xmltv directory,')
-                    sys.stderr.write('I am going to make a shiny new one for you...')
+                log('You do not have the ~/.xmltv directory,', quiet)
+                log('I am going to make a shiny new one for you...', quiet)
                 os.mkdir(xmltv_dir)
-            if not quiet:
-                sys.stderr.write('Creating config file: %s\n' % config_file)
+            log('Creating config file: %s\n' % config_file, quiet)
             get_channels(config_file)
             return(0)
 
@@ -1279,8 +1273,7 @@ def main():
                 output = open(output_file,'w')
                 sys.stdout = output
             except Exception:
-                if not quiet:
-                    sys.stderr.write('Cannot write to outputfile: %s\n' % output_file)
+                log('Cannot write to outputfile: %s\n' % output_file, quiet)
                 return(2)
 
         if o == "--slowdays":
@@ -1308,10 +1301,10 @@ def main():
         f = open(config_file,'rb')
     except IOError as e:
         if e.errno == 2:
-            sys.stderr.write('Config file %s not found.\n' % config_file)
-            sys.stderr.write('Re-run me with the --configure flag.\n')
+            log('Config file %s not found.\n' % config_file)
+            log('Re-run me with the --configure flag.\n')
         else:
-            sys.stderr.write('Config file %s: %s.\n' % (config_file, e.strerror))
+            log('Config file %s: %s.\n' % (config_file, e.strerror))
         return(1)
 
     #check for cache
@@ -1333,7 +1326,7 @@ def main():
             line = line.lstrip()
             line = line.replace('\n','')
         except UnicodeError:
-            sys.stderr.write('Config file %s is not encoded in %s.\n' % (config_file, configencoding))
+            log('Config file %s is not encoded in %s.\n' % (config_file, configencoding))
             return(1)
         if line [0] == '#':
             match = reconfigline.match(line)
@@ -1342,7 +1335,7 @@ def main():
                 try:
                     codecs.getencoder(configencoding)
                 except LookupError:
-                    sys.stderr.write('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
+                    log('Config file %s has invalid encoding %s.\n' % (config_file, configencoding))
                     return(1)
             continue
         else:
@@ -1383,9 +1376,8 @@ def main():
     nfluffy = len(fluffy)
     for id in fluffy:
         channel_cnt += 1
-        if not quiet:
-                sys.stderr.write('\n\nNow fetching %s(xmltvid=%s%s) (channel %s of %s)\n' % \
-                    (channels[id], id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy))
+        log('\n\nNow fetching %s(xmltvid=%s%s) (channel %s of %s)\n' % \
+                (channels[id], id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy), quiet)
         info = get_channel_all_days(id,  days, quiet)
         programs = parse_programs(info, None, quiet)
 
