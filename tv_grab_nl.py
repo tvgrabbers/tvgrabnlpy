@@ -1287,8 +1287,7 @@ def main():
     channels = {}
 
     # Read the channel stuff
-    configencoding = 'utf-8' # default encoding
-    # configencoding = 'iso-8859-1' # default encoding
+    configencoding = 'iso-8859-1' # default encoding
     reconfigline = re.compile(r'#\s*(\w+):\s*(.+)')
     for byteline in f.readlines():
         try:
