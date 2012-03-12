@@ -720,6 +720,12 @@ def parse_programs(programs, offset=0, quiet=0):
     # the actual programs
     for i in range(len(good_programs)-2,-1,-1):
           
+        if good_programs[i]['start-time'] == good_programs[i+1]['start-time'] and \
+           good_programs[i]['stop-time']  == good_programs[i+1]['stop-time'] and \
+           good_programs[i]['name']  == good_programs[i+1]['name']:
+            log('Deleting duplicate: %s\n' % good_programs[i]['name'], quiet)
+            del good_programs[i]
+        
         if good_programs[i]['start-time'] <= good_programs[i+1]['start-time'] and \
            good_programs[i]['stop-time']  >= good_programs[i+1]['stop-time']:
             log('Deleting grouping/broadcaster: %s\n' % good_programs[i]['name'], quiet)
