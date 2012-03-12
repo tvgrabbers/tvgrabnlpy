@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-# $LastChangedDate$
-# $Rev$
-# $Author$
-
 """
 SYNOPSIS
 
@@ -14,7 +10,11 @@ http://membled.com/work/apps/xmltv). Users of MythTV
 grabber, because it fills the category fields, i.e. colors in the EPG,
 and has logos for most channels automagically available. Check the
 website below for screenshots.  The newest version of this script can be
-found here: 
+found here:
+
+     https://github.com/macfreek/tvgrabnlpy
+
+This is a fork of the original code at
 
      http://code.google.com/p/tvgrabnlpy/
 
@@ -24,17 +24,20 @@ Check the web site above and/or run script with --help and start from there
 
 HISTORY
 
-tv_grab_nl_py used to be called tv_grab_nl_pdb, first released on
-2003/07/09. The name change was necessary because more and more people
-are actively contributing to this script and I always disliked using my
-initials (I was just too lazy to change it). At the same time I switched
-from using CVS to SVN and as a result the version numbering scheme has
-changed. The lastest official release of tv_grab_nl_pdb is 0.48. The
-first official release of tv_grab_nl_py is 6.
+tv_grab_nl_py used to be called tv_grab_nl_pdb, created by Paul de Bruin
+and first released on 2003/07/09. At the same time the code base switched
+from using CVS to SVN at Google Code, and as a result the version numbering
+scheme has changed. The lastest official release of tv_grab_nl_pdb is 0.48.
+The first official release of tv_grab_nl_py is 6. In 2012, The codebase
+moved to GitHub, and the version number was changed once more. The latest
+subversion release of tv_grab_nl_py is r109. The first Git release of
+tv_grab_nl_py is 2012-03-11 12:03.
 
 QUESTIONS
 
-Questions (and patches) are welcome at: paul at pwdebruin dot net.
+Questions (and patches) are welcome at:
+http://www.pwdebruin.net/mailman/listinfo/tv_grab_nl_py_pwdebruin.net
+https://github.com/macfreek/tvgrabnlpy/issues
 
 IMPORTANT NOTES
 
@@ -45,9 +48,10 @@ xmltvid's are wrong and you will not see any new data in MythTV.
 CONTRIBUTORS
 
 Main author: Paul de Bruin (paul at pwdebruin dot net)
+Current maintainer: Freek Dijkstra (software at macfreek dot nl)
 
 Michel van der Laan made available his extensive collection of
-high-quality logos that is used by this script. 
+high-quality logos that is used by this script.
 
 Michael Heus has taken the effort to further enhance this script so that
 it now also includes:
@@ -63,8 +67,8 @@ Several other people have provided feedback and patches (these are the
 people I could find in my email archive, if you are missing from this
 list let me know):
 Huub Bouma, Roy van der Kuil, Remco Rotteveel, Mark Wormgoor, Dennis van
-Onselen, Hugo van der Kooij, Han Holl, Ian Mcdonald, Udo van den Heuvel.
-
+Onselen, Hugo van der Kooij, Han Holl, Ian Mcdonald, Udo van den Heuvel,
+Paul Sijben, Sietse Visser.
 """ 
 
 # Python 3 compatibility
@@ -92,8 +96,6 @@ try:
 except NameError:
     unichr = chr    # Python 3
 
-
-
 # Extra check for the datetime module 
 try:
     import datetime
@@ -104,6 +106,10 @@ except ImportError:
     raise
 
 import sys,codecs,locale
+
+
+VERSION = "2012-03-11 12:03"
+
 
 # XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
 if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
@@ -1151,7 +1157,7 @@ def main():
                                                        "configure", "fast", "slow",
                                                        "cache=", "clean_cache", 
                                                        "slowdays=","compat",
-                                                       "desc-length=","description",
+                                                       "desc-length=","description","version",
                                                        "nocattrans","config-file=",
                                                        "max_overlap=", "overlap_strategy=",
                                                        "clear_cache", "quiet","logos="])
@@ -1226,8 +1232,8 @@ def main():
         if o == "--quiet":
             quiet = 1;
 
-        if o == "--description":
-            print("The Netherlands (tv_grab_nl_py $Rev: 106 $)")
+        if o == "--description" or o == "--version":
+            print("The Netherlands (tv_grab_nl_py version %s)" % VERSION)
             return(0)
 
         if o == "--capabilities":
