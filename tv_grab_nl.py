@@ -326,7 +326,12 @@ class ProgramCache:
                 os.remove(filename)
             except Exception:
                 log('Cannot remove %s, check permissions' % filename)
-        pickle.dump(self.pdict, open(filename+'.tmp', 'w'))
+        tmpfile = open(filename+'.tmp', 'w')
+        pickle.dump(self.pdict, tmpfile)
+        try:
+            tmpfile.close()
+        except IOError:
+            pass
         os.rename(filename+'.tmp', filename)
 
     
@@ -1209,10 +1214,11 @@ def main():
     for o, a in opts:
         if o == "--configure":
             # check for the ~.xmltv dir
-            if not os.path.exists(xmltv_dir):
-                log('You do not have the ~/.xmltv directory,', quiet)
+            config_dir = os.path.dirname(config_file)
+            if not os.path.exists(config_dir):
+                log('You do not have the %s directory,' % config_dir, quiet)
                 log('I am going to make a shiny new one for you...', quiet)
-                os.mkdir(xmltv_dir)
+                os.mkdir(config_dir)
             log('Creating config file: %s\n' % config_file, quiet)
             get_channels(config_file)
             return(0)
@@ -1281,7 +1287,7 @@ def main():
     channels = {}
 
     # Read the channel stuff
-    configencoding = 'utf-8'
+    configencoding = 'utf-8' # default encoding
     # configencoding = 'iso-8859-1' # default encoding
     reconfigline = re.compile(r'#\s*(\w+):\s*(.+)')
     for byteline in f.readlines():
