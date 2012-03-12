@@ -447,7 +447,7 @@ def filter_line(s):
 
     return s
 
-def escape(s):
+def xmlescape(s):
     """Escape <, > and & characters for use in XML"""
     return saxutils.escape(s)
     
