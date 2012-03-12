@@ -109,7 +109,7 @@ import sys,codecs,locale
 
 
 VERSION = "2012-03-11 12:03"
-
+VERSION += "-experimental"
 
 # XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
 if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
@@ -361,7 +361,11 @@ class ProgramCache:
         dnow = datetime.datetime(now[0],now[1],now[2])
         for key in self.pdict.keys():
             try:
-                if self.pdict[key]['stop-time'] < dnow or self.pdict[key]['name'].lower() == 'onbekend':
+                p = self.pdict[key]
+                if 'stop-time' not in p or 'name' not in p or \
+                        self.pdict[key]['stop-time'] < dnow or \
+                        type(p['name']) != unicode or \
+                        self.pdict[key]['name'].lower() == 'onbekend':
                     del self.pdict[key]
             except LookupError:
                 pass    
@@ -824,9 +828,6 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
 
         # check the cache for this program's ID
         cached_program = program_cache.query(programs[i]['ID'])
-        if (cached_program != None) and (type(cached_program['name']) != unicode):
-            log(' [ignore old-style cache]', quiet)
-            cached_program = None
         
         if (cached_program != None):
             log(' [cached]', quiet)
@@ -1281,6 +1282,7 @@ def main():
 
     # Read the channel stuff
     configencoding = 'utf-8'
+    # configencoding = 'iso-8859-1' # default encoding
     reconfigline = re.compile(r'#\s*(\w+):\s*(.+)')
     for byteline in f.readlines():
         try:
