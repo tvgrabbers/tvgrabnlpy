@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+# vim: set fileencoding=utf-8 :
+
+# $LastChangedDate$
+# $Rev$
+# $Author$
 
 """
 SYNOPSIS
@@ -109,7 +114,35 @@ import sys,codecs,locale
 
 
 VERSION = "2012-03-11 12:03"
+import re, htmlentitydefs
 
+##
+# van: http://effbot.org/zone/re-sub.htm#unescape-html
+# Removes HTML or XML character references and entities from a text string.
+#
+# @param text The HTML (or XML) source text.
+# @return The plain text, as a Unicode string, if necessary.
+
+def unescape(text):
+    def fixup(m):
+        text = m.group(0)
+        if text[:2] == "&#":
+            # character reference
+            try:
+                if text[:3] == "&#x":
+                    return unichr(int(text[3:-1], 16))
+                else:
+                    return unichr(int(text[2:-1]))
+            except ValueError:
+                pass
+        else:
+            # named entity
+            try:
+                text = unichr(htmlentitydefs.name2codepoint[text[1:-1]])
+            except KeyError:
+                pass
+        return text # leave as is
+    return unicode(re.sub("&#?\w+;", fixup, text))
 
 # XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
 if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
@@ -432,6 +465,9 @@ def filter_line(s):
     s = saxutils.escape(s)
 
     return s
+
+def myescape(s):
+    return saxutils.escape(s)
     
 
 def calc_timezone(t):
@@ -560,7 +596,7 @@ def get_channels(file, quiet=0):
         for p in m:
             try:
                 a = int(p.group(1))
-                b = filter_line(p.group(2))
+                b = unescape(p.group(2))
                 channels[a] = b
             except Exception:
                 log('Oops, [%s,%s] does not look like a valid channel, skipping it...\n' % (p.group(1),p.group(2)))
@@ -617,15 +653,15 @@ def get_channel_all_days(channel, days, quiet=0):
         for r in v:
                 program_url  = 'http://www.tvgids.nl/programma/' + r['db_id'] + '/'
                 tdict = {}
-                tdict['start'] = r['datum_start'][10:-3]
-                tdict['stop']  = r['datum_end'][10:-3]
-                tdict['name']  = r['titel']
+                tdict['start'] = unescape(r['datum_start'][10:-3])
+                tdict['stop']  = unescape(r['datum_end'][10:-3])
+                tdict['name']  = unescape(r['titel'])
                 if tdict['name'] == '':
-                        dict['name'] = 'onbekend'
-                tdict['url']   = program_url
-                tdict['ID']    = r['db_id']
+                        dict['name'] = unescape('onbekend')
+                tdict['url']   = unescape(program_url)
+                tdict['ID']    = unescape(r['db_id'])
                 tdict['offset'] = offset
-                tdict['genre'] = r['genre']
+                tdict['genre'] = unescape(r['genre'])
                 # and append the program to the list of programs
                 programs.append(tdict)
     # done
@@ -932,31 +968,30 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         # but a more descriptive one like "Culinair programma" 
         # 
 
-        programs[i]['detail1'] = ''
+        programs[i]['detail1'] = u''
         if addprogtype.search(total) != None:
-           programs[i]['detail1'] = addprogtype.search(total).group(1).capitalize()
+           programs[i]['detail1'] = unescape(addprogtype.search(total).group(1).capitalize())
 
         elif descrtype.search(descrspan.group(1)) != None:
-           programs[i]['detail1'] = descrtype.search(descrspan.group(1)).group(1).capitalize()
+           programs[i]['detail1'] = unescape(descrtype.search(descrspan.group(1)).group(1).capitalize())
 
         # If a type was found, we store this as first part of the regular detailed description and remove unwanted chars
-        if programs[i]['detail1'] != '':
-           programs[i]['detail1'] = filter_line(programs[i]['detail1'])
+        if programs[i]['detail1'] != u'':
+           programs[i]['detail1'] = unescape(programs[i]['detail1'])
            line_nr = line_nr + 1
 
         # Secondly, we add one or more lines of the program description that are present.
     
         for descript in descriptions:
             # descript is a re.Match object
-            d_str = 'detail' + str(line_nr)
-            programs[i][d_str] = descript.group(1)
+            d_str = u'detail' + str(line_nr)
+            programs[i][d_str] = unescape(descript.group(1))
 
             # Remove sponsored link from description if present.
-            sponsor_pos = programs[i][d_str].rfind('<i>Gesponsorde link:</i>')
+            sponsor_pos = programs[i][d_str].rfind(u'<i>Gesponsorde link:</i>')
             if sponsor_pos > 0:
-                programs[i][d_str] = programs[i][d_str][0:sponsor_pos]
+                programs[i][d_str] = unescape(programs[i][d_str][0:sponsor_pos])
 
-            programs[i][d_str] = filter_line(programs[i][d_str]).strip()
             line_nr = line_nr + 1
         
         # Finally, we check out all program details. These are generically denoted as:
@@ -970,10 +1005,10 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                                                                             
         for d in details:
             ctype = d.group(1).strip().lower()
-            content_asis = d.group(2).strip()
-            content = filter_line(content_asis).strip()
+            content_asis = unescape(d.group(2))
+            content = unescape(content_asis)
             
-            if content == '':
+            if content == u'':
                 continue
 
             elif ctype == 'genre':
@@ -981,20 +1016,20 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 # Fix detection of movies based on description as tvgids.nl sometimes 
                 # categorises a movie as e.g. "Komedie", "Misdaadkomedie", "Detectivefilm". 
                 genre = content;
-                if    (programs[i]['detail1'].lower().find('film')      != -1 \
-                   or  programs[i]['detail1'].lower().find('komedie')   != -1)\
-                   and programs[i]['detail1'].lower().find('tekenfilm') == -1 \
-                   and programs[i]['detail1'].lower().find('animatiekomedie') == -1 \
-                   and programs[i]['detail1'].lower().find('filmpje')   == -1:
-                    genre = 'film'
+                if    (programs[i]['detail1'].lower().find(u'film')      != -1 \
+                   or  programs[i]['detail1'].lower().find(u'komedie')   != -1)\
+                   and programs[i]['detail1'].lower().find(u'tekenfilm') == -1 \
+                   and programs[i]['detail1'].lower().find(u'animatiekomedie') == -1 \
+                   and programs[i]['detail1'].lower().find(u'filmpje')   == -1:
+                    genre = u'film'
 
                 if nocattrans:
-                    programs[i]['genre'] = genre.title()
+                    programs[i]['genre'] = unescape(genre.title())
                 else:
                     try:
-                        programs[i]['genre'] = cattrans[genre.lower()]
+                        programs[i]['genre'] = unescape(cattrans[genre.lower()])
                     except LookupError:
-                        programs[i]['genre'] = ''
+                        programs[i]['genre'] = u''
 
 
             # Parse persons and their roles for credit info
@@ -1010,7 +1045,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                         name = name.split('-')[0]
                     if name.find('e.a') != -1:
                         name = name.split('e.a')[0]
-                    programs[i]['credits'][roletrans[ctype]].append(filter_line(name.strip()))
+                    programs[i]['credits'][roletrans[ctype]].append(unescape(name))
 
             elif ctype == 'bijzonderheden':
                 if content.find('Breedbeeld') != -1:
@@ -1022,11 +1057,11 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 if content.find('Stereo') != -1: 
                     programs[i]['stereo'] = 1
             elif ctype == 'url':
-                programs[i]['infourl'] = content
+                programs[i]['infourl'] = unescape(content)
             else:
                 # In unmatched cases, we still add the parsed type and content to the program details.
                 # Some of these will lead to xmltv output during the xmlefy_programs step
-                programs[i][ctype] = content
+                programs[i][ctype] = unescape(content)
 
         # do not cache programming that is unknown at the time
         # of fetching.
@@ -1061,48 +1096,49 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
     """
     Given a list of programming (from get_channels())
     returns a unicode string with the xml equivalent
+    We assume, that programs is in unicode.
     """
     output = []
     for program in programs:
 
-        clumpidx = ''
+        clumpidx = u''
         try:
             if 'clumpidx' in program:
-                clumpidx = 'clumpidx="'+program['clumpidx']+'"'
+                clumpidx = unescape('clumpidx="'+program['clumpidx']+'"')
         except LookupError:
-            clumpidx = ""
+            clumpidx = u''
 
         output.append('  <programme start="%s" stop="%s" channel="%s%s" %s> \n' % \
             (format_timezone(program['start-time']), format_timezone(program['stop-time']),\
              channel, compat and '.tvgids.nl' or '', clumpidx))
 
-        output.append('    <title lang="nl">%s</title>\n' % filter_line(program['name']))
+        output.append('    <title lang="nl">%s</title>\n' % myescape(program['name']))
 
         if 'titel aflevering' in program and program['titel aflevering'] != '':
-                output.append('    <sub-title lang="nl">%s</sub-title>\n' % filter_line(program['titel aflevering']))
+                output.append('    <sub-title lang="nl">%s</sub-title>\n' % myescape(program['titel aflevering']))
 
         desc = []
         for detail_row in ['detail1','detail2','detail3']:
                 if detail_row in program and not re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', program[detail_row]):
-                        desc.append('%s ' % program[detail_row])
+                        desc.append('%s ' % myescape(program[detail_row]))
         if desc != []:
                 # join and remove newlines from descriptions
-                desc_line = "".join(desc).strip()
+                desc_line = u''.join(desc).strip()
                 desc_line.replace('\n', ' ')
                 if len(desc_line) > desc_len: 
                     spacepos = desc_line[0:desc_len-3].rfind(' ') 
                     desc_line = desc_line[0:spacepos] + '...'
-                output.append('    <desc lang="nl">%s</desc>\n' % desc_line)
+                output.append('    <desc lang="nl">%s</desc>\n' % myescape(unescape(desc_line)))
         
         # Process credits section if present.
         # This will generate director/actor/presenter info.
         if 'credits' in program and program['credits'] != {}:
-            output.append('    <credits>\n')
+            output.append(u'    <credits>\n')
             for role in program['credits']:
                 for name in program['credits'][role]:
                     if name != '':
-                        output.append('       <%s>%s</%s>\n' % (role, name, role))
-            output.append('    </credits>\n')
+                        output.append('       <%s>%s</%s>\n' % (myescape(role), myescape(name), myescape(role)))
+            output.append(u'    </credits>\n')
 
         if 'jaar van premiere' in program and program['jaar van premiere'] != '':
                 output.append('    <date>%s</date>\n' % program['jaar van premiere'])
@@ -1111,34 +1147,34 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
                 output.append('    <category')
                 if nocattrans:
                    output.append(' lang="nl"')
-                output.append ('>%s</category>\n' % program['genre'])
+                output.append ('>%s</category>\n' % myescape(program['genre']))
         
         if 'infourl' in program and program['infourl'] != '':
-                output.append('    <url>%s</url>\n' % program['infourl']) 
+                output.append('    <url>%s</url>\n' % myescape(program['infourl'])) 
 
         if 'aflevering' in program and program['aflevering'] != '':
-                output.append('    <episode-num system="onscreen">%s</episode-num>\n' % filter_line(program['aflevering']))
+                output.append('    <episode-num system="onscreen">%s</episode-num>\n' % myescape(program['aflevering']))
 
         # Process video section if present
         if 'video' in program and program['video'] != {}:
-            output.append('    <video>\n');
+            output.append(u'    <video>\n');
             if 'breedbeeld' in program['video']:
-                output.append('           <aspect>16:9</aspect>\n')
+                output.append(u'           <aspect>16:9</aspect>\n')
             if 'blackwhite' in program['video']:
-                output.append('           <colour>no</colour>\n')
-            output.append('    </video>\n')
+                output.append(u'           <colour>no</colour>\n')
+            output.append(u'    </video>\n')
 
         if 'stereo' in program:
-            output.append('    <audio><stereo>stereo</stereo></audio>\n')
+            output.append(u'    <audio><stereo>stereo</stereo></audio>\n')
  
         if 'teletekst' in program:
-            output.append('    <subtitles type="teletext" />\n')
+            output.append(u'    <subtitles type="teletext" />\n')
 
         # Set star-rating if applicable
         #if program['star-rating'] != '':
         #     output.append('    <star-rating><value>%s</value></star-rating>\n' % program['star-rating'])
                 
-        output.append('  </programme>\n')
+        output.append(u'  </programme>\n')
     return output
 
 
@@ -1368,13 +1404,13 @@ def main():
     # first do the channel info
     for key in channels.keys():
         xml.append('  <channel id="%s%s">' % (key, compat and '.tvgids.nl' or ''))
-        xml.append('    <display-name lang="nl">%s</display-name>' % channels[key])
+        xml.append('    <display-name lang="nl">%s</display-name>' % myescape(channels[key]))
         if (logos):
             ikey = int(key)
             if ikey in logo_names:
                 full_logo_url = logo_provider[logo_names[ikey][0]]+logo_names[ikey][1]+'.gif'
                 xml.append('    <icon src="%s" />' % full_logo_url)
-        xml.append('  </channel>')
+        xml.append('  </channel>\n')
 
     num_chans = len(channels.keys())
     channel_cnt = 0
@@ -1415,10 +1451,10 @@ def main():
             program_cache.dump(program_cache_file)
 
     # print footer stuff
-    xml.append("</tv>")
+    xml.append(u'</tv>')
 
     # print result to stdout
-    xml = "".join(xml)
+    xml = u"".join(xml)
     print(xml.encode('utf-8'))
 
     # close the outputfile if necessary
