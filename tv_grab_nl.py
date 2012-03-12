@@ -503,6 +503,7 @@ def get_page_internal(url, quiet=0):
         page = None
         try:
             encoding = find_html_encoding(fp, bytes)
+            log ('parse %s as %s' % (url, encoding))
             page = bytes.decode(encoding, 'strict')
         except Exception:
             log('Cannot decode url %s as %s\n' % (url, encoding), quiet)
