@@ -68,7 +68,7 @@ people I could find in my email archive, if you are missing from this
 list let me know):
 Huub Bouma, Roy van der Kuil, Remco Rotteveel, Mark Wormgoor, Dennis van
 Onselen, Hugo van der Kooij, Han Holl, Ian Mcdonald, Udo van den Heuvel,
-Paul Sijben, Sietse Visser.
+Paul Sijben, Sietse Visser, Willem Vermin.
 """ 
 
 # Python 3 compatibility
@@ -445,12 +445,12 @@ def filter_line(s):
     s = re.sub('[\r\n\t]', '', s)
     s = re.sub('(<.*?>)', '', s)
 
-    return s
+    return s.strip()
 
 def xmlescape(s):
     """Escape <, > and & characters for use in XML"""
     return saxutils.escape(s)
-    
+
 
 def calc_timezone(t):
     """
@@ -1336,19 +1336,19 @@ def main():
     # print header stuff
     xmlencoding = 'UTF-8'
     xml = []
-    xml.append('<?xml version="1.0" encoding="%s"?>' % xmlencoding)
-    xml.append('<!DOCTYPE tv SYSTEM "xmltv.dtd">')
-    xml.append('<tv generator-info-name="tv_grab_nl_py $Rev$">')
+    xml.append('<?xml version="1.0" encoding="%s"?>\n' % xmlencoding)
+    xml.append('<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
+    xml.append('<tv generator-info-name="tv_grab_nl_py $Rev$">\n')
 
     # first do the channel info
     for key in channels.keys():
-        xml.append('  <channel id="%s%s">' % (key, compat and '.tvgids.nl' or ''))
-        xml.append('    <display-name lang="nl">%s</display-name>' % xmlescape(channels[key]))
+        xml.append('  <channel id="%s%s">\n' % (key, compat and '.tvgids.nl' or ''))
+        xml.append('    <display-name lang="nl">%s</display-name>\n' % xmlescape(channels[key]))
         if (logos):
             ikey = int(key)
             if ikey in logo_names:
                 full_logo_url = logo_provider[logo_names[ikey][0]]+logo_names[ikey][1]+'.gif'
-                xml.append('    <icon src="%s" />' % full_logo_url)
+                xml.append('    <icon src="%s" />\n' % full_logo_url)
         xml.append('  </channel>\n')
 
     num_chans = len(channels.keys())
