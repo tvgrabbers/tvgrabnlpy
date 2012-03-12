@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 """
 SYNOPSIS
@@ -124,6 +125,7 @@ if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
 r_entity = re.compile(r'&(#x[0-9A-Fa-f]+|#[0-9]+|[A-Za-z]+);')
 
 tvgids = 'http://www.tvgids.nl/'
+channels_zoeken = tvgids + 'json/lists/channels.php'
 uitgebreid_zoeken = tvgids + 'json/lists/programs.php'
 
 # how many seconds to wait before we timeout on a 
@@ -368,31 +370,31 @@ class ProgramCache:
 
 
 def usage():
-    print('tv_grab_nl_py: A grabber that grabs tvguide data from tvgids.nl\n')
-    print('and stores it in XMLTV-combatible format.\n')
-    print('Usage:')
-    print('--help, -h    = print this info')
-    print('--configure   = create configfile (overwrites existing file)')
-    print('--config-file = name of the configuration file (default = ~/.xmltv/tv_grab_py.conf')
-    print('--capabilities = xmltv required option')
-    print('--desc-length = maximum allowed length of programme descriptions in bytes.')
-    print('--description = prints a short description of the grabber')
-    print('--output      = file where to put the output')
-    print('--days        = # number of days to grab')
-    print('--preferredmethod = returns the preferred method to be called')
-    print('--fast        = do not grab descriptions of programming')
-    print('--slow        = grab descriptions of programming')
-    print('--quiet       = suppress all output')
-    print('--compat      = append tvgids.nl to the xmltv id (use this if you were using tv_grab_nl)')
-    print('--logos 0/1   = insert urls to channel icons (mythfilldatabase will then use these)')
-    print('--nocattrans  = do not translate the grabbed genres into MythTV-genres')
-    print('--cache       = cache descriptions and use the file to store')
-    print('--clean_cache = clean the cache file before fetching')
-    print('--clear_cache = empties the cache file before fetching data')
-    print('--slowdays    = grab slowdays initial days and the rest in fast mode')
-    print('--max_overlap = maximum length of overlap between programming to correct [minutes]')
-    print('--overlap_strategy = what strategy to use to correct overlaps (check top of source code)'
-)
+    print 'tv_grab_nl_py: A grabber that grabs tvguide data from tvgids.nl\n'
+    print 'and stores it in XMLTV-combatible format.\n'
+    print 'Usage:'
+    print '--help, -h    = print this info'
+    print '--configure   = create configfile (overwrites existing file)'
+    print '--config-file = name of the configuration file (default = ~/.xmltv/tv_grab_py.conf'
+    print '--capabilities = xmltv required option'
+    print '--desc-length = maximum allowed length of programme descriptions in bytes.'
+    print '--description = prints a short description of the grabber'
+    print '--output      = file where to put the output'
+    print '--days        = # number of days to grab'
+    print '--preferredmethod = returns the preferred method to be called'
+    print '--fast        = do not grab descriptions of programming'
+    print '--slow        = grab descriptions of programming'
+    print '--quiet       = suppress all output'
+    print '--compat      = append tvgids.nl to the xmltv id (use this if you were using tv_grab_nl)'
+    print '--logos 0/1   = insert urls to channel icons (mythfilldatabase will then use these)'
+    print '--nocattrans  = do not translate the grabbed genres into MythTV-genres'
+    print '--cache       = cache descriptions and use the file to store'
+    print '--clean_cache = clean the cache file before fetching'
+    print '--clear_cache = empties the cache file before fetching data'
+    print '--slowdays    = grab slowdays initial days and the rest in fast mode'
+    print '--max_overlap = maximum length of overlap between programming to correct [minutes]'
+    print '--overlap_strategy = what strategy to use to correct overlaps (check top of source code)'
+    print '--utc         = generate all data in UTC time (use with timezone "auto" in mythtv)'
 
 def filter_line_identity(m, defs=name2codepoint):
     # callback: translate one entity to its Unicode value
@@ -428,21 +430,18 @@ def filter_line(s):
 
     # Hmm, not sure if I understand this. Without it, mythfilldatabase barfs
     # on program names like "Steinbrecher &..."
-    # We most create valid XML -- Han Holl
+    # We must create valid XML -- Han Holl
     s = saxutils.escape(s)
 
     return s
     
 
-def calc_timezone(t):
+def calc_timezone(t, use_utc):
     """
     Takes a time from tvgids.nl and formats it with all the required
     timezone conversions.
     in: '20050429075000'
-    out:'20050429075000 (CET|CEST)'
-
-    Until I have figured out how to correctly do timezoning in python this method
-    will bork if you are not in a zone that has the same DST rules as 'Europe/Amsterdam'.
+    out:'20050429065000 (CET|CEST|UTC)'
 
     """
 
@@ -452,26 +451,42 @@ def calc_timezone(t):
     hour = int(t[8:10])
     minute = int(t[10:12])
 
-    #td = {'CET': '+0100', 'CEST': '+0200'}
-    #td = {'CET': '+0100', 'CEST': '+0200', 'W. Europe Standard Time' : '+0100', 'West-Europa (standaardtijd)' : '+0100'}
-    td = {0 : '+0100', 1 : '+0200'}
+    timestamp = ''
 
+    if use_utc:
+        # evil: set the TZ environment to amsterdam... reset it back later
+        # I can't think of a less evil way to do this in the current python [Huub]
+        old_tz = os.environ.get('TZ')
+        os.environ['TZ'] = 'Europe/Amsterdam'
+        time.tzset()
+        pt = time.mktime((year,month,day,hour,minute,0,0,0,-1))
+        localtime = time.localtime(pt)
+        utc = time.gmtime(pt)
+        utc_stamp = time.strftime('%Y%m%d%H%M00', utc)
+        if old_tz:
+            os.environ['TZ'] = old_tz
+        else:
+            del os.environ['TZ']
+        time.tzset()
+        timestamp = '%s %s' % (utc_stamp, 'UTC')
+    else:
+        td = {0 : '+0100', 1 : '+0200'}
     pt = time.mktime((year,month,day,hour,minute,0,0,0,-1))
     timezone=''
     try:
-        #timezone = time.tzname[(time.localtime(pt))[-1]]
         timezone = (time.localtime(pt))[-1]
-    except LookupError:
-        log('Cannot convert time to timezone')
+    except:
+        sys.stderr.write('Cannot convert time to timezone')
+        timestamp = t+' %s' % td[timezone]
 
-    return t+' %s' % td[timezone]
+    return timestamp
 
-def format_timezone(td):
+def format_timezone(td, use_utc):
     """
     Given a datetime object, returns a string in XMLTV format
     """
     tstr = td.strftime('%Y%m%d%H%M00')
-    return calc_timezone(tstr)
+    return calc_timezone(tstr, use_utc)
 
 def get_page_internal(url, quiet=0):
     """
@@ -533,47 +548,41 @@ def get_channels(file, quiet=0):
     Get a list of all available channels and store these
     in a file.
     """
-    # store channels in a dict
+
+    # download the json feed
+    total = get_page(channels_zoeken, quiet)
+    channel_list = json.loads(total)
+
+    # convert to a map, so we can sort it..
     channels = {}
 
-    # tvgids stores several instances of channels, we want to
-    # find all the possibile channels
-    channel_get = re.compile('<optgroup label=.*?>(.*?)</optgroup>', re.DOTALL)
+    # the json data has the channel names in XML entities.
+    # if lxml is available, convert it to UTF-8
+    # so 'Frysl&acirc;n' will become 'Fryslân'
 
-    # this is how we will find a (number, channel) instance
-    channel_re  = re.compile('<option value="([0-9]+)" >(.*?)</option>', re.DOTALL)
+    try:
+        import lxml.html
+        has_lxml = True
+    except:
+        has_lxml = False
 
-    # this is where we will try to find our channel list
-    total = get_page(uitgebreid_zoeken, quiet)
-    if total == None:
-        return
-
-    # get a list of match objects of all the <select blah station>
-    stations = channel_get.finditer(total)
-
-    # and create a dict of number, channel_name pairs
-    # we do this this way because several instances of the 
-    # channel list are stored in the url and not all of the 
-    # instances have all the channels, this way we get them all.
-    for station in stations:
-        m = channel_re.finditer(station.group(0))           
-        for p in m:
-            try:
-                a = int(p.group(1))
-                b = filter_line(p.group(2))
-                channels[a] = b
-            except Exception:
-                log('Oops, [%s,%s] does not look like a valid channel, skipping it...\n' % (p.group(1),p.group(2)))
+    for channel in channel_list:
+        name = channel['name']
+        if has_lxml:
+            #name = lxml.html.fromstring(name).text.encode('utf-8')
+            name = lxml.html.fromstring(name).text
+        channels[int(channel['id'])] = name
 
     # sort on channel number (arbitrary but who cares)
-    keys = list(channels.keys())
+    keys = channels.keys()
     keys.sort()
 
     # and create a file with the channels
     f = open(file,'w')
     f.write("# encoding: utf-8\n")
     for k in keys:
-        f.write("%s %s\n" % (k, channels[k]))
+        regel = "%s %s\n" % (k, channels[k])
+        f.write(regel.encode('utf-8'))
     f.close()
 
 def get_channel_all_days(channel, days, quiet=0):
@@ -592,7 +601,7 @@ def get_channel_all_days(channel, days, quiet=0):
     # we are required to grab
     for offset in range(0, days):
     
-        channel_url = 'http://www.tvgids.nl/json/lists/programs.php?channels=%s&day=%s' % (channel, offset)
+        channel_url = uitgebreid_zoeken + '?channels=%s&day=%s' % (channel, offset)
 
         if offset > 0:
                 time.sleep(random.randint(nice_time[0], nice_time[1]))
@@ -1057,7 +1066,7 @@ def title_split(program):
        program['titel aflevering'] = program['name'][colonpos+1:len(program['name'])].strip()
        program['name'] =  program['name'][0:colonpos].strip()
 
-def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
+def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0, use_utc=0):
     """
     Given a list of programming (from get_channels())
     returns a unicode string with the xml equivalent
@@ -1073,7 +1082,7 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
             clumpidx = ""
 
         output.append('  <programme start="%s" stop="%s" channel="%s%s" %s> \n' % \
-            (format_timezone(program['start-time']), format_timezone(program['stop-time']),\
+            (format_timezone(program['start-time'], use_utc), format_timezone(program['stop-time'], use_utc),\
              channel, compat and '.tvgids.nl' or '', clumpidx))
 
         output.append('    <title lang="nl">%s</title>\n' % filter_line(program['name']))
@@ -1149,7 +1158,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "output=", "capabilities", 
                                                        "preferredmethod", "days=", 
                                                        "configure", "fast", "slow",
-                                                       "cache=", "clean_cache", 
+                                                       "cache=", "clean_cache", "utc",
                                                        "slowdays=","compat",
                                                        "desc-length=","description","version",
                                                        "nocattrans","config-file=",
@@ -1214,6 +1223,14 @@ def main():
     program_cache = None
     clean_cache = 1
     clear_cache = 0
+
+    # don't convert all the program date/times to UTC (GMT) timezone.
+    # by default the current timezone is Europe/Amsterdam. This works fine
+    # if you are located in the Amsterdam timezone, but not if you live abroad
+    # in another timezone. If you want to use the UTC timestamp in combination
+    # with mythtv, be sure to set the timezone in mythtv to 'auto'
+    # (TimeOffset in Settings table)
+    use_utc = False
 
     # seed the random generator
     random.seed(time.time())
@@ -1304,6 +1321,8 @@ def main():
             max_overlap = int(a)
         if o == "--overlap_strategy":
             overlap_strategy = a
+        if o == "--utc":
+            use_utc = True
 
     # get configfile if available
     try:
@@ -1402,7 +1421,7 @@ def main():
             for program in programs:
                title_split(program)
 
-        xml.extend(xmlefy_programs(programs, id, desc_len, compat, nocattrans))
+        xml.extend(xmlefy_programs(programs, id, desc_len, compat, nocattrans, use_utc))
 
         # save the cache after each channel fetch 
         if program_cache != None:
