@@ -506,11 +506,9 @@ def get_page_internal(url, quiet=0):
             page = bytes.decode(encoding, 'strict')
         except Exception:
             log('Cannot decode url %s as %s\n' % (url, encoding), quiet)
-            raise
             page = bytes.decode('Windows-1252', 'ignore') # At least gets it somewhat correct
         return page
     except Exception:
-        raise
         log('Cannot open url: %s\n' % url, quiet)
         return None
 
@@ -537,6 +535,8 @@ def get_page(url, quiet=0):
         fu.start()
         fu.join(global_timeout)
         page = fu.result.translate("\n\t") # remove tabs and returns
+        # result = get_page_internal(url, quiet)
+        # page = result.translate("\n\t") # remove tabs and returns
         return page
     except Exception:
         log('get_page timed out on (>%s s): %s\n' % (global_timeout, url), quiet)
@@ -590,6 +590,14 @@ def get_channels(file, quiet=0):
         f.write("%s %s\n" % (k, channels[k]))
     f.close()
 
+def match_to_date(match, time, program):
+    if match:
+        return datetime.datetime(int(match.group(1)),int(match.group(2)),\
+                int(match.group(3)),int(match.group(4)),int(match.group(5)))
+    else:
+        log("Can not determine %s for %s" % (time,program))
+        return None
+
 def get_channel_all_days(channel, days, quiet=0):
     """
     Get all available days of programming for channel number
@@ -601,6 +609,8 @@ def get_channel_all_days(channel, days, quiet=0):
     now = datetime.datetime.now()
     
     programs = []
+    
+    retime = re.compile(r'(\d\d\d\d)-(\d+)-(\d+) (\d+):(\d+)(?::\d+)')
 
     # Tvgids shows programs per channel per day, so we loop over the number of days
     # we are required to grab
@@ -621,109 +631,37 @@ def get_channel_all_days(channel, days, quiet=0):
         if isinstance(v, dict):
                 v=list(v.values())
         for r in v:
-                program_url  = 'http://www.tvgids.nl/programma/' + r['db_id'] + '/'
-                tdict = {}
-                tdict['start'] = r['datum_start'][10:-3]
-                tdict['stop']  = r['datum_end'][10:-3]
-                tdict['name']  = r['titel']
-                if tdict['name'] == '':
-                        dict['name'] = 'onbekend'
-                tdict['url']   = program_url
-                tdict['ID']    = r['db_id']
-                tdict['offset'] = offset
-                tdict['genre'] = r['genre']
-                # and append the program to the list of programs
-                programs.append(tdict)
+            # r is a dict, like:
+            # {
+            #  u'artikel_id': None,
+            #  u'datum_end': u'2012-03-12 03:05:00',
+            #  u'datum_start': u'2012-03-12 01:20:00',
+            #  u'db_id': u'12379780',
+            #  u'genre': u'Film',
+            #  u'kijkwijzer': u'',
+            #  u'soort': u'Zwarte komedie',
+            #  u'titel': u'Der unauff\xe4llige Mr. Crane'
+            # }
+            
+            program_url  = 'http://www.tvgids.nl/programma/' + r['db_id'] + '/'
+            tdict = {}
+            tdict['name']  = r['titel']
+            if tdict['name'] == '':
+                log('Can not determine program title for "%s"' % program_url)
+                continue
+            tdict['start-time'] = match_to_date(retime.match(r['datum_start']),"begin time", tdict['name'])
+            tdict['stop-time']  = match_to_date(retime.match(r['datum_end']), "eindtijd", tdict['name'])
+            if tdict['start-time'] == None or tdict['stop-time'] == None:
+                continue
+            tdict['url']   = program_url
+            tdict['ID']    = r['db_id']
+            tdict['offset'] = offset
+            tdict['genre'] = r['genre']
+            # and append the program to the list of programs
+            
+            programs.append(tdict)
     # done
     return programs
-
-def make_daytime(time_string, offset=0, cutoff='00:00', stoptime=False):
-    """
-    Given a string '11:35' and an offset from today,
-    return a datetime object. The cuttoff specifies the point where the 
-    new day starts.
-
-    Examples:
-    In [2]:make_daytime('11:34',0)
-    Out[2]:datetime.datetime(2006, 8, 3, 11, 34)
-
-    In [3]:make_daytime('11:34',1)
-    Out[3]:datetime.datetime(2006, 8, 4, 11, 34)
-
-    In [7]:make_daytime('11:34',0,'12:00')
-    Out[7]:datetime.datetime(2006, 8, 4, 11, 34)
-
-    In [4]:make_daytime('11:34',0,'11:34',False)
-    Out[4]:datetime.datetime(2006, 8, 3, 11, 34)
-
-    In [5]:make_daytime('11:34',0,'11:34',True)
-    Out[5]:datetime.datetime(2006, 8, 4, 11, 34)
-
-    """
-    h,m = [int(x) for x in time_string.split(':')];
-    hm = int(time_string.replace(':',''))
-    chm = int(cutoff.replace(':',''))
-
-    # check for the cutoff, if the time is before the cutoff then 
-    # add a day
-    extra_day = 0
-    if (hm < chm) or (stoptime==True and hm == chm):
-        extra_day = 1
-
-    # and create a datetime object, DST is handled at a later point
-    pt = time.localtime()
-    dt = datetime.datetime(pt[0],pt[1],pt[2],h,m)
-    dt = dt + datetime.timedelta(offset+extra_day)
-    return dt
-
-def correct_times(programs, quiet=0):
-    """
-    Parse a list of programs as generated by get_channel_all_days()  and
-    convert begin and end times to xmltv compatible times in datetime objects.  
-    """
-    if programs == []:
-        return programs
-    
-    # the start time of programming for this day, times *before* this time are 
-    # assumed to be on the next day
-    day_start_time = '06:00'
-
-    # initialise using the start time of the first program on this day
-    if programs[0]['start'] != None:
-        day_start_time = programs[0]['start']
-
-    for program in programs:
-        if program['start'] == program['stop']:
-            program['stop'] = None
-
-        # convert the times 
-        if program['start'] != None:
-            program['start-time'] = make_daytime(program['start'], program['offset'], day_start_time)
-        else:
-            program['start-time'] = None
-
-        if program['stop'] != None:
-            program['stop-time'] = make_daytime(program['stop'], program['offset'], day_start_time, stoptime=True)
-
-            # extra correction, needed because the stop time of a program may be on the next day, after the
-            # day cutoff. For example: 
-            # 06:00 - 23:40 Long Program
-            # 23:40 - 00:10 Lala
-            # 00:10 - 08:00 Wawa 
-            # This puts the end date of Wawa on the current, instead of the next day. There is no way to detect
-            # this with a single cutoff in make_daytime. Therefore, check if there is a day difference between
-            # start and stop dates and correct if necessary.
-            if program['start-time'] != None:
-                # make two dates
-                start = program['start-time']
-                stop  = program['stop-time']
-                single_day = datetime.timedelta(1)
-                startdate = datetime.datetime(start.year,start.month,start.day)
-                stopdate  = datetime.datetime(stop.year,stop.month,stop.day)
-                if startdate - stopdate == single_day:
-                    program['stop-time'] = program['stop-time'] + single_day
-        else:
-            program['stop-time'] = None
 
 def parse_programs(programs, offset=0, quiet=0):
     """
@@ -735,7 +673,6 @@ def parse_programs(programs, offset=0, quiet=0):
     good_programs = []
 
     # calculate absolute start and stop times
-    correct_times(programs, quiet)
 
     # next, correct for missing end time and copy over all good programming to the 
     # good_programs list
