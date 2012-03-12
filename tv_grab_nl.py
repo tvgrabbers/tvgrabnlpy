@@ -111,6 +111,7 @@ import sys,codecs,locale
 VERSION = "2012-03-11 12:03"
 VERSION += "-experimental"
 
+
 # XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
 if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
     try:
@@ -120,8 +121,6 @@ if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
 
 
 # globals
-# compile only one time
-r_entity = re.compile(r'&(#x[0-9A-Fa-f]+|#[0-9]+|[A-Za-z]+);')
 
 tvgids = 'http://www.tvgids.nl/'
 uitgebreid_zoeken = tvgids + 'json/lists/programs.php'
@@ -403,44 +402,54 @@ def usage():
     print('--overlap_strategy = what strategy to use to correct overlaps (check top of source code)'
 )
 
-def filter_line_identity(m, defs=name2codepoint):
-    # callback: translate one entity to its Unicode value
-    k = m.group(1)
-    try:
-        if k.startswith("#x"):
-            return unichr(int(k[1:], 16))
-        elif k.startswith("#"):
-            return unichr(int(k[1:]))
+
+# Removes HTML or XML character references and entities from a text string.
+# source: http://effbot.org/zone/re-sub.htm#unescape-html
+#
+# @param text The HTML (or XML) source text.
+# @return The plain text, as a Unicode string
+
+def unescape(text):
+    def fixup(m):
+        text = m.group(0)
+        if text[:2] == "&#":
+            # character reference
+            try:
+                if text[:3] == "&#x":
+                    return unichr(int(text[3:-1], 16))
+                else:
+                    return unichr(int(text[2:-1]))
+            except ValueError:
+                pass
         else:
-            return unichr(defs[k])
-    except KeyError:
-        return m.group(0) # use as is
+            # named entity
+            try:
+                text = unichr(name2codepoint[text[1:-1]])
+            except KeyError:
+                pass
+        return text # leave as is
+    return re.sub("&#?\w+;", fixup, text)
+
+
 
 def filter_line(s):
     """
-    Removes unwanted stuff in strings (adapted from tv_grab_be)
+    Escape XML encoded stuff and remove newlines and tabs in strings (adapted from tv_grab_be)
     """
 
     # convert escapse HTML entities to their Unicode equivalent
-    s = r_entity.sub(filter_line_identity, s)
-
-    s.replace('&nbsp;',' ')
+    s = unescape(s)
 
     # Ik vermoed dat de volgende drie regels overbodig zijn, maar ze doen
     # niet veel kwaad -- Han Holl
-    s.replace('\r',' ')
-    x = re.compile('(<.*?>)') # Udo
-    s = x.sub('', s) #Udo
-
-    s.replace('~Q', "'")
-    s.replace('~R', "'")
-
-    # Hmm, not sure if I understand this. Without it, mythfilldatabase barfs
-    # on program names like "Steinbrecher &..."
-    # We most create valid XML -- Han Holl
-    s = saxutils.escape(s)
+    s = re.sub('[\r\n\t]', '', s)
+    s = re.sub('(<.*?>)', '', s)
 
     return s
+
+def escape(s):
+    """Escape <, > and & characters for use in XML"""
+    return saxutils.escape(s)
     
 
 def calc_timezone(t):
@@ -544,10 +553,7 @@ def get_page(url, quiet=0):
         fu = FetchURL(url, quiet)
         fu.start()
         fu.join(global_timeout)
-        page = fu.result.translate("\n\t") # remove tabs and returns
-        # result = get_page_internal(url, quiet)
-        # page = result.translate("\n\t") # remove tabs and returns
-        return page
+        return fu.result
     except Exception:
         log('get_page timed out on (>%s s): %s\n' % (global_timeout, url), quiet)
         return None
@@ -571,7 +577,7 @@ def get_channels(file, quiet=0):
     total = get_page(uitgebreid_zoeken, quiet)
     if total == None:
         return
-
+    
     # get a list of match objects of all the <select blah station>
     stations = channel_get.finditer(total)
 
@@ -632,6 +638,8 @@ def get_channel_all_days(channel, days, quiet=0):
                 time.sleep(random.randint(nice_time[0], nice_time[1]))
         # get the raw programming for the day
         strdata = get_page(channel_url, quiet)
+        # No need to unescape contents, as JSON is not XML-escaped.
+        # Just let the json library parse it.
         total = json.loads(strdata)
 
         expected = now + datetime.timedelta(days=offset)
@@ -888,10 +896,10 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
 
         programs[i]['detail1'] = ''
         if addprogtype.search(total) != None:
-           programs[i]['detail1'] = addprogtype.search(total).group(1).capitalize()
+           programs[i]['detail1'] = filter_line(addprogtype.search(total).group(1).capitalize())
 
         elif descrtype.search(descrspan.group(1)) != None:
-           programs[i]['detail1'] = descrtype.search(descrspan.group(1)).group(1).capitalize()
+           programs[i]['detail1'] = filter_line(descrtype.search(descrspan.group(1)).group(1).capitalize())
 
         # If a type was found, we store this as first part of the regular detailed description and remove unwanted chars
         if programs[i]['detail1'] != '':
@@ -903,14 +911,13 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         for descript in descriptions:
             # descript is a re.Match object
             d_str = 'detail' + str(line_nr)
-            programs[i][d_str] = descript.group(1)
+            programs[i][d_str] = filter_line(descript.group(1))
 
             # Remove sponsored link from description if present.
             sponsor_pos = programs[i][d_str].rfind('<i>Gesponsorde link:</i>')
             if sponsor_pos > 0:
-                programs[i][d_str] = programs[i][d_str][0:sponsor_pos]
+                programs[i][d_str] = filter_line(programs[i][d_str][0:sponsor_pos])
 
-            programs[i][d_str] = filter_line(programs[i][d_str]).strip()
             line_nr = line_nr + 1
         
         # Finally, we check out all program details. These are generically denoted as:
@@ -924,8 +931,8 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                                                                             
         for d in details:
             ctype = d.group(1).strip().lower()
-            content_asis = d.group(2).strip()
-            content = filter_line(content_asis).strip()
+            content_asis = filter_line(d.group(2))
+            content = filter_line(content_asis)
             
             if content == '':
                 continue
@@ -943,10 +950,10 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                     genre = 'film'
 
                 if nocattrans:
-                    programs[i]['genre'] = genre.title()
+                    programs[i]['genre'] = filter_line(genre.title())
                 else:
                     try:
-                        programs[i]['genre'] = cattrans[genre.lower()]
+                        programs[i]['genre'] = filter_line(cattrans[genre.lower()])
                     except LookupError:
                         programs[i]['genre'] = ''
 
@@ -964,7 +971,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                         name = name.split('-')[0]
                     if name.find('e.a') != -1:
                         name = name.split('e.a')[0]
-                    programs[i]['credits'][roletrans[ctype]].append(filter_line(name.strip()))
+                    programs[i]['credits'][roletrans[ctype]].append(filter_line(name))
 
             elif ctype == 'bijzonderheden':
                 if content.find('Breedbeeld') != -1:
@@ -976,11 +983,11 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                 if content.find('Stereo') != -1: 
                     programs[i]['stereo'] = 1
             elif ctype == 'url':
-                programs[i]['infourl'] = content
+                programs[i]['infourl'] = filter_line(content)
             else:
                 # In unmatched cases, we still add the parsed type and content to the program details.
                 # Some of these will lead to xmltv output during the xmlefy_programs step
-                programs[i][ctype] = content
+                programs[i][ctype] = filter_line(content)
 
         # do not cache programming that is unknown at the time
         # of fetching.
@@ -1015,6 +1022,7 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
     """
     Given a list of programming (from get_channels())
     returns a unicode string with the xml equivalent
+    We assume, that programs is in unicode.
     """
     output = []
     for program in programs:
@@ -1024,29 +1032,28 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
             if 'clumpidx' in program:
                 clumpidx = 'clumpidx="'+program['clumpidx']+'"'
         except LookupError:
-            clumpidx = ""
+            clumpidx = ''
 
         output.append('  <programme start="%s" stop="%s" channel="%s%s" %s> \n' % \
             (format_timezone(program['start-time']), format_timezone(program['stop-time']),\
              channel, compat and '.tvgids.nl' or '', clumpidx))
 
-        output.append('    <title lang="nl">%s</title>\n' % filter_line(program['name']))
+        output.append('    <title lang="nl">%s</title>\n' % xmlescape(program['name']))
 
         if 'titel aflevering' in program and program['titel aflevering'] != '':
-                output.append('    <sub-title lang="nl">%s</sub-title>\n' % filter_line(program['titel aflevering']))
+            output.append('    <sub-title lang="nl">%s</sub-title>\n' % xmlescape(program['titel aflevering']))
 
         desc = []
         for detail_row in ['detail1','detail2','detail3']:
-                if detail_row in program and not re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', program[detail_row]):
-                        desc.append('%s ' % program[detail_row])
+            if detail_row in program and not re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', program[detail_row]):
+                desc.append(program[detail_row])
         if desc != []:
-                # join and remove newlines from descriptions
-                desc_line = "".join(desc).strip()
-                desc_line.replace('\n', ' ')
-                if len(desc_line) > desc_len: 
-                    spacepos = desc_line[0:desc_len-3].rfind(' ') 
-                    desc_line = desc_line[0:spacepos] + '...'
-                output.append('    <desc lang="nl">%s</desc>\n' % desc_line)
+            # join and remove newlines from descriptions
+            desc_line = ' '.join(desc).strip()
+            if len(desc_line) > desc_len: 
+                spacepos = desc_line[0:desc_len-3].rfind(' ') 
+                desc_line = desc_line[0:spacepos] + '...'
+            output.append('    <desc lang="nl">%s</desc>\n' % xmlescape(desc_line))
         
         # Process credits section if present.
         # This will generate director/actor/presenter info.
@@ -1055,23 +1062,23 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0):
             for role in program['credits']:
                 for name in program['credits'][role]:
                     if name != '':
-                        output.append('       <%s>%s</%s>\n' % (role, name, role))
+                        output.append('       <%s>%s</%s>\n' % (xmlescape(role), xmlescape(name), xmlescape(role)))
             output.append('    </credits>\n')
 
         if 'jaar van premiere' in program and program['jaar van premiere'] != '':
-                output.append('    <date>%s</date>\n' % program['jaar van premiere'])
+            output.append('    <date>%s</date>\n' % program['jaar van premiere'])
 
         if 'genre' in program and program['genre'] != '':
-                output.append('    <category')
-                if nocattrans:
-                   output.append(' lang="nl"')
-                output.append ('>%s</category>\n' % program['genre'])
+            output.append('    <category')
+            if nocattrans:
+               output.append(' lang="nl"')
+            output.append ('>%s</category>\n' % xmlescape(program['genre']))
         
         if 'infourl' in program and program['infourl'] != '':
-                output.append('    <url>%s</url>\n' % program['infourl']) 
+            output.append('    <url>%s</url>\n' % xmlescape(program['infourl'])) 
 
         if 'aflevering' in program and program['aflevering'] != '':
-                output.append('    <episode-num system="onscreen">%s</episode-num>\n' % filter_line(program['aflevering']))
+            output.append('    <episode-num system="onscreen">%s</episode-num>\n' % xmlescape(program['aflevering']))
 
         # Process video section if present
         if 'video' in program and program['video'] != {}:
@@ -1330,13 +1337,13 @@ def main():
     # first do the channel info
     for key in channels.keys():
         xml.append('  <channel id="%s%s">' % (key, compat and '.tvgids.nl' or ''))
-        xml.append('    <display-name lang="nl">%s</display-name>' % channels[key])
+        xml.append('    <display-name lang="nl">%s</display-name>' % xmlescape(channels[key]))
         if (logos):
             ikey = int(key)
             if ikey in logo_names:
                 full_logo_url = logo_provider[logo_names[ikey][0]]+logo_names[ikey][1]+'.gif'
                 xml.append('    <icon src="%s" />' % full_logo_url)
-        xml.append('  </channel>')
+        xml.append('  </channel>\n')
 
     num_chans = len(channels.keys())
     channel_cnt = 0
@@ -1377,7 +1384,7 @@ def main():
             program_cache.dump(program_cache_file)
 
     # print footer stuff
-    xml.append("</tv>")
+    xml.append('</tv>')
 
     # print result to stdout
     xml = "".join(xml)
