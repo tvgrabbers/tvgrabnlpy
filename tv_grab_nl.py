@@ -503,7 +503,7 @@ def get_page_internal(url, quiet=0):
         page = None
         try:
             encoding = find_html_encoding(fp, bytes)
-            log ('parse %s as %s' % (url, encoding))
+            # log ('parse %s as %s' % (url, encoding))
             page = bytes.decode(encoding, 'strict')
         except Exception:
             log('Cannot decode url %s as %s\n' % (url, encoding), quiet)
@@ -824,27 +824,29 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
 
         # check the cache for this program's ID
         cached_program = program_cache.query(programs[i]['ID'])
+        if (cached_program != None) and (type(cached_program['name']) != unicode):
+            log(' [ignore old-style cache]', quiet)
+            cached_program = None
+        
         if (cached_program != None):
-                log(' [cached]', quiet)
-                # copy the cached information, except the start/end times, rating and clumping, 
-                # these may have changed.
-                tstart = programs[i]['start-time']
-                tstop  = programs[i]['stop-time']
-                rating = '' #programs[i]['star-rating']
-                try:
-                    clump  = programs[i]['clumpidx']
-                except LookupError:
-                    clump = False
-                programs[i] = cached_program
-                programs[i]['start-time'] = tstart
-                programs[i]['stop-time']  = tstop
-                programs[i]['star-rating'] = rating
-                if clump:
-                    programs[i]['clumpidx'] = clump
-                continue
-        else:
-            # be nice to tvgids.nl
-            time.sleep(random.randint(nice_time[0], nice_time[1]))
+            log(' [cached]', quiet)
+            # copy the cached information, except the start/end times, rating and clumping, 
+            # these may have changed.
+            tstart = programs[i]['start-time']
+            tstop  = programs[i]['stop-time']
+            try:
+                clump  = programs[i]['clumpidx']
+            except LookupError:
+                clump = False
+            programs[i] = cached_program
+            programs[i]['start-time'] = tstart
+            programs[i]['stop-time']  = tstop
+            if clump:
+                programs[i]['clumpidx'] = clump
+            continue
+
+        # be nice to tvgids.nl
+        time.sleep(random.randint(nice_time[0], nice_time[1]))
 
         # get the details page, and get all the detail nodes
         descriptions = ()
