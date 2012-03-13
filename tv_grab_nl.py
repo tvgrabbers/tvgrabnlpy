@@ -63,12 +63,11 @@ it now also includes:
  - Better detection of Movies
  - and much, much more... 
 
-Several other people have provided feedback and patches (these are the
-people I could find in my email archive, if you are missing from this
-list let me know):
-Huub Bouma, Roy van der Kuil, Remco Rotteveel, Mark Wormgoor, Dennis van
-Onselen, Hugo van der Kooij, Han Holl, Ian Mcdonald, Udo van den Heuvel,
-Paul Sijben, Sietse Visser, Willem Vermin.
+Several other people have provided feedback and patches:
+Huub Bouma, Paul de Bruin, Freek Dijkstra, Udo van den Heuvel, Han Holl,
+Hugo van der Kooij, Roy van der Kuil, Ian Mcdonald, Dennis van Onselen,
+Remco Rotteveel, Paul Sijben, Willem Vermin, Michel Veerman,
+Sietse Visser, Mark Wormgoor.
 """ 
 
 # Python 3 compatibility
@@ -1104,7 +1103,7 @@ def main():
     output_file = None
 
     # the total number of days to fetch 
-    days        = 6
+    days        = 4
 
     # Fetch data in fast mode, i.e. do NOT grab all the detail information,
     # fast means fast, because as it then does not have to fetch a web page for each program
@@ -1114,7 +1113,7 @@ def main():
     # number of days to fetch in slow mode. For example: --days 5 --slowdays 2, will 
     # fetch the first two days in slow mode (with all the details) and the remaining three
     # days in fast mode.
-    slowdays    = 6
+    slowdays    = 4
 
     # no output 
     quiet       = 0
@@ -1218,7 +1217,10 @@ def main():
 
         if o == "--days":
             # limit days to maximum supported by tvgids.nl
-            days = min(int(a),6)
+            a = int(a)
+            if a > 4:
+                log("tvgids.nl kan maximaal 3 dagen vooruit kijken.")
+            days = min(a,4)
 
         if o == "--compat":
             compat = 1
