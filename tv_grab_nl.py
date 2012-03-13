@@ -1033,6 +1033,8 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0, use_utc
             desc = program['details']
         elif 'detail2' in program:
             desc = [program[d] for d in ('detail1', 'detail2', 'detail3') if d in program]
+        else:
+            desc = []
         if desc != []:
             # join at most 4 lines of descriptions
             desc_line = ' '.join(desc[:3]).strip()
