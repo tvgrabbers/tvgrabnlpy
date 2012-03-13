@@ -1228,9 +1228,8 @@ def main():
         if o == "--configure":
             # check for the ~.xmltv dir
             config_dir = os.path.dirname(config_file)
-            if not os.path.exists(config_dir):
-                log('You do not have the %s directory,' % config_dir, quiet)
-                log('I am going to make a shiny new one for you...', quiet)
+            if (config_dir != '') and not os.path.exists(config_dir):
+                log('Creating %s directory,' % config_dir, quiet)
                 os.mkdir(config_dir)
             log('Creating config file: %s\n' % config_file, quiet)
             get_channels(config_file)
@@ -1338,7 +1337,7 @@ def main():
     xml = []
     xml.append('<?xml version="1.0" encoding="%s"?>\n' % xmlencoding)
     xml.append('<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
-    xml.append('<tv generator-info-name="tv_grab_nl_py $Rev$">\n')
+    xml.append('<tv generator-info-name="tv_grab_nl_py (version %s)">\n' % VERSION)
 
     # first do the channel info
     for key in channels.keys():
