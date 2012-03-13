@@ -644,8 +644,8 @@ def get_channel_all_days(channel, days, quiet=0):
             tdict['url']   = program_url
             tdict['ID']    = unescape(r['db_id'])
             tdict['offset'] = offset
-            tdict['genre'] = unescape(r['genre'])
-            tdict['subgenre'] = unescape(r['soort'])
+            tdict['genre'] = unescape(r['genre']) if 'genre' in r else ''
+            tdict['subgenre'] = unescape(r['soort']) if 'soort' in r else ''
             # and append the program to the list of programs
             
             programs.append(tdict)
