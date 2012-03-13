@@ -107,7 +107,7 @@ except ImportError:
 import sys,codecs,locale
 
 
-VERSION = "2012-03-12 05:11"
+VERSION = "2012-03-13 08:41"
 VERSION += "-experimental"
 
 
@@ -644,8 +644,8 @@ def get_channel_all_days(channel, days, quiet=0):
             tdict['url']   = program_url
             tdict['ID']    = unescape(r['db_id'])
             tdict['offset'] = offset
-            tdict['genre'] = unescape(r['genre'])
-            tdict['subgenre'] = unescape(r['soort'])
+            tdict['genre'] = unescape(r['genre']) if 'genre' in r else ''
+            tdict['subgenre'] = unescape(r['soort']) if 'soort' in r else ''
             # and append the program to the list of programs
             
             programs.append(tdict)
@@ -1033,6 +1033,8 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0, use_utc
             desc = program['details']
         elif 'detail2' in program:
             desc = [program[d] for d in ('detail1', 'detail2', 'detail3') if d in program]
+        else:
+            desc = []
         if desc != []:
             # join at most 4 lines of descriptions
             desc_line = ' '.join(desc[:3]).strip()
