@@ -453,13 +453,7 @@ def unescape(text):
             except KeyError:
                 pass
         return text # leave as is
-    try:
-        return re.sub("&#?\w+;", fixup, text)
-    except Exception:
-        print type(fixup)
-        print type(text)
-        print text
-        raise
+    return re.sub("&#?\w+;", fixup, text)
 
 
 
