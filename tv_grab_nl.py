@@ -362,18 +362,43 @@ class ProgramCache:
         Removes all cached programming before today.
         Also removes erroneously cached programming.
         """
-        now = time.localtime() 
-        dnow = datetime.datetime(now[0],now[1],now[2])
+        dnow = datetime.date.today()
         for key in self.pdict.keys():
             try:
                 p = self.pdict[key]
                 if 'stop-time' not in p or 'name' not in p or \
-                        self.pdict[key]['stop-time'] < dnow or \
+                        self.pdict[key]['stop-time'].date() < dnow or \
                         type(p['name']) != unicode or \
                         self.pdict[key]['name'].lower() == 'onbekend':
                     del self.pdict[key]
             except LookupError:
                 pass    
+
+class AmsterdamTimeZone(datetime.tzinfo):
+    """Timezone information for Amsterdam"""
+    def __init__(self):
+        # calculate for the current year:
+        year = datetime.date.today().year
+        d = datetime.datetime(year, 4, 1, 2, 0)  # Starts last Sunday in March 02:00:00
+        self.dston = d - datetime.timedelta(days=d.weekday() + 1)
+        d = datetime.datetime(year, 11, 1, 2, 0) # Ends last Sunday in October 02:00:00
+        self.dstoff = d - datetime.timedelta(days=d.weekday() + 1)
+    def utcoffset(self, dt):
+        return datetime.timedelta(hours=1) + self.dst(dt)
+    def dst(self, dt):
+        if self.dston <=  dt.replace(tzinfo=None) < self.dstoff:
+            return datetime.timedelta(hours=1)
+        else:
+            return datetime.timedelta(0)
+class UTCTimeZone(datetime.tzinfo):
+    """UTZ Timezone"""
+    def utcoffset(self, dt):
+        return datetime.timedelta(0)
+    def dst(self, dt):
+        return datetime.timedelta(0)
+
+CET_CEST = AmsterdamTimeZone()
+UTC  = UTCTimeZone()
 
 
 def usage():
@@ -452,58 +477,13 @@ def xmlescape(s):
     """Escape <, > and & characters for use in XML"""
     return saxutils.escape(s)
 
-
-def calc_timezone(t, use_utc):
-    """
-    Takes a time from tvgids.nl and formats it with all the required
-    timezone conversions.
-    in: '20050429075000'
-    out:'20050429065000 (CET|CEST|UTC)'
-
-    """
-
-    year = int(t[0:4])
-    month = int(t[4:6])
-    day = int(t[6:8])
-    hour = int(t[8:10])
-    minute = int(t[10:12])
-
-    timestamp = ''
-
-    if use_utc:
-        # evil: set the TZ environment to amsterdam... reset it back later
-        # I can't think of a less evil way to do this in the current python [Huub]
-        old_tz = os.environ.get('TZ')
-        os.environ['TZ'] = 'Europe/Amsterdam'
-        time.tzset()
-        pt = time.mktime((year,month,day,hour,minute,0,0,0,-1))
-        localtime = time.localtime(pt)
-        utc = time.gmtime(pt)
-        utc_stamp = time.strftime('%Y%m%d%H%M00', utc)
-        if old_tz:
-            os.environ['TZ'] = old_tz
-        else:
-            del os.environ['TZ']
-        time.tzset()
-        timestamp = '%s %s' % (utc_stamp, 'UTC')
-    else:
-        td = {0 : '+0100', 1 : '+0200'}
-    pt = time.mktime((year,month,day,hour,minute,0,0,0,-1))
-    timezone=''
-    try:
-        timezone = (time.localtime(pt))[-1]
-    except:
-        sys.stderr.write('Cannot convert time to timezone')
-        timestamp = t+' %s' % td[timezone]
-
-    return timestamp
-
 def format_timezone(td, use_utc):
     """
     Given a datetime object, returns a string in XMLTV format
     """
-    tstr = td.strftime('%Y%m%d%H%M00')
-    return calc_timezone(tstr, use_utc)
+    if use_utc:
+        td = td.astimezone(UTC)
+    return td.strftime('%Y%m%d%H%M%S %z')
 
 def find_html_encoding(httphead, htmlhead):
     # look for the text '<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />'
@@ -599,7 +579,8 @@ def get_channels(file, quiet=0):
 def match_to_date(match, time, program):
     if match:
         return datetime.datetime(int(match.group(1)),int(match.group(2)),\
-                int(match.group(3)),int(match.group(4)),int(match.group(5)))
+                int(match.group(3)),int(match.group(4)),int(match.group(5)),
+                tzinfo=CET_CEST)
     else:
         log("Can not determine %s for %s" % (time,program))
         return None
