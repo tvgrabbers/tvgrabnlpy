@@ -372,7 +372,7 @@ class ProgramCache:
                         self.pdict[key]['name'].lower() == 'onbekend':
                     del self.pdict[key]
             except LookupError:
-                pass    
+                pass
 
 class AmsterdamTimeZone(datetime.tzinfo):
     """Timezone information for Amsterdam"""
@@ -787,7 +787,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
     """
 
     # This regexp tries to find details such as Genre, Acteurs, Jaar van Premiere etc.
-    detail      = re.compile('<li>.*?<strong>(.*?):</strong>(.*?)</li>', re.DOTALL)
+    detail      = re.compile('<li>[^<]*<strong>(\w+):</strong>(.*?)</li>', re.DOTALL)
 
     # These regexps find the main description area and lines of descriptive text in this area
     description = re.compile('<div id="prog-content">(.*?)</div>',re.DOTALL)
@@ -880,7 +880,6 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
 
         # If a type was found, we store this as first part of the regular detailed description and remove unwanted chars
         if programs[i]['detail1'] != '':
-           programs[i]['detail1'] = filter_line(programs[i]['detail1'])
            line_nr = line_nr + 1
 
         # Secondly, we add one or more lines of the program description that are present.
@@ -908,6 +907,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                                                                             
         for d in details:
             ctype = d.group(1).strip().lower()
+            print "ctype=",ctype
             content_asis = filter_line(d.group(2))
             content = filter_line(content_asis)
             
@@ -961,10 +961,10 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                     programs[i]['stereo'] = 1
             elif ctype == 'url':
                 programs[i]['infourl'] = filter_line(content)
-            else:
+            elif ctype not in programs[i]:
                 # In unmatched cases, we still add the parsed type and content to the program details.
                 # Some of these will lead to xmltv output during the xmlefy_programs step
-                programs[i][ctype] = filter_line(content)
+                programs[i][filter_line(ctype)] = filter_line(content)
 
         # do not cache programming that is unknown at the time
         # of fetching.
