@@ -107,8 +107,8 @@ except ImportError:
 import sys,codecs,locale
 
 
-VERSION = "2012-03-13 08:41"
-VERSION += "-experimental"
+VERSION = "2012-03-13 12:01"
+# VERSION += "-experimental"
 
 
 # XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
