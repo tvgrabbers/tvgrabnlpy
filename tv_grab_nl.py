@@ -575,15 +575,6 @@ def get_channels(file, quiet=0):
         f.write(regel.encode('utf-8'))
     f.close()
 
-def match_to_date(match, time, program):
-    if match:
-        return datetime.datetime(int(match.group(1)),int(match.group(2)),\
-                int(match.group(3)),int(match.group(4)),int(match.group(5)),
-                tzinfo=CET_CEST)
-    else:
-        log("Can not determine %s for %s" % (time,program))
-        return None
-
 def get_channel_all_days(channel, days, quiet=0):
     """
     Get all available days of programming for channel number
@@ -597,6 +588,16 @@ def get_channel_all_days(channel, days, quiet=0):
     programs = []
     
     retime = re.compile(r'(\d\d\d\d)-(\d+)-(\d+) (\d+):(\d+)(?::\d+)')
+    
+    def match_to_date(match, time, program):
+        if match:
+            return datetime.datetime(int(match.group(1)),int(match.group(2)),\
+                    int(match.group(3)),int(match.group(4)),int(match.group(5)),
+                    tzinfo=CET_CEST)
+        else:
+            log("Can not determine %s for %s" % (time,program))
+            return None
+
 
     # Tvgids shows programs per channel per day, so we loop over the number of days
     # we are required to grab
@@ -608,7 +609,6 @@ def get_channel_all_days(channel, days, quiet=0):
                 time.sleep(random.randint(nice_time[0], nice_time[1]))
         # get the raw programming for the day
         strdata = get_page(channel_url, quiet)
-        # No need to unescape contents, as JSON is not XML-escaped.
         # Just let the json library parse it.
         total = json.loads(strdata)
 
@@ -633,7 +633,7 @@ def get_channel_all_days(channel, days, quiet=0):
             
             program_url  = 'http://www.tvgids.nl/programma/' + r['db_id'] + '/'
             tdict = {}
-            tdict['name']  = r['titel']
+            tdict['name']  = unescape(r['titel'])
             if tdict['name'] == '':
                 log('Can not determine program title for "%s"' % program_url)
                 continue
@@ -642,9 +642,10 @@ def get_channel_all_days(channel, days, quiet=0):
             if tdict['start-time'] == None or tdict['stop-time'] == None:
                 continue
             tdict['url']   = program_url
-            tdict['ID']    = r['db_id']
+            tdict['ID']    = unescape(r['db_id'])
             tdict['offset'] = offset
-            tdict['genre'] = r['genre']
+            tdict['genre'] = unescape(r['genre'])
+            tdict['subgenre'] = unescape(r['soort'])
             # and append the program to the list of programs
             
             programs.append(tdict)
@@ -861,39 +862,49 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
         programs[i]['video']   = {}
 
         # now parse the details
-        
-        line_nr = 1;
-        
+        programs[i]['details'] = []
         # First, we try to find the program type in the special "mijn TV Agenda" link, if not found there we
         # search for a type in the description section.
         # Note that this type is not the same as the generic genres (these are searched later on), 
         # but a more descriptive one like "Culinair programma" 
         # 
-
-        programs[i]['detail1'] = ''
-        if addprogtype.search(total) != None:
-           programs[i]['detail1'] = filter_line(addprogtype.search(total).group(1).capitalize())
-
-        elif descrtype.search(descrspan.group(1)) != None:
-           programs[i]['detail1'] = filter_line(descrtype.search(descrspan.group(1)).group(1).capitalize())
-
-        # If a type was found, we store this as first part of the regular detailed description and remove unwanted chars
-        if programs[i]['detail1'] != '':
-           line_nr = line_nr + 1
+        def add_details(program, details):
+            details = filter_line(details)
+            if len(details) == 0:
+                return
+            if len(program['details']) > 0 and program['details'][-1].lower() == details.lower():
+                return
+            program['details'].append(details)
+        
+        if 'subgenre' in programs[i]:
+            add_details(programs[i], programs[i]['subgenre'])
+        
+        m = addprogtype.search(total)
+        if m:
+            add_details(programs[i], m.group(1).capitalize())
+        
+        m = descrtype.search(descrspan.group(1))
+        if m:
+            add_details(programs[i], m.group(1).capitalize())
 
         # Secondly, we add one or more lines of the program description that are present.
-    
         for descript in descriptions:
             # descript is a re.Match object
-            d_str = 'detail' + str(line_nr)
-            programs[i][d_str] = filter_line(descript.group(1))
-
+            descr_html = descript.group(1)
+            
             # Remove sponsored link from description if present.
-            sponsor_pos = programs[i][d_str].rfind('<i>Gesponsorde link:</i>')
+            sponsor_pos = descr_html.rfind('<i>Gesponsorde link:</i>')
             if sponsor_pos > 0:
-                programs[i][d_str] = filter_line(programs[i][d_str][0:sponsor_pos])
-
-            line_nr = line_nr + 1
+                descr_html = descr_html[0:sponsor_pos]
+            if re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', descr_html):
+                descr_html = ''
+            
+            add_details(programs[i], descr_html)
+        
+        if len(programs[i]['details']) == 0:
+            programs[i]['detail1'] = ''
+        else:
+            programs[i]['detail1'] = programs[i]['details'][0]
         
         # Finally, we check out all program details. These are generically denoted as:
         #
@@ -906,7 +917,6 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
                                                                             
         for d in details:
             ctype = d.group(1).strip().lower()
-            print "ctype=",ctype
             content_asis = filter_line(d.group(2))
             content = filter_line(content_asis)
             
@@ -972,7 +982,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
             program_cache.add(programs[i])
 
     log('\ndone...\n\n', quiet)
-                    
+    
     # done
       
 def title_split(program):
@@ -1019,13 +1029,13 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0, use_utc
         if 'titel aflevering' in program and program['titel aflevering'] != '':
             output.append('    <sub-title lang="nl">%s</sub-title>\n' % xmlescape(program['titel aflevering']))
 
-        desc = []
-        for detail_row in ['detail1','detail2','detail3']:
-            if detail_row in program and not re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', program[detail_row]):
-                desc.append(program[detail_row])
+        if 'details' in program:
+            desc = program['details']
+        elif 'detail2' in program:
+            desc = [program[d] for d in ('detail1', 'detail2', 'detail3') if d in program]
         if desc != []:
-            # join and remove newlines from descriptions
-            desc_line = ' '.join(desc).strip()
+            # join at most 4 lines of descriptions
+            desc_line = ' '.join(desc[:3]).strip()
             if len(desc_line) > desc_len: 
                 spacepos = desc_line[0:desc_len-3].rfind(' ') 
                 desc_line = desc_line[0:spacepos] + '...'
@@ -1060,9 +1070,9 @@ def xmlefy_programs(programs, channel, desc_len, compat=0, nocattrans=0, use_utc
         if 'video' in program and program['video'] != {}:
             output.append('    <video>\n');
             if 'breedbeeld' in program['video']:
-                output.append('           <aspect>16:9</aspect>\n')
+                output.append('      <aspect>16:9</aspect>\n')
             if 'blackwhite' in program['video']:
-                output.append('           <colour>no</colour>\n')
+                output.append('      <colour>no</colour>\n')
             output.append('    </video>\n')
 
         if 'stereo' in program:
