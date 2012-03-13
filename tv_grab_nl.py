@@ -453,7 +453,13 @@ def unescape(text):
             except KeyError:
                 pass
         return text # leave as is
-    return re.sub("&#?\w+;", fixup, text)
+    try:
+        return re.sub("&#?\w+;", fixup, text)
+    except Exception:
+        print type(fixup)
+        print type(text)
+        print text
+        raise
 
 
 
@@ -644,8 +650,8 @@ def get_channel_all_days(channel, days, quiet=0):
             tdict['url']   = program_url
             tdict['ID']    = unescape(r['db_id'])
             tdict['offset'] = offset
-            tdict['genre'] = unescape(r['genre']) if 'genre' in r else ''
-            tdict['subgenre'] = unescape(r['soort']) if 'soort' in r else ''
+            tdict['genre'] = unescape(r['genre']) if ('genre' in r and r['genre'] != None) else ''
+            tdict['subgenre'] = unescape(r['soort']) if ('soort' in r and r['soort'] != None) else ''
             # and append the program to the list of programs
             
             programs.append(tdict)
