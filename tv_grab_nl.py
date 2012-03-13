@@ -107,7 +107,7 @@ except ImportError:
 import sys,codecs,locale
 
 
-VERSION = "2012-03-11 12:03"
+VERSION = "2012-03-12 05:11"
 VERSION += "-experimental"
 
 
