@@ -612,13 +612,22 @@ def get_channel_all_days(channel, days, quiet=0):
         # Just let the json library parse it.
         total = json.loads(strdata)
 
-        expected = now + datetime.timedelta(days=offset)
-        
         # and find relevant programming info
-        v = list(total.values())[0]
-        if isinstance(v, dict):
+        try:
+            v = list(total.values())[0]
+            if isinstance(v, dict):
                 v=list(v.values())
+            elif not isinstance(v, (list,tuple)):
+                raise TypeError
+        except TypeError, LookupError:
+            log("Unsubscriptable content (%s) from channel url: %r\n" % \
+                    (v.values().__class__.__name__, channel_url))
+            continue
         for r in v:
+            if not isinstance(r, dict):
+                log("Unparsable program content from channel id %s: %r\n" % (channel, r))
+                continue
+            
             # r is a dict, like:
             # {
             #  u'artikel_id': None,
@@ -1317,8 +1326,11 @@ def main():
                     return(1)
             continue
         else:
-            channel = line.split(None, 1) # split on first whitespace
-            channels[channel[0]] = channel[1]
+            try:
+                channel = line.split(None, 1) # split on first whitespace
+                channels[int(channel[0])] = channel[1]
+            except Exception:
+                log('Invalid line in config file %s: %r\n' % (config_file, line))
     
     try:
         f.close()
@@ -1339,10 +1351,13 @@ def main():
         xml.append('  <channel id="%s%s">\n' % (key, compat and '.tvgids.nl' or ''))
         xml.append('    <display-name lang="nl">%s</display-name>\n' % xmlescape(channels[key]))
         if (logos):
-            ikey = int(key)
-            if ikey in logo_names:
-                full_logo_url = logo_provider[logo_names[ikey][0]]+logo_names[ikey][1]+'.gif'
-                xml.append('    <icon src="%s" />\n' % full_logo_url)
+            try:
+                ikey = int(key)
+                if ikey in logo_names:
+                    full_logo_url = logo_provider[logo_names[ikey][0]]+logo_names[ikey][1]+'.gif'
+                    xml.append('    <icon src="%s" />\n' % full_logo_url)
+            except Exception:
+                pass
         xml.append('  </channel>\n')
 
     num_chans = len(channels.keys())
