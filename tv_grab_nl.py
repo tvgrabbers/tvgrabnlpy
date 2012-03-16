@@ -520,8 +520,11 @@ def get_page_internal(url, quiet=0):
             log('Cannot decode url %s as %s\n' % (url, encoding), quiet)
             page = bytes.decode('Windows-1252', 'ignore') # At least gets it somewhat correct
         return page
-    except Exception:
-        log('Cannot open url: %s\n' % url, quiet)
+    except (urllib.URLError) as e:
+        log('Cannot open url %s: %s\n' % (url, e.reason), quiet)
+        return None
+    except (urllib.HTTPError) as e:
+        log('Cannot parse url %s: code=%s\n' % (url, e.code), quiet)
         return None
 
 class FetchURL(Thread):
@@ -559,7 +562,11 @@ def get_channels(file, quiet=0):
 
     # download the json feed
     total = get_page(channels_zoeken, quiet)
+    if total == None:
+        log("Don't write configuration file\n")
+        return 69  # EX_UNAVAILABLE
     channel_list = json.loads(total)
+        
 
     # convert to a map, so we can sort it..
     channels = {}
@@ -606,10 +613,13 @@ def get_channel_all_days(channel, days, quiet=0):
         channel_url = uitgebreid_zoeken + '?channels=%s&day=%s' % (channel, offset)
 
         if offset > 0:
-                time.sleep(random.randint(nice_time[0], nice_time[1]))
+            time.sleep(random.randint(nice_time[0], nice_time[1]))
         # get the raw programming for the day
         strdata = get_page(channel_url, quiet)
         # Just let the json library parse it.
+        if strdata == None:
+            log("Skip channle=%s, day=%d\n" % (channel, offset))
+            continue
         total = json.loads(strdata)
 
         # and find relevant programming info
@@ -1233,8 +1243,7 @@ def main():
                 log('Creating %s directory,' % config_dir, quiet)
                 os.mkdir(config_dir)
             log('Creating config file: %s\n' % config_file, quiet)
-            get_channels(config_file)
-            return(0)
+            return(get_channels(config_file))
 
         if o == "--days":
             # limit days to maximum supported by tvgids.nl
