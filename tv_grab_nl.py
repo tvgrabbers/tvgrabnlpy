@@ -1252,6 +1252,12 @@ def main():
                 log("tvgids.nl kan maximaal 3 dagen vooruit kijken.")
             days = min(a,4)
 
+        if o == "--slowdays":
+            # limit slowdays to maximum supported by tvgids.nl
+            slowdays = min(int(a),days)
+            # slowdays implies fast == 0
+            fast = 0
+
         if o == "--compat":
             compat = 1
 
@@ -1269,12 +1275,6 @@ def main():
             except Exception:
                 log('Cannot write to outputfile: %s\n' % output_file, quiet)
                 return(2)
-
-        if o == "--slowdays":
-            # limit slowdays to maximum supported by tvgids.nl
-            slowdays = min(int(a),6)
-            # slowdays implies fast == 0
-            fast = 0
 
         if o == "--logos":
             logos = int(a)
