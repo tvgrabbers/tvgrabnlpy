@@ -416,6 +416,7 @@ def usage():
     print('--desc-length = maximum allowed length of programme descriptions in bytes.')
     print('--description = prints a short description of the grabber')
     print('--output      = file where to put the output')
+    print('--offset      = first day to grab (0=today)')
     print('--days        = # number of days to grab')
     print('--preferredmethod = returns the preferred method to be called')
     print('--fast        = do not grab descriptions of programming')
@@ -587,7 +588,7 @@ def get_channels(file, quiet=0):
         f.write(regel.encode('utf-8'))
     f.close()
 
-def get_channel_all_days(channel, days, quiet=0):
+def get_channel_all_days(channel, start_day, days, quiet=0):
     """
     Get all available days of programming for channel number
 
@@ -613,11 +614,11 @@ def get_channel_all_days(channel, days, quiet=0):
 
     # Tvgids shows programs per channel per day, so we loop over the number of days
     # we are required to grab
-    for offset in range(0, days):
+    for offset in range(start_day, start_day+days):
     
         channel_url = uitgebreid_zoeken + '?channels=%s&day=%s' % (channel, offset)
 
-        if offset > 0:
+        if offset > start_day:
             time.sleep(random.randint(nice_time[0], nice_time[1]))
         # get the raw programming for the day
         strdata = get_page(channel_url, quiet)
@@ -1122,7 +1123,7 @@ def main():
     # Parse command line options
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "output=", "capabilities", 
-                                                       "preferredmethod", "days=", 
+                                                       "preferredmethod", "days=", "offset=",
                                                        "configure", "fast", "slow",
                                                        "cache=", "clean_cache", "utc",
                                                        "slowdays=","compat",
@@ -1142,6 +1143,9 @@ def main():
 
     # the total number of days to fetch 
     days        = 4
+
+    # the first day to fetch (0=today, 1=tomorrow, etc)
+    offset      = 0
 
     # Fetch data in fast mode, i.e. do NOT grab all the detail information,
     # fast means fast, because as it then does not have to fetch a web page for each program
@@ -1252,12 +1256,17 @@ def main():
             log('Creating config file: %s\n' % config_file, quiet)
             return(get_channels(config_file))
 
+        if o == "--offset":
+            # limit offset to maximum supported by tvgids.nl
+            # Note: check later that days+offset<=6
+            offset = min(int(a),3)
+
         if o == "--days":
             # limit days to maximum supported by tvgids.nl
             a = int(a)
-            if a > 4:
+            if a+offset > 4:
                 log("tvgids.nl kan maximaal 3 dagen vooruit kijken.")
-            days = min(a,4)
+            days = min(a,4-offset)
 
         if o == "--slowdays":
             # limit slowdays to maximum supported by tvgids.nl
@@ -1387,7 +1396,7 @@ def main():
         channel_cnt += 1
         log('\n\nNow fetching %s(xmltvid=%s%s) (channel %s of %s)\n' % \
                 (channels[id], id, (compat and '.tvgids.nl' or ''), channel_cnt, nfluffy), quiet)
-        info = get_channel_all_days(id,  days, quiet)
+        info = get_channel_all_days(id, offset, days, quiet)
         programs = parse_programs(info, None, quiet)
 
         # fetch descriptions
