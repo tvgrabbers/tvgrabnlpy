@@ -12,15 +12,23 @@ and has logos for most channels automagically available. Check the
 website below for screenshots.  The newest version of this script can be
 found here:
 
-     https://github.com/macfreek/tvgrabnlpy
-
-This is a fork of the original code at
-
      http://code.google.com/p/tvgrabnlpy/
 
 USAGE
 
 Check the web site above and/or run script with --help and start from there
+
+QUESTIONS
+
+Questions (and patches) are welcome at:
+http://www.pwdebruin.net/mailman/listinfo/tv_grab_nl_py_pwdebruin.net
+http://code.google.com/p/tvgrabnlpy/issues/list
+
+UPGRADE NOTES
+
+If you were using tv_grab_nl from the XMLTV bundle then enable the
+compat flag or use the --compat command-line option.  Otherwise, the
+xmltvid's are wrong and you will not see any new data in MythTV.
 
 HISTORY
 
@@ -29,21 +37,9 @@ and first released on 2003/07/09. At the same time the code base switched
 from using CVS to SVN at Google Code, and as a result the version numbering
 scheme has changed. The lastest official release of tv_grab_nl_pdb is 0.48.
 The first official release of tv_grab_nl_py is 6. In 2012, The codebase
-moved to GitHub, and the version number was changed once more. The latest
+moved to Git, and the version number was changed once more. The latest
 subversion release of tv_grab_nl_py is r109. The first Git release of
 tv_grab_nl_py is 2012-03-11 12:03.
-
-QUESTIONS
-
-Questions (and patches) are welcome at:
-http://www.pwdebruin.net/mailman/listinfo/tv_grab_nl_py_pwdebruin.net
-https://github.com/macfreek/tvgrabnlpy/issues
-
-IMPORTANT NOTES
-
-If you were using tv_grab_nl from the XMLTV bundle then enable the
-compat flag or use the --compat command-line option.  Otherwise, the
-xmltvid's are wrong and you will not see any new data in MythTV.
 
 CONTRIBUTORS
 
@@ -53,21 +49,25 @@ Current maintainer: Freek Dijkstra (software at macfreek dot nl)
 Michel van der Laan made available his extensive collection of
 high-quality logos that is used by this script.
 
-Michael Heus has taken the effort to further enhance this script so that
-it now also includes:
- - Credit info: directors, actors, presenters and writers
- - removal of programs that are actually just groupings/broadcasters 
-   (e.g. "KETNET", "Wild Friday", "Z@pp")
- - Star-rating for programs tipped by tvgids.nl
- - Black&White, Stereo and URL info
- - Better detection of Movies
- - and much, much more... 
-
 Several other people have provided feedback and patches:
-Huub Bouma, Paul de Bruin, Freek Dijkstra, Udo van den Heuvel, Han Holl,
-Hugo van der Kooij, Roy van der Kuil, Ian Mcdonald, Dennis van Onselen,
-Remco Rotteveel, Paul Sijben, Willem Vermin, Michel Veerman,
-Sietse Visser, Mark Wormgoor.
+Huub Bouma, Michael Heus, Udo van den Heuvel, Han Holl, Hugo van der Kooij, 
+Roy van der Kuil, Ian Mcdonald, Dennis van Onselen, Remco Rotteveel, Paul 
+Sijben, Willem Vermin, Michel Veerman, Sietse Visser, Mark Wormgoor.
+
+LICENSE
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """ 
 
 # Python 3 compatibility
@@ -107,7 +107,7 @@ except ImportError:
 import sys,codecs,locale
 
 
-VERSION = "2012-03-16 16:09"
+VERSION = "2012-03-27"
 # VERSION += "-experimental"
 
 
