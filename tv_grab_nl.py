@@ -874,7 +874,11 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
             details = detail.finditer(total)
             
             descrspan = description.search(total)
-            descriptions = descrline.finditer(descrspan.group(1))
+            if descrspan != None:
+                descriptions = descrline.finditer(descrspan.group(1))
+            else:
+                log('Can not find program details on page\n', quiet)
+                descriptions = []
             
         except Exception as e:
             # if we cannot find the description page, 
