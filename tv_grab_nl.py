@@ -955,22 +955,20 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
 
                 # Fix detection of movies based on description as tvgids.nl sometimes 
                 # categorises a movie as e.g. "Komedie", "Misdaadkomedie", "Detectivefilm". 
-                genre = content;
-                if    (programs[i]['detail1'].lower().find('film')      != -1 \
-                   or  programs[i]['detail1'].lower().find('komedie')   != -1)\
-                   and programs[i]['detail1'].lower().find('tekenfilm') == -1 \
-                   and programs[i]['detail1'].lower().find('animatiekomedie') == -1 \
-                   and programs[i]['detail1'].lower().find('filmpje')   == -1:
-                    genre = 'film'
-
+                genre = filter_line(content.title())  # Titlecase
                 if nocattrans:
-                    programs[i]['genre'] = filter_line(genre.title())
+                    programs[i]['genre'] = genre
+                elif (programs[i]['detail1'].lower().find('film') != -1 \
+                        or  programs[i]['detail1'].lower().find('komedie') != -1)\
+                        and programs[i]['detail1'].lower().find('tekenfilm') == -1 \
+                        and programs[i]['detail1'].lower().find('animatiekomedie') == -1 \
+                        and programs[i]['detail1'].lower().find('filmpje') == -1:
+                    programs[i]['genre'] = 'Film'
                 else:
                     try:
-                        programs[i]['genre'] = filter_line(cattrans[genre.lower()])
+                        programs[i]['genre'] = cattrans[genre.lower()].title()
                     except LookupError:
-                        programs[i]['genre'] = ''
-
+                        programs[i]['genre'] = genre
 
             # Parse persons and their roles for credit info
             elif ctype in roletrans:
@@ -1023,7 +1021,7 @@ def title_split(program):
     if program['genre'] is None:
         program['genre'] = 'overige';
     
-    if  ('titel aflevering' in program and program['titel aflevering'] != '')  \
+    if  ('titel aflevering' in program and program['titel aflevering'] not in (None, ''))  \
      or ('genre' in program and program['genre'].lower() in ['movies','film']):
        return
 
