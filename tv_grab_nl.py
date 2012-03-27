@@ -18,6 +18,11 @@ USAGE
 
 Check the web site above and/or run script with --help and start from there
 
+REQUIREMENTS
+
+* Python 2.6 or 2.7
+* Connection with the Internet
+
 QUESTIONS
 
 Questions (and patches) are welcome at:
