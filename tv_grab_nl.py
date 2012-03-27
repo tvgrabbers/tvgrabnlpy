@@ -1324,7 +1324,7 @@ def main():
         except UnicodeError:
             log('Config file %s is not encoded in %s.\n' % (config_file, configencoding))
             return(1)
-        if line [0] == '#':
+        if len(line) > 0 and line[0] == '#':
             match = reconfigline.match(line)
             if match is not None and match.group(1) == "encoding":
                 configencoding = match.group(2)
