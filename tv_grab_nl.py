@@ -812,7 +812,7 @@ def get_descriptions(programs, program_cache=None, nocattrans=0, quiet=0, slowda
     """
 
     # This regexp tries to find details such as Genre, Acteurs, Jaar van Premiere etc.
-    detail      = re.compile('<li>[^<]*<strong>(\w+):</strong>(.*?)</li>', re.DOTALL)
+    detail      = re.compile('<li>[^<]*<strong>([\w\- ]+):</strong>(.*?)</li>', re.DOTALL)
 
     # These regexps find the main description area and lines of descriptive text in this area
     description = re.compile('<div id="prog-content">(.*?)</div>',re.DOTALL)
