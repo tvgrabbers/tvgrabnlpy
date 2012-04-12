@@ -44,7 +44,7 @@ scheme has changed. The lastest official release of tv_grab_nl_pdb is 0.48.
 The first official release of tv_grab_nl_py is 6. In 2012, The codebase
 moved to Git, and the version number was changed once more. The latest
 subversion release of tv_grab_nl_py is r109. The first Git release of
-tv_grab_nl_py is 2012-03-11 12:03.
+tv_grab_nl_py is 2012-04-11 12:03.
 
 CONTRIBUTORS
 
@@ -112,7 +112,7 @@ except ImportError:
 import sys,codecs,locale
 
 
-VERSION = "2012-03-27"
+VERSION = "2012-04-12"
 # VERSION += "-experimental"
 
 
