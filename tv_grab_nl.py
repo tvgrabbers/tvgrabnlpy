@@ -1760,7 +1760,7 @@ class ProgramCache:
         """
         Create a new ProgramCache object, optionally from file
         """
-        self.ID_list = ['ID']
+        self.ID_list = ['ID','nl-ID','tv-ID','rtl-ID','be-ID']
         # where we store our info
         self.filename  = filename
         self.delta_hour = datetime.timedelta(hours = 1)
@@ -1822,10 +1822,8 @@ class ProgramCache:
         Check which ID is used
         grep an id list from config
         """
-        ids = self.ID_list
-        ids.extend(config.detail_ids)
-        for id in ids:
-            if program[id] != '':
+        for id in self.ID_list:
+            if program[id] != '' and program[id] != None:
                 if program[id] in self.pdict.keys():
                     return id
 
@@ -1835,10 +1833,8 @@ class ProgramCache:
         """
         Adds a program
         """
-        ids = self.ID_list
-        ids.extend(config.detail_ids)
-        for id in ids:
-            if program[id]  != '':
+        for id in self.ID_list:
+            if program[id] != '' and program[id] != None:
                 self.pdict[program[id]] = program
                 return
 
