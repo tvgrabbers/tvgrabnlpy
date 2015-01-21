@@ -2022,27 +2022,43 @@ class FetchData(Thread):
         """The grabing thread"""
         # First some generic initiation that couldn't be done earlier in __init__
         # Specifics can be done in init_channels and init_json which are called here
-        self.day_loaded[0] = {}
-        for day in range( config.args.offset, (config.args.offset + config.args.days)):
-            self.day_loaded[0][day] = False
-
-        for id in config.channels.keys():
-            self.channel_loaded[id] = False
-            self.day_loaded[id] ={}
+        try:
+            self.day_loaded[0] = {}
             for day in range( config.args.offset, (config.args.offset + config.args.days)):
-                self.day_loaded[id][day] = False
+                self.day_loaded[0][day] = False
 
-            self.program_data[id] = []
+            for id in config.channels.keys():
+                self.channel_loaded[id] = False
+                self.day_loaded[id] ={}
+                for day in range( config.args.offset, (config.args.offset + config.args.days)):
+                    self.day_loaded[id][day] = False
 
-        self.init_channels()
-        if not self.source in config.sources.keys():
-            config.sources[self.source] ={}
-            config.sources[self.source]['ID'] = self.detail_id if (self.detail_id != '') else ''
-            config.sources[self.source]['url'] = self.detail_url if (self.detail_url != '') else ''
-            config.detail_ids.append(self.detail_id)
+                self.program_data[id] = []
 
-        self.init_json()
-        self.load_pages()
+            self.init_channels()
+            if not self.source in config.sources.keys():
+                config.sources[self.source] ={}
+                config.sources[self.source]['ID'] = self.detail_id if (self.detail_id != '') else ''
+                config.sources[self.source]['url'] = self.detail_url if (self.detail_url != '') else ''
+                config.detail_ids.append(self.detail_id)
+
+            self.init_json()
+            self.load_pages()
+
+        except:
+            err_obj = sys.exc_info()[2]
+            log('\nAn unexpected error has occured in the %s thread\n' %  (self.source), 0)
+            log('                                at line: %s, %s: %s\n' %  (self.source, err_obj.tb_lineno, err_obj.tb_lasti, sys.exc_info()[1]), 0)
+
+            while True:
+                err_obj = err_obj.tb_next
+                if err_obj == None:
+                    break
+
+                log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+
+            log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+            return(98)
 
     # Dummys to be filled in by the sub-Classes
     def init_channels(self):
@@ -2079,8 +2095,17 @@ class FetchData(Thread):
         return tdict
 
     # Helper functions
-    def empty_program_dict(self):
-        """Returns a default empty dict for storing program info"""
+     def checkout_program_dict(self, tdict = None):
+        """
+        Checkout a given dict for invalid values or
+        returnsa default empty dict for storing program info
+        """
+        # ID generation
+        # u'nl-%s' % (item['db_id'])
+        # u'tv-%s' % tdict[self.detail_url].split('/')[5]
+        # u'be-%s' % tdict[self.detail_url].split('/')[5]
+        # u'%s-%s' % (channel,  item['unixtime'])
+
         # source                        tvgids.nl    tvgids.tv   rtl.nl     teveblad.be
         # dagen                              4                 14        14              7
         # channelid                    j jd hd
@@ -2126,55 +2151,46 @@ class FetchData(Thread):
         #       breedbeeld                hd
         #       blackwhite                hd
 
-        tdict = {}
-        tdict['source'] = ''
-        tdict['channel'] = ''
-        tdict['channelid'] = '0'
-        tdict['offset'] = ''
-        tdict['unixtime'] = ''
-        tdict['start-time'] = ''
-        tdict['stop-time'] = ''
-        tdict['clumpidx'] = ''
-        tdict['tvgids-fetched'] = False
-        tdict['tvgidstv-fetched'] = False
 
-        tdict['name'] = ''
-        tdict['titel aflevering'] =  ''
-        tdict['season'] = '0'
-        tdict['episode'] = '0'
-        tdict['description'] = ''
-        tdict['rerun'] = False
-        tdict['jaar van premiere'] = ''
-        tdict['originaltitle'] = ''
+        text_values = ('source', 'channel', 'offset', 'unixtime', 'start-time', 'stop-time', \
+              'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
+              'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
+              'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio')
+        bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst')
+        num_values = ('channelid', 'season', 'episode')
+        dict_values = ('credits', 'video')
+        video_values = ('present', 'HD', 'breedbeeld', 'blackwhite')
 
-        tdict['genre'] ='overige'
-        tdict['subgenre'] = ''
+        if tdict == None:
+            tdict = {}
 
-        tdict['ID'] = ''
-        # The dominant source after a merge
-        tdict['merge-source'] = ''
-        # u'nl-%s' % unescape(item['db_id'])
-        tdict['nl-ID'] = ''
-        # u'tv-%s' % tdict['tv-url'].split('/')[3]
-        tdict['tv-ID'] = ''
-        # u'be-%s' % tdict['be-url'].split('/')[5]
-        tdict['be-ID'] = ''
-        # u'rtl-%s-%s' % (channel,  item['unixtime'])
-        tdict['rtl-ID'] = ''
-        tdict['nl-url'] = ''
-        tdict['tv-url'] = ''
-        tdict['be-url'] = ''
-        tdict['infourl'] = ''
+        for key in text_values:
+            if not key in tdict.keys() or tdict[key] == None:
+                tdict[key] = ''
 
-        tdict['credits'] = {}
+        if not 'genre' in tdict.keys() or tdict['genre'] == None or tdict['genre'] == '':
+            tdict['genre'] = 'overige'
 
-        tdict['audio'] = ''
-        tdict['teletekst'] = False
-        tdict['video'] = {}
-        tdict['video']['present']  = False
-        tdict['video']['HD']  = False
-        tdict['video']['breedbeeld']  = False
-        tdict['video']['blackwhite']  = False
+        for key in bool_values:
+            if not key in tdict.keys() or tdict[key] != True:
+                tdict[key] = False
+
+        for key in num_values:
+            if not key in tdict.keys() or tdict[key] == None or tdict[key] == '':
+                tdict[key] = '0'
+
+        for key in dict_values:
+            if not key in tdict.keys() or tdict[key] == None or tdict[key] == '':
+                tdict[key] = {}
+
+        for subkey in  tdict['credits'].keys():
+            if  tdict['credits'][subkey] == None:
+                tdict['credits'][subkey] = ''
+
+        for subkey in video_values:
+            if not subkey in tdict['video'].keys() or  tdict['video'][subkey] != True:
+                tdict['video'][subkey] = False
+
         return tdict
 
     def clean_html(self, data):
@@ -2473,7 +2489,7 @@ class FetchData(Thread):
     def get_program(self, id):
         """Return program data for given program id"""
         if not id in self.program_by_id.keys():
-            return self.empty_program_dict()
+            return self.checkout_program_dict()
 
         return self.program_by_id[id]
 
@@ -2491,38 +2507,13 @@ class FetchData(Thread):
     def merge_data(self, fetch_details = False):
         """
         Top process for merging source data into main data
-        Only let one source manage the detail fetching
-        This should be the last source that needs this
-        After that data is also comited to the cache
         """
-        channel_cnt = 0
-        num_chans = len(self.channels)
-
         for id in self.channels.keys():
-            channel_cnt += 1
-
-            #~ infofiles.write_raw_string('<details source="%s" channel="%s">' % (self.source, config.channels[id]))
-
             if self.get_programcount(id) > 0:
                 self.merge_sources(id, (id in self.make_dominant))
                 self.parse_programs(id, 1, 'None')
-
-            #~ if fetch_details:
-                #~ if not config.args.fast:
-                    #~ log('\n',  4)
-                    #~ log('\nNow fetching %s detailpages for %s(xmltvid=%s%s) (channel %s of %s) for %s days.\n' % \
-                        #~ (len(xml_output.all_programs[id]), config.channels[id], id, (config.args.compat and '.tvgids.nl' or ''), \
-                        #~ channel_cnt, num_chans, config.args.slowdays), 4)
-
-                # If not within slowreach we only search the cache
-                #~ get_details(id)
-
-                #~ # save the cache after each channel fetch
-                #~ if not config.args.fast and xml_output.program_cache != None:
-                    #~ xml_output.program_cache.dump(config.args.program_cache_file)
-
-            #~ infofiles.write_raw_list()
-            #~ infofiles.write_raw_string('</details>')
+                for i in range(0, len(xml_output.all_programs[id])):
+                    xml_output.all_programs[id][i] = self.checkout_program_dict(xml_output.all_programs[id][i])
 
     def prepare_output(self):
         """
@@ -4023,7 +4014,7 @@ class tvgids_JSON(FetchData):
 
             # parse the list to adjust to what we want
             for item in dl[id]:
-                tdict = self.empty_program_dict()
+                tdict = self.checkout_program_dict()
                 if (item['db_id'] != '') and (item['db_id'] != None):
                     tdict[self.detail_id] = u'nl-%s' % (item['db_id'])
                     self.json_by_id[tdict[self.detail_id]] = item
@@ -4337,7 +4328,7 @@ class tvgidstv_HTML(FetchData):
                     continue
 
                 for p in htmldata.findall('div/a[@class]'):
-                    tdict = self.empty_program_dict()
+                    tdict = self.checkout_program_dict()
                     tdict['source'] = u'tvgidstv'
                     tdict['channelid'] = id
                     tdict['channel'] = config.tvgidstv_channels[id]
@@ -4686,7 +4677,7 @@ class rtl_JSON(FetchData):
                 continue
 
             for item in self.schedule[channel]:
-                tdict = self.empty_program_dict()
+                tdict = self.checkout_program_dict()
                 tdict[self.detail_id] = u'%s-%s' % (channel,  item['unixtime'])
                 self.json_by_id[tdict[self.detail_id]] = item
                 tdict['source'] = 'rtl'
@@ -4951,7 +4942,7 @@ class teveblad_HTML(FetchData):
                     if not ((p.tag == 'div') and (p.get('class') == 'programme')):
                         continue
 
-                    tdict = self.empty_program_dict()
+                    tdict = self.checkout_program_dict()
                     p = p.find('div[@class="c"]')
                     tdict['source'] = 'teveblad'
                     tdict['channelid'] = id
@@ -4965,8 +4956,8 @@ class teveblad_HTML(FetchData):
 
                     href = title.find('a').get('href')
                     if href != '' and href != None:
-                        tdict['be-url'] = title.find('a').get('href')
-                        tdict[self.detail_id] = u'be-%s' % tdict['be-url'].split('/')[5]
+                        tdict[self.detail_url] = title.find('a').get('href')
+                        tdict[self.detail_id] = u'be-%s' % tdict[self.detail_url].split('/')[5]
                     tdict['name'] = self.empersant(title.findtext('a'))
                     if tdict['name'] == None or  tdict['name'] == '':
                         log('Can not determine program title for "%s"' % tdict['be-url'])
@@ -5560,14 +5551,26 @@ def get_details():
                   or ((programs[i][tvgids_json.detail_url] == '') and cached_program[tvgidstv.detail_check]) \
                   or (no_fetch and cached_program[tvgidstv.detail_check]):
                     log('      [cached] ' + logstring, 8, 1)
+                    #~ log('      [cached] %s: %s' % (programs[i]['ID'], programs[i][tvgidstv.detail_url]), 16, 2)
                     cache_count += 1
                     programs[i] = use_cache(programs[i], cached_program)
+                    infofiles.addto_raw_list('      cache: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'].rjust(14), programs[i][tvgids_json.detail_id].rjust(14), \
+                      programs[i][tvgidstv.detail_id].rjust(14), programs[i][rtl_json.detail_id].rjust(14), programs[i][teveblad.detail_id].rjust(14)))
                     continue
+                else:
+                    infofiles.addto_raw_list('false cache: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'], programs[i][tvgids_json.detail_id], \
+                      programs[i][tvgidstv.detail_id], programs[i][rtl_json.detail_id], programs[i][teveblad.detail_id]))
+                    #~ log('  [not cached] %s: %s' % (programs[i]['ID'], programs[i][tvgidstv.detail_url]), 16, 2)
+            #~ else:
+                #~ log('[not in cache] %s: %s' % (programs[i]['ID'], programs[i][tvgidstv.detail_url]), 16, 2)
 
             # Either we are fast-mode, outsite slowdays or there is no url. So we continue
             if no_fetch or (programs[i][tvgids_json.detail_url] == '') and (programs[i][tvgidstv.detail_url] == '') :
                 log('    [no fetch] ' + logstring, 8, 1)
                 none_count += 1
+                infofiles.addto_raw_list('   no fetch: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'].rjust(14), programs[i][tvgids_json.detail_id].rjust(14), \
+                      programs[i][tvgidstv.detail_id].rjust(14), programs[i][rtl_json.detail_id].rjust(14), programs[i][teveblad.detail_id].rjust(14)))
+                #~ log('%s: %s; %s\n' % (programs[i]['ID'], programs[i]['tv-ID'], programs[i]['name']), 16, 2)
                 continue
 
             detailed_program = None
@@ -5584,12 +5587,16 @@ def get_details():
                 if detailed_program == None:
                     if (cache_id != None) and cached_program[tvgidstv.detail_check]:
                         log('      [cached] ' + logstring, 8, 1)
+                        #~ log('      [cached] ' + logstring, 16, 2)
+                        infofiles.addto_raw_list('      cache: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'].rjust(14), programs[i][tvgids_json.detail_id].rjust(14), \
+                      programs[i][tvgidstv.detail_id].rjust(14), programs[i][rtl_json.detail_id].rjust(14), programs[i][teveblad.detail_id].rjust(14)))
                         cache_count += 1
                         programs[i] = use_cache(programs[i], cached_program)
                         continue
 
                     if programs[i][tvgidstv.detail_url] == '':
                         log('[fetch failed or timed out] ' + logstring, 8, 1)
+                        #~ log('[fetch failed or timed out] ' + logstring, 16, 2)
                         fail_count += 1
                         continue
 
@@ -5598,6 +5605,9 @@ def get_details():
                     programs[i][tvgids_json.detail_check] = True
                     programs[i]['ID'] = programs[i][tvgids_json.detail_id]
                     log('[normal fetch] ' + logstring, 8, 1)
+                    infofiles.addto_raw_list('   nl fetch: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'].rjust(14), programs[i][tvgids_json.detail_id].rjust(14), \
+                      programs[i][tvgidstv.detail_id].rjust(14), programs[i][rtl_json.detail_id].rjust(14), programs[i][teveblad.detail_id].rjust(14)))
+                    #~ log('[normal fetch] ' + logstring, 16, 2)
                     nl_count += 1
                     last_fetch_is_nl = True
 
@@ -5613,6 +5623,7 @@ def get_details():
                 # It Failed!
                 if detailed_program == None:
                     log('[fetch failed or timed out] ' + logstring, 8, 1)
+                    #~ log('[fetch failed or timed out] ' + logstring, 16, 2)
                     fail_count += 1
                     continue
 
@@ -5621,13 +5632,16 @@ def get_details():
                     programs[i][tvgidstv.detail_check] = True
                     programs[i]['ID'] = programs[i][tvgidstv.detail_id]
                     log('   [.tv fetch] ' + logstring, 8, 1)
+                    #~ log('   [.tv fetch] ' + logstring, 16, 2)
+                    infofiles.addto_raw_list('   tv fetch: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'].rjust(14), programs[i][tvgids_json.detail_id].rjust(14), \
+                      programs[i][tvgidstv.detail_id].rjust(14), programs[i][rtl_json.detail_id].rjust(14), programs[i][teveblad.detail_id].rjust(14)))
                     tv_count += 1
                     last_fetch_is_tv = True
 
             # do not cache programming that is unknown at the time
             # of fetching.
             if programs[i]['name'].lower() != 'onbekend':
-                xml_output.program_cache.add(programs[i])
+                xml_output.program_cache.add(tvgids_json.checkout_program_dict(programs[i]))
 
         if config.args.fast:
             log('%4.0f cache hits\n' % cache_count,2)
@@ -5646,6 +5660,8 @@ def get_details():
         # save the cache after each channel fetch
         if not config.args.fast and xml_output.program_cache != None:
             xml_output.program_cache.dump(config.args.program_cache_file)
+
+        infofiles.write_raw_list()
 
 # end get_details()
 
