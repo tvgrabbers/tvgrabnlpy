@@ -5,7 +5,7 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.0.0-p20150119"
+__VERSION__ = "2.0.0-p20150122"
 __VERSION__ += "-beta"
 
 description_text = """
@@ -129,7 +129,7 @@ description_text = """
 # Modules we need
 import re, sys, codecs,locale, argparse
 import time, random, io, json
-import os, os.path, curses, pickle
+import os, os.path, curses, cPickle
 try:
     import urllib.request as urllib
 except ImportError:
@@ -717,7 +717,7 @@ class Configure:
                         'and stores it in XMLTV-compatible format.',
                         formatter_class=argparse.RawTextHelpFormatter)
 
-        parser.add_argument('-v', '--version', action = 'store_true', default = False, dest = 'version',
+        parser.add_argument('-V', '--version', action = 'store_true', default = False, dest = 'version',
                         help = 'display version')
 
         parser.add_argument('-d', '--description', action = 'store_true', default = False, dest = 'description',
@@ -763,6 +763,9 @@ class Configure:
 
         parser.add_argument('-q', '--quiet', action = 'store_true', default = None, dest = 'quiet',
                         help = 'suppress all output.')
+
+        parser.add_argument('-v', '--verbose', action = 'store_false', default = None, dest = 'quiet',
+                        help = 'Give output.')
 
         parser.add_argument('-f', '--fast', action = 'store_true', default = None, dest = 'fast',
                         help = 'do not grab details of programming (tvgids.nl/tv)')
@@ -1760,7 +1763,7 @@ class ProgramCache:
         """
         Create a new ProgramCache object, optionally from file
         """
-        self.ID_list = ['ID','nl-ID','tv-ID','rtl-ID','be-ID']
+        self.ID_list = ('ID','nl-ID','tv-ID','rtl-ID','be-ID')
         # where we store our info
         self.filename  = filename
         self.delta_hour = datetime.timedelta(hours = 1)
@@ -1780,7 +1783,7 @@ class ProgramCache:
         Loads a pickled cache dict from file
         """
         try:
-            self.pdict = pickle.load(open(filename,'r'))
+            self.pdict = cPickle.load(open(filename,'rb'))
 
         except Exception:
             log('Error loading cache file: %s (possibly corrupt)' % filename)
@@ -1790,6 +1793,7 @@ class ProgramCache:
         """
         Dumps a pickled cache, and makes sure it is valid
         """
+
         if os.access(filename, os.F_OK):
             try:
                 os.remove(filename)
@@ -1797,8 +1801,8 @@ class ProgramCache:
             except Exception:
                 log('Cannot remove %s, check permissions' % filename)
 
-        tmpfile = open(filename+'.tmp', 'w')
-        pickle.dump(self.pdict, tmpfile)
+        tmpfile = open(filename+'.tmp', 'wb')
+        cPickle.dump(self.pdict, tmpfile, 2)
 
         try:
             tmpfile.close()
@@ -1820,12 +1824,10 @@ class ProgramCache:
     def query_id(self, program):
         """
         Check which ID is used
-        grep an id list from config
         """
         for id in self.ID_list:
-            if program[id] != '' and program[id] != None:
-                if program[id] in self.pdict.keys():
-                    return id
+            if program[id] != '' and program[id] != None and program[id] in self.pdict.keys():
+                return id
 
         return None
 
@@ -1833,6 +1835,11 @@ class ProgramCache:
         """
         Adds a program
         """
+        # First check if it was previously saved to prevent doubles
+        id = self.query_id(program)
+        if id != None and id in program and program[id] in self.pdict:
+            del self.pdict[program[id]]
+
         for id in self.ID_list:
             if program[id] != '' and program[id] != None:
                 self.pdict[program[id]] = program
@@ -2095,7 +2102,7 @@ class FetchData(Thread):
         return tdict
 
     # Helper functions
-     def checkout_program_dict(self, tdict = None):
+    def checkout_program_dict(self, tdict = None):
         """
         Checkout a given dict for invalid values or
         returnsa default empty dict for storing program info
@@ -2152,10 +2159,11 @@ class FetchData(Thread):
         #       blackwhite                hd
 
 
-        text_values = ('source', 'channel', 'offset', 'unixtime', 'start-time', 'stop-time', \
+        text_values = ('source', 'channel', 'offset', 'unixtime', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
               'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio')
+        date_values = ('start-time', 'stop-time')
         bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst')
         num_values = ('channelid', 'season', 'episode')
         dict_values = ('credits', 'video')
@@ -2166,10 +2174,21 @@ class FetchData(Thread):
 
         for key in text_values:
             if not key in tdict.keys() or tdict[key] == None:
-                tdict[key] = ''
+                tdict[key] = u''
+
+            try:
+                if type(tdict[key]) != unicode:
+                    tdict[key] = unicode(tdict[key])
+
+            except:
+                tdict[key] = u''
+
+        for key in date_values:
+            if not key in tdict.keys() or tdict[key] == None:
+                tdict[key] = u''
 
         if not 'genre' in tdict.keys() or tdict['genre'] == None or tdict['genre'] == '':
-            tdict['genre'] = 'overige'
+            tdict['genre'] = u'overige'
 
         for key in bool_values:
             if not key in tdict.keys() or tdict[key] != True:
@@ -2177,15 +2196,22 @@ class FetchData(Thread):
 
         for key in num_values:
             if not key in tdict.keys() or tdict[key] == None or tdict[key] == '':
-                tdict[key] = '0'
+                tdict[key] = u'0'
 
         for key in dict_values:
             if not key in tdict.keys() or tdict[key] == None or tdict[key] == '':
                 tdict[key] = {}
 
-        for subkey in  tdict['credits'].keys():
+        for subkey in tdict['credits'].keys():
             if  tdict['credits'][subkey] == None:
-                tdict['credits'][subkey] = ''
+                tdict['credits'][subkey] = u''
+
+            try:
+                if type(tdict['credits'][subkey]) != unicode:
+                    tdict['credits'][subkey] = unicode(tdict['credits'][subkey])
+
+            except:
+                tdict['credits'][subkey] = u''
 
         for subkey in video_values:
             if not subkey in tdict['video'].keys() or  tdict['video'][subkey] != True:
@@ -2203,7 +2229,7 @@ class FetchData(Thread):
     def empersant(self, data):
         if data == None:
             return ''
-        return re.sub(' emprsant ', '&', data)
+        return unicode(re.sub(' emprsant ', '&', data))
 
     def add_endtimes(self, id, date_switch = 6):
         """
@@ -2267,7 +2293,8 @@ class FetchData(Thread):
             log('Renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()]), 64)
             ptitle = config.titlerename[ptitle.lower()]
 
-        ptitle = re.sub(' & ', ' en ', ptitle)
+        program['name'] = ptitle
+        program['titel aflevering'] = psubtitle
         return program
 
     def title_split(self,program):
@@ -2321,7 +2348,7 @@ class FetchData(Thread):
             aheader.append('')
             atype.append('')
             # Check if it has a class like 'summary'
-            if p.get('class') ==None:
+            if p.get('class') == None:
                 atype[pcount] = u''
 
             else:
@@ -4279,7 +4306,7 @@ class tvgidstv_HTML(FetchData):
             if id in self.channels.keys():
                 channel = self.channels[id]
                 # Start from the offset but skip the days allready fetched by tvgids.nl
-                # Veronica here contains Disney XD
+                # Veronica here contains Disney XD details
                 if id == 34:
                     fetch_range = range( config.args.offset, (config.args.offset + config.args.days))
 
@@ -4331,7 +4358,7 @@ class tvgidstv_HTML(FetchData):
                     tdict = self.checkout_program_dict()
                     tdict['source'] = u'tvgidstv'
                     tdict['channelid'] = id
-                    tdict['channel'] = config.tvgidstv_channels[id]
+                    tdict['channel'] = config.channels[id]
                     tdict[self.detail_url] = self.get_url(href = p.get('href'))
                     tdict[self.detail_id] = u'tv-%s' % tdict[self.detail_url].split('/')[5]  if (tdict[self.detail_url] != '') else ''
 
@@ -4407,6 +4434,7 @@ class tvgidstv_HTML(FetchData):
                 datatype = self.empersant(d.text.lower())
 
             elif d.tag == 'dd':
+                dtext = unicode(self.empersant(d.text)) if (d.text != None) else ''
                 if datatype == 'datum':
                     pass
                     # ww dd mmm yyyy
@@ -4416,90 +4444,92 @@ class tvgidstv_HTML(FetchData):
                     # uu:mm tot uu:mm
 
                 elif datatype == 'genre':
-                    genre = self.empersant(d.text.lower())
-                    if genre in config.tvtvcattrans:
-                        tdict['genre'] = config.tvtvcattrans[genre].capitalize()
-                        tdict['subgenre'] = unicode(self.empersant(d.text))
+                    if dtext == '':
+                        continue
+
+                    if dtext.lower() in config.tvtvcattrans:
+                        tdict['genre'] = config.tvtvcattrans[dtext.lower()].capitalize()
+                        tdict['subgenre'] = dtext
 
                     # Now we try to match the genres not found in tvtvcattrans
                     else:
-                        if 'jeugd' in genre:
+                        if 'jeugd' in dtext.lower():
                             tdict['genre'] = u'Jeugd'
 
-                        elif 'muziek' in genre:
+                        elif 'muziek' in dtext.lower():
                             tdict['genre'] = u'Muziek'
 
-                        elif 'sport' in genre:
+                        elif 'sport' in dtext.lower():
                             tdict['genre'] = u'Sport'
 
-                        elif 'nieuws' in genre:
+                        elif 'nieuws' in dtext.lower():
                             tdict['genre'] = u'Nieuws/Actualiteiten'
 
-                        elif 'natuur' in genre:
+                        elif 'natuur' in dtext.lower():
                             tdict['genre'] = u'Natuur'
 
-                        elif 'cultuur' in genre:
+                        elif 'cultuur' in dtext.lower():
                             tdict['genre'] = u'Kunst en Cultuur'
 
-                        elif 'kunst' in genre:
+                        elif 'kunst' in dtext.lower():
                             tdict['genre'] = u'Kunst en Cultuur'
 
-                        elif 'wetenschap' in genre:
+                        elif 'wetenschap' in dtext.lower():
                             tdict['genre'] = u'Wetenschap'
 
-                        elif 'medisch' in genre:
+                        elif 'medisch' in dtext.lower():
                             tdict['genre'] = u'Wetenschap'
 
-                        elif 'film' in genre:
+                        elif 'film' in dtext.lower():
                             tdict['genre'] = u'Film'
 
-                        elif 'spel' in genre:
+                        elif 'spel' in dtext.lower():
                             tdict['genre'] = u'Amusement'
 
-                        elif 'show' in genre:
+                        elif 'show' in dtext.lower():
                             tdict['genre'] = u'Amusement'
 
-                        elif 'quiz' in genre:
+                        elif 'quiz' in dtext.lower():
                             tdict['genre'] = u'Amusement'
 
-                        elif 'praatprogramma' in genre:
+                        elif 'praatprogramma' in dtext.lower():
                             tdict['genre'] = u'Magazine'
 
-                        elif 'magazine' in genre:
+                        elif 'magazine' in dtext.lower():
                             tdict['genre'] = u'Magazine'
 
-                        elif 'documentair' in genre:
+                        elif 'documentair' in dtext.lower():
                             tdict['genre'] = u'Informatief'
 
-                        elif 'serie' in genre:
+                        elif 'serie' in dtext.lower():
                             tdict['genre'] = u'Serie/Soap'
 
-                        elif 'soap' in genre:
+                        elif 'soap' in dtext.lower():
                             tdict['genre'] = u'Serie/Soap'
 
-                        elif 'drama' in genre:
+                        elif 'drama' in dtext.lower():
                             tdict['genre'] = u'Serie/Soap'
 
-                        elif 'thriller' in genre:
+                        elif 'thriller' in dtext.lower():
                             tdict['genre'] = u'Serie/Soap'
 
-                        elif 'komedie' in genre:
+                        elif 'komedie' in dtext.lower():
                             tdict['genre'] = u'Serie/Soap'
 
                         else:
                             tdict['genre'] = u'overige'
-                            infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + d.text))
+                            infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext))
 
-                        tdict['subgenre'] = unicode(d.text)
+                        tdict['subgenre'] = dtext
                         # And add them to tvtvcattrans (and tv_grab_nl_py.set for later reference
-                        config.tvtvcat.append((unicode(d.text).lower().strip(), tdict['genre']))
+                        config.tvtvcat.append((dtext.lower().strip(), tdict['genre']))
 
                 elif datatype == 'jaar':
-                    tdict['jaar van premiere'] = unicode(d.text)
+                    tdict['jaar van premiere'] = dtext
 
                 elif datatype in config.roletrans:
                     tdict['credits'][config.roletrans[datatype]] = []
-                    persons = self.empersant(d.text).split(',');
+                    persons = dtext.split(',');
                     for name in persons:
                         if name.find(':') != -1:
                             name = name.split(':')[1]
@@ -4510,27 +4540,29 @@ class tvgidstv_HTML(FetchData):
                         if name.find('e.a') != -1:
                             name = name.split('e.a')[0]
 
-                        tdict['credits'][config.roletrans[datatype]].append(unescape(name))
+                        tdict['credits'][config.roletrans[datatype]].append(name)
 
-                elif datatype == 'officiële website':
-                    tdict['infourl'] = unicode(self.empersant(d.find('a').get('href')))
+                elif datatype in ('officiële website','imdb'):
+                    if d.find('a') == None:
+                        continue
 
-                elif datatype == 'imdb':
-                    tdict['infourl'] = unicode(self.empersant(d.find('a').get('href')))
+                    durl = unicode(self.empersant(d.find('a').get('href'))) if (d.find('a').get('href') != None) else ''
+                    if durl != '':
+                        tdict['infourl'] = durl
 
                 elif datatype in ('uitzending gemist', 'officiële twitter', 'kijkwijzer'):
                     pass
 
                 else:
-                    if d.text != None:
-                        infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + d.text))
-                        tdict[unicode(datatype)] = unicode(d.text)
+                    if dtext != '':
+                        infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + dtext))
+                        tdict[unicode(datatype)] = dtext
 
-                    elif d.find('div').get('class') != None:
+                    elif d.find('div') != None and d.find('div').get('class') != None:
                         infofiles.addto_detail_list(unicode('new tvgids.tv div-class detail => ' + datatype + '=' + d.find('div').get('class')))
                         tdict[unicode(datatype)] = unicode(d.find('div').get('class'))
 
-                    elif d.find('a').get('href') != None:
+                    elif d.find('a') != None and d.find('a').get('href') != None:
                         infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
                         tdict[unicode(datatype)] = unicode(d.find('a').get('href'))
 
@@ -5396,7 +5428,7 @@ class XMLoutput:
                 print(xml.encode(config.file_encoding))
 
             else:
-                config.output.write((xml.encode(config.file_encoding)))
+                config.output.write(xml.encode(config.file_encoding))
 
             infofiles.write_xmloutput(xml)
 
@@ -5551,26 +5583,14 @@ def get_details():
                   or ((programs[i][tvgids_json.detail_url] == '') and cached_program[tvgidstv.detail_check]) \
                   or (no_fetch and cached_program[tvgidstv.detail_check]):
                     log('      [cached] ' + logstring, 8, 1)
-                    #~ log('      [cached] %s: %s' % (programs[i]['ID'], programs[i][tvgidstv.detail_url]), 16, 2)
                     cache_count += 1
                     programs[i] = use_cache(programs[i], cached_program)
-                    infofiles.addto_raw_list('      cache: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'].rjust(14), programs[i][tvgids_json.detail_id].rjust(14), \
-                      programs[i][tvgidstv.detail_id].rjust(14), programs[i][rtl_json.detail_id].rjust(14), programs[i][teveblad.detail_id].rjust(14)))
                     continue
-                else:
-                    infofiles.addto_raw_list('false cache: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'], programs[i][tvgids_json.detail_id], \
-                      programs[i][tvgidstv.detail_id], programs[i][rtl_json.detail_id], programs[i][teveblad.detail_id]))
-                    #~ log('  [not cached] %s: %s' % (programs[i]['ID'], programs[i][tvgidstv.detail_url]), 16, 2)
-            #~ else:
-                #~ log('[not in cache] %s: %s' % (programs[i]['ID'], programs[i][tvgidstv.detail_url]), 16, 2)
 
             # Either we are fast-mode, outsite slowdays or there is no url. So we continue
             if no_fetch or (programs[i][tvgids_json.detail_url] == '') and (programs[i][tvgidstv.detail_url] == '') :
                 log('    [no fetch] ' + logstring, 8, 1)
                 none_count += 1
-                infofiles.addto_raw_list('   no fetch: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'].rjust(14), programs[i][tvgids_json.detail_id].rjust(14), \
-                      programs[i][tvgidstv.detail_id].rjust(14), programs[i][rtl_json.detail_id].rjust(14), programs[i][teveblad.detail_id].rjust(14)))
-                #~ log('%s: %s; %s\n' % (programs[i]['ID'], programs[i]['tv-ID'], programs[i]['name']), 16, 2)
                 continue
 
             detailed_program = None
@@ -5587,16 +5607,12 @@ def get_details():
                 if detailed_program == None:
                     if (cache_id != None) and cached_program[tvgidstv.detail_check]:
                         log('      [cached] ' + logstring, 8, 1)
-                        #~ log('      [cached] ' + logstring, 16, 2)
-                        infofiles.addto_raw_list('      cache: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'].rjust(14), programs[i][tvgids_json.detail_id].rjust(14), \
-                      programs[i][tvgidstv.detail_id].rjust(14), programs[i][rtl_json.detail_id].rjust(14), programs[i][teveblad.detail_id].rjust(14)))
                         cache_count += 1
                         programs[i] = use_cache(programs[i], cached_program)
                         continue
 
                     if programs[i][tvgidstv.detail_url] == '':
                         log('[fetch failed or timed out] ' + logstring, 8, 1)
-                        #~ log('[fetch failed or timed out] ' + logstring, 16, 2)
                         fail_count += 1
                         continue
 
@@ -5605,9 +5621,6 @@ def get_details():
                     programs[i][tvgids_json.detail_check] = True
                     programs[i]['ID'] = programs[i][tvgids_json.detail_id]
                     log('[normal fetch] ' + logstring, 8, 1)
-                    infofiles.addto_raw_list('   nl fetch: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'].rjust(14), programs[i][tvgids_json.detail_id].rjust(14), \
-                      programs[i][tvgidstv.detail_id].rjust(14), programs[i][rtl_json.detail_id].rjust(14), programs[i][teveblad.detail_id].rjust(14)))
-                    #~ log('[normal fetch] ' + logstring, 16, 2)
                     nl_count += 1
                     last_fetch_is_nl = True
 
@@ -5623,7 +5636,6 @@ def get_details():
                 # It Failed!
                 if detailed_program == None:
                     log('[fetch failed or timed out] ' + logstring, 8, 1)
-                    #~ log('[fetch failed or timed out] ' + logstring, 16, 2)
                     fail_count += 1
                     continue
 
@@ -5632,14 +5644,10 @@ def get_details():
                     programs[i][tvgidstv.detail_check] = True
                     programs[i]['ID'] = programs[i][tvgidstv.detail_id]
                     log('   [.tv fetch] ' + logstring, 8, 1)
-                    #~ log('   [.tv fetch] ' + logstring, 16, 2)
-                    infofiles.addto_raw_list('   tv fetch: %3.0f: %s, %s, %s, %s, %s' % (id, programs[i]['ID'].rjust(14), programs[i][tvgids_json.detail_id].rjust(14), \
-                      programs[i][tvgidstv.detail_id].rjust(14), programs[i][rtl_json.detail_id].rjust(14), programs[i][teveblad.detail_id].rjust(14)))
                     tv_count += 1
                     last_fetch_is_tv = True
 
-            # do not cache programming that is unknown at the time
-            # of fetching.
+            # do not cache programming that is unknown at the time of fetching.
             if programs[i]['name'].lower() != 'onbekend':
                 xml_output.program_cache.add(tvgids_json.checkout_program_dict(programs[i]))
 
@@ -5675,6 +5683,8 @@ def main():
 
         if xml_output.program_cache != None:
             xml_output.program_cache.clean()
+
+        #~ return 0
 
         # fetch all the primairy data
         # Start the seperate fetching threads
