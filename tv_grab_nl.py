@@ -129,7 +129,7 @@ description_text = """
 # Modules we need
 import re, sys, codecs,locale, argparse
 import time, random, io, json
-import os, os.path, curses, cPickle
+import os, os.path, curses, pickle
 try:
     import urllib.request as urllib
 except ImportError:
@@ -1280,7 +1280,7 @@ class Configure:
         log(u'clear_cache = %s' % (self.args.clear_cache), 1, 2)
         log(u'output_file = %s' % (self.args.output_file), 1, 2)
         log(u'quiet = %s' % (self.args.quiet), 1, 2)
-        log(u'fast = ' +unicode(self.args.fast), 1, 2)
+        log(u'fast = %s' % (self.args.fast), 1, 2)
         log(u'offset = %s' % (self.args.offset), 1, 2)
         log(u'days = %s' % (self.args.days), 1, 2)
         log(u'slowdays = %s' % (self.args.slowdays), 1, 2)
@@ -1783,7 +1783,7 @@ class ProgramCache:
         Loads a pickled cache dict from file
         """
         try:
-            self.pdict = cPickle.load(open(filename,'rb'))
+            self.pdict = pickle.load(open(filename,'r'))
 
         except Exception:
             log('Error loading cache file: %s (possibly corrupt)' % filename)
@@ -1801,8 +1801,8 @@ class ProgramCache:
             except Exception:
                 log('Cannot remove %s, check permissions' % filename)
 
-        tmpfile = open(filename+'.tmp', 'wb')
-        cPickle.dump(self.pdict, tmpfile, 2)
+        tmpfile = open(filename+'.tmp', 'w')
+        pickle.dump(self.pdict, tmpfile)
 
         try:
             tmpfile.close()
@@ -1994,6 +1994,9 @@ def unescape(text):
 
         return text # leave as is
 
+    text = re.sub("", "...", text)
+    text = re.sub("", "'", text)
+    text = re.sub("", "'", text)
     return re.sub("&#?\w+;", fixup, text)
 
 # end unescape()
@@ -2159,13 +2162,13 @@ class FetchData(Thread):
         #       blackwhite                hd
 
 
-        text_values = ('source', 'channel', 'offset', 'unixtime', \
+        text_values = ('source', 'channel', 'unixtime', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
               'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio')
         date_values = ('start-time', 'stop-time')
         bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst')
-        num_values = ('channelid', 'season', 'episode')
+        num_values = ('channelid', 'season', 'episode', 'offset')
         dict_values = ('credits', 'video')
         video_values = ('present', 'HD', 'breedbeeld', 'blackwhite')
 
@@ -2228,8 +2231,12 @@ class FetchData(Thread):
 
     def empersant(self, data):
         if data == None:
-            return ''
-        return unicode(re.sub(' emprsant ', '&', data))
+            return u''
+
+        if type(data) != unicode:
+            return unicode(re.sub(' emprsant ', '&', data))
+
+        return re.sub(' emprsant ', '&', data)
 
     def add_endtimes(self, id, date_switch = 6):
         """
@@ -2337,7 +2344,7 @@ class FetchData(Thread):
         aheader = []
 
         def format_text(text):
-            newtext = unicode(self.empersant(text.strip()))
+            newtext = self.empersant(text.strip())
             newtext = re.sub('\n','', newtext)
             newtext = re.sub(' +?',' ', newtext)
             return newtext
@@ -2352,7 +2359,7 @@ class FetchData(Thread):
                 atype[pcount] = u''
 
             else:
-                atype[pcount] = unicode(self.empersant(p.get('class')).strip())
+                atype[pcount] = self.empersant(p.get('class')).strip()
                 infofiles.addto_detail_list(u'%s descriptionattribute => class: %s' % (self.source, p.get('class').strip()))
 
             content = ''
@@ -3003,9 +3010,9 @@ class FetchData(Thread):
                 return None
             # end compare()
 
-            other_name = unicode(other_title.lower().strip())
-            other_subname = unicode(other_subtitle.lower().strip())
-            tvgids_name = unicode(tvgids_name.lower().strip())
+            other_name = other_title.lower().strip()
+            other_subname = other_subtitle.lower().strip()
+            tvgids_name = tvgids_name.lower().strip()
             x = compare(other_name, tvgids_name, other_subname)
             if x != None:
                 return x
@@ -3275,7 +3282,7 @@ class FetchData(Thread):
 
             try:
                 pstart = tdict['start-time']
-                pname = unicode(tdict['name'].lower().strip())
+                pname = tdict['name'].lower().strip()
                 prog_names[pname][pstart]['state'] = 'matched'
                 prog_names[pname][pstart][tvgids_json.detail_url]  = tvdict[tvgids_json.detail_url]
                 prog_names[pname][pstart]['genre'] = tvdict['genre']
@@ -3415,7 +3422,7 @@ class FetchData(Thread):
                 continue
 
             info_starttimes[tdict['start-time']] = tdict
-            iname = unicode(tdict['name'].lower().strip())
+            iname = tdict['name'].lower().strip()
             if not iname in info_names:
                 info_names[iname] = tdict
 
@@ -3467,7 +3474,7 @@ class FetchData(Thread):
             prog_stoptimes[tdict['stop-time']]['matched'] = False
             prog_starttimes[tdict['start-time']] = tdict
             prog_starttimes[tdict['start-time']]['matched'] = False
-            rname = unicode(tdict['name'].lower().strip())
+            rname = tdict['name'].lower().strip()
             if not (rname in prog_names):
                 prog_names[rname] = {}
                 prog_names[rname]['count'] = 0
@@ -3503,7 +3510,7 @@ class FetchData(Thread):
 
         # Try to match programs outside the reach of  info to get genre
         for tdict in generic_match[:]:
-            rname = unicode(tdict['name'].lower().strip())
+            rname = tdict['name'].lower().strip()
             if rname in info_names.iterkeys():
                 tdict['genre'] = info_names[rname]['genre']
                 tdict['subgenre'] = info_names[rname]['subgenre']
@@ -3671,7 +3678,7 @@ class FetchData(Thread):
                     continue
 
                 for tdict in programs[:]:
-                    rname = unicode(tdict['name'].lower().strip())
+                    rname = tdict['name'].lower().strip()
                     if rname in info_names.iterkeys():
                         tdict['genre'] = info_names[rname]['genre']
                         tdict['subgenre'] = info_names[rname]['subgenre']
@@ -3722,7 +3729,7 @@ class FetchData(Thread):
                 for tdict in info[:]:
                     pduur = (tdict['stop-time'] - tdict['start-time']).total_seconds()
                     pstart = tdict['start-time']
-                    pname = unicode(tdict['name'].lower().strip())
+                    pname = tdict['name'].lower().strip()
                     for i in checkrange(check):
                         mstart = pstart + datetime.timedelta(0, 0, 0, 0, i)
                         if mstart in prog_starttimes:
@@ -4428,13 +4435,13 @@ class tvgidstv_HTML(FetchData):
         tdict = self.filter_description(htmldata, 'div/p', tdict)
 
         data = htmldata.find('div[@class="section-content"]')
-        datatype = ''
+        datatype = u''
         for d in data.find('div/dl'):
             if d.tag == 'dt':
                 datatype = self.empersant(d.text.lower())
 
             elif d.tag == 'dd':
-                dtext = unicode(self.empersant(d.text)) if (d.text != None) else ''
+                dtext = self.empersant(d.text) if (d.text != None) else ''
                 if datatype == 'datum':
                     pass
                     # ww dd mmm yyyy
@@ -4546,7 +4553,7 @@ class tvgidstv_HTML(FetchData):
                     if d.find('a') == None:
                         continue
 
-                    durl = unicode(self.empersant(d.find('a').get('href'))) if (d.find('a').get('href') != None) else ''
+                    durl = self.empersant(d.find('a').get('href')) if (d.find('a').get('href') != None) else ''
                     if durl != '':
                         tdict['infourl'] = durl
 
@@ -4556,15 +4563,15 @@ class tvgidstv_HTML(FetchData):
                 else:
                     if dtext != '':
                         infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + dtext))
-                        tdict[unicode(datatype)] = dtext
+                        tdict[datatype] = dtext
 
                     elif d.find('div') != None and d.find('div').get('class') != None:
                         infofiles.addto_detail_list(unicode('new tvgids.tv div-class detail => ' + datatype + '=' + d.find('div').get('class')))
-                        tdict[unicode(datatype)] = unicode(d.find('div').get('class'))
+                        tdict[datatype] = unicode(d.find('div').get('class'))
 
                     elif d.find('a') != None and d.find('a').get('href') != None:
                         infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
-                        tdict[unicode(datatype)] = unicode(d.find('a').get('href'))
+                        tdict[datatype] = unicode(d.find('a').get('href'))
 
                     else:
                         infofiles.addto_detail_list(unicode('new tvgids.tv empty detail => ' + datatype))
@@ -5119,10 +5126,10 @@ class XMLoutput:
         self.xml_channels = {}
         self.xml_programs = {}
 
-        self.startstring.append('<?xml version="1.0" encoding="%s"?>\n' % xmlencoding)
-        self.startstring.append('<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
-        self.startstring.append('<tv generator-info-name="tv_grab_nl_py (version %s)">\n' % __VERSION__)
-        self.closestring = '</tv>\n'
+        self.startstring.append(u'<?xml version="1.0" encoding="%s"?>\n' % xmlencoding)
+        self.startstring.append(u'<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
+        self.startstring.append(u'<tv generator-info-name="tv_grab_nl_py (version %s)">\n' % __VERSION__)
+        self.closestring = u'</tv>\n'
 
         # We have two sources of logos, the first provides the nice ones, but is not
         # complete. We use the tvgids logos to fill the missing bits.
@@ -5213,19 +5220,19 @@ class XMLoutput:
             attribs = ' %s' % attribs
 
         if close and text == '':
-            return '%s<%s%s/>\n' % (''.rjust(ident), self.xmlescape(tag), self.xmlescape(attribs))
+            return u'%s<%s%s/>\n' % (''.rjust(ident), self.xmlescape(tag), self.xmlescape(attribs))
 
         if close and text != '':
-            return '%s<%s%s>%s</%s>\n' % (''.rjust(ident), self.xmlescape(tag), self.xmlescape(attribs), self.xmlescape(text), self.xmlescape(tag))
+            return u'%s<%s%s>%s</%s>\n' % (''.rjust(ident), self.xmlescape(tag), self.xmlescape(attribs), self.xmlescape(text), self.xmlescape(tag))
 
         else:
-            return '%s<%s%s>%s\n' % (''.rjust(ident), self.xmlescape(tag), self.xmlescape(attribs), self.xmlescape(text))
+            return u'%s<%s%s>%s\n' % (''.rjust(ident), self.xmlescape(tag), self.xmlescape(attribs), self.xmlescape(text))
 
     def add_endtag(self, tag, ident = 0):
         '''
         Return a proper idented closing tag
         '''
-        return '%s</%s>\n' % (''.rjust(ident), self.xmlescape(tag))
+        return u'%s</%s>\n' % (''.rjust(ident), self.xmlescape(tag))
 
     def create_channel_strings(self):
         '''
@@ -5588,7 +5595,7 @@ def get_details():
                     continue
 
             # Either we are fast-mode, outsite slowdays or there is no url. So we continue
-            if no_fetch or (programs[i][tvgids_json.detail_url] == '') and (programs[i][tvgidstv.detail_url] == '') :
+            if no_fetch or ((programs[i][tvgids_json.detail_url] == '') and (programs[i][tvgidstv.detail_url] == '')):
                 log('    [no fetch] ' + logstring, 8, 1)
                 none_count += 1
                 continue
