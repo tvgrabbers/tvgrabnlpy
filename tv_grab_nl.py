@@ -5537,8 +5537,25 @@ def get_details():
         cached['stop-time']  = tdict['stop-time']
         if clump:
             cached['clumpidx'] = clump
+
+        # Make sure we do not overwrite fresh info with cashed info
         if tdict['description'] > cached['description']:
             cached['description'] = tdict['description']
+
+        if tdict['titel aflevering'] != '':
+            cached['titel aflevering'] = tdict['titel aflevering']
+
+        if tdict['season'] != '0':
+            cached['season'] = tdict['season']
+
+        if tdict[''] != '0':
+            cached['episode'] = tdict['episode']
+
+        if tdict['jaar van premiere'] != '':
+            cached['jaar van premiere'] = tdict['jaar van premiere']
+
+        if tdict['rerun'] == True:
+            cached['rerun'] = True
 
         return cached
 
