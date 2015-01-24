@@ -2422,25 +2422,25 @@ class FetchData(Thread):
             for i, v in enumerate(atype):
                 if v == 'summary' and alinea[i] != '':
                     # We just go for the summary
-                    tdict['description'] = alinea[i]
+                    description = alinea[i]
                     break
 
             else:
                 if len(alinea) ==1:
                     # Only ony alinea
-                    tdict['description'] = alinea[0]
+                    description = alinea[0]
 
                 elif len(alinea) == 2 and alinea[0] == '':
                     # we go for the second alinea
-                    tdict['description'] = alinea[1]
+                    description = alinea[1]
 
                 # Now it gets tricky for most of the time one is general and the other is specific
                 # We check if one is contained in the other
                 elif len(alinea) == 2 and alinea[1] in alinea[0] :
-                     tdict['description'] = alinea[0]
+                     description = alinea[0]
 
                 elif len(alinea) == 2 and alinea[0] in alinea[1] :
-                     tdict['description'] = alinea[1]
+                     description = alinea[1]
 
                 # So we return everything
                 else:
@@ -2448,7 +2448,7 @@ class FetchData(Thread):
                     for p in alinea:
                         if p != '':
                             content = '%s%s ' % (content, p)
-                    tdict['description'] = content.strip()
+                    description = content.strip()
 
                     if config.write_info_files:
                         strdesc = ''
@@ -2458,6 +2458,10 @@ class FetchData(Thread):
                         strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
                                                     '" name="' + tdict['name'] + '">\n' + strdesc + '  </div>'
                         infofiles.addto_raw_string(strdesc)
+
+            # We check to not ovrwrite an already present longer description
+            if description > tdict['description']:
+                tdict['description'] = description
 
             # use the first header as subgenre, if not already present
             if tdict['subgenre'] == '' and aheader[0] != '':
@@ -4132,7 +4136,8 @@ class tvgids_JSON(FetchData):
 
             # Parse persons and their roles for credit info
             elif ctype in config.roletrans:
-                tdict['credits'][config.roletrans[ctype]] = []
+                if not config.roletrans[ctype] in tdict['credits']:
+                    tdict['credits'][config.roletrans[ctype]] = []
                 persons = content.split(',');
                 for name in persons:
                     if name.find(':') != -1:
@@ -4144,18 +4149,25 @@ class tvgids_JSON(FetchData):
                     if name.find('e.a') != -1:
                         name = name.split('e.a')[0]
 
-                    tdict['credits'][config.roletrans[ctype]].append(unescape(name))
+                    if not unescape(name.lower()) in tdict['credits'][config.roletrans[ctype]].lower():
+                        tdict['credits'][config.roletrans[ctype]].append(unescape(name))
 
+            # Add extra properties, while at the same time checking if we do not uncheck already set properties
             elif ctype == 'bijzonderheden':
                 infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
                 content = content.lower()
-                tdict['video']['breedbeeld'] = (content.find('breedbeeld') != -1)
-                tdict['video']['HD'] = (content.find('hd 1080i') != -1)
-                tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
+                if tdict['video']['breedbeeld'] == False:
+                    tdict['video']['breedbeeld'] = (content.find('breedbeeld') != -1)
+                if tdict['video']['HD'] == False:
+                    tdict['video']['HD'] = (content.find('hd 1080i') != -1)
+                if tdict['video']['blackwhite'] == False:
+                    tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
                 tdict['video']['present']  = (tdict['video']['breedbeeld'] or tdict['video']['HD'] or tdict['video']['blackwhite'])
-                tdict['teletekst'] = (content.find('teletekst') != -1)
+                if tdict['teletekst'] == False:
+                    tdict['teletekst'] = (content.find('teletekst') != -1)
                 if content.find('stereo') != -1: tdict['audio'] = 'stereo'
-                tdict['rerun'] = (content.find('herhaling') != -1)
+                if tdict['rerun'] == False:
+                    tdict['rerun'] = (content.find('herhaling') != -1)
 
             elif ctype == 'nl-url':
                 tdict['infourl'] = content
@@ -5525,6 +5537,8 @@ def get_details():
         cached['stop-time']  = tdict['stop-time']
         if clump:
             cached['clumpidx'] = clump
+        if tdict['description'] > cached['description']:
+            cached['description'] = tdict['description']
 
         return cached
 
