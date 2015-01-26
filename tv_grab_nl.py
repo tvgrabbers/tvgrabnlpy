@@ -5,7 +5,7 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.0.0-p20150122"
+__VERSION__ = "2.0.0-p20150126"
 __VERSION__ += "-beta"
 
 description_text = """
@@ -127,7 +127,7 @@ description_text = """
 """
 
 # Modules we need
-import re, sys, codecs,locale, argparse
+import re, sys, codecs, locale, argparse
 import time, random, io, json
 import os, os.path, curses, pickle
 try:
@@ -297,14 +297,13 @@ class Configure:
         elif 'HOMEPATH' in os.environ:
             self.hpath = os.environ['HOMEPATH']
 
-        self.xmltv_dir   = self.hpath+'/.xmltv'
-        self.config_file = self.xmltv_dir+'/tv_grab_nl_py.conf'
-        self.log_file = self.xmltv_dir+'/tv_grab_nl_py.log'
-        self.settings_file = self.xmltv_dir+'/tv_grab_nl_py.set'
-        self.options_file = self.xmltv_dir+'/tv_grab_nl_py.opt'
+        self.xmltv_dir = u'%s/.xmltv' % self.hpath
+        self.config_file = u'%s/tv_grab_nl_py.conf' % self.xmltv_dir
+        self.log_file = u'%s/tv_grab_nl_py.log' % self.xmltv_dir
+        self.settings_file = u'%s/tv_grab_nl_py.set' % self.xmltv_dir
 
         # cache the detail information.
-        self.program_cache_file = self.xmltv_dir+'/program_cache'
+        self.program_cache_file = u'%s/program_cache' % self.xmltv_dir
 
         # where the output goes. None means to the screen (stdout)
         self.output_file = None
@@ -633,11 +632,11 @@ class Configure:
             line = byteline.decode(encoding)
             line = line.lstrip()
             line = line.replace('\n','')
-            if len(line) == 0:
-                return False
-
             if isremark == None:
                 return line
+
+            if len(line) == 0:
+                return False
 
             if isremark and line[0:1] == '#':
                 return line
@@ -646,7 +645,7 @@ class Configure:
                 return line
 
         except UnicodeError:
-            log('Config file %s is not encoded in %s.\n' % (file, encoding))
+            log('%s is not encoded in %s.\n' % (file.name, encoding))
 
         return False
 
@@ -674,7 +673,7 @@ class Configure:
                         codecs.getencoder(encoding)
 
                     except LookupError:
-                        log('Config file %s has invalid encoding %s.\n' % (self.options_file, encoding))
+                        log('%s has invalid encoding %s.\n' % (file.name, encoding))
                         return False
 
                     return True
@@ -743,8 +742,7 @@ class Configure:
                         help = 'name of the configuration file\n(default = \'~/.xmltv/tv_grab_nl_py.conf\')')
 
         parser.add_argument('-O', '--save-options', action = 'store_true', default = False, dest = 'save_options',
-                        help = 'save the current defined options to the file\n' +
-                                    ' \'~/.xmltv/tv_grab_nl_py.opt\'.\n' +
+                        help = 'save the currently defined options to the config file\n' +
                                     'add options to the command-line to adjust the file.')
 
         parser.add_argument('-A', '--cache', type = str, default = self.program_cache_file, dest = 'program_cache_file',
@@ -757,7 +755,7 @@ class Configure:
         parser.add_argument('--clear_cache', action = 'store_true', default = clear_cache, dest = 'clear_cache',
                         help = 'empties the cache file before fetching data')
 
-        parser.add_argument('-W', '--output', type = str, default = self.output_file, dest = 'output_file',
+        parser.add_argument('-W', '--output', type = str, default = None, dest = 'output_file',
                         metavar = '<file>',
                         help = 'file where to send the output <default to the screen>')
 
@@ -765,7 +763,7 @@ class Configure:
                         help = 'suppress all output.')
 
         parser.add_argument('-v', '--verbose', action = 'store_false', default = None, dest = 'quiet',
-                        help = 'Give output.')
+                        help = 'Sent log-info also to the screen.')
 
         parser.add_argument('-f', '--fast', action = 'store_true', default = None, dest = 'fast',
                         help = 'do not grab details of programming (tvgids.nl/tv)')
@@ -890,6 +888,9 @@ class Configure:
 
                             elif a[1].lower().strip() in ('false', '0' ):
                                 self.opt_dict[a[0].lower().strip()] = False
+
+                        elif a[0].lower().strip() == 'output_file':
+                            self.output_file = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1]
 
                         elif len(a) == 2:
                             if a[0].lower().strip() in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', 'tevedays', 'max_overlap', 'desc_length'):
@@ -1118,11 +1119,13 @@ class Configure:
                 log('Creating %s directory,' % config_dir)
                 os.mkdir(config_dir)
             log('Creating config file: %s\n' % self.config_file)
-            return(self.get_channels())
+            x = self.get_channels()
+            # If save options was also set, we continue to validate and add them.
+            if not self.args.save_options or x != 0:
+                return(x)
 
         # get config if available
-        x = self.read_config()
-        if not x:
+        if not self.read_config():
             log('error reading configfile\n')
             return(1)
 
@@ -1146,6 +1149,9 @@ class Configure:
 
         if self.args.cattrans == None:
             self.args.cattrans = self.opt_dict['cattrans']
+
+        if self.args.output_file == None:
+            self.args.output_file = self.output_file
 
         if self.args.output_file != None:
             try:
@@ -1176,7 +1182,7 @@ class Configure:
         if self.args.days > (14 - self.args.offset):
             log("tvgids.nl/tvgids.tv kunnen maximaal 14 dagen vooruit kijken. Resetting\n",1,1)
 
-        self.args.days = min(self.opt_dict['days'],(14 - self.args.offset))
+        self.args.days = min(self.args.days,(14 - self.args.offset))
 
         if self.args.tevedays == None:
             self.args.tevedays = self.opt_dict['tevedays']
@@ -1190,10 +1196,10 @@ class Configure:
         if self.args.rtldays == None:
             self.args.rtldays = self.opt_dict['rtldays']
 
-        if self.opt_dict['rtldays'] > (14 - self.args.offset):
+        if self.args.rtldays > (14 - self.args.offset):
             log("rtl.nl kan maximaal 14 dagen vooruit kijken.\n",1,1)
 
-        self.args.rtldays = min(self.opt_dict['rtldays'],(14 - self.args.offset))
+        self.args.rtldays = min(self.args.rtldays,(14 - self.args.offset))
         self.args.rtldays = min(self.args.days, self.args.rtldays)
 
         slow_set = True
@@ -1259,7 +1265,7 @@ class Configure:
 
         self.read_defaults_list()
 
-    # end check_commandline()
+    # end validate_commandline()
 
     def write_opts_to_log(self):
         """
@@ -1322,10 +1328,11 @@ class Configure:
             f.write(u'# Options not shown here can not be set this way.\n')
             f.write(u'\n')
             f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[1])
-            f.write(u'quiet = %s\n' % self.args.quiet)
-            f.write(u'\n')
+            if self.write_info_files:
+                f.write(u'write_info_files = True\n')
+                f.write(u'\n')
             f.write(u'# This handles what goes to the log and screen\n')
-            f.write(u'# 0 Nothing (use quiet mode to turns of screen output, but keep a log)\n')
+            f.write(u'# 0 Nothing (use quiet mode to turns off screen output, but keep a log)\n')
             f.write(u'# 1 include Errors and Warnings\n')
             f.write(u'# 2 include page fetches\n')
             f.write(u'# 4 include (merge) summaries\n')
@@ -1342,6 +1349,8 @@ class Configure:
             f.write(u'# 4 = Log matches\n')
             f.write(u'match_log_level = %s\n' % self.match_log_level)
             f.write(u'\n')
+            f.write(u'quiet = %s\n' % self.args.quiet)
+            f.write(u'output_file = %s\n' % self.args.output_file)
             f.write(u'compat = %s\n' % self.args.compat)
             f.write(u'logos = %s\n' % self.args.logos)
             f.write(u'use_utc = %s\n' % self.args.use_utc)
@@ -1395,7 +1404,7 @@ class Configure:
                             # We just copy everything except the old configuration (type = 1)
                             f.write(line + u'\n')
                     except:
-                        log('Error reading old config')
+                        log('Error reading old config\n')
                         continue
 
                 fo.close()
@@ -2207,14 +2216,15 @@ class FetchData(Thread):
 
         for subkey in tdict['credits'].keys():
             if  tdict['credits'][subkey] == None:
-                tdict['credits'][subkey] = u''
+                tdict['credits'][subkey] = []
 
-            try:
-                if type(tdict['credits'][subkey]) != unicode:
-                    tdict['credits'][subkey] = unicode(tdict['credits'][subkey])
+            for i, item in enumerate(tdict['credits'][subkey]):
+                try:
+                    if type(item) != unicode:
+                        tdict['credits'][subkey][i] = unicode(item)
 
-            except:
-                tdict['credits'][subkey] = u''
+                except:
+                    tdict['credits'][subkey][i] = u''
 
         for subkey in video_values:
             if not subkey in tdict['video'].keys() or  tdict['video'][subkey] != True:
@@ -2374,7 +2384,7 @@ class FetchData(Thread):
                     # But we want the tail text
                     pass
 
-                elif (d.tag == 'p') or ('gesponsorde link' in d.text.lower()):
+                elif (d.tag == 'p') or (d.text != None and 'gesponsorde link' in d.text.lower()):
                     # We don't want those
                     continue
 
@@ -3401,7 +3411,7 @@ class FetchData(Thread):
         # First parse over some things we for several reasons can not match
         # And we create a list of starttimes and of names for matching
         for tdict in info[:]:
-            #~ # Passing over generic timeslots that maybe detailed in the other
+            # Passing over generic timeslots that maybe detailed in the other
             if ((self.source == 'tvgidstv') and ((id in (1, 2, 3)) and  (tdict['name'].lower() == 'kro kindertijd'))) \
               or (tdict['name'].lower() == 'pause'):
                 pcount = 0
@@ -3979,7 +3989,7 @@ class tvgids_JSON(FetchData):
 
         first_fetched = False
         channel_cnt = 0
-        #~ for tries in range(0, 3):
+
         for offset in range(config.args.offset, min((config.args.offset + config.args.days), 4)):
 
             if self.day_loaded[0][offset]:
@@ -4150,7 +4160,7 @@ class tvgids_JSON(FetchData):
                         name = name.split('e.a')[0]
 
                     if not unescape(name.lower()) in tdict['credits'][config.roletrans[ctype]].lower():
-                        tdict['credits'][config.roletrans[ctype]].append(unescape(name))
+                        tdict['credits'][config.roletrans[ctype]].append(unescape(name.strip()))
 
             # Add extra properties, while at the same time checking if we do not uncheck already set properties
             elif ctype == 'bijzonderheden':
@@ -4444,7 +4454,7 @@ class tvgidstv_HTML(FetchData):
             return None
 
         # We scan every alinea of the description
-        tdict = self.filter_description(htmldata, 'div/p', tdict)
+        tdict = self.filter_description(htmldata, 'div/div/p', tdict)
 
         data = htmldata.find('div[@class="section-content"]')
         datatype = u''
@@ -4559,7 +4569,7 @@ class tvgidstv_HTML(FetchData):
                         if name.find('e.a') != -1:
                             name = name.split('e.a')[0]
 
-                        tdict['credits'][config.roletrans[datatype]].append(name)
+                        tdict['credits'][config.roletrans[datatype]].append(name.strip())
 
                 elif datatype in ('officiële website','imdb'):
                     if d.find('a') == None:
@@ -5548,7 +5558,7 @@ def get_details():
         if tdict['season'] != '0':
             cached['season'] = tdict['season']
 
-        if tdict[''] != '0':
+        if tdict['episode'] != '0':
             cached['episode'] = tdict['episode']
 
         if tdict['jaar van premiere'] != '':
@@ -5721,8 +5731,6 @@ def main():
 
         if xml_output.program_cache != None:
             xml_output.program_cache.clean()
-
-        #~ return 0
 
         # fetch all the primairy data
         # Start the seperate fetching threads
