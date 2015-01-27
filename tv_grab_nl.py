@@ -5,7 +5,7 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.0.0-p20150126"
+__VERSION__ = "2.0.0-p20150127"
 __VERSION__ += "-beta"
 
 description_text = """
@@ -786,7 +786,7 @@ class Configure:
 
         parser.add_argument('-r', '--rtldays', type = int, default = None, dest = 'rtldays',
                         metavar = '<days>',
-                        help = '# number of days to grab from rtl.nl and tvgids.tv\nstarting from offset. (max 14 = default)')
+                        help = '# number of days to grab from rtl.nl\nstarting from offset. (max 14 = default)')
 
         parser.add_argument('-b', '--tevedays', type = int, default = None, dest = 'tevedays',
                         metavar = '<days>',
@@ -2425,7 +2425,6 @@ class FetchData(Thread):
             else:
                 alinea.append(content)
                 pcount +=1
-
 
         # Now we decide what to return
         if len(alinea) > 0:
@@ -4102,16 +4101,36 @@ class tvgids_JSON(FetchData):
 
     def load_detailpage(self, tdict):
 
-        # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
-        tvgidsnldesc = re.compile('<div id="prog-content">(.*?)</div>',re.DOTALL)
-        tvgidsnldetails = re.compile('<div id="prog-info-content">(.*?)</div>',re.DOTALL)
 
         try:
             strdata = get_page(tdict[self.detail_url])
 
-            strdesc = tvgidsnldesc.search(strdata).group(1)
-            strdetails = tvgidsnldetails.search(strdata).group(1)
-            strdata = (self.clean_html('<root>' + strdesc + strdetails + '</div></root>')).strip().encode('utf-8')
+        # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
+            tvgidsnldesc = re.compile('<div id="prog-content">(.*?)</div>',re.DOTALL)
+            strdesc = tvgidsnldesc.search(strdata)
+            # Just in case there are inbetween <div> tags. Like for a movie
+            div_count = len(re.findall('<div', strdesc.group(1)))
+            if div_count > 0:
+                re_string = '<div id="prog-content">(.*?)</div>'
+                for i in range(div_count):
+                    re_string += '(.*?)</div>'
+
+                tvgidsnldesc = re.compile(re_string,re.DOTALL)
+                strdesc = tvgidsnldesc.search(strdata)
+
+            tvgidsnldetails = re.compile('<div id="prog-info-content">(.*?)</div>',re.DOTALL)
+            strdetails = tvgidsnldetails.search(strdata)
+            # Just in case there are inbetween <div> tags. Like for a movie
+            div_count = len(re.findall('<div', strdetails.group(1)))
+            if div_count > 0:
+                re_string = '<div id="prog-info-content">(.*?)</div>'
+                for i in range(div_count):
+                    re_string += '(.*?)</div>'
+
+                tvgidsnldetails = re.compile(re_string,re.DOTALL)
+                strdetails = tvgidsnldetails.search(strdata)
+
+            strdata = (self.clean_html('<root>' + strdesc.group(0) + strdetails.group(0) + '</root>')).strip().encode('utf-8')
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
@@ -4120,17 +4139,17 @@ class tvgids_JSON(FetchData):
             return None
 
         if config.write_info_files:
-            strdesc = re.sub(' +?', ' ',strdesc)
+            strdesc = re.sub(' +?', ' ',strdesc.group(0))
             strdesc = re.sub('\n+?', '\n',strdesc)
             strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
                                         '" name="' + tdict['name'] + '">\n' + strdesc + '\n   </div>'
             infofiles.addto_raw_string(strdesc)
 
         # We scan every alinea of the description
-        tdict = self.filter_description(htmldata, 'p', tdict)
+        tdict = self.filter_description(htmldata, 'div/p', tdict)
 
         # We scan all the details
-        for d in htmldata.findall('ul/li'):
+        for d in htmldata.findall('div/ul/li'):
             try:
                 ctype = self.empersant(d.find('strong')).text.strip().lower()
                 content = self.empersant(d.find('strong').tail).strip()
