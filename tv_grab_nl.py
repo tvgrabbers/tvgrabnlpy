@@ -5,7 +5,7 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.0.0-p20150127"
+__VERSION__ = "2.0.0-p20150129"
 __VERSION__ += "-beta"
 
 description_text = """
@@ -422,6 +422,12 @@ class Configure:
                              (u'amusement', u'quiz')                              : u'Game',
                              (u'amusement', u'spelshow')                      : u'Game',
                              (u'amusement', u'muziekshow')                  : u'Art/Music',
+                             (u'amusement', u'muziekprogramma')        : u'Art/Music',
+                             (u'amusement', u'dansprogramma')            : u'Art/Music',
+                             (u'amusement', u'caberet')                        : u'Art/Music',
+                             (u'amusement', u'sketches')                      : u'Art/Music',
+                             (u'amusement', u'stand-up comedy')        : u'Art/Music',
+                             (u'amusement', u'stand-up comedy, sketches'): u'Art/Music',
                              (u'amusement', u'erotisch programma')  : u'Adult',
                              (u'amusement', u'komedie')                        : u'Comedy',
                              (u'amusement', u'klusprogramma')            : u'Home/How-to',
@@ -502,8 +508,12 @@ class Configure:
         self.tvtvcattrans = {'euromillions': 'Amusement',
                                  'erotisch magazine': 'Amusement',
                                  'reality-reeks': 'Amusement',
+                                 'keno': 'Amusement',
+                                 'loterij': 'Amusement',
+                                 'spektakel': 'Amusement',
                                  'informatief programma': 'Informatief',
                                  'reportage': 'Informatief',
+                                 'biografie': 'Informatief',
                                  'peuterprogramma': 'Jeugd',
                                  'kleuterprogramma': 'Jeugd',
                                  'tekenfilm': 'Jeugd',
@@ -518,6 +528,7 @@ class Configure:
                                  'praatprogramma over de actualiteit': 'Nieuws/Actualiteiten',
                                  'voetbal': 'Sport',
                                  'darts': 'Sport',
+                                 'veldrijden': 'Sport',
                                  'religieuze uitzending': 'Religieus',
                                  'docusoap': 'Informatief',
                                  'sitcom': 'Serie/Soap'}
@@ -972,7 +983,12 @@ class Configure:
                             continue
 
                     # Ignore the defaults if section exists
-                    if type == 4: self.titlerename = {}
+                    if type == 3:
+                        self.groupnameremove = {}
+
+                    elif type == 4:
+                        self.titlerename = {}
+
                     continue
 
                 # Unknown Section header, so ignore
@@ -2400,7 +2416,7 @@ class FetchData(Thread):
                             aheader[pcount] = u''
                             content = content + format_text(d.text) + u' '
 
-                    elif d.tag in ('i', 'em'):
+                    elif d.tag in ('i', 'em', 'a'):
                         content = content + format_text(d.text) + u' '
 
                     else:
