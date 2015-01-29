@@ -883,10 +883,10 @@ class Configure:
                             if len(a) == 1:
                                 self.opt_dict[a[0].lower().strip()] = True
 
-                            elif a[1].lower().strip() in ('true', '1' ):
+                            elif a[1].lower().strip() in ('true', '1' , 'on'):
                                 self.opt_dict[a[0].lower().strip()] = True
 
-                            elif a[1].lower().strip() in ('false', '0' ):
+                            else:
                                 self.opt_dict[a[0].lower().strip()] = False
 
                         elif a[0].lower().strip() == 'output_file':
@@ -1323,7 +1323,9 @@ class Configure:
             f.write(u'# This is a list with default options set by the --save-options (-O)\n')
             f.write(u'# argument. They can be overruled on the commandline.\n')
             f.write(u'# Be carefull with manually editing. Invalid options will be\n')
-            f.write(u'# silently ignored.\n')
+            f.write(u'# silently ignored. Boolean options can be set with True/False,\n')
+            f.write(u'# On/Off or 1/0. Leaving it blank sets them on. Setting an invalid\n')
+            f.write(u'# value sets them off. You can always check the log for the used values.\n')
             f.write(u'# To edit you beter run --save-options with all the desired defaults.\n')
             f.write(u'# Options not shown here can not be set this way.\n')
             f.write(u'\n')
@@ -1960,7 +1962,7 @@ def get_page(url, encoding = "default encoding"):
         fu.start()
         fu.join(config.global_timeout)
         page = fu.result
-        if (page.replace('\n','') == '') or (page.replace('\n','') =='{}'):
+        if (page == None) or (page.replace('\n','') == '') or (page.replace('\n','') =='{}'):
             return None
 
         else:
@@ -4101,22 +4103,28 @@ class tvgids_JSON(FetchData):
 
     def load_detailpage(self, tdict):
 
-
         try:
             strdata = get_page(tdict[self.detail_url])
+            if strdata == None:
+                return
 
-        # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
+            # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
             tvgidsnldesc = re.compile('<div id="prog-content">(.*?)</div>',re.DOTALL)
             strdesc = tvgidsnldesc.search(strdata)
             # Just in case there are inbetween <div> tags. Like for a movie
             div_count = len(re.findall('<div', strdesc.group(1)))
             if div_count > 0:
-                re_string = '<div id="prog-content">(.*?)</div>'
-                for i in range(div_count):
-                    re_string += '(.*?)</div>'
+                while True:
+                    re_string = '<div id="prog-content">(.*?)</div>'
+                    for i in range(div_count):
+                        re_string += '(.*?)</div>'
 
-                tvgidsnldesc = re.compile(re_string,re.DOTALL)
-                strdesc = tvgidsnldesc.search(strdata)
+                    tvgidsnldesc = re.compile(re_string,re.DOTALL)
+                    strdesc = tvgidsnldesc.search(strdata)
+                    if len(re.findall('<div', strdesc.group(0))) == len(re.findall('</div>', strdesc.group(0))):
+                        break
+
+                    div_count += (len(re.findall('<div', strdesc.group(0))) - len(re.findall('</div>', strdesc.group(0))))
 
             tvgidsnldetails = re.compile('<div id="prog-info-content">(.*?)</div>',re.DOTALL)
             strdetails = tvgidsnldetails.search(strdata)
@@ -4130,16 +4138,22 @@ class tvgids_JSON(FetchData):
                 tvgidsnldetails = re.compile(re_string,re.DOTALL)
                 strdetails = tvgidsnldetails.search(strdata)
 
-            strdata = (self.clean_html('<root>' + strdesc.group(0) + strdetails.group(0) + '</root>')).strip().encode('utf-8')
+            # Remove any movie reference for we don't need them and they can interfere with ET
+            strdesc = re.sub('<div id="prog-video">.*?</div>', '', strdesc.group(0), flags = re.DOTALL)
+            # There are titles containing '<' (eg. MTV<3) which interfere. Since whe don't need it we remove the title
+            strdetails = re.sub('<li><strong>Titel:</strong>.*?</li>', '', strdetails.group(0), flags = re.DOTALL)
+            strdata = (self.clean_html('<root>\n' + strdesc + '\n' + strdetails + '\n</root>\n')).strip().encode('utf-8')
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
+            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+            infofiles.write_raw_string('<root>\n' + strdesc + '\n' + strdetails.group(0) + '\n</root>\n')
             # if we cannot find the description page,
             # go to next in the loop
             return None
 
         if config.write_info_files:
-            strdesc = re.sub(' +?', ' ',strdesc.group(0))
+            strdesc = re.sub(' +?', ' ',strdesc)
             strdesc = re.sub('\n+?', '\n',strdesc)
             strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
                                         '" name="' + tdict['name'] + '">\n' + strdesc + '\n   </div>'
@@ -4400,6 +4414,8 @@ class tvgidstv_HTML(FetchData):
 
                 except Exception as e:
                     log('Error extracting ElementTree for channel:%s day:%s/n' % (config.tvgidstv_channels[id], offset))
+                    infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                    infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
                     continue
 
                 for p in htmldata.findall('div/a[@class]'):
@@ -4464,10 +4480,15 @@ class tvgidstv_HTML(FetchData):
 
         try:
             strdata = get_page(tdict[self.detail_url])
+            if strdata == None:
+                return
+
             strdata = self.clean_html('<div><div class="section-title">' + self.detaildata.search(strdata).group(1)).encode('utf-8')
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
+            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+            infofiles.write_raw_string(strdata + '\n')
             # if we cannot find the description page,
             # go to next in the loop
             return None
@@ -5016,6 +5037,8 @@ class teveblad_HTML(FetchData):
 
                 except Exception as e:
                     log('Error extracting ElementTree for channel:%s day:%s' % (config.channels[id], offset))
+                    infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                    infofiles.write_raw_string(strdata + u'\n')
                     continue
 
                 for p in htmldata.findall('div/div'):
@@ -5719,12 +5742,14 @@ def get_details():
                 xml_output.program_cache.add(tvgids_json.checkout_program_dict(programs[i]))
 
         if config.args.fast:
-            log('%4.0f cache hits\n' % cache_count,2)
-            log('%4.0f without details in cache\n' % none_count,2)
+            log('\n', 4)
+            log('%4.0f cache hits for %s\n' % (cache_count, config.channels[id]),4)
+            log('%4.0f without details in cache\n' % none_count,4)
 
         else:
             log('\ndone...\n\n', 8)
-            log('%4.0f cache hits\n' % cache_count,4)
+            log('\n', 4)
+            log('%4.0f cache hits for %s\n' % (cache_count, config.channels[id]),4)
             log('%4.0f fetches from tvgids.nl\n' % nl_count,4)
             log('%4.0f fetches from tvgids.tv\n' % tv_count,4)
             log('%4.0f failures\n' % fail_count,4)
