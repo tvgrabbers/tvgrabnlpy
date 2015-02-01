@@ -5,7 +5,7 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.0.0-p20150129"
+__VERSION__ = "2.0.0-p20150201"
 __VERSION__ += "-beta"
 
 description_text = """
@@ -424,7 +424,7 @@ class Configure:
                              (u'amusement', u'muziekshow')                  : u'Art/Music',
                              (u'amusement', u'muziekprogramma')        : u'Art/Music',
                              (u'amusement', u'dansprogramma')            : u'Art/Music',
-                             (u'amusement', u'caberet')                        : u'Art/Music',
+                             (u'amusement', u'cabaret')                        : u'Art/Music',
                              (u'amusement', u'sketches')                      : u'Art/Music',
                              (u'amusement', u'stand-up comedy')        : u'Art/Music',
                              (u'amusement', u'stand-up comedy, sketches'): u'Art/Music',
@@ -436,6 +436,7 @@ class Configure:
                              (u'amusement', u'modeprogramma')            : u'Home/How-to',
                              (u'amusement', u'kookprogramma')            : u'Cooking',
                              (u'amusement', u'realityserie')              : u'Reality',
+                             (u'educatief', u'')                                      : u'Educational',
                              (u'film', u'')                                                : u'Film',
                              (u'korte film', u'')                                    : u'Film',
                              (u'info', u'')                                                : u'News',
@@ -528,6 +529,7 @@ class Configure:
                                  'praatprogramma over de actualiteit': 'Nieuws/Actualiteiten',
                                  'voetbal': 'Sport',
                                  'darts': 'Sport',
+                                 'tennis': 'Sport',
                                  'veldrijden': 'Sport',
                                  'religieuze uitzending': 'Religieus',
                                  'docusoap': 'Informatief',
@@ -984,7 +986,7 @@ class Configure:
 
                     # Ignore the defaults if section exists
                     if type == 3:
-                        self.groupnameremove = {}
+                        self.groupnameremove = []
 
                     elif type == 4:
                         self.titlerename = {}
@@ -1406,7 +1408,7 @@ class Configure:
                 for byteline in fo.readlines():
                     line = self.get_line(fo, byteline, None)
                     try:
-                        if line == '# encoding: utf-8':
+                        if line == '# encoding: utf-8' or line == False:
                             continue
 
                         # Look for section headers
