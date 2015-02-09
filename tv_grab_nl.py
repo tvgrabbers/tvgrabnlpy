@@ -5,8 +5,8 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.0.0-p20150209"
-#__VERSION__ += "-beta"
+__VERSION__ = "2.1.0-p20150209"
+__VERSION__ += "-beta"
 
 description_text = """
     SYNOPSIS
@@ -934,7 +934,7 @@ class Configure:
                 if type == 2:
                     try:
                         channel = line.split(None, 1) # split on first whitespace
-                        self.channels[int(channel[0])] = channel[1]
+                        self.channels[int(channel[0])] = Channel_Config(int(channel[0]), unicode(channel[1]))
 
                     except Exception:
                         log('Invalid line in config file %s: %r\n' % (self.args.config_file, line))
@@ -1082,7 +1082,9 @@ class Configure:
 
         # download the json feed
         tvgids_json.get_channels()
-        self.channels = tvgids_json.all_channels
+        self.channels = {}
+        for channel in tvgids_json.all_channels.keys():
+            self.channels[channel] = Channel_Config(channel, tvgids_json.all_channels[channel])
 
         # and create a file with the channels
         if not self.write_config(False, True):
@@ -1435,8 +1437,8 @@ class Configure:
                 return True
 
         if add_channels:
-            for i, v in self.channels.iteritems():
-                f.write('%s %s\n' % (i, v))
+            for id in self.channels.keys():
+                f.write('%s %s\n' % (id, self.channels[id].chan_name))
 
         f.close()
         return True
@@ -1697,7 +1699,7 @@ class InfoFiles:
             self.fetch_strings[channel][source] += u'(%3.0f) merging channel: %s from: %s\n' % (len(programs), channel, source)
 
         else:
-            self.fetch_strings[channel][source] += u'(%3.0f) channel: %s from: %s\n' % (len(programs), config.channels[channel], source)
+            self.fetch_strings[channel][source] += u'(%3.0f) channel: %s from: %s\n' % (len(programs), config.channels[channel].chan_name, source)
 
         programs.sort(key=lambda program: (program['start-time']))
 
@@ -2798,11 +2800,11 @@ class FetchData(Thread):
 
             if tvgids_prog == None:
                 log(u'%s: %s: %s: %s Genre: %s.\n' % \
-                        (matchstr.rjust(20), config.channels[id], other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'], \
+                        (matchstr.rjust(20), config.channels[id].chan_name, other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'], \
                         other_prog['genre']), 32)
             else:
                 log(u'%s: %s: %s: %s.\n%s%s: %s.\n' % \
-                        (matchstr.rjust(12), config.channels[id],  other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'] , \
+                        (matchstr.rjust(12), config.channels[id].chan_name,  other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'] , \
                         'to tvgids.nl: '.rjust(22 + len(other_prog['channel'])), tvgids_prog['start-time'].strftime('%d %b %H:%M'), \
                         tvgids_prog['name']), 32)
         # end matchlog()
@@ -3398,11 +3400,11 @@ class FetchData(Thread):
         log('\n', 4)
         if other_is_dominant:
             # This goes for the belgium/british channels from teveblad.be (programs) and the rtl channels
-            log('Merging %s: %s programs from tvgids.nl into %s programs from %s\n' % (config.channels[id], len(info) , len(programs), self.source), 4)
+            log('Merging %s: %s programs from tvgids.nl into %s programs from %s\n' % (config.channels[id].chan_name, len(info) , len(programs), self.source), 4)
 
         else:
             # this goes for adding tvgids.tv (programs) to tvgids.nl (info) and most channels from teveblad.be (programs)
-            log('Merging %s: %s programs from %s into %s programs from tvgids.nl\n' % (config.channels[id] , len(programs), self.source, len(info)), 4)
+            log('Merging %s: %s programs from %s into %s programs from tvgids.nl\n' % (config.channels[id].chan_name , len(programs), self.source, len(info)), 4)
 
         # Do some general renaming to match tvgids.nl naming
         for i in range(0, len(programs)):
@@ -3931,10 +3933,11 @@ class tvgids_JSON(FetchData):
         self.detail_id = 'nl-ID'
         self.detail_url = 'nl-url'
         self.detail_check = 'tvgids-fetched'
-        self.channels = config.channels
+        self.channels = {}
         self.url_channels = ''
 
         for id in config.channels.keys():
+            self.channels[id] = config.channels[id].chan_name
             self.program_data[id] = []
             if self.url_channels == '':
                 self.url_channels = id
@@ -4019,7 +4022,7 @@ class tvgids_JSON(FetchData):
 
             channel_cnt += 1
             log('\n', 2)
-            log('Now fetching %s channels from tvgids.nl (day %s of %s).\n' % (len(config.channels), offset, config.args.days), 2)
+            log('Now fetching %s channels from tvgids.nl (day %s of %s).\n' % (len(self.channels), offset, config.args.days), 2)
 
             channel_url = self.get_url('day', offset)
 
@@ -4092,7 +4095,7 @@ class tvgids_JSON(FetchData):
 
                 tdict['source'] = self.source
                 tdict['channelid'] = id
-                tdict['channel']  = config.channels[id]
+                tdict['channel']  = config.channels[id].chan_name
                 tdict[self.detail_url] = self.get_url(type= 'detail', id = item['db_id'])
 
                 # The Title
@@ -4405,7 +4408,7 @@ class tvgidstv_HTML(FetchData):
                 else:
                     log('\n', 2)
                     log('Now fetching %s(xmltvid=%s%s) from tvgids.tv (channel %s of %s) for the remainder of %s days.\n' % \
-                        (config.channels[id], (config.args.compat and '.tvgids.nl' or ''), id, channel_cnt, len(self.channels), config.args.days), 2)
+                        (config.channels[id].chan_name, (config.args.compat and '.tvgids.nl' or ''), id, channel_cnt, len(self.channels), config.args.days), 2)
 
             else:
                 return
@@ -4443,7 +4446,7 @@ class tvgidstv_HTML(FetchData):
                     tdict = self.checkout_program_dict()
                     tdict['source'] = u'tvgidstv'
                     tdict['channelid'] = id
-                    tdict['channel'] = config.channels[id]
+                    tdict['channel'] = config.channels[id].chan_name
                     tdict[self.detail_url] = self.get_url(href = p.get('href'))
                     tdict[self.detail_id] = u'tv-%s' % tdict[self.detail_url].split('/')[5]  if (tdict[self.detail_url] != '') else ''
 
@@ -4804,7 +4807,7 @@ class rtl_JSON(FetchData):
                 self.json_by_id[tdict[self.detail_id]] = item
                 tdict['source'] = 'rtl'
                 tdict['channelid'] = id
-                tdict['channel']  = config.channels[id]
+                tdict['channel']  = config.channels[id].chan_name
 
                 # The Title
                 tdict['name'] = self.get_json_data(tdict[self.detail_id],'abstract_name')
@@ -5021,7 +5024,7 @@ class teveblad_HTML(FetchData):
             channel_cnt += 1
             log('\n', 2)
             log('Now fetching %s(xmltvid=%s%s) from teveblad.be (channel %s of %s) for %s days.\n' % \
-                (config.channels[id], id, (config.args.compat and '.tvgids.nl' or ''), channel_cnt, len(self.channels), config.args.tevedays), 2)
+                (config.channels[id].chan_name, id, (config.args.compat and '.tvgids.nl' or ''), channel_cnt, len(self.channels), config.args.tevedays), 2)
 
             if id in self.channels.keys():
                 channel = self.channels[id]
@@ -5042,11 +5045,11 @@ class teveblad_HTML(FetchData):
                 strdata = get_page(channel_url)
 
                 if strdata == None:
-                    log("Skip channel=%s, day=%d. No data!\n" % (config.channels[id], offset))
+                    log("Skip channel=%s, day=%d. No data!\n" % (config.channels[id].chan_name, offset))
                     continue
 
                 if not self.check_date(self.datecheckdata.search(strdata), scan_date):
-                    log("Skip channel=%s, day=%d. Wrong date!\n" % (config.channels[id], offset))
+                    log("Skip channel=%s, day=%d. Wrong date!\n" % (config.channels[id].chan_name, offset))
                     continue
 
                 # and extract the ElementTree
@@ -5057,7 +5060,7 @@ class teveblad_HTML(FetchData):
                     htmldata = ET.fromstring(strdata)
 
                 except Exception as e:
-                    log('Error extracting ElementTree for channel:%s day:%s' % (config.channels[id], offset))
+                    log('Error extracting ElementTree for channel:%s day:%s' % (config.channels[id].chan_name, offset))
                     infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
                     infofiles.write_raw_string(strdata + u'\n')
                     continue
@@ -5070,7 +5073,7 @@ class teveblad_HTML(FetchData):
                     p = p.find('div[@class="c"]')
                     tdict['source'] = 'teveblad'
                     tdict['channelid'] = id
-                    tdict['channel'] = config.channels[id]
+                    tdict['channel'] = config.channels[id].chan_name
 
                     # The Title
                     title = p.find('div[@class="r"]/p/span[@class="title"]')
@@ -5194,6 +5197,21 @@ class teveblad_HTML(FetchData):
 
 # end teveblad_HTML
 teveblad = teveblad_HTML()
+
+class Channel_Config(Thread):
+    """
+    Class that holds the Channel definitions and manages the data retreival
+    """
+    def __init__(self, chanid, name):
+        Thread.__init__(self)
+        self.chanid = chanid
+        self.chan_name = name
+        self.opt_dict = {}
+
+    def run(self):
+        pass
+
+# end Channel_Config()
 
 class XMLoutput:
     '''
@@ -5327,7 +5345,7 @@ class XMLoutput:
         for key in config.channels.keys():
             self.xml_channels[key] = []
             self.xml_channels[key].append(self.add_starttag('channel', 2, 'id="%s%s"' % (key, config.args.compat and '.tvgids.nl' or '')))
-            self.xml_channels[key].append(self.add_starttag('display-name', 4, 'lang="nl"', config.channels[key], True))
+            self.xml_channels[key].append(self.add_starttag('display-name', 4, 'lang="nl"', config.channels[key].chan_name, True))
             if (config.args.logos):
                 try:
                     ikey = int(key)
@@ -5647,12 +5665,12 @@ def get_details():
 
         if config.args.fast:
             log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s) (channel %s of %s) for %s days.\n' % \
-                (len(programs), config.channels[id], id, (config.args.compat and '.tvgids.nl' or ''), \
+                (len(programs), config.channels[id].chan_name, id, (config.args.compat and '.tvgids.nl' or ''), \
                 channel_cnt, num_chans, config.args.slowdays), 2)
 
         else:
             log('\nNow Fetching details for %s programs on %s(xmltvid=%s%s) (channel %s of %s) for %s days.\n' % \
-                (len(programs), config.channels[id], id, (config.args.compat and '.tvgids.nl' or ''), \
+                (len(programs), config.channels[id].chan_name, id, (config.args.compat and '.tvgids.nl' or ''), \
                 channel_cnt, num_chans, config.args.slowdays), 2)
 
         # randomize detail requests
@@ -5764,13 +5782,13 @@ def get_details():
 
         if config.args.fast:
             log('\n', 4)
-            log('%4.0f cache hits for %s\n' % (cache_count, config.channels[id]),4)
+            log('%4.0f cache hits for %s\n' % (cache_count, config.channels[id].chan_name),4)
             log('%4.0f without details in cache\n' % none_count,4)
 
         else:
             log('\ndone...\n\n', 8)
             log('\n', 4)
-            log('%4.0f cache hits for %s\n' % (cache_count, config.channels[id]),4)
+            log('%4.0f cache hits for %s\n' % (cache_count, config.channels[id].chan_name),4)
             log('%4.0f fetches from tvgids.nl\n' % nl_count,4)
             log('%4.0f fetches from tvgids.tv\n' % tv_count,4)
             log('%4.0f failures\n' % fail_count,4)
