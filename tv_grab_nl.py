@@ -590,6 +590,8 @@ class Configure:
                                                             4: u'rtl.nl Channels', \
                                                             5: u'teveblad.be Channels'}
 
+        self.__CHANNEL_CONFIG_SECTIONS__ = {}
+
         self.__DEFAULT_SECTIONS__ = {1: u'genre conversion table', \
                                                              2: u'no title split list', \
                                                              3: u'remove groupname list', \
@@ -869,6 +871,7 @@ class Configure:
         f.seek(0,0)
         # Make sure that old style configs are read
         type = 2
+        section = self.__CONFIG_SECTIONS__[2]
         for byteline in f.readlines():
             try:
                 line = self.get_line(f, byteline)
@@ -878,11 +881,18 @@ class Configure:
                 # Look for section headers
                 config_title = re.search('\[(.*?)\]', line)
                 if config_title != None and (config_title.group(1) in self.__CONFIG_SECTIONS__.values()):
+                    section = config_title.group(1)
                     for i, v in self.__CONFIG_SECTIONS__.items():
                         if v == config_title.group(1):
                             type = i
                             continue
 
+                    continue
+
+                elif config_title != None and (config_title.group(1) in self.__CHANNEL_CONFIG_SECTIONS__.values()):
+                    section = config_title.group(1)
+                    type = 9
+                    chanid = self.__CHANNEL_CONFIG_SECTIONS__[config_title.group(1)]
                     continue
 
                 # Unknown Section header, so ignore
@@ -928,16 +938,25 @@ class Configure:
                                     self.opt_dict[a[0].lower().strip()] = 'none'
 
                     except Exception:
-                        log('Invalid line in config file %s: %r\n' % (self.args.config_file, line))
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
 
                 # Read the channel stuff
                 if type == 2:
                     try:
                         channel = line.split(None, 1) # split on first whitespace
                         self.channels[int(channel[0])] = Channel_Config(int(channel[0]), unicode(channel[1]))
+                        self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[0].strip()] = int(channel[0])
 
                     except Exception:
-                        log('Invalid line in config file %s: %r\n' % (self.args.config_file, line))
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
+
+                # Read the channel specific configuration
+                if type == 9:
+                    try:
+                        pass
+
+                    except Exception:
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
 
             except Exception as e:
                 log(u'Error reading Config')
