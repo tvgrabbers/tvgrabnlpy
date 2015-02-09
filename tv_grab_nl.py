@@ -5,9 +5,6 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.1.0-p20150209"
-__VERSION__ += "-beta"
-
 description_text = """
     SYNOPSIS
 
@@ -244,6 +241,13 @@ class Configure:
         """
         DEFAULT OPTIONS - Edit if you know what you are doing
         """
+        # Version info as returned by the version function
+        self.name ='tv_grab_nl_py'
+        self.major = 2
+        self.minor = 1
+        self.patch = 0
+        self.patchdate = u'20150209'
+        self.beta = True
 
         # Used for creating extra output to beter the code
         self.write_info_files = False
@@ -604,6 +608,21 @@ class Configure:
         self.detail_ids = []
 
     # end Init()
+
+    def version(self, as_string = False):
+        """
+        return tuple or string with version info
+        """
+        if as_string and self.beta:
+            return u'%s (Version: %s.%s.%s-p%s-beta)' % (self.name, self.major, self.minor, self.patch, self.patchdate)
+
+        if as_string and not self.beta:
+            return u'%s (Version: %s.%s.%s-p%s)' % (self.name, self.major, self.minor, self.patch, self.patchdate)
+
+        else:
+            return (self.name, self.major, self.minor, self.patch, self.patchdate, self.beta)
+
+    # end version()
 
     def save_oldfile(self, file):
         """ save the old file to .old if it exists """
@@ -1123,11 +1142,11 @@ class Configure:
              return(0)
 
         if self.args.version:
-            print("The Netherlands (tv_grab_nl_py version %s)" % __VERSION__)
+            print("The Netherlands: %s" % self.version(True))
             return(0)
 
         if self.args.description:
-            print("The Netherlands (tv_grab_nl_py version %s)" % __VERSION__)
+            print("The Netherlands: %s" % self.version(True))
             print(description_text)
             return(0)
 
@@ -1317,7 +1336,7 @@ class Configure:
             return(0)
 
         log(u'Python versie: %s.%s.%s' % (sys.version_info[0], sys.version_info[1], sys.version_info[2]),1, 2)
-        log(u'The Netherlands (tv_grab_nl_py version %s)' % __VERSION__, 1, 2)
+        log(u'The Netherlands: %s' % self.version(True), 1, 2)
         log(u'Capabilities:"baseline" ,"cache" ,"manualconfig" ,"preferredmethod")', 1, 2)
         log(u'Preferred Methode: "allatonce"', 1, 2)
         log(u'log level = %s' % (self.log_level), 1, 2)
@@ -5250,7 +5269,7 @@ class XMLoutput:
 
         self.startstring.append(u'<?xml version="1.0" encoding="%s"?>\n' % xmlencoding)
         self.startstring.append(u'<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
-        self.startstring.append(u'<tv generator-info-name="tv_grab_nl_py (version %s)">\n' % __VERSION__)
+        self.startstring.append(u'<tv generator-info-name="%s">\n' % config.version(True))
         self.closestring = u'</tv>\n'
 
         # We have two sources of logos, the first provides the nice ones, but is not
