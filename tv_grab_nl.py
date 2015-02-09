@@ -436,6 +436,7 @@ class Configure:
                              (u'amusement', u'modeprogramma')            : u'Home/How-to',
                              (u'amusement', u'kookprogramma')            : u'Cooking',
                              (u'amusement', u'realityserie')              : u'Reality',
+                             (u'documentaire', u'')                                : u'Documentary',
                              (u'educatief', u'')                                      : u'Educational',
                              (u'film', u'')                                                : u'Film',
                              (u'korte film', u'')                                    : u'Film',
@@ -483,6 +484,7 @@ class Configure:
                              (u'serie/soap', u'actieserie')                : u'Action',
                              (u'sport', u'')                                              : u'Sports',
                              (u'talks', u'')                                              : u'Talk',
+                             (u'talkshow', u'')                                        : u'Talk',
                              (u'wetenschap', u'')                                    : u'Science/Nature',
                              (u'overige', u'')                                          : u'Unknown'}
 
@@ -529,6 +531,7 @@ class Configure:
                                  'praatprogramma over de actualiteit': 'Nieuws/Actualiteiten',
                                  'voetbal': 'Sport',
                                  'darts': 'Sport',
+                                 'golf': 'Sport',
                                  'tennis': 'Sport',
                                  'veldrijden': 'Sport',
                                  'religieuze uitzending': 'Religieus',
