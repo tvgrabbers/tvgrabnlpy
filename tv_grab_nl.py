@@ -495,21 +495,108 @@ class Configure:
         self.genre_list = []
 
         # channels for which to look on tvgids.tv
-        self.tvgidstv_channels = {1: 'nederland-1',
-                                           2: 'nederland-2',
-                                           3: 'nederland-3',
-                                           5: 'een',
-                                           6: 'ketnet-canvas',
-                                           7: 'bbc-1',
-                                           8: 'bbc-2',
-                                           4: 'rtl-4',
-                                           31: 'rtl-5',
-                                           46: 'rtl-7',
-                                           92: 'rtl-8',
-                                           36: 'sbs-6',
-                                           37: 'net-5',
-                                           34: 'veronica',
-                                           9: 'ard'}
+        self.tvgidstv_channels = {1: u'nederland-1',
+                                           2: u'nederland-2',
+                                           3: u'nederland-3',
+                                           4: u'rtl-4',
+                                           31: u'rtl-5',
+                                           46: u'rtl-7',
+                                           92: u'rtl-8',,
+                                           36: u'sbs-6',
+                                           37: u'net-5',
+                                           34: u'veronica',
+                                           460: u'sbs-9',
+                                           440: u'fox',
+                                           29: u'discovery-channel',
+                                           305: u'discovery-world',
+                                           306: u'discovery-science',
+                                           414: u'investigation-discovery',
+                                           94: u'syfy',
+                                           439: u'animal-planet',
+                                           438: u'tlc',
+                                           18: u'national-geographic',
+                                           416: u'nat-geo-wild',
+                                           413: u'history',
+                                           25: u'mtv',
+                                           404: u'foxlife',
+                                           408: u'rtl-lounge',
+                                           99: u'sport1',
+                                           419: u'sport-1-3',
+                                           420: u'sport-1-extra',
+                                           19: u'eurosport',
+                                           436: u'eurosport-2',
+                                           148: u'eredivisie-live',
+                                           417: u'extreme-sports',
+                                           418: u'espn-classic',
+                                           24: u'film1.1',
+                                           411: u'film1-action',
+                                           39: u'film1-familiy',
+                                           107: u'film1-festival',
+                                           430: u'film1-series',
+                                           93: u'13th-street',
+                                           409: u'rtl-crime',
+                                           311: u'disney-xd',
+                                           424: u'disney-channel',
+                                           21: u'cartoon-network',
+                                           317: u'comedy-family',
+                                           91: u'comedy-central',
+                                           89: u'nickelodeon',
+                                           312: u'nick-jr',
+                                           410: u'101-tv',
+                                           66: u'humortv-24',
+                                           316: u'best-24',
+                                           70: u'cultura-24',
+                                           81: u'hollanddoc-24',
+                                           90: u'bvn',
+                                           403: u'goed-tv',
+                                           431: u'hbo',
+                                           432: u'hbo-2',
+                                           433: u'hbo-3',
+                                           435: u'24kitchen',
+                                           428: u'bravatv',
+                                           407: u'out-tv',
+                                           461: u'pebble-tv',
+                                           304: u'mgm',
+                                           5: u'een',
+                                           6: u'ketnet-canvas',
+                                           49: u'vtm',
+                                           59: u'2be',
+                                           60: u'vt4',
+                                           40: u'at-5',
+                                           115: u'l1-tv',
+                                           114: u'omroep-brabant',
+                                           113: u'omroep-flevoland',
+                                           109: u'omrop-fryslan',
+                                           112: u'omroep-gelderland',
+                                           116: u'omroep-zeeland',
+                                           110: u'rtv-drenthe',
+                                           108: u'rtv-noord',
+                                           103: u'rtv-noord-holland',
+                                           111: u'rtv-oost',
+                                           102: u'rtv-rijnmond',
+                                           100: u'rtv-utrecht',
+                                           101: u'rtv-west',
+                                           7: u'bbc-1',
+                                           8: u'bbc-2',
+                                           300: u'bbc-3',
+                                           301: u'bbc-4',
+                                           104: u'bbc-prime',
+                                           86: u'bbc-world',
+                                           26: u'cnn',
+                                           9: u'ard',
+                                           10: u'zdf',
+                                           11: u'rtl',
+                                           12: u'wdr-fernsehen',
+                                           13: u'ndr-fernsehen',
+                                           50: u'3sat',
+                                           38: u'arte',
+                                           58: u'pro-7',
+                                           28: u'sat-1',
+                                           17: u'tv-5',
+                                           15: u'rtbf-la-1',
+                                           16: u'rtbf-la-2',
+                                           32: u'trt-international',
+                                           20: u'tcm'}
 
         # tvgids.tv subgenre to genre translation table
         self.tvtvcattrans = {'euromillions': 'Amusement',
@@ -5245,6 +5332,19 @@ class Channel_Config(Thread):
         self.chanid = chanid
         self.chan_name = name
         self.opt_dict = {}
+        self.opt_dict['fast'] = config.opt_dict['fast']
+        self.opt_dict['offset'] = config.opt_dict['offset']
+        self.opt_dict['days'] = config.opt_dict['days']
+        self.opt_dict['slowdays'] = config.opt_dict['slowdays']
+        self.opt_dict['rtldays'] = config.opt_dict['rtldays']
+        self.opt_dict['tevedays'] = config.opt_dict['tevedays']
+        self.opt_dict['compat'] = config.opt_dict['compat']
+        self.opt_dict['max_overlap'] = config.opt_dict['max_overlap']
+        self.opt_dict['overlap_strategy'] = config.opt_dict['overlap_strategy']
+        self.opt_dict['logos'] = config.opt_dict['logos']
+        self.opt_dict['desc_length'] = config.opt_dict['desc_length']
+        self.opt_dict['cattrans'] = config.opt_dict['cattrans']
+        self.opt_dict['mark_HD'] = config.opt_dict['mark_HD']
 
     def run(self):
         pass
