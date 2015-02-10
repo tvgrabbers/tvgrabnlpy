@@ -858,8 +858,11 @@ class Configure:
         parser.add_argument('-V', '--version', action = 'store_true', default = False, dest = 'version',
                         help = 'display version')
 
-        parser.add_argument('-d', '--description', action = 'store_true', default = False, dest = 'description',
-                        help = 'prints a description in english of the grabber')
+        parser.add_argument('--description', action = 'store_true', default = False, dest = 'description',
+                        help = 'prints a short description in english of the grabber')
+
+        parser.add_argument('-d', '--long-descr', action = 'store_true', default = False, dest = 'description_long',
+                        help = 'prints a long description in english of the grabber')
 
         parser.add_argument('--capabilities', action = 'store_true', default = False, dest = 'capabilities',
                         help = 'xmltv required option')
@@ -1242,11 +1245,11 @@ class Configure:
         if self.read_commandline() == 0:
              return(0)
 
-        if self.args.version:
+        if self.args.version or self.args.description:
             print("The Netherlands: %s" % self.version(True))
             return(0)
 
-        if self.args.description:
+        if self.args.description_long:
             print("The Netherlands: %s" % self.version(True))
             print(description_text)
             return(0)
@@ -4123,7 +4126,7 @@ class tvgids_JSON(FetchData):
         """
 
         # download the json feed
-        total = get_page(self.get_url)
+        total = get_page(self.get_url())
         if total == None:
             log("Don't write configuration file\n")
             return 69  # EX_UNAVAILABLE
