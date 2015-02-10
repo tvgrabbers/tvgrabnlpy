@@ -497,7 +497,7 @@ class Configure:
                                            4: u'rtl-4',
                                            31: u'rtl-5',
                                            46: u'rtl-7',
-                                           92: u'rtl-8',,
+                                           92: u'rtl-8',
                                            36: u'sbs-6',
                                            37: u'net-5',
                                            34: u'veronica',
