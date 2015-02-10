@@ -501,7 +501,7 @@ class Configure:
                                            4: u'rtl-4',
                                            31: u'rtl-5',
                                            46: u'rtl-7',
-                                           92: u'rtl-8',,
+                                           92: u'rtl-8',
                                            36: u'sbs-6',
                                            37: u'net-5',
                                            34: u'veronica',
@@ -775,16 +775,24 @@ class Configure:
 
     # end get_line()
 
-    def check_encoding(self, file, encoding = None):
-        """Check file encoding. Return True or False"""
+    def check_encoding(self, file, encoding = None, check_version = False):
+        """
+        Check file encoding. Return True or False
+        Encoding is stored in self.encoding
+        Optionally check for a version string
+        and store it in self.configversion
+        """
         # regex to get the encoding string
         reconfigline = re.compile(r'#\s*(\w+):\s*(.+)')
+
+        self.encoding = None
+        self.configversion = None
 
         if encoding == None:
             encoding = self.file_encoding
 
         for byteline in file.readlines():
-            line = self.get_line(file, byteline, True)
+            line = self.get_line(file, byteline, True, self.encoding)
             if not line:
                 continue
 
@@ -795,38 +803,45 @@ class Configure:
 
                     try:
                         codecs.getencoder(encoding)
+                        self.encoding = encoding
 
                     except LookupError:
                         log('%s has invalid encoding %s.\n' % (file.name, encoding))
                         return False
 
-                    return True
+                    if (not check_version) or self.configversion != None:
+                        return True
+
+                    continue
+
+                elif match is not None and match.group(1) == "configversion":
+                    self.configversion = match.group(2)
+                    if self.encoding != None:
+                        return True
 
                 continue
 
-        return False
+        if check_version and self.configversion == None:
+            file.seek(0,0)
+            for byteline in file.readlines():
+                line = self.get_line(file, byteline, False, self.encoding)
+                if not line:
+                    continue
 
-    # end check_encoding()
-
-    def check_oldconfig(self, file, encoding = None):
-        """
-        Check for old style (without headers) configuration files
-        Return False if no headers are found
-        """
-        if encoding == None:
-            encoding = self.file_encoding
-        file.seek(0,0)
-        for byteline in file.readlines():
-            line = self.get_line(file, byteline, False)
-            if not line:
-                continue
+                else:
+                    config_title = re.search('[(.*?)]', line)
+                    if config_title != None:
+                        self.configversion = '2.0'
+                        break
 
             else:
-                config_title = re.search('[(.*?)]', line)
-                if config_title != None:
-                    return True
+                self.configversion = '1.0'
 
-        return False
+        if self.encoding == None:
+            return False
+
+        else:
+            return True
 
     # end check_encoding()
 
@@ -965,22 +980,21 @@ class Configure:
             log('Re-run me with the --configure flag.\n')
             return False
 
-        if not self.check_encoding(f):
+        if not self.check_encoding(f, None, True):
             return False
 
-        if not self.check_oldconfig(f):
+        if self.configversion == '1.0':
+            # Update to a version 2 config
             f.close()
             self.write_config()
             f = self.open_file(self.config_file)
 
-
         f.seek(0,0)
-        # Make sure that old style configs are read
-        type = 2
+        type = 0
         section = self.__CONFIG_SECTIONS__[2]
         for byteline in f.readlines():
             try:
-                line = self.get_line(f, byteline)
+                line = self.get_line(f, byteline, False, self.encoding)
                 if not line:
                     continue
 
@@ -1100,7 +1114,7 @@ class Configure:
         type = 0
         for byteline in f.readlines():
             try:
-                line = self.get_line(f, byteline)
+                line = self.get_line(f, byteline, False, self.encoding)
                 if not line:
                     continue
 
@@ -1464,6 +1478,7 @@ class Configure:
             return False
 
         f.write(u'# encoding: utf-8\n')
+        f.write(u'# configversion: %s.%s\n' % (self.major, self.minor))
         f.write(u'\n')
 
         # Save the options
@@ -1536,7 +1551,7 @@ class Configure:
                     # it's an old type config without sections
                     type = 2
                 for byteline in fo.readlines():
-                    line = self.get_line(fo, byteline, None)
+                    line = self.get_line(fo, byteline, None, self.encoding)
                     try:
                         if line == '# encoding: utf-8' or line == False:
                             continue
@@ -1886,7 +1901,7 @@ class InfoFiles:
             if (f != None) and config.check_encoding(f):
                 f.seek(0,0)
                 for byteline in f.readlines():
-                    line = config.get_line(f, byteline)
+                    line = config.get_line(f, byteline, False, self.encoding)
                     if line:
                         self.detail_list.append(line)
 
@@ -5331,6 +5346,9 @@ class Channel_Config(Thread):
         Thread.__init__(self)
         self.chanid = chanid
         self.chan_name = name
+        self.tvgidstv_id = ''
+        self.teveblad_id = ''
+        self.rtl_id = ''
         self.opt_dict = {}
         self.opt_dict['fast'] = config.opt_dict['fast']
         self.opt_dict['offset'] = config.opt_dict['offset']
