@@ -5,7 +5,7 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.0.2-p20150210"
+__VERSION__ = "2.0.3-p20150210"
 #__VERSION__ += "-beta"
 
 description_text = """
@@ -822,8 +822,11 @@ class Configure:
         parser.add_argument('-V', '--version', action = 'store_true', default = False, dest = 'version',
                         help = 'display version')
 
-        parser.add_argument('-d', '--description', action = 'store_true', default = False, dest = 'description',
-                        help = 'prints a description in english of the grabber')
+        parser.add_argument('--description', action = 'store_true', default = False, dest = 'description',
+                        help = 'prints a short description in english of the grabber')
+
+        parser.add_argument('-d', '--long-descr', action = 'store_true', default = False, dest = 'description_long',
+                        help = 'prints a long description in english of the grabber')
 
         parser.add_argument('--capabilities', action = 'store_true', default = False, dest = 'capabilities',
                         help = 'xmltv required option')
@@ -1188,11 +1191,11 @@ class Configure:
         if self.read_commandline() == 0:
              return(0)
 
-        if self.args.version:
+        if self.args.version or self.args.description:
             print("The Netherlands (tv_grab_nl_py version %s)" % __VERSION__)
             return(0)
 
-        if self.args.description:
+        if self.args.description_long:
             print("The Netherlands (tv_grab_nl_py version %s)" % __VERSION__)
             print(description_text)
             return(0)
