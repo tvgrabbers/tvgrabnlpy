@@ -5,7 +5,7 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.0.0-p20150209"
+__VERSION__ = "2.0.1-p20150210"
 #__VERSION__ += "-beta"
 
 description_text = """
