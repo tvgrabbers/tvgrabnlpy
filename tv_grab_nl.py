@@ -5,7 +5,7 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.0.1-p20150210"
+__VERSION__ = "2.0.2-p20150210"
 #__VERSION__ += "-beta"
 
 description_text = """
@@ -4067,7 +4067,7 @@ class tvgids_JSON(FetchData):
         """
 
         # download the json feed
-        total = get_page(self.get_url)
+        total = get_page(self.get_url())
         if total == None:
             log("Don't write configuration file\n")
             return 69  # EX_UNAVAILABLE
