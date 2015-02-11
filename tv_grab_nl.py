@@ -1343,6 +1343,7 @@ class Configure:
             self.args.compat = self.opt_dict['compat']
 
         else:
+            self.opt_dict['compat'] = self.args.compat
             for chanid in self.channels.keys():
                 self.channels[chanid].opt_dict['compat'] = self.args.compat
 
@@ -1350,6 +1351,7 @@ class Configure:
             self.args.fast = self.opt_dict['fast']
 
         else:
+            self.opt_dict['fast'] = self.args.fast
             for chanid in self.channels.keys():
                 self.channels[chanid].opt_dict['fast'] = self.args.fast
 
@@ -1357,6 +1359,7 @@ class Configure:
             self.args.logos = self.opt_dict['logos']
 
         else:
+            self.opt_dict['logos'] = self.args.logos
             for chanid in self.channels.keys():
                 self.channels[chanid].opt_dict['logos'] = self.args.logos
 
@@ -1364,6 +1367,7 @@ class Configure:
             self.args.mark_HD = self.opt_dict['mark_HD']
 
         else:
+            self.opt_dict['mark_HD'] = self.args.mark_HD
             for chanid in self.channels.keys():
                 self.channels[chanid].opt_dict['mark_HD'] = self.args.mark_HD
 
@@ -1371,6 +1375,7 @@ class Configure:
             self.args.cattrans = self.opt_dict['cattrans']
 
         else:
+            self.opt_dict['cattrans'] = self.args.cattrans
             for chanid in self.channels.keys():
                 self.channels[chanid].opt_dict['cattrans'] = self.args.cattrans
 
@@ -1378,6 +1383,7 @@ class Configure:
             self.args.slowdays = self.opt_dict['slowdays']
 
         else:
+            self.opt_dict['slowdays'] = self.args.slowdays
             for chanid in self.channels.keys():
                 self.channels[chanid].opt_dict['slowdays'] = self.args.slowdays
 
@@ -1385,6 +1391,7 @@ class Configure:
             self.args.desc_length = self.opt_dict['desc_length']
 
         else:
+            self.opt_dict['desc_length'] = self.args.desc_length
             for chanid in self.channels.keys():
                 self.channels[chanid].opt_dict['desc_length'] = self.args.desc_length
 
@@ -1392,6 +1399,7 @@ class Configure:
             self.args.overlap_strategy = self.opt_dict['overlap_strategy']
 
         else:
+            self.opt_dict['overlap_strategy'] = self.args.overlap_strategy
             for chanid in self.channels.keys():
                 self.channels[chanid].opt_dict['overlap_strategy'] = self.args.overlap_strategy
 
@@ -1399,6 +1407,7 @@ class Configure:
             self.args.max_overlap = self.opt_dict['max_overlap']
 
         else:
+            self.opt_dict['max_overlap'] = self.args.max_overlap
             for chanid in self.channels.keys():
                 self.channels[chanid].opt_dict['max_overlap'] = self.args.max_overlap
 
@@ -1508,6 +1517,16 @@ class Configure:
         log(u'cattrans = %s' % (self.args.cattrans), 1, 2)
         log(u'mark_HD = %s' % (self.args.mark_HD), 1, 2)
         log(u'use_utc = %s' % (self.args.use_utc), 1, 2)
+        log(u'Channel specific settings other then the above:', 1, 2)
+        for chan_def in self.channels.values():
+            chan_name_written = False
+            for val in ( 'fast', 'slowdays', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
+                if chan_def.opt_dict[val] != self.opt_dict[val]:
+                    if not chan_name_written:
+                        log(u'Channel: %s' % (chan_def.chan_name), 1, 2)
+                        chan_name_written = True
+
+                    log(u'%s = %s' % (val, chan_def.opt_dict[val]), 1, 2)
 
     # end write_opts_to_log()
 
@@ -1639,6 +1658,20 @@ class Configure:
         if add_channels:
             for id in self.channels.keys():
                 f.write('%s %s\n' % (id, self.channels[id].chan_name))
+
+        if with_args:
+            f.write(u'\n')
+            f.write(u'# Channel specific settings other then the above:\n')
+            for chan_def in self.channels.values():
+                chan_name_written = False
+                for val in ( 'fast', 'slowdays', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
+                    if chan_def.opt_dict[val] != self.opt_dict[val]:
+                        if not chan_name_written:
+                            f.write(u'\n')
+                            f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                            chan_name_written = True
+
+                        f.write(u'%s = %s\n' % (val, chan_def.opt_dict[val]))
 
         f.close()
         return True
