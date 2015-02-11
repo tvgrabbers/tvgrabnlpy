@@ -247,6 +247,7 @@ class Configure:
         self.minor = 1
         self.patch = 0
         self.patchdate = u'20150209'
+        self.alfa = True
         self.beta = True
 
         # Used for creating extra output to beter the code
@@ -700,6 +701,9 @@ class Configure:
         """
         return tuple or string with version info
         """
+        if as_string and self.alfa:
+            return u'%s (Version: %s.%s.%s-p%s-alpha)' % (self.name, self.major, self.minor, self.patch, self.patchdate)
+
         if as_string and self.beta:
             return u'%s (Version: %s.%s.%s-p%s-beta)' % (self.name, self.major, self.minor, self.patch, self.patchdate)
 
@@ -1028,7 +1032,8 @@ class Configure:
                     try:
                         # Strip the name from the value
                         a = re.split('=',line)
-                        if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans' , 'mark_HD', 'use_utc'):
+                        # Boolean Values
+                        if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_HD', 'use_utc'):
                             if len(a) == 1:
                                 self.opt_dict[a[0].lower().strip()] = True
 
@@ -1042,6 +1047,7 @@ class Configure:
                             self.output_file = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1]
 
                         elif len(a) == 2:
+                            # Integer Values
                             if a[0].lower().strip() in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', 'tevedays', 'max_overlap', 'desc_length'):
                                 try:
                                     int(a[1])
@@ -1053,6 +1059,7 @@ class Configure:
                                 else:
                                     self.opt_dict[a[0].lower().strip()] = int(a[1])
 
+                            # Select Values
                             elif a[0].lower().strip() == 'overlap_strategy':
                                 if a[1].lower().strip() in ('average', 'stop', 'start'):
                                     self.opt_dict[a[0].lower().strip()] = a[1].lower().strip()
@@ -1076,7 +1083,39 @@ class Configure:
                 # Read the channel specific configuration
                 if type == 9:
                     try:
-                        pass
+                        # Strip the name from the value
+                        a = re.split('=',line)
+                        # Boolean Values
+                        if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_HD'):
+                            if len(a) == 1:
+                                self.channels[chanid].opt_dict[a[0].lower().strip()] = True
+
+                            elif a[1].lower().strip() in ('true', '1' , 'on'):
+                                self.channels[chanid].opt_dict[a[0].lower().strip()] = True
+
+                            else:
+                                self.channels[chanid].opt_dict[a[0].lower().strip()] = False
+
+                        elif len(a) == 2:
+                            # Integer Values
+                            if a[0].lower().strip() in ('slowdays', 'max_overlap', 'desc_length'):
+                                try:
+                                    int(a[1])
+
+                                except ValueError:
+                                    if (a[0].lower().strip() == 'slowdays') and (a[1].lower().strip() == 'none'):
+                                        self.channels[chanid].opt_dict[a[0].lower().strip()] = None
+
+                                else:
+                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
+
+                            # Select Values
+                            elif a[0].lower().strip() == 'overlap_strategy':
+                                if a[1].lower().strip() in ('average', 'stop', 'start'):
+                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = a[1].lower().strip()
+
+                                else:
+                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = 'none'
 
                     except Exception:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
@@ -1289,7 +1328,7 @@ class Configure:
             if not self.args.save_options or x != 0:
                 return(x)
 
-        # get config if available
+        # get config if available Overrule if set by commandline
         if not self.read_config():
             log('error reading configfile\n')
             return(1)
@@ -1297,23 +1336,71 @@ class Configure:
         if self.args.quiet == None:
             self.args.quiet = self.opt_dict['quiet']
 
+        if self.args.use_utc == None:
+            self.args.use_utc = self.opt_dict['use_utc']
+
         if self.args.compat == None:
             self.args.compat = self.opt_dict['compat']
 
-        if self.args.use_utc == None:
-            self.args.use_utc = self.opt_dict['use_utc']
+        else:
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['compat'] = self.args.compat
 
         if self.args.fast == None:
             self.args.fast = self.opt_dict['fast']
 
+        else:
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['fast'] = self.args.fast
+
         if self.args.logos == None:
             self.args.logos = self.opt_dict['logos']
+
+        else:
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['logos'] = self.args.logos
 
         if self.args.mark_HD == None:
             self.args.mark_HD = self.opt_dict['mark_HD']
 
+        else:
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['mark_HD'] = self.args.mark_HD
+
         if self.args.cattrans == None:
             self.args.cattrans = self.opt_dict['cattrans']
+
+        else:
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['cattrans'] = self.args.cattrans
+
+        if self.args.slowdays == None:
+            self.args.slowdays = self.opt_dict['slowdays']
+
+        else:
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['slowdays'] = self.args.slowdays
+
+        if self.args.desc_length == None:
+            self.args.desc_length = self.opt_dict['desc_length']
+
+        else:
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['desc_length'] = self.args.desc_length
+
+        if self.args.overlap_strategy == None:
+            self.args.overlap_strategy = self.opt_dict['overlap_strategy']
+
+        else:
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['overlap_strategy'] = self.args.overlap_strategy
+
+        if self.args.max_overlap == None:
+            self.args.max_overlap = self.opt_dict['max_overlap']
+
+        else:
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['max_overlap'] = self.args.max_overlap
 
         if self.args.output_file == None:
             self.args.output_file = self.output_file
@@ -1367,53 +1454,9 @@ class Configure:
         self.args.rtldays = min(self.args.rtldays,(14 - self.args.offset))
         self.args.rtldays = min(self.args.days, self.args.rtldays)
 
-        slow_set = True
-        if self.args.slowdays == None:
-            slow_set = False
-            self.args.slowdays = self.opt_dict['slowdays']
-
-        if self.args.slowdays == None:
-            self.args.slowdays = self.args.days
-
-        else:
-            self.args.slowdays = min(self.args.days, self.args.slowdays)
-            # slowdays implies fast == False
-            if slow_set and self.args.slowdays < self.args.days:
-                self.args.fast = False
-
-        if self.args.desc_length == None:
-            self.args.desc_length = self.opt_dict['desc_length']
-
-        if self.args.desc_length == 0:
-            # no description implies fast == True
-            log('Setting to Fast Mode\n',1,1)
-            self.args.fast = True
-        else:
-            log('Using description length: %d\n' % self.args.desc_length,1,1)
-
-        if self.args.overlap_strategy == None:
-            self.args.overlap_strategy = self.opt_dict['overlap_strategy']
-
-        if self.args.overlap_strategy in ['average', 'stop', 'start']:
-            self.args.overlap_strategy = self.args.overlap_strategy
-
-        else:
-            self.args.overlap_strategy = 'none'
-
-        if self.opt_dict['overlap_strategy'] != self.args.overlap_strategy:
-            log('overlap strategy set to: \'%s\'\n' % self.args.overlap_strategy,1,1)
-
-        if self.args.max_overlap == None:
-            self.args.max_overlap = self.opt_dict['max_overlap']
-
-        elif self.args.max_overlap == 0:
-            # no max_overlap implies strategie == 'None'
-            self.args.overlap_strategy = 'None'
-            log('Maximum overlap 0 means overlap strategy set to: \'%s\'\n' % self.args.overlap_strategy,1,1)
-
-        else:
-            log('Using Maximum Overlap: %d\n' % self.args.max_overlap,1,1)
-
+        # Continue validating the settings for the individual channels
+        for chanid in self.channels.keys():
+            self.channels[chanid].validate_settings()
 
         self.write_opts_to_log()
         if self.args.save_options:
@@ -1488,6 +1531,8 @@ class Configure:
         if with_args:
             f.write(u'# This is a list with default options set by the --save-options (-O)\n')
             f.write(u'# argument. They can be overruled on the commandline.\n')
+            f.write(u'# !!THIS MUST COME FIRST BEFORE THE CHANNEL SECTIONS!!\n')
+            f.write(u'# !!OR SYSTEM DEFAULTS WILL BE USED INSTEAD!!\n')
             f.write(u'# Be carefull with manually editing. Invalid options will be\n')
             f.write(u'# silently ignored. Boolean options can be set with True/False,\n')
             f.write(u'# On/Off or 1/0. Leaving it blank sets them on. Setting an invalid\n')
@@ -1537,6 +1582,18 @@ class Configure:
 
         f.write(u'# These are the channels to parse. You can disable a channel by placing\n')
         f.write(u'# a \'#\' in front. You can change the names to suit your own preferences.\n')
+        f.write(u'\n')
+        f.write(u'# To specify further Channel settings you can add tags in the form of\n')
+        f.write(u'# [Channel <channelnumber>], where <channelnumber> is the number below, \n')
+        f.write(u'# !!THEY MUST BE BELOW THE CONFIGURATION AND CHANNEL SECTIONS!!\n')
+        f.write(u'# You can use the following tags:\n')
+        f.write(u'# Boolean values (True/False, 1/0 or on/off; no value means True):\n')
+        f.write(u'#   fast, compat, logos, cattrans, mark_HD\n')
+        f.write(u'# Integer values:\n')
+        f.write(u'#   slowdays, max_overlap, desc_length\n')
+        f.write(u'# String values:\n')
+        f.write(u'#   overlap_strategy (with possible values): \n')
+        f.write(u'#     average, stop, start; everything else sets it to none\n')
         f.write(u'\n')
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[2])
 
@@ -5350,15 +5407,20 @@ class Channel_Config(Thread):
         self.chanid = chanid
         self.chan_name = name
         self.tvgidstv_id = ''
+        if self.chanid in config.tvgidstv_channels.keys():
+            self.tvgidstv_id = config.tvgidstv_channels[self.chanid]
+
         self.teveblad_id = ''
+        if self.chanid in config.teveblad_channels.keys():
+            self.teveblad_id = config.teveblad_channels[self.chanid]
+
         self.rtl_id = ''
+        if self.chanid in config.RTL_channels.keys():
+            self.rtl_id = config.RTL_channels[self.chanid]
+
         self.opt_dict = {}
         self.opt_dict['fast'] = config.opt_dict['fast']
-        self.opt_dict['offset'] = config.opt_dict['offset']
-        self.opt_dict['days'] = config.opt_dict['days']
         self.opt_dict['slowdays'] = config.opt_dict['slowdays']
-        self.opt_dict['rtldays'] = config.opt_dict['rtldays']
-        self.opt_dict['tevedays'] = config.opt_dict['tevedays']
         self.opt_dict['compat'] = config.opt_dict['compat']
         self.opt_dict['max_overlap'] = config.opt_dict['max_overlap']
         self.opt_dict['overlap_strategy'] = config.opt_dict['overlap_strategy']
@@ -5366,6 +5428,38 @@ class Channel_Config(Thread):
         self.opt_dict['desc_length'] = config.opt_dict['desc_length']
         self.opt_dict['cattrans'] = config.opt_dict['cattrans']
         self.opt_dict['mark_HD'] = config.opt_dict['mark_HD']
+
+    def validate_settings(self):
+
+        if not self.opt_dict['overlap_strategy'] in ['average', 'stop', 'start']:
+            self.opt_dict['overlap_strategy'] = 'none'
+
+        if self.opt_dict['max_overlap'] == 0:
+            # no max_overlap implies strategie == 'None'
+            self.opt_dict['overlap_strategy'] = 'None'
+            log('Maximum overlap 0 means overlap strategy for Channel: %s set to: \'%s\'\n' % (self.chan_name, self.opt_dict['overlap_strategy']),1,1)
+
+        elif self.opt_dict['max_overlap'] != config.args.max_overlap:
+            log('Using Maximum Overlap: %d for Channel %s\n' % (self.opt_dict['max_overlap'], self.chan_name),1,1)
+            if self.opt_dict['overlap_strategy'] != config.args.overlap_strategy:
+                log('overlap strategy for Channel: %s set to: \'%s\'\n' % (self.chan_name, self.opt_dict['overlap_strategy']),1,1)
+
+        elif self.opt_dict['desc_length'] != config.args.desc_length:
+            log('Using description length: %d for Cannel: %s\n' % (self.opt_dict['desc_length'], self.chan_name),1,1)
+
+        if self.opt_dict['slowdays'] == None:
+            self.opt_dict['slowdays'] = config.args.days
+            if self.opt_dict['desc_length'] == 0:
+                # no description implies fast == True
+                if not self.opt_dict['fast']:
+                    log('Setting Channel: %s to Fast Mode\n' % self.chan_name,1,1)
+                    self.opt_dict['fast'] = True
+
+        else:
+            self.opt_dict['slowdays'] = min(config.args.days, self.opt_dict['slowdays'])
+            # slowdays implies fast == False
+            if self.opt_dict['slowdays'] < config.args.days:
+                self.opt_dict['fast']  = False
 
     def run(self):
         pass
