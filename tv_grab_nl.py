@@ -635,12 +635,72 @@ class Configure:
         # channels for which to look on teveblad.be
         self.teveblad_channels = {5: 'een',
                                             6: 'canvas',
-                                            7: 'bbc1-nl',
-                                            8: 'bbc2-nl',
                                             1: 'npo-1',
                                             2: 'npo-2',
                                             3: 'npo-3',
-                                            9: 'ard'}
+                                            49: 'vtm',
+                                            60: 'vier',
+                                            59: '2be',
+                                            18: 'national-geographic',
+                                            4: 'rtl4',
+                                            31: 'rtl5',
+                                            36: 'sbs6',
+                                            20: 'tcm',
+                                            21: 'cartoon-network',
+                                            19: 'eurosport',
+                                            89: 'nickelodeonnl',
+                                            90: 'bvn-tv',
+                                            15: 'la-une',
+                                            16: 'la-deux',
+                                            17: 'tv5',
+                                            7: 'bbc1-nl',
+                                            8: 'bbc2-nl',
+                                            300: 'bbc3-nl',
+                                            301: 'bbc4-nl',
+                                            104: 'bbc-entertainment',
+                                            26: 'cnn',
+                                            86: 'bbc-world',
+                                            9: 'ard',
+                                            10: 'zdf',
+                                            12: 'wdr',
+                                            11: 'rtl',
+                                            305: 'discovery-world',
+                                            306: 'discovery-science',
+                                            439: 'animal',
+                                            413: 'historychannel',
+                                            417: 'extreme',
+                                            461: 'pebbletv',
+                                            424: 'disneychannel',
+                                            94: 'syfy',
+                                            93: '13th-street',
+                                            304: 'mgmmoviechannel',
+                                            404: 'foxlife',
+                                            436: 'eurosport-2',
+                                            38: 'arte',
+                                            25: 'mtv',
+                                            'discovery-vlaanderen': 'discovery',
+                                            'vijftv': 'vijf',
+                                            'op12': 'op12',
+                                            'ketnet': 'ketnet',
+                                            'vitaya': 'vitaya',
+                                            'acht': 'acht',
+                                            'jim': 'jim',
+                                            'tmf': 'tmf',
+                                            'njam': 'njam',
+                                            'life-tv': 'life!tv',
+                                            'france-2': 'france-2',
+                                            'france-3': 'france-3',
+                                            'tf1': 'tf1',
+                                            'sudwest-fernsehen': 'swr',
+                                            'rai-uno': 'rai',
+                                            'tv-e': 'tve',
+                                            'espn-america': 'espn-america',
+                                            'espn-classic': 'espn',
+                                            'prime-star': 'primestar',
+                                            'prime-action': 'primeaction',
+                                            'prime-fezztival': 'primefezztival',
+                                            'prime-series': 'primeseries',
+                                            'vtmkzoom': 'vtm-kzoom'}
 
         # Program group names to exclude from teveblad.be if the counterpart contains details
         self.teveblad_genericnames = {"ochtend- en dagprogramma's", \
@@ -672,15 +732,24 @@ class Configure:
                                     46: 'RTL7',
                                     92: 'RTL8',
                                     408: 'RTLL',
-                                    409: 'RTCR'}
-                                    #~ : 'RTLT',
+                                    409: 'RTCR',
+                                    'rtl-telekids': 'RTLT'}
+
+        self.chan_groups = {1: 'Nederlands',
+                                          2: 'Vlaams',
+                                          3: 'Engels',
+                                          4: 'Duits',
+                                          5: 'Frans',
+                                          6: 'Nederlands Regionaal',
+                                          7: 'Nederlands Overig',
+                                          8: 'Vlaams Overig',
+                                          9: 'Internationaal',
+                                         10: 'Overig'}
 
         # DO NOT CHANGE THIS!
         self.__CONFIG_SECTIONS__ = { 1: u'Configuration', \
                                                             2: u'tvgids.nl Channels', \
-                                                            3: u'tvgids.tv Channels', \
-                                                            4: u'rtl.nl Channels', \
-                                                            5: u'teveblad.be Channels'}
+                                                            3: u'Channels'}
 
         self.__CHANNEL_CONFIG_SECTIONS__ = {}
 
@@ -819,7 +888,7 @@ class Configure:
                     continue
 
                 elif match is not None and match.group(1) == "configversion":
-                    self.configversion = match.group(2)
+                    self.configversion = float(match.group(2))
                     if self.encoding != None:
                         return True
 
@@ -835,11 +904,11 @@ class Configure:
                 else:
                     config_title = re.search('[(.*?)]', line)
                     if config_title != None:
-                        self.configversion = '2.0'
+                        self.configversion = 2.0
                         break
 
             else:
-                self.configversion = '1.0'
+                self.configversion = 1.0
 
         if self.encoding == None:
             return False
@@ -990,7 +1059,7 @@ class Configure:
         if not self.check_encoding(f, None, True):
             return False
 
-        if self.configversion == '1.0':
+        if self.configversion == 1.0:
             # Update to a version 2 config
             f.close()
             self.write_config()
@@ -1070,12 +1139,61 @@ class Configure:
                     except Exception:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
 
-                # Read the channel stuff
+                # Read the channel stuff up to version 2.0
                 if type == 2:
+                    if self.configversion > 2.0:
+                        continue
+
                     try:
                         channel = line.split(None, 1) # split on first whitespace
                         self.channels[int(channel[0])] = Channel_Config(int(channel[0]), unicode(channel[1]))
                         self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[0].strip()] = int(channel[0])
+
+                    except Exception:
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
+
+                # Changed Channel config since version 2.1
+                if type == 3:
+                    if self.configversion < 2.1:
+                        continue
+
+                    try:
+                        channel = re.split(';', line)
+                        if len(channel) != 8:
+                            continue
+
+                        if channel[2] != '':
+                            chanid = int(channel[2])
+                            self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[2].strip()] = chanid
+
+                        elif channel[3] != '':
+                            chanid = unicode(channel[3])
+                            self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[3].strip()] = chanid
+
+                        elif channel[4] != '':
+                            chanid = unicode(channel[4])
+                            self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[4].strip()] = chanid
+
+                        elif channel[5] != '':
+                            chanid = unicode(channel[5])
+                            self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[5].strip()] = chanid
+
+                        else:
+                            continue
+
+                        self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]))
+                        self.channels[chanid].group = int(channel[1])
+                        if channel[2] == '':
+                            self.channels[chanid].tvgidnl_id = ''
+
+                        else:
+                            self.channels[chanid].tvgidnl_id = int(channel[2])
+
+                        self.channels[chanid].tvgidstv_id = unicode(channel[3])
+                        self.channels[chanid].teveblad_id = unicode(channel[4])
+                        self.channels[chanid].rtl_id = unicode(channel[5])
+                        self.channels[chanid].icon_source = int(channel[6])
+                        self.channels[chanid].icon = unicode(channel[7])
 
                     except Exception:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
@@ -1262,10 +1380,78 @@ class Configure:
         """
 
         # download the json feed
+        tvgids_json.init_channels()
         tvgids_json.get_channels()
         self.channels = {}
         for chanid in tvgids_json.all_channels.keys():
-            self.channels[chanid] = Channel_Config(chanid, tvgids_json.all_channels[chanid])
+            self.channels[chanid] = Channel_Config(chanid, tvgids_json.all_channels[chanid]['name'])
+            self.channels[chanid].tvgidnl_id = chanid
+            if chanid in xml_output.logo_names:
+                self.channels[chanid].icon_source = xml_output.logo_names[chanid][0]
+                self.channels[chanid].icon = xml_output.logo_names[chanid][1] + '.gif'
+
+        # Get the tvgids.tv channels
+        tvgidstv.init_channels()
+        tvgidstv.get_channels()
+        reverse_tvgidstv_channels = {}
+        for i, v in self.tvgidstv_channels.items():
+            reverse_tvgidstv_channels[v] = i
+
+        for chanid in tvgidstv.all_channels.keys():
+            if chanid in self.tvgidstv_channels.values() and reverse_tvgidstv_channels[chanid] in self.channels.keys():
+                self.channels[reverse_tvgidstv_channels[chanid]].tvgidstv_id = chanid
+                self.channels[reverse_tvgidstv_channels[chanid]].group = tvgidstv.all_channels[chanid]['group']
+
+            else:
+                self.channels[chanid] = Channel_Config(chanid, tvgidstv.all_channels[chanid]['name'])
+                self.channels[chanid].tvgidstv_id = chanid
+                self.channels[chanid].group = tvgidstv.all_channels[chanid]['group']
+
+        # Get the teveblad.be channels
+        teveblad.init_channels()
+        teveblad.get_channels()
+        reverse_teveblad_channels = {}
+        for i, v in self.teveblad_channels.items():
+            reverse_teveblad_channels[v] = i
+
+        for chanid in teveblad.all_channels.keys():
+            if chanid in self.teveblad_channels.values() and reverse_teveblad_channels[chanid] in self.channels.keys():
+                # These channels are for show, but we like the icons!
+                if not chanid in ('rtl4', 'rtl5', 'sbs6'):
+                    self.channels[reverse_teveblad_channels[chanid]].teveblad_id = chanid
+                self.channels[reverse_teveblad_channels[chanid]].icon_source = 2
+                self.channels[reverse_teveblad_channels[chanid]].icon = teveblad.all_channels[chanid]['icon']
+                if self.channels[reverse_teveblad_channels[chanid]].group == '':
+                    self.channels[reverse_teveblad_channels[chanid]].group = teveblad.all_channels[chanid]['group']
+
+            else:
+                self.channels[chanid] = Channel_Config(chanid, teveblad.all_channels[chanid]['name'])
+                self.channels[chanid].teveblad_id = chanid
+                self.channels[chanid].icon_source = 2
+                self.channels[chanid].icon = teveblad.all_channels[chanid]['icon']
+                self.channels[chanid].group = teveblad.all_channels[chanid]['group']
+
+        # Add the RTL channels
+        rtl_json.get_channels()
+        reverse_rtl_channels = {}
+        for i, v in self.RTL_channels.items():
+            reverse_rtl_channels[v] = i
+
+        for chanid in rtl_json.all_channels.keys():
+            if chanid in self.RTL_channels.values() and reverse_rtl_channels[chanid] in self.channels.keys():
+                self.channels[reverse_rtl_channels[chanid]].rtl_id = chanid
+                if self.channels[reverse_rtl_channels[chanid]].icon_source == -1 or self.channels[reverse_rtl_channels[chanid]].icon_source == 1:
+                    self.channels[reverse_rtl_channels[chanid]].icon_source = 3
+                    self.channels[reverse_rtl_channels[chanid]].icon = rtl_json.all_channels[chanid]['icon']
+                if self.channels[reverse_rtl_channels[chanid]].group == '':
+                    self.channels[reverse_rtl_channels[chanid]].group = 7
+
+            else:
+                self.channels[chanid] = Channel_Config(chanid, rtl_json.all_channels[chanid]['name'])
+                self.channels[chanid].rtl_id = chanid
+                self.channels[chanid].icon_source = 3
+                self.channels[chanid].icon = rtl_json.all_channels[chanid]['icon']
+                self.channels[chanid].group = 7
 
         # and create a file with the channels
         if not self.write_config(False, True):
@@ -1600,10 +1786,17 @@ class Configure:
             f.write(u'\n')
 
         f.write(u'# These are the channels to parse. You can disable a channel by placing\n')
-        f.write(u'# a \'#\' in front. You can change the names to suit your own preferences.\n')
+        f.write(u'# a \'#\' in front. Seperated by \';\' you see on every line: The Name,\n')
+        f.write(u'# the group, the ID\'s from tvgids.nl, tvgids.tv, teveblad.be and rtl.nl\n')
+        f.write(u'# and finally the iconsource and name.\n')
+        f.write(u'# Set iconsource to 99, to add your own full url.\n')
+        f.write(u'# A missing ID means the source doesn\'t supply the channel.\n')
+        f.write(u'# You can change the names and groups to suit your own preferences or\n')
+        f.write(u'# remove an ID to not fetch from that source, but keep the \';\'s in place.\n')
         f.write(u'\n')
         f.write(u'# To specify further Channel settings you can add tags in the form of\n')
-        f.write(u'# [Channel <channelnumber>], where <channelnumber> is the number below, \n')
+        f.write(u'# [Channel <channelID>], where <channelID> is the first ID on the line, \n')
+        f.write(u'# (most of the times the nummeric tvgids.nl ID)\n')
         f.write(u'# !!THEY MUST BE BELOW THE CONFIGURATION AND CHANNEL SECTIONS!!\n')
         f.write(u'# You can use the following tags:\n')
         f.write(u'# Boolean values (True/False, 1/0 or on/off; no value means True):\n')
@@ -1614,7 +1807,7 @@ class Configure:
         f.write(u'#   overlap_strategy (with possible values): \n')
         f.write(u'#     average, stop, start; everything else sets it to none\n')
         f.write(u'\n')
-        f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[2])
+        f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
 
         if add_channels == None or add_channels == False:
             # just copy over the channels section
@@ -1656,8 +1849,27 @@ class Configure:
                 return True
 
         if add_channels:
+            chan_list = {}
+            for g in self.chan_groups.keys():
+                chan_list[g] =[]
+
             for chanid in self.channels.keys():
-                f.write('%s %s\n' % (chanid, self.channels[chanid].chan_name))
+                chan_list[self.channels[chanid].group].append('%s;%s;%s;%s;%s;%s;%s;%s\n' % (\
+                                                                                    self.channels[chanid].chan_name, \
+                                                                                    self.channels[chanid].group, \
+                                                                                    self.channels[chanid].tvgidnl_id, \
+                                                                                    self.channels[chanid].tvgidstv_id, \
+                                                                                    self.channels[chanid].teveblad_id, \
+                                                                                    self.channels[chanid].rtl_id, \
+                                                                                    self.channels[chanid].icon_source, \
+                                                                                    self.channels[chanid].icon))
+
+            for g in self.chan_groups.keys():
+                f.write('\n')
+                f.write('# %s\n' % self.chan_groups[g])
+                chan_list[g].sort()
+                for channel in chan_list[g]:
+                    f.write(channel)
 
         if with_args:
             f.write(u'\n')
@@ -3168,7 +3380,7 @@ class FetchData(Thread):
                     elif chanid == 409:
                         pass
 
-                    elif chanid == 'RTLT':
+                    elif chanid == 'rtl-telekids':
                         pass
 
                 elif self.source == 'teveblad':
@@ -4227,9 +4439,9 @@ class tvgids_JSON(FetchData):
         self.all_channels ={}
         for channel in channel_list:
             # the json data has the channel names in XML entities.
-            name = unescape(channel['name'])
             chanid = int(channel['id'])
-            self.all_channels[chanid] = name
+            self.all_channels[chanid] = {}
+            self.all_channels[chanid]['name'] = unescape(channel['name']).strip()
 
     def load_pages(self):
 
@@ -4616,6 +4828,41 @@ class tvgidstv_HTML(FetchData):
             log("Skip channel=%s, day=%d. Wrong date!\n" % (channel, offset))
             return None
 
+    def get_channels(self):
+        """
+        Get a list of all available channels and store these
+        in all_channels.
+        """
+
+        try:
+            strdata = get_page(self.get_url())
+            if strdata == None:
+                return
+
+            strdata = self.clean_html('<div>' + self.getcontent.search(strdata).group(1)).encode('utf-8')
+            htmldata = ET.fromstring(strdata)
+
+        except Exception as e:
+            return None
+
+        self.all_channels ={}
+        for changroup in htmldata.findall('div[@class="section"]'):
+            group_name = self.empersant(changroup.findtext('div[@class="section-title"]')).strip()
+            for chan in changroup.findall('div[@class="section-content"]/div[@class="section-item channels"]/div[@class="section-item-content"]/a'):
+                chanid = chan.get('href')
+                if chanid == None:
+                    continue
+
+                chanid = re.split('/', chanid)[2]
+                name = self.empersant(chan.findtext('div[@class="channel-name ellipsis"]'))
+                self.all_channels[chanid] = {}
+                self.all_channels[chanid]['name'] = name
+                self.all_channels[chanid]['group'] = 10
+                for id in config.chan_groups.keys():
+                    if group_name == config.chan_groups[id]:
+                        self.all_channels[chanid]['group'] = id
+                        break
+
     def load_pages(self):
 
         channel_cnt = 0
@@ -4691,7 +4938,7 @@ class tvgidstv_HTML(FetchData):
                         continue
 
                     # Get the starttime and make sure the midnight date change is properly crossed
-                    start = p.find('div[@class="content"]/span[@class="section-item-title"]').text.split()[0]
+                    start = p.findtext('div[@class="content"]/span[@class="section-item-title"]').split()[0]
                     if start == None or start == '':
                         log('Can not determine starttime for "%s"' % tdict['name'])
                         continue
@@ -4980,13 +5227,13 @@ class rtl_JSON(FetchData):
 
     def get_channels(self):
 
-        self.all_channels = {4: 'RTL4',
-                                    31: 'RTL5',
-                                    46: 'RTL7',
-                                    92: 'RTL8',
-                                    408: 'RTLL',
-                                    409: 'RTCR'}
-                                    #~ : 'RTLT',
+        self.all_channels = {'RTL4': {'name': 'RTL 4', 'icon': 'logo_rtl4_med_dark.png'},
+                                         'RTL5': {'name': 'RTL 5', 'icon': 'logo_rtl5.png'},
+                                         'RTL7': {'name': 'RTL 7', 'icon': 'logo_rtl7_trans.png'},
+                                         'RTL8': {'name': 'RTL 8', 'icon': 'logo_rtl8.png'},
+                                         'RTLL': {'name': 'RTL Lounge', 'icon': 'logo_rtllounge.png'},
+                                         'RTCR': {'name': 'RTL Crime', 'icon': 'logo_rtlcrime.png'},
+                                         'RTLT': {'name': 'RTL Telekids', 'icon': 'logo_telekids.png'}}
 
     def load_pages(self):
 
@@ -5217,6 +5464,7 @@ class teveblad_HTML(FetchData):
         self.make_dominant = (5, 6)
 
         self.datecheckdata = re.compile('<input id="epg_dateselector".*?data-value="([0-9]+)-([0-9]+)-([0-9]+)".*?/>',re.DOTALL)
+        self.channeldata = re.compile('<div id="smallleftcol">(.*?)<div id="middlecolchaine">',re.DOTALL)
         self.progdata = re.compile('<div id="middlecolchaine">(.*?)<div id="epg_grid_view">channels</div>',re.DOTALL)
         self.seasondata = re.compile('Season ([0-9]+) \(([0-9]+)/([0-9]+)\)',re.DOTALL)
 
@@ -5229,7 +5477,7 @@ class teveblad_HTML(FetchData):
             if chanid in config.teveblad_channels.keys():
                 self.channels[chanid] = config.teveblad_channels[chanid]
 
-    def get_url(self, date, channel):
+    def get_url(self, date = '', channel = ''):
 
          teveblad_zoeken = 'http://www.teveblad.be/tv-gids/'
          return u'%s%s/zenders/%s' % (teveblad_zoeken,  date, channel)
@@ -5250,6 +5498,55 @@ class teveblad_HTML(FetchData):
 
         return False
 
+    def get_channels(self):
+        """
+        Get a list of all available channels and store these
+        in all_channels.
+        """
+
+        #~ try:
+        strdata = get_page(self.get_url())
+        if strdata == None:
+            return
+
+        strdata = self.clean_html('<div>' + self.channeldata.search(strdata).group(1)).encode('utf-8')
+        htmldata = ET.fromstring(strdata)
+
+        #~ except Exception as e:
+            #~ return None
+
+        chan_groups = {'Nederlandstalig': 2,
+                                    'Hoofdzenders': 2,
+                                    'Engelstalig': 3,
+                                    'Franstalig': 5,
+                                    'Digitale zenders': 8,
+                                    'Documentaire': 8,
+                                    'Sport': 8,
+                                    'Kids & Jeugd': 8,
+                                    'Anderstalige zenders': 9}
+        self.all_channels ={}
+        changroup = 10
+        for item in htmldata.find('div[@class="greyrounded"]'):
+            if item.tag == 'h2':
+                group =  self.empersant(item.findtext('a[@href]'))
+                if group in chan_groups:
+                    changroup = chan_groups[group]
+
+                else:
+                    changroup = 10
+
+            elif item.tag == 'a':
+                chan = item.get('href')
+                if chan != None:
+                    chanid = re.split('/', chan)[3]
+                    icon = item.find('img').get('src')
+                    icon = re.split('/', icon)
+                    icon = '%s/%s' % (icon[8], icon[9])
+                    self.all_channels[chanid] = {}
+                    self.all_channels[chanid]['name'] = item.find('img').get('title')
+                    self.all_channels[chanid]['icon'] = icon
+                    self.all_channels[chanid]['group'] = changroup
+
     def load_pages(self):
 
         channel_cnt = 0
@@ -5259,11 +5556,7 @@ class teveblad_HTML(FetchData):
             log('Now fetching %s(xmltvid=%s%s) from teveblad.be (channel %s of %s) for %s days.\n' % \
                 (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), channel_cnt, len(self.channels), config.args.tevedays), 2)
 
-            if chanid in self.channels.keys():
-                channel = self.channels[chanid]
-
-            else:
-                return []
+            channel = self.channels[chanid]
 
             # teeveeblad.be shows programs per day, so we loop over the number of days
             # we are required to grab
@@ -5272,7 +5565,6 @@ class teveblad_HTML(FetchData):
                 scan_date = datetime.date.fromordinal(self.current_date + offset)
                 last_program = datetime.datetime.combine(scan_date, datetime.time(1, 0, 0 ,0 ,CET_CEST))
                 channel_url =self.get_url(scan_date.strftime('%Y-%m-%d'), channel)
-
 
                 # get the raw programming for the day
                 strdata = get_page(channel_url)
@@ -5291,6 +5583,9 @@ class teveblad_HTML(FetchData):
                     strdata = re.sub('<div class="r" class="toowide">', '<div class="r">', strdata)
                     strdata = ('<div><div>' + self.progdata.search(strdata).group(1)).encode('utf-8')
                     htmldata = ET.fromstring(strdata)
+                    if htmldata.findtext('div/p') == "We don't have any events for this broadcaster":
+                        log('No data for channel:%s on teveblad.be' % (config.channels[chanid].chan_name))
+                        break
 
                 except Exception as e:
                     log('Error extracting ElementTree for channel:%s day:%s' % (config.channels[chanid].chan_name, offset))
@@ -5298,10 +5593,7 @@ class teveblad_HTML(FetchData):
                     infofiles.write_raw_string(strdata + u'\n')
                     continue
 
-                for p in htmldata.findall('div/div'):
-                    if not ((p.tag == 'div') and (p.get('class') == 'programme')):
-                        continue
-
+                for p in htmldata.findall('div/div[@class="programme"]'):
                     tdict = self.checkout_program_dict()
                     p = p.find('div[@class="c"]')
                     tdict['source'] = 'teveblad'
@@ -5435,21 +5727,17 @@ class Channel_Config(Thread):
     """
     Class that holds the Channel definitions and manages the data retreival
     """
-    def __init__(self, chanid, name):
+    def __init__(self, chanid, name, group = ''):
         Thread.__init__(self)
         self.chanid = chanid
         self.chan_name = name
+        self.tvgidnl_id = ''
         self.tvgidstv_id = ''
-        if self.chanid in config.tvgidstv_channels.keys():
-            self.tvgidstv_id = config.tvgidstv_channels[self.chanid]
-
         self.teveblad_id = ''
-        if self.chanid in config.teveblad_channels.keys():
-            self.teveblad_id = config.teveblad_channels[self.chanid]
-
         self.rtl_id = ''
-        if self.chanid in config.RTL_channels.keys():
-            self.rtl_id = config.RTL_channels[self.chanid]
+        self.group = 10
+        self.icon_source = -1
+        self.icon = ''
 
         self.opt_dict = {}
         self.opt_dict['fast'] = config.opt_dict['fast']
@@ -5522,8 +5810,10 @@ class XMLoutput:
 
         # We have two sources of logos, the first provides the nice ones, but is not
         # complete. We use the tvgids logos to fill the missing bits.
-        self.logo_provider = [ 'http://graphics.tudelft.nl/~paul/logos/gif/64x64/',
-                                     'http://static.tvgids.nl/gfx/zenders/' ]
+        self.logo_provider = ['http://graphics.tudelft.nl/~paul/logos/gif/64x64/',
+                                        'http://static.tvgids.nl/gfx/zenders/',
+                                        'http://s4.cdn.sanomamedia.be/a/epg/q100/w60/h/',
+                                        'http://staticfiles.rtl.nl/styles/img/logos/']
 
         self.logo_names = { 1 : [0, 'ned1'],
                                     2 : [0, 'ned2'],
@@ -5535,57 +5825,59 @@ class XMLoutput:
                                     8 : [0, 'bbc2'],
                                     9 : [0,'ard'],
                                     10 : [0,'zdf'],
-                                    11 : [1, 'rtl'],
                                     12 : [0, 'wdr'],
-                                    13 : [1, 'ndr'],
-                                    14 : [1, 'srsudwest'],
-                                    15 : [1, 'rtbf1'],
-                                    16 : [1, 'rtbf2'],
                                     17 : [0, 'tv5'],
                                     18 : [0, 'ngc'],
-                                    19 : [1, 'eurosport'],
-                                    20 : [1, 'tcm'],
-                                    21 : [1, 'cartoonnetwork'],
+                                    21 : [0, 'cartoonnetwork'],
                                     24 : [0, 'canal+red'],
                                     25 : [0, 'mtv-color'],
                                     26 : [0, 'cnn'],
                                     27 : [0, 'rai'],
-                                    28 : [1, 'sat1'],
                                     29 : [0, 'discover-spacey'],
                                     31 : [0, 'rtl5'],
-                                    32 : [1, 'trt'],
+                                    32 : [0, 'trt'],
                                     34 : [0, 'veronica'],
                                     35 : [0, 'tmf'],
                                     36 : [0, 'sbs6'],
                                     37 : [0, 'net5'],
-                                    38 : [1, 'arte'],
                                     39 : [0, 'canal+blue'],
                                     40 : [0, 'at5'],
                                     46 : [0, 'rtl7'],
+                                    65 : [0, 'animal-planet'],
+                                    86 : [0, 'bbc-world'],
+                                    90 : [0, 'bvn'],
+                                    91 : [0, 'comedy_central'],
+                                    92 : [0, 'rtl8'],
+                                    100 : [0, 'rtvu'],
+                                    101 : [0, 'tvwest'],
+                                    102 : [0, 'tvrijnmond'],
+                                    103 : [0, 'rtvnh'],
+                                    107 : [0, 'canal+yellow'],
+                                    108 : [0, 'tvnoord'],
+                                    109 : [0, 'omropfryslan'],
+                                    114 : [0, 'omroepbrabant'],
+                                    300 : [0, 'bbc3'],
+                                    301 : [0, 'bbc4'],
+                                    11 : [1, 'rtl'],
+                                    13 : [1, 'ndr'],
+                                    14 : [1, 'srsudwest'],
+                                    15 : [1, 'rtbf1'],
+                                    16 : [1, 'rtbf2'],
+                                    19 : [1, 'eurosport'],
+                                    20 : [1, 'tcm'],
+                                    28 : [1, 'sat1'],
+                                    38 : [1, 'arte'],
                                     49 : [1, 'vtm'],
                                     50 : [1, '3sat'],
                                     58 : [1, 'pro7'],
                                     59 : [1, 'kanaal2'],
                                     60 : [1, 'vt4'],
-                                    65 : [0, 'animal-planet'],
                                     73 : [1, 'mezzo'],
-                                    86 : [0, 'bbc-world'],
                                     87 : [1, 'tve'],
                                     89 : [1, 'nick'],
-                                    90 : [1, 'bvn'],
-                                    91 : [0, 'comedy_central'],
-                                    92 : [0, 'rtl8'],
                                     99 : [1, 'sport1_1'],
-                                    100 : [0, 'rtvu'],
-                                    101 : [0, 'tvwest'],
-                                    102 : [0, 'tvrijnmond'],
-                                    103 : [1, 'tvnoordholland'],
                                     104 : [1, 'bbcprime'],
-                                    105 : [1, 'spiceplatinum'],
-                                    107 : [0, 'canal+yellow'],
-                                    108 : [0, 'tvnoord'],
-                                    109 : [0, 'omropfryslan'],
-                                    114 : [0, 'omroepbrabant']}
+                                    105 : [1, 'spiceplatinum']}
 
     def xmlescape(self, s):
         """Escape <, > and & characters for use in XML"""
@@ -5633,14 +5925,12 @@ class XMLoutput:
             self.xml_channels[chanid].append(self.add_starttag('channel', 2, 'id="%s%s"' % (chanid, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
             self.xml_channels[chanid].append(self.add_starttag('display-name', 4, 'lang="nl"', config.channels[chanid].chan_name, True))
             if (config.channels[chanid].opt_dict['logos']):
-                try:
-                    ikey = int(chanid)
-                    if ikey in self.logo_names:
-                        full_logo_url = self.logo_provider[self.logo_names[ikey][0]] + self.logo_names[ikey][1]+'.gif'
-                        self.xml_channels[chanid].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
+                if -1 < config.channels[chanid].icon_source < 4:
+                    full_logo_url = self.logo_provider[config.channels[chanid].icon_source] + config.channels[chanid].icon
+                    self.xml_channels[chanid].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
 
-                except Exception:
-                    pass
+                elif config.channels[chanid].icon_source == 99:
+                    self.xml_channels[chanid].append(self.add_starttag('icon', 4, 'src="%s"' % config.channels[chanid].icon, '', True))
 
             self.xml_channels[chanid].append(self.add_endtag('channel', 2))
 
@@ -6099,6 +6389,10 @@ def main():
 
         if xml_output.program_cache != None:
             xml_output.program_cache.clean()
+
+        #~ teveblad.init_channels()
+        #~ teveblad.get_channels()
+        return(0)
 
         # fetch all the primairy data
         # Start the seperate fetching threads
