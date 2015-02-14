@@ -1393,7 +1393,7 @@ class Configure:
                 self.channels[chanid].icon_source = xml_output.logo_names[int(chanid)][0]
                 self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.gif'
 
-        # Get the other channels
+        # Get the other sources
         for index in (1, 3, 2):
             xml_output.channelsource[index].init_channels()
             xml_output.channelsource[index].get_channels()
@@ -1433,8 +1433,15 @@ class Configure:
                         self.channels[chanid].icon_source = 3
                         self.channels[chanid].icon = xml_output.channelsource[2].all_channels[chanid]['icon']
 
-        # set the default prime_source
         for channel in self.channels.values():
+            # mark HD channels
+            if channel.chan_name[-3:].lower() == ' hd':
+                channel.opt_dict['mark_HD'] = True
+
+            if channel.source_id[3] != '' and xml_output.channelsource[3].all_channels[channel.source_id[3]]['HD']:
+                channel.opt_dict['mark_HD'] = True
+
+            # set the default prime_source
             if channel.source_id[2] != '':
                 channel.opt_dict['prime_source'] = 2
 
@@ -2547,7 +2554,7 @@ class FetchData(Thread):
                             if cached_program[xml_output.channelsource[1].detail_check]:
                                 log('      [cached] ' + logstring, 8, 1)
                                 tdict= config.channels[chanid].use_cache(tdict, cached_program)
-                                xml_output.all_programs[chanid].append(tdict)
+                                config.channels[chanid].all_programs.append(tdict)
                                 config.channels[chanid].fetch_count[self.proc_id] -= 1
                                 config.channels[chanid].cache_count += 1
                                 continue
@@ -2560,7 +2567,7 @@ class FetchData(Thread):
 
                         else:
                             log('[fetch failed or timed out] ' + logstring, 8, 1)
-                            xml_output.all_programs[chanid].append(tdict)
+                            config.channels[chanid].all_programs.append(tdict)
                             config.channels[chanid].fetch_count[self.proc_id] -= 1
                             config.channels[chanid].fail_count += 1
                             continue
@@ -3112,7 +3119,7 @@ class FetchData(Thread):
         adjust begin and end times to avoid gaps and overlap.
         Depending on the mode either:
         it's own data 'self.program_data[chanid]' (mode = 0) or
-        the finally joined data 'xml_output.all_programs[chanid]' (mode = 1) is parsed.
+        the finally joined data 'config.channels[chanid].all_programs' (mode = 1) is parsed.
         Not setting the overlap_strategy will use the configured default.
         For inbetween parsing you best set it to 'None'
         """
@@ -3121,7 +3128,7 @@ class FetchData(Thread):
             programs = self.program_data[chanid]
 
         elif mode == 1:
-            programs = xml_output.all_programs[chanid]
+            programs = config.channels[chanid].all_programs
 
         else:
             return
@@ -3263,7 +3270,7 @@ class FetchData(Thread):
         if mode == 0:
             self.program_data[chanid] = good_programs
         elif mode == 1:
-            xml_output.all_programs[chanid] = good_programs
+            config.channels[chanid].all_programs = good_programs
 
     def merge_sources(self, chanid, other_is_dominant = False):
         """
@@ -3280,18 +3287,15 @@ class FetchData(Thread):
         if (not chanid in self.program_data):
             self.program_data[chanid] = []
 
-        if not chanid in xml_output.all_programs:
-            xml_output.all_programs[chanid] = []
-
         if (len(self.program_data[chanid]) == 0):
             return
 
-        if len(xml_output.all_programs[chanid]) == 0:
-            xml_output.all_programs[chanid] = self.program_data[chanid]
+        if len(config.channels[chanid].all_programs) == 0:
+            config.channels[chanid].all_programs = self.program_data[chanid]
             return
 
         programs = self.program_data[chanid]
-        info = xml_output.all_programs[chanid]
+        info = config.channels[chanid].all_programs
 
         # 0 = Log Nothing
         # 1 = log not matched programs
@@ -4385,7 +4389,7 @@ class FetchData(Thread):
             for tdict in p:
                 matchlog('left over in %s' % self.source, tdict, None , 2)
 
-        xml_output.all_programs[chanid] = matched_programs
+        config.channels[chanid].all_programs = matched_programs
         try:
             infofiles.write_fetch_list(matched_programs, chanid, self.source, True)
 
@@ -5594,6 +5598,11 @@ class teveblad_HTML(FetchData):
                     self.all_channels[chanid]['name'] = item.find('img').get('title')
                     self.all_channels[chanid]['icon'] = icon
                     self.all_channels[chanid]['group'] = changroup
+                    if group == 'Digitale zenders':
+                        self.all_channels[chanid]['HD'] = True
+
+                    else:
+                        self.all_channels[chanid]['HD'] = False
 
     def load_pages(self):
 
@@ -5739,7 +5748,7 @@ class teveblad_HTML(FetchData):
                                 tdict['audio']  = 'dolby'
 
                             else:
-                                infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title').lower()))
+                                infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
 
                         elif 'genre' in d.get('class').lower():
                             genre = self.empersant(d.findtext('a'))
@@ -5814,7 +5823,8 @@ class Channel_Config(Thread):
         self.fetched_count = {}
         self.fetched_count[0] = 0
         self.fetched_count[1] = 0
-
+        # This will contain the final fetcheddata
+        self.all_programs = []
 
         self.opt_dict = {}
         self.opt_dict['fast'] = config.opt_dict['fast']
@@ -5873,14 +5883,14 @@ class Channel_Config(Thread):
 
                 if xml_data == False and self.source_data[index] == True:
                     xml_data = True
-                    xml_output.all_programs[self.chanid] = xml_output.channelsource[index].program_data[self.chanid]
+                    self.all_programs = xml_output.channelsource[index].program_data[self.chanid]
 
                 elif self.source_data[index] == True:
                     xml_data = True
                     xml_output.channelsource[index].merge_sources(self.chanid, (self.opt_dict['prime_source'] == index))
                     xml_output.channelsource[index].parse_programs(self.chanid, 1, 'None')
-                    for i in range(0, len(xml_output.all_programs[self.chanid])):
-                        xml_output.all_programs[self.chanid][i] = xml_output.channelsource[index].checkout_program_dict(xml_output.all_programs[self.chanid][i])
+                    for i in range(0, len(self.all_programs)):
+                        self.all_programs[i] = xml_output.channelsource[index].checkout_program_dict(self.all_programs[i])
 
             self.get_details()
 
@@ -5910,8 +5920,8 @@ class Channel_Config(Thread):
             # Note: this only takes place if all days retrieved are also grabbed with details (slowdays=days)
             # otherwise this function might change some titles after a few grabs and thus may result in
             # loss of programmed recordings for these programs.
-            for i, v in enumerate(xml_output.all_programs[self.chanid]):
-                xml_output.all_programs[self.chanid][i] = self.title_split(v)
+            for i, v in enumerate(self.all_programs):
+                self.all_programs[i] = self.title_split(v)
 
             xml_output.create_channel_strings(self.chanid)
             xml_output.create_program_string(self.chanid)
@@ -5982,12 +5992,11 @@ class Channel_Config(Thread):
         """
 
         # Check if there is data
-        if (not self.chanid in xml_output.all_programs) or (len(xml_output.all_programs[self.chanid]) == 0):
-            xml_output.all_programs[self.chanid] = []
+        if len(self.all_programs == 0):
             return
 
-        programs = xml_output.all_programs[self.chanid]
-        xml_output.all_programs[self.chanid] = []
+        programs = self.all_programs
+        self.all_programs = []
 
         if self.opt_dict['fast']:
             log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s) for %s days.\n' % \
@@ -6036,14 +6045,14 @@ class Channel_Config(Thread):
                   or (no_fetch and cached_program[xml_output.channelsource[1].detail_check]):
                     log('      [cached] ' + logstring, 8, 1)
                     self.cache_count += 1
-                    xml_output.all_programs[self.chanid].append(self.use_cache(programs[i], cached_program))
+                    self.all_programs.append(self.use_cache(programs[i], cached_program))
                     continue
 
             # Either we are fast-mode, outsite slowdays or there is no url. So we continue
             if no_fetch or ((programs[i][xml_output.channelsource[0].detail_url] == '') and (programs[i][xml_output.channelsource[1].detail_url] == '')):
                 log('    [no fetch] ' + logstring, 8, 1)
                 self.none_count += 1
-                xml_output.all_programs[self.chanid].append(programs[i])
+                self.all_programs.append(programs[i])
                 continue
 
             detailed_program = None
@@ -6098,8 +6107,6 @@ class XMLoutput:
         xmlencoding = 'UTF-8'
         # This will contain the cache
         self.program_cache = None
-        # This will contain the final fetcheddata
-        self.all_programs = {}
         # Thes will contain the seperate XML strings
         self.startstring = []
         self.xml_channels = {}
@@ -6245,8 +6252,8 @@ class XMLoutput:
         Create all the program strings
         '''
         self.xml_programs[chanid] = []
-        self.all_programs[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
-        for program in self.all_programs[chanid]:
+        config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
+        for program in config.channels[chanid].all_programs:
             xml = []
 
             # Start/Stop
