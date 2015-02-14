@@ -5249,7 +5249,7 @@ class teveblad_HTML(FetchData):
                                 tdict['audio']  = 'dolby'
 
                             else:
-                                infofiles.addto_detail_list(unicode('new teveblad picondata => ' + p.group(1) + '=' + p.group(2)))
+                                infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
 
                         elif 'genre' in d.get('class').lower():
                             genre = self.empersant(d.findtext('a'))
