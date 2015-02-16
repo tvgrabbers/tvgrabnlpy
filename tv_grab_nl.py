@@ -136,6 +136,7 @@ try:
 except ImportError:
     from htmlentitydefs import name2codepoint
 from threading import Thread
+from threading import Lock
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
 from collections import deque
@@ -210,7 +211,7 @@ CET_CEST = AmsterdamTimeZone()
 UTC  = UTCTimeZone()
 
 config = None
-def log(message, log_level = 1, log_target = 3):
+def log(message, log_level = 1, log_target = 3, Locked = False):
     # Prints a warning to stderr.
     # Note: The function encodes all ouput to utf-8. This may be wrong.
     # TODO: use sys.stdout.encoding, locale.getpreferredencoding(), sys.getfilesystemencoding(), and/or
@@ -219,19 +220,33 @@ def log(message, log_level = 1, log_target = 3):
     def now():
          return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S %Z') + ': '
 
-    # If config is not yet available
-    if (config == None) and (log_target & 1):
-        sys.stderr.write('Error writing to log. Not (yet) available?\n')
-        sys.stderr.write(message.encode("utf-8"))
-        return
+    try:
+        # If config is not yet available
+        if (config == None) and (log_target & 1):
+            sys.stderr.write('Error writing to log. Not (yet) available?\n')
+            sys.stderr.write(message.encode("utf-8"))
+            return
 
-    # Log to the screen
-    if log_level == 0 or ((not config.args.quiet) and (log_level & config.log_level) and (log_target & 1)):
-        sys.stdout.write(message.encode("utf-8"))
+        if not Locked:
+            # If it's not locked beforehand
+            config.log_lock.acquire()
 
-    # Log to the log-file
-    if (log_level == 0 or ((log_level & config.log_level) and (log_target & 2))) and config.log_output != None:
-       sys.stderr.write(now() + message.replace('\n','') + '\n')
+        # Log to the screen
+        if log_level == 0 or ((not config.args.quiet) and (log_level & config.log_level) and (log_target & 1)):
+            sys.stdout.write(message.encode("utf-8"))
+
+        # Log to the log-file
+        if (log_level == 0 or ((log_level & config.log_level) and (log_target & 2))) and config.log_output != None:
+           sys.stderr.write(now() + message.replace('\n','') + '\n')
+
+        if not Locked:
+            config.log_lock.release()
+
+    except:
+        print 'An error ocured while the logging!'
+        sys.stderr.write(now() + 'An error ocured while the logging!\n')
+        if not Locked:
+            config.log_lock.release()
 
 # end log()
 
@@ -266,6 +281,7 @@ class Configure:
         self.log_level = 47
         # The log filehandler, gets set later
         self.log_output = None
+        self.log_lock = Lock()
 
         # What match results go to the log/screen (needs code 32 above)
         # 0 = Log Nothing (just the overview)
@@ -310,6 +326,9 @@ class Configure:
 
         # cache the detail information.
         self.program_cache_file = u'%s/program_cache' % self.xmltv_dir
+
+        # save the cache every # fetches
+        self.opt_dict['cache_save_interval'] = 1000
 
         # where the output goes. None means to the screen (stdout)
         self.output_file = None
@@ -965,7 +984,11 @@ class Configure:
 
         parser.add_argument('-A', '--cache', type = str, default = self.program_cache_file, dest = 'program_cache_file',
                         metavar = '<file>',
-                        help = 'cache descriptions and use the file to store')
+                        help = 'cache descriptions and use the file to store(%s)' % self.program_cache_file)
+
+        parser.add_argument('-S', '--cache-save-interval', type = int, default = None, dest = 'cache_save_interval',
+                        metavar = '<number>',
+                        help = 'after how many fetches to save the cache(%s)' % self.opt_dict['cache_save_interval'])
 
         parser.add_argument('--clean_cache', action = 'store_true', default = clean_cache, dest = 'clean_cache',
                         help = 'clean the cache file before fetching')
@@ -1063,13 +1086,12 @@ class Configure:
             return False
 
         if self.configversion == 1.0:
-            # Update to a version 2 config
-            f.close()
-            self.write_config()
-            f = self.open_file(self.config_file)
+            type = 2
+
+        else:
+            type = 0
 
         f.seek(0,0)
-        type = 0
         section = self.__CONFIG_SECTIONS__[2]
         for byteline in f.readlines():
             try:
@@ -1120,7 +1142,8 @@ class Configure:
 
                         elif len(a) == 2:
                             # Integer Values
-                            if a[0].lower().strip() in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', 'tevedays', 'max_overlap', 'desc_length'):
+                            if a[0].lower().strip() in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', \
+                              'tevedays', 'max_overlap', 'desc_length', 'cache_save_interval'):
                                 try:
                                     int(a[1])
 
@@ -1165,7 +1188,7 @@ class Configure:
                         if len(channel) != 8:
                             continue
 
-                        for index in range(4):
+                        for index in range(xml_output.source_count):
                             if channel[index + 2].strip() != '':
                                 chanid = unicode(channel[index + 2]).strip()
                                 self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[index + 2].strip()] = chanid
@@ -1176,7 +1199,7 @@ class Configure:
                             continue
 
                         self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]).strip(), int(channel[1]))
-                        for index in range(4):
+                        for index in range(xml_output.source_count):
                             self.channels[chanid].source_id[index] = unicode(channel[index + 2]).strip()
 
                         self.channels[chanid].icon_source = int(channel[6])
@@ -1238,7 +1261,7 @@ class Configure:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
 
             except Exception as e:
-                log(u'Error reading Config')
+                log(u'Error reading Config\n')
                 continue
 
         f.close()
@@ -1377,7 +1400,14 @@ class Configure:
         Get a list of all available channels and store these
         in a file.
         """
-        teveblad_empty = ('rtl4', 'rtl5', 'sbs6', 'tv5monde-europe', 'cnn', 'tcm', 'cartoon-network', \
+        # These channels contain no data!
+        empty_channels = {}
+        empty_channels[0] = ('83','308','309','310','20','65','401','403','412', '427')
+        empty_channels[1] = ('eurosport-hd', 'la-une-hd', 'tf1-hd', 'vtm-hd', 'tmf', 'life-tv', \
+            'espn-america', 'espn-classic', 'canal-z', 'disney-playhouse', 'exqi-sport-culture', \
+            'prime-sport', 'vitaliteit', 'vtmkzoom-2', 'ketnet-op12', 'cnbc-europe', 'virgin-1')
+        empty_channels[2] = []
+        empty_channels[3] = ('rtl4', 'rtl5', 'sbs6', 'tv5monde-europe', 'cnn', 'tcm', 'cartoon-network', \
             'rtp-international', 'foxlife', 'discovery-id', 'studio100-tv', 'fashion-one', 'tnt-benelux', \
             'historychannel', 'nickelodeonnl', 'bbc-world', 'mgmmoviechannel', 'discovery-world', \
             'discovery-science', 'sport-10', 'culture-7', 'espn', 'pebbletv', 'lacht', '13th-street', \
@@ -1387,6 +1417,9 @@ class Configure:
         xml_output.channelsource[0].get_channels()
         self.channels = {}
         for chanid in xml_output.channelsource[0].all_channels.keys():
+            if (chanid.lower() in empty_channels[0]):
+                continue
+
             self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chanid]['name'])
             self.channels[chanid].source_id[0] = chanid
             if int(chanid) in xml_output.logo_names:
@@ -1404,7 +1437,7 @@ class Configure:
             for chanid in xml_output.channelsource[index].all_channels.keys():
                 if chanid in self.source_channels[index].values() and reverse_channels[chanid] in self.channels.keys():
                     # These channels are for show, but we like the icons!
-                    if not(index == 3 and chanid.lower() in teveblad_empty):
+                    if not(chanid in empty_channels[index]):
                         self.channels[reverse_channels[chanid]].source_id[index] = chanid
 
                     if self.channels[reverse_channels[chanid]].group == 10:
@@ -1419,7 +1452,7 @@ class Configure:
                         self.channels[reverse_channels[chanid]].icon = xml_output.channelsource[2].all_channels[chanid]['icon']
 
                 else:
-                    if (index == 3 and chanid.lower() in teveblad_empty):
+                    if (chanid in empty_channels[index]):
                         continue
 
                     self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[index].all_channels[chanid]['name'])
@@ -1454,14 +1487,6 @@ class Configure:
                         channel.opt_dict['prime_source'] = index
                         break
 
-       # and create a file with the channels
-        if not self.write_config(False, True):
-            log('Error writing new Config. Trying to restore an old one.')
-            return 1
-            try:
-                os.rename(file + '.old', file)
-            except:
-                pass
         return 0
 
     # end get_channels()
@@ -1511,14 +1536,14 @@ class Configure:
                 os.mkdir(config_dir)
             log('Creating config file: %s\n' % self.config_file)
             x = self.get_channels()
-            # If save options was also set, we continue to validate and add them.
-            if not self.args.save_options or x != 0:
-                return(x)
 
         # get config if available Overrule if set by commandline
-        if not self.read_config():
+        elif not self.read_config():
             log('error reading configfile\n')
             return(1)
+
+        if self.args.cache_save_interval == None:
+            self.args.cache_save_interval = self.opt_dict['cache_save_interval']
 
         if self.args.quiet == None:
             self.args.quiet = self.opt_dict['quiet']
@@ -1657,13 +1682,38 @@ class Configure:
         self.args.rtldays = min(self.args.rtldays,(14 - self.args.offset))
         self.args.rtldays = min(self.args.days, self.args.rtldays)
 
+        if self.configversion< 2.1:
+            # Update to a version 2.1 config
+            if not self.write_config(None):
+                log('Error updating to new Config.\nPlease remove the old config and Re-run me with the --configure flag.\n')
+                return(1)
+
+            log('Updated the configfile!\nCheck if you are fine with the settings.')
+            return(0)
+
         # Continue validating the settings for the individual channels
         for chanid in self.channels.keys():
             self.channels[chanid].validate_settings()
 
         self.write_opts_to_log()
         if self.args.save_options:
-            self.write_config(True, False)
+            if not self.write_config(False):
+                log('Error writing new Config. Trying to restore an old one.\n')
+                return(1)
+                try:
+                    os.rename(file + '.old', file)
+                except:
+                    pass
+            return(0)
+
+        if self.args.configure:
+            if not self.write_config(True):
+                log('Error writing new Config. Trying to restore an old one.')
+                return 1
+                try:
+                    os.rename(file + '.old', file)
+                except:
+                    pass
             return(0)
 
         #check for cache
@@ -1675,9 +1725,6 @@ class Configure:
             xml_output.program_cache.clear()
 
         self.read_defaults_list()
-
-        if xml_output.program_cache != None:
-            xml_output.program_cache.clean()
 
     # end validate_commandline()
 
@@ -1696,6 +1743,7 @@ class Configure:
         log(u'match log level = %s' % (self.match_log_level), 1, 2)
         log(u'config_file = %s' % (self.args.config_file), 1, 2)
         log(u'program_cache_file = %s' % (self.args.program_cache_file), 1, 2)
+        log(u'cache_save_interval = %s' % (self.args.cache_save_interval), 1, 2)
         log(u'clean_cache = %s' % (self.args.clean_cache), 1, 2)
         log(u'clear_cache = %s' % (self.args.clear_cache), 1, 2)
         log(u'output_file = %s' % (self.args.output_file), 1, 2)
@@ -1717,7 +1765,7 @@ class Configure:
         log(u'Channel specific settings other then the above:', 1, 2)
         for chan_def in self.channels.values():
             chan_name_written = False
-            for index in range(4):
+            for index in range(xml_output.source_count):
                 if chan_def.source_id[index] != '':
                     if chan_def.opt_dict['prime_source'] != index:
                         log(u'[Channel %s]\n' % (chan_def.chanid), 1, 2)
@@ -1736,9 +1784,9 @@ class Configure:
 
     # end write_opts_to_log()
 
-    def write_config(self, with_args = False, add_channels = None):
+    def write_config(self, add_channels = None):
         """
-        Save the channel info and the default options if with_args is True
+        Save the channel info and the default options
         if add_channels is False or None we copy over the Channels sections
         If add_channels is None we convert the channel info to the new form
         if add_channels is True we create a fresh channels section
@@ -1753,57 +1801,57 @@ class Configure:
         f.write(u'\n')
 
         # Save the options
-        if with_args:
-            f.write(u'# This is a list with default options set by the --save-options (-O)\n')
-            f.write(u'# argument. They can be overruled on the commandline.\n')
-            f.write(u'# !!THIS MUST COME FIRST BEFORE THE CHANNEL SECTIONS!!\n')
-            f.write(u'# !!OR SYSTEM DEFAULTS WILL BE USED INSTEAD!!\n')
-            f.write(u'# Be carefull with manually editing. Invalid options will be\n')
-            f.write(u'# silently ignored. Boolean options can be set with True/False,\n')
-            f.write(u'# On/Off or 1/0. Leaving it blank sets them on. Setting an invalid\n')
-            f.write(u'# value sets them off. You can always check the log for the used values.\n')
-            f.write(u'# To edit you beter run --save-options with all the desired defaults.\n')
-            f.write(u'# Options not shown here can not be set this way.\n')
+        f.write(u'# This is a list with default options set by the --save-options (-O)\n')
+        f.write(u'# argument. They can be overruled on the commandline.\n')
+        f.write(u'# !!THIS MUST COME FIRST BEFORE THE CHANNEL SECTIONS!!\n')
+        f.write(u'# !!OR SYSTEM DEFAULTS WILL BE USED INSTEAD!!\n')
+        f.write(u'# Be carefull with manually editing. Invalid options will be\n')
+        f.write(u'# silently ignored. Boolean options can be set with True/False,\n')
+        f.write(u'# On/Off or 1/0. Leaving it blank sets them on. Setting an invalid\n')
+        f.write(u'# value sets them off. You can always check the log for the used values.\n')
+        f.write(u'# To edit you beter run --save-options with all the desired defaults.\n')
+        f.write(u'# Options not shown here can not be set this way.\n')
+        f.write(u'\n')
+        f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[1])
+        if self.write_info_files:
+            f.write(u'write_info_files = True\n')
             f.write(u'\n')
-            f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[1])
-            if self.write_info_files:
-                f.write(u'write_info_files = True\n')
-                f.write(u'\n')
-            f.write(u'# This handles what goes to the log and screen\n')
-            f.write(u'# 0 Nothing (use quiet mode to turns off screen output, but keep a log)\n')
-            f.write(u'# 1 include Errors and Warnings\n')
-            f.write(u'# 2 include page fetches\n')
-            f.write(u'# 4 include (merge) summaries\n')
-            f.write(u'# 8 include detail fetches to the screen\n')
-            f.write(u'# 16 include detail fetches to the log\n')
-            f.write(u'# 32 include matchlogging (see below)\n')
-            f.write(u'# 64 Title renames\n')
-            f.write(u'log_level = %s\n' % self.log_level)
-            f.write(u'\n')
-            f.write(u'# What match results go to the log/screen (needs code 32 above)\n')
-            f.write(u'# 0 = Log Nothing (just the overview)\n')
-            f.write(u'# 1 = log not matched programs\n')
-            f.write(u'# 2 = log left over programs\n')
-            f.write(u'# 4 = Log matches\n')
-            f.write(u'match_log_level = %s\n' % self.match_log_level)
-            f.write(u'\n')
-            f.write(u'quiet = %s\n' % self.args.quiet)
-            f.write(u'output_file = %s\n' % self.args.output_file)
-            f.write(u'compat = %s\n' % self.args.compat)
-            f.write(u'logos = %s\n' % self.args.logos)
-            f.write(u'use_utc = %s\n' % self.args.use_utc)
-            f.write(u'fast = %s\n' % self.args.fast)
-            f.write(u'offset = %s\n' % self.args.offset)
-            f.write(u'days = %s\n' % self.args.days)
-            f.write(u'slowdays = %s\n' % self.args.slowdays)
-            f.write(u'rtldays = %s\n' % self.args.rtldays)
-            f.write(u'tevedays = %s\n' % self.args.tevedays)
-            f.write(u'mark_HD = %s\n' % self.args.mark_HD)
-            f.write(u'cattrans = %s\n' % self.args.cattrans)
-            f.write(u'overlap_strategy = %s\n' % self.args.overlap_strategy )
-            f.write(u'max_overlap = %s\n' % self.args.max_overlap)
-            f.write(u'desc_length = %s\n' % self.args.desc_length)
-            f.write(u'\n')
+        f.write(u'# This handles what goes to the log and screen\n')
+        f.write(u'# 0 Nothing (use quiet mode to turns off screen output, but keep a log)\n')
+        f.write(u'# 1 include Errors and Warnings\n')
+        f.write(u'# 2 include page fetches\n')
+        f.write(u'# 4 include (merge) summaries\n')
+        f.write(u'# 8 include detail fetches to the screen\n')
+        f.write(u'# 16 include detail fetches to the log\n')
+        f.write(u'# 32 include matchlogging (see below)\n')
+        f.write(u'# 64 Title renames\n')
+        f.write(u'log_level = %s\n' % self.log_level)
+        f.write(u'\n')
+        f.write(u'# What match results go to the log/screen (needs code 32 above)\n')
+        f.write(u'# 0 = Log Nothing (just the overview)\n')
+        f.write(u'# 1 = log not matched programs\n')
+        f.write(u'# 2 = log left over programs\n')
+        f.write(u'# 4 = Log matches\n')
+        f.write(u'match_log_level = %s\n' % self.match_log_level)
+        f.write(u'\n')
+        f.write(u'quiet = %s\n' % self.args.quiet)
+        f.write(u'output_file = %s\n' % self.args.output_file)
+        f.write(u'cache_save_interval = %s\n' % self.args.cache_save_interval)
+        f.write(u'compat = %s\n' % self.args.compat)
+        f.write(u'logos = %s\n' % self.args.logos)
+        f.write(u'use_utc = %s\n' % self.args.use_utc)
+        f.write(u'fast = %s\n' % self.args.fast)
+        f.write(u'offset = %s\n' % self.args.offset)
+        f.write(u'days = %s\n' % self.args.days)
+        f.write(u'slowdays = %s\n' % self.args.slowdays)
+        f.write(u'rtldays = %s\n' % self.args.rtldays)
+        f.write(u'tevedays = %s\n' % self.args.tevedays)
+        f.write(u'mark_HD = %s\n' % self.args.mark_HD)
+        f.write(u'cattrans = %s\n' % self.args.cattrans)
+        f.write(u'overlap_strategy = %s\n' % self.args.overlap_strategy )
+        f.write(u'max_overlap = %s\n' % self.args.max_overlap)
+        f.write(u'desc_length = %s\n' % self.args.desc_length)
+        f.write(u'\n')
 
         f.write(u'# These are the channels to parse. You can disable a channel by placing\n')
         f.write(u'# a \'#\' in front. Seperated by \';\' you see on every line: The Name,\n')
@@ -1898,7 +1946,7 @@ class Configure:
         f.write(u'# Channel specific settings other then the above or the default:\n')
         for chan_def in self.channels.values():
             chan_name_written = False
-            for index in range(4):
+            for index in range(xml_output.source_count):
                 if chan_def.source_id[index] != '':
                     if chan_def.opt_dict['prime_source'] != index:
                         f.write(u'\n')
@@ -2085,10 +2133,20 @@ class Configure:
     # end write_defaults_list()
 
     def close(self):
+
+        infofiles.close()
+
+        # Quiting any remaining Threads
+        for source in xml_output.channelsource.values():
+            source.quit = True
+
+        for channel in config.channels.values():
+            channel.quit = True
+
+        xml_output.program_cache.quit = True
+
         # close everything neatly
         try:
-            infofiles.close()
-
             if self.output_file != None:
                 self.output.close()
 
@@ -2237,7 +2295,7 @@ class InfoFiles:
 
                 f.close()
 
-            f = config.open_file(config.xmltv_dir+'/detail_output', 'w')
+            f = config.open_file(config.xmltv_dir+'/detail_output', 'wb')
             if (f != None):
                 ds = set(self.detail_list)
                 ds = set(self.detail_list)
@@ -2255,7 +2313,7 @@ infofiles = InfoFiles()
 # Work in progress, the idea is to cache program categories and
 # descriptions to eliminate a lot of page fetches from tvgids.nl
 # for programs that do not have interesting/changing descriptions
-class ProgramCache:
+class ProgramCache(Thread):
     """
     A cache to hold program name and category info.
     TVgids stores the detail for each program on a separate URL with an
@@ -2264,6 +2322,7 @@ class ProgramCache:
     page fetch.
     """
     def __init__(self, filename=None):
+        Thread.__init__(self)
         """
         Create a new ProgramCache object, optionally from file
         """
@@ -2271,68 +2330,105 @@ class ProgramCache:
         # where we store our info
         self.filename  = filename
         self.delta_hour = datetime.timedelta(hours = 1)
+        self.lock = Lock()
+        self.quit = False
+        self.save = False
+        self.counter = 0
 
         if filename == None:
             self.pdict = {}
 
         else:
             if os.path.isfile(filename):
-                self.load(filename)
+                self.load()
 
             else:
                 self.pdict = {}
 
-    def load(self, filename):
+    def run(self):
+        while True:
+            if self.save:
+                self.dump()
+                self.save = False
+
+            if self.counter == config.args.cache_save_interval:
+                self.dump()
+                self.counter = 0
+
+            if self.quit:
+                self.dump()
+                break
+
+    def load(self):
         """
         Loads a pickled cache dict from file
         """
+        self.lock.acquire()
         try:
-            self.pdict = pickle.load(open(filename,'r'))
+            self.pdict = pickle.load(open(self.filename,'r'))
 
         except Exception:
-            log('Error loading cache file: %s (possibly corrupt)' % filename)
+            log('Error loading cache file: %s (possibly corrupt)' % self.filename)
             self.clear()
 
-    def dump(self, filename):
+        self.lock.release()
+
+    def dump(self):
         """
         Dumps a pickled cache, and makes sure it is valid
         """
 
-        if os.access(filename, os.F_OK):
+        self.lock.acquire()
+        pdict_tmp = self.pdict.copy()
+        self.lock.release()
+
+        if os.access(self.filename, os.F_OK):
             try:
-                os.remove(filename)
+                os.rename(self.filename, self.filename + '.tmp')
 
             except Exception:
-                log('Cannot remove %s, check permissions' % filename)
+                log('Cannot rename %s, check permissions' % self.filename)
 
-        tmpfile = open(filename+'.tmp', 'w')
-        pickle.dump(self.pdict, tmpfile)
-
+        tmpfile = open(self.filename, 'w')
+        pickle.dump(pdict_tmp, tmpfile)
+        pdict_tmp = None
         try:
             tmpfile.close()
 
         except IOError:
             pass
 
-        os.rename(filename+'.tmp', filename)
+        if os.access(self.filename +'.tmp', os.F_OK):
+            try:
+                os.remove(self.filename +'.tmp')
+
+            except Exception:
+                log('Cannot remove %s, check permissions' % self.filename +'.tmp')
+
 
     def query(self, program_id):
         """
         Updates/gets/whatever.
         """
+        self.lock.acquire()
         if program_id in self.pdict.keys():
+            self.lock.release()
             return self.pdict[program_id]
 
+        self.lock.release()
         return None
 
     def query_id(self, program):
         """
         Check which ID is used
         """
+        self.lock.acquire()
         for id in self.ID_list:
             if program[id] != '' and program[id] != None and program[id] in self.pdict.keys():
+                self.lock.release()
                 return id
 
+        self.lock.release()
         return None
 
     def add(self, program):
@@ -2341,21 +2437,27 @@ class ProgramCache:
         """
         # First check if it was previously saved to prevent doubles
         id = self.query_id(program)
-        if id != None and id in program and program[id] in self.pdict:
+        self.lock.acquire()
+        if id != None and id in program and program[id] in self.pdict.keys():
             del self.pdict[program[id]]
 
         for id in self.ID_list:
             if program[id] != '' and program[id] != None:
                 self.pdict[program[id]] = program
+                self.counter+= 1
+                self.lock.release()
                 return
 
+        self.lock.release()
         log('Error saving program %s to the cache.' %  program['name'])
 
     def clear(self):
         """
         Clears the cache (i.e. empties it)
         """
+        self.lock.acquire()
         self.pdict = {}
+        self.lock.release()
 
     def clean(self):
         """
@@ -2363,6 +2465,7 @@ class ProgramCache:
         Also removes erroneously cached programming.
         """
         dnow = datetime.date.today()
+        self.lock.acquire()
         for key in self.pdict.keys():
             try:
                 p = self.pdict[key]
@@ -2375,6 +2478,8 @@ class ProgramCache:
 
             except LookupError:
                 continue
+
+        self.lock.release()
 
 # end ProgramCache
 
@@ -2506,13 +2611,8 @@ class FetchData(Thread):
 
             if self.detail_processor:
                 # We process detail requests, so we loop till we are finished
-                counter = 0
                 while True:
                     if self.quit:
-                        # Quiting request received, but first save the cache
-                        if xml_output.program_cache != None:
-                            xml_output.program_cache.dump(config.args.program_cache_file)
-
                         self.ready = True
                         break
 
@@ -2530,9 +2630,6 @@ class FetchData(Thread):
                             # if we are tvgids.tv we wait for followup requests from tvgids.nl failures
                             if (self.proc_id == 1) and (not xml_output.channelsource[0].ready):
                                 continue
-
-                            if xml_output.program_cache != None:
-                                xml_output.program_cache.dump(config.args.program_cache_file)
 
                             self.ready = True
                             break
@@ -2582,18 +2679,12 @@ class FetchData(Thread):
                         # do not cache programming that is unknown at the time of fetching.
                         if tdict['name'].lower() != 'onbekend':
                             xml_output.program_cache.add(xml_output.channelsource[0].checkout_program_dict(tdict))
-                            counter += 1
-                            if counter == 100:
-                                # We save the cache every 100 succesful requests
-                                counter = 0
-                                if xml_output.program_cache != None:
-                                    xml_output.program_cache.dump(config.args.program_cache_file)
 
             else:
                 self.ready = True
 
         except:
-            #~ err_obj = sys.exc_info()[2]
+            err_obj = sys.exc_info()[2]
             log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
             #~ log('                                at line: %s, %s\n' %  (self.source, err_obj.tb_lineno, err_obj.tb_lasti, ), 0)
 
@@ -2613,6 +2704,7 @@ class FetchData(Thread):
             for channel in config.channels.values():
                 channel.quit = True
 
+            xml_output.program_cache.quit = True
             return(98)
 
     # Dummys to be filled in by the sub-Classes
@@ -3272,7 +3364,7 @@ class FetchData(Thread):
         elif mode == 1:
             config.channels[chanid].all_programs = good_programs
 
-    def merge_sources(self, chanid, other_is_dominant = False):
+    def merge_sources(self, chanid, other_is_dominant = False, counter = 0):
         """
         Try to match the source channel info into the tvgids.nl. For all channels except the RTL channels
         tvgids.nl is the dominant source. It provides the ID', and the best genre info, but only
@@ -3899,14 +3991,24 @@ class FetchData(Thread):
 
         # end check_match_to_programs()
 
-        log('\n', 4)
+        log('\n', 2)
+        log_array =[]
+        log_array.append('\n')
         if other_is_dominant:
             # This goes for the belgium/british channels from teveblad.be (programs) and the rtl channels
-            log('Merging %s: %s programs from tvgids.nl into %s programs from %s\n' % (config.channels[chanid].chan_name, len(info) , len(programs), self.source), 4)
+            log('Merging %s (channel %s of %s): %s programs from tvgids.nl into %s programs from %s\n' % \
+                (config.channels[chanid].chan_name, counter, len(config.channels), len(info) , len(programs), self.source), 2)
+
+            log_array.append('Merg statistics of %s (channel %s of %s) from tvgids.nl into %s\n' % \
+                (config.channels[chanid].chan_name, counter, len(config.channels), self.source))
 
         else:
             # this goes for adding tvgids.tv (programs) to tvgids.nl (info) and most channels from teveblad.be (programs)
-            log('Merging %s: %s programs from %s into %s programs from tvgids.nl\n' % (config.channels[chanid].chan_name , len(programs), self.source, len(info)), 4)
+            log('Merging %s (channel %s of %s): %s programs from %s into %s programs from tvgids.nl\n' % \
+                (config.channels[chanid].chan_name , counter, len(config.channels), len(programs), self.source, len(info)), 2)
+
+            log_array.append('Merg statistics of %s (channel %s of %s) from %s into tvgids.nl\n' % \
+                (config.channels[chanid].chan_name , counter, len(config.channels), self.source))
 
         # Do some general renaming to match tvgids.nl naming
         for i in range(0, len(programs)):
@@ -3929,8 +4031,8 @@ class FetchData(Thread):
         # and organise them by name and start-time
         info_starttimes = {}
         info_names = {}
-        log('%4.0f programs in info     for range: %s - %s, \n' % \
-            (len(info), infostarttime.strftime('%d-%b %H:%M:%S'), infoendtime.strftime('%d-%b %H:%M:%S')), 4)
+        log_array.append('%6.0f programs in info     for range: %s - %s, \n' % \
+            (len(info), infostarttime.strftime('%d-%b %H:%M:%S'), infoendtime.strftime('%d-%b %H:%M:%S')))
 
         gcount = 0
         ocount = 0
@@ -3984,9 +4086,10 @@ class FetchData(Thread):
         prog_names = {}
         prog_stoptimes ={}
         prog_starttimes ={}
-        log('%4.0f programs in %s for range: %s - %s\n' % \
-            (len(programs), self.source.ljust(8), progstarttime.strftime('%d-%b %H:%M:%S'), progendtime.strftime('%d-%b %H:%M:%S')), 4)
+        log_array.append('%6.0f programs in %s for range: %s - %s\n' % \
+            (len(programs), self.source.ljust(8), progstarttime.strftime('%d-%b %H:%M:%S'), progendtime.strftime('%d-%b %H:%M:%S')))
 
+        log_array.append('\n')
         for tdict in programs[:]:
             # Remove generic slots from teveblad.be en move the counterparts to matched
             if (self.source == 'teveblad') and tdict['name'].lower() in config.teveblad_genericnames:
@@ -4043,10 +4146,11 @@ class FetchData(Thread):
                 prog_names[rname][tdict['start-time']] = {}
                 prog_names[rname][tdict['start-time']]['state'] = 'no match'
 
-        log('%4.0f programs added outside common timerange\n' % ocount, 4)
-        log('%4.0f details  added from group slots\n' % gcount, 4)
-        log('%4.0f programs left in info to match\n' % (len(info)), 4)
-        log('%4.0f programs left in %s to match\n' % (len(programs), self.source), 4)
+        log_array.append('%6.0f programs added outside common timerange\n' % ocount)
+        log_array.append('%6.0f details  added from group slots\n' % gcount)
+        log_array.append('%6.0f programs left in info to match\n' % (len(info)))
+        log_array.append('%6.0f programs left in %s to match\n' % (len(programs), self.source))
+        log_array.append('\n')
 
         # Try to match programs outside the reach of  info to get genre
         for tdict in generic_match[:]:
@@ -4233,13 +4337,13 @@ class FetchData(Thread):
                                 rcount += 1
                                 break
 
-                log('%4.0f programs generically matched on name to get genre\n' % rcount, 4)
+                log_array.append('%6.0f programs generically matched on name to get genre\n' % rcount)
                 if rcount == 0:
                     break
 
-            log('%4.0f programs matched on time and name\n' % ncount, 4)
-            log('%4.0f programs matched on time and genre\n' % gcount, 4)
-            log('%4.0f programs added unmatched from %s\n' % (len(programs), self.source), 4)
+            log_array.append('%6.0f programs matched on time and name\n' % ncount)
+            log_array.append('%6.0f programs matched on time and genre\n' % gcount)
+            log_array.append('%6.0f programs added unmatched from %s\n' % (len(programs), self.source))
 
             # List unmatched items to the log
             for tdict in programs[:]:
@@ -4368,8 +4472,8 @@ class FetchData(Thread):
                     else:
                         add_using_tvgids_timing(tdict, pi, True)
 
-            log('%4.0f programs matched on time and name\n' % ncount, 4)
-            log('%4.0f programs added unmatched from info\n' % len(info), 4)
+            log_array.append('%6.0f programs matched on time and name\n' % ncount)
+            log_array.append('%6.0f programs added unmatched from info\n' % len(info))
 
             # List unmatched items to the log
             for tdict in info[:]:
@@ -4388,6 +4492,13 @@ class FetchData(Thread):
             p.sort(key=lambda program: (program['start-time'],program['stop-time']))
             for tdict in p:
                 matchlog('left over in %s' % self.source, tdict, None , 2)
+
+        config.log_lock.acquire()
+        for item in log_array:
+            log(item, 4, 3, True)
+
+        log('\n', 4, 3, True)
+        config.log_lock.release()
 
         config.channels[chanid].all_programs = matched_programs
         try:
@@ -4570,6 +4681,7 @@ class tvgids_JSON(FetchData):
 
         for chanid in self.channels.keys():
             if len(dl[chanid]) == 0:
+                log('No data for channel:%s on tvgids.nl' % (config.channels[chanid].chan_name))
                 config.channels[chanid].source_data[0] = None
                 continue
 
@@ -5022,6 +5134,9 @@ class tvgidstv_HTML(FetchData):
                 self.day_loaded[chanid][offset] = True
                 # be nice to tvgids.tv
                 time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+            if len(self.program_data) == 0:
+                log('No data for channel:%s on tvgids.tv' % (config.channels[chanid].chan_name))
 
             # Add starttime of the next program as the endtime
             self.program_data[chanid].sort(key=lambda program: (program['start-time']))
@@ -5790,7 +5905,7 @@ class teveblad_HTML(FetchData):
 
 class Channel_Config(Thread):
     """
-    Class that holds the Channel definitions and manages the data retreival
+    Class that holds the Channel definitions and manages the data retrieval and processing
     """
     def __init__(self, chanid, name, group = 10):
         Thread.__init__(self)
@@ -5803,6 +5918,7 @@ class Channel_Config(Thread):
         # Flag to indicate all data is processed
         self.ready = False
 
+        self.counter = 0
         self.chanid = chanid
         self.chan_name = name
         self.group = group
@@ -5810,7 +5926,7 @@ class Channel_Config(Thread):
         self.icon_source = -1
         self.icon = ''
 
-        for index in range(4):
+        for index in range(xml_output.source_count):
             self.source_id[index] = ''
             self.source_data[index] = False
 
@@ -5874,7 +5990,8 @@ class Channel_Config(Thread):
 
         try:
             xml_data = False
-            for index in range(4):
+            # Retrieve and merge the data from the available sources.
+            for index in range(xml_output.source_count):
                 if self.source_id[index] != '':
                     while self.source_data[index] == False:
                         if self.quit:
@@ -5887,11 +6004,12 @@ class Channel_Config(Thread):
 
                 elif self.source_data[index] == True:
                     xml_data = True
-                    xml_output.channelsource[index].merge_sources(self.chanid, (self.opt_dict['prime_source'] == index))
+                    xml_output.channelsource[index].merge_sources(self.chanid, (self.opt_dict['prime_source'] == index), self.counter)
                     xml_output.channelsource[index].parse_programs(self.chanid, 1, 'None')
                     for i in range(0, len(self.all_programs)):
                         self.all_programs[i] = xml_output.channelsource[index].checkout_program_dict(self.all_programs[i])
 
+            # And get the detailpages
             self.get_details()
 
             # Wait for all details being processed
@@ -5899,19 +6017,26 @@ class Channel_Config(Thread):
                 if self.fetch_count[0] == 0 and self.fetch_count[1] == 0:
                     break
 
+            # And log the results
+            config.log_lock.acquire()
+            xml_output.progress_counter+= 1
+            counter = xml_output.progress_counter
+            log('\n', 4, 3, True)
+            log('%6.0f cache hits for %s (channel %s of %s)\n' % (self.cache_count, self.chan_name, counter, len(config.channels)),4, 3, True)
             if self.opt_dict['fast']:
-                log('\n', 4)
-                log('%4.0f cache hits for %s\n' % (self.cache_count, self.chan_name),4)
-                log('%4.0f without details in cache\n' % self.none_count,4)
+                log('%6.0f without details in cache\n' % self.none_count,4, 3, True)
 
             else:
-                log('\ndone...\n\n', 8)
-                log('\n', 4)
-                log('%4.0f cache hits for %s\n' % (self.cache_count, self.chan_name),4)
-                log('%4.0f fetches from tvgids.nl\n' % self.fetched_count[0],4)
-                log('%4.0f fetches from tvgids.tv\n' % self.fetched_count[1] ,4)
-                log('%4.0f failures\n' % self.fail_count,4)
-                log('%4.0f without detail info\n' % self.none_count,4)
+                log('%6.0f detail fetches from tvgids.nl\n' % self.fetched_count[0], 4, 3, True)
+                log('%6.0f detail fetches from tvgids.tv\n' % self.fetched_count[1], 4, 3, True)
+                log('%6.0f failures\n' % self.fail_count,4, 3, True)
+                log('%6.0f without detail info\n' % self.none_count, 4, 3, True)
+                log('\n', 4, 3, True)
+                log('%6.0f left in the tvgids.nl queues to process\n' % (len(xml_output.channelsource[0].detail_queue)), 4, 3, True)
+                log('%6.0f left in the tvgids.tv queues to process\n' % (len(xml_output.channelsource[1].detail_queue)), 4, 3, True)
+
+            log('\n', 4, 3, True)
+            config.log_lock.release()
 
             # a final check on the sanity of the data
             xml_output.channelsource[0].parse_programs(self.chanid, 1)
@@ -5949,6 +6074,7 @@ class Channel_Config(Thread):
             for channel in config.channels.values():
                 channel.quit = True
 
+            xml_output.program_cache.quit = True
             return(97)
 
     def use_cache(self, tdict, cached):
@@ -5990,23 +6116,23 @@ class Channel_Config(Thread):
         """
         Given a list of programs, from the several sources, retrieve program details
         """
-
+        chan_cnt = len(config.channels)
         # Check if there is data
-        if len(self.all_programs == 0):
+        if len(self.all_programs) == 0:
             return
 
         programs = self.all_programs
         self.all_programs = []
 
         if self.opt_dict['fast']:
-            log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s) for %s days.\n' % \
+            log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s) (channel %s of %s) for %s days.\n' % \
                 (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or ''), \
-                self.opt_dict['slowdays']), 2)
+                self.counter, chan_cnt, config.opt_dict['days']), 2)
 
         else:
-            log('\nNow Fetching details for %s programs on %s(xmltvid=%s%s) for %s days.\n' % \
+            log('\nNow fetching details for %s programs on %s(xmltvid=%s%s) (channel %s of %s) for %s days.\n' % \
                 (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or ''), \
-                self.opt_dict['slowdays']), 2)
+                self.counter, chan_cnt, config.opt_dict['days']), 2)
 
         # randomize detail requests
         nprograms = len(programs)
@@ -6111,6 +6237,7 @@ class XMLoutput:
         self.startstring = []
         self.xml_channels = {}
         self.xml_programs = {}
+        self.progress_counter = 0
 
         self.startstring.append(u'<?xml version="1.0" encoding="%s"?>\n' % xmlencoding)
         self.startstring.append(u'<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
@@ -6188,6 +6315,7 @@ class XMLoutput:
                                     104 : [1, 'bbcprime'],
                                     105 : [1, 'spiceplatinum']}
 
+        self.source_count = 4
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgidsnl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgidstv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
@@ -6400,16 +6528,16 @@ class XMLoutput:
         Compound the compleet XML output and return it
         '''
         xml = []
-        xml.append("".join(self.startstring))
+        xml.append(u"".join(self.startstring))
 
         for chanid in config.channels.keys():
-            xml.append("".join(self.xml_channels[chanid]))
+            xml.append(u"".join(self.xml_channels[chanid]))
             for program in self.xml_programs[chanid]:
-                xml.append("".join(program))
+                xml.append(u"".join(program))
 
         xml.append(self.closestring)
 
-        return "".join(xml)
+        return u"".join(xml)
 
     def print_string(self):
         '''
@@ -6422,7 +6550,7 @@ class XMLoutput:
                 print(xml.encode(config.file_encoding))
 
             else:
-                config.output.write(xml.encode(config.file_encoding))
+                config.output.write(xml)
 
             infofiles.write_xmloutput(xml)
 
@@ -6502,7 +6630,6 @@ def main():
         if x != None:
             return(x)
 
-        # fetch all the primairy data
         # Start the seperate fetching threads
         for source in xml_output.channelsource.values():
             x = source.start()
@@ -6510,15 +6637,22 @@ def main():
                 return(x)
 
         # Start the Channel threads
+        counter = 0
         for channel in config.channels.values():
+            counter += 1
+            channel.counter = counter
             x = channel.start()
             if x != None:
                 return(x)
 
+        # This thread monitors the cache and saves it at an interval
+        xml_output.program_cache.start()
+
         xml_output.channelsource[0].join()
-        print 'tvgids.nl ready'
         xml_output.channelsource[1].join()
-        print 'tvgids.tv ready'
+
+        # Make sure the cache is saved
+        xml_output.program_cache.quit = True
 
         # produce the results and wrap-up
         config.write_defaults_list()
@@ -6536,15 +6670,7 @@ def main():
             log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
         log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
-        # Quiting any remaining Threads
-        for source in xml_output.channelsource.values():
-            source.quit = True
-
-        for channel in config.channels.values():
-            channel.quit = True
-
         return(99)
-
     # and return success
     return(0)
 # end main()
