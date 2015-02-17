@@ -262,8 +262,8 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 0
-        self.patchdate = u'20150209'
-        self.alfa = True
+        self.patchdate = u'20150217'
+        self.alfa = False
         self.beta = True
 
         # Used for creating extra output to beter the code
@@ -769,6 +769,7 @@ class Configure:
                                          10: 'Overig'}
 
         # DO NOT CHANGE THIS!
+        self.configversion = None
         self.__CONFIG_SECTIONS__ = { 1: u'Configuration', \
                                                             2: u'tvgids.nl Channels', \
                                                             3: u'Channels'}
@@ -926,11 +927,11 @@ class Configure:
                 else:
                     config_title = re.search('[(.*?)]', line)
                     if config_title != None:
-                        self.configversion = 2.0
+                        self.configversion = float(2.0)
                         break
 
             else:
-                self.configversion = 1.0
+                self.configversion = float(1.0)
 
         if self.encoding == None:
             return False
@@ -944,17 +945,18 @@ class Configure:
         """Initiate argparser and read the commandline"""
         clean_cache = True
         clear_cache = False
+        self.description = 'The Netherlands: %s\n' % self.version(True) + \
+                        '  A grabber that grabs tvguide data from tvgids.nl, tvgids.tv, rtl.nl and\n' + \
+                        '  teveblad.be for up to 178+ channels and up to 14 days. Which it then stores\n' + \
+                        '  in XMLTV-compatible format.'
 
-        parser = argparse.ArgumentParser(description=u'%(prog)s: ' +
-                        'A grabber that grabs tvguide data from tvgids.nl\n' +
-                        'and stores it in XMLTV-compatible format.',
-                        formatter_class=argparse.RawTextHelpFormatter)
+        parser = argparse.ArgumentParser(description = self.description, formatter_class=argparse.RawTextHelpFormatter)
 
         parser.add_argument('-V', '--version', action = 'store_true', default = False, dest = 'version',
                         help = 'display version')
 
         parser.add_argument('--description', action = 'store_true', default = False, dest = 'description',
-                        help = 'prints a short description in english of the grabber')
+                        help = 'prints the above short description of the grabber')
 
         parser.add_argument('-d', '--long-descr', action = 'store_true', default = False, dest = 'description_long',
                         help = 'prints a long description in english of the grabber')
@@ -976,7 +978,7 @@ class Configure:
 
         parser.add_argument('-C', '--config-file', type = str, default = self.config_file, dest = 'config_file',
                         metavar = '<file>',
-                        help = 'name of the configuration file\n(default = \'~/.xmltv/tv_grab_nl_py.conf\')')
+                        help = 'name of the configuration file\n<default = \'%s\'>' % self.config_file)
 
         parser.add_argument('-O', '--save-options', action = 'store_true', default = False, dest = 'save_options',
                         help = 'save the currently defined options to the config file\n' +
@@ -984,14 +986,14 @@ class Configure:
 
         parser.add_argument('-A', '--cache', type = str, default = self.program_cache_file, dest = 'program_cache_file',
                         metavar = '<file>',
-                        help = 'cache descriptions and use the file to store(%s)' % self.program_cache_file)
+                        help = 'cache descriptions and use the file to store\n<default = \'%s\'>' % self.program_cache_file)
 
         parser.add_argument('-S', '--cache-save-interval', type = int, default = None, dest = 'cache_save_interval',
                         metavar = '<number>',
-                        help = 'after how many fetches to save the cache(%s)' % self.opt_dict['cache_save_interval'])
+                        help = 'after how many fetches to save the cache <Default %s>' % self.opt_dict['cache_save_interval'])
 
         parser.add_argument('--clean_cache', action = 'store_true', default = clean_cache, dest = 'clean_cache',
-                        help = 'clean the cache file before fetching')
+                        help = 'clean the cache of outdated data before fetching')
 
         parser.add_argument('--clear_cache', action = 'store_true', default = clear_cache, dest = 'clear_cache',
                         help = 'empties the cache file before fetching data')
@@ -1014,11 +1016,11 @@ class Configure:
 
         parser.add_argument('-o', '--offset', type = int, default = None, dest = 'offset',
                         metavar = '<days>',
-                        help = 'The day to start grabbing (defaults to 0)')
+                        help = 'The day to start grabbing <defaults to 0 is today>')
 
         parser.add_argument('-g', '--days', type = int, default = None, dest = 'days',
                         metavar = '<days>',
-                        help = '# number of days to grab from tvgids.nl/tvgids.tv\nstarting from offset. (max 14 = default)\n' +
+                        help = '# number of days to grab from tvgids.nl/tvgids.tv\nstarting from offset. <max 14 = default>\n' +
                                      'The first 4 are grabed from tvgids.nl.\nThe rest plus failures from tvgids.tv\n')
 
         parser.add_argument('-G', '--slowdays', type = int, default = None, dest = 'slowdays',
@@ -1043,7 +1045,7 @@ class Configure:
                         help = 'mark HD programs,\ndo not set if you only record analog SD')
 
         parser.add_argument('--cattrans', action = 'store_false', default = None, dest = 'cattrans',
-                        help = '<default> translate the grabbed genres into\nMythTV-genres')
+                        help = '<default> translate the grabbed genres into\nMythTV-genres. See the tv_grab_nl_py.set file')
 
         parser.add_argument('-t', '--nocattrans', action = 'store_true', default = None, dest = 'cattrans',
                         help = 'do not translate the grabbed genres into MythTV-genres.\n' +
@@ -1087,12 +1089,13 @@ class Configure:
 
         if self.configversion == 1.0:
             type = 2
+            section = self.__CONFIG_SECTIONS__[2]
 
         else:
             type = 0
+            section = ''
 
         f.seek(0,0)
-        section = self.__CONFIG_SECTIONS__[2]
         for byteline in f.readlines():
             try:
                 line = self.get_line(f, byteline, False, self.encoding)
@@ -1402,8 +1405,8 @@ class Configure:
         """
         # These channels contain no data!
         empty_channels = {}
-        empty_channels[0] = ('83','308','309','310','20','65','401','403','412', '427')
-        empty_channels[1] = ('eurosport-hd', 'la-une-hd', 'tf1-hd', 'vtm-hd', 'tmf', 'life-tv', \
+        empty_channels[0] = ('83','308','309','310','20','65','401','403','412')
+        empty_channels[1] = ('eurosport-hd', 'la-une-hd', 'tf1-hd', 'vtm-hd', 'nat-geo-hd', 'tmf', 'life-tv', \
             'espn-america', 'espn-classic', 'canal-z', 'disney-playhouse', 'exqi-sport-culture', \
             'prime-sport', 'vitaliteit', 'vtmkzoom-2', 'ketnet-op12', 'cnbc-europe', 'virgin-1')
         empty_channels[2] = []
@@ -1436,13 +1439,15 @@ class Configure:
 
             for chanid in xml_output.channelsource[index].all_channels.keys():
                 if chanid in self.source_channels[index].values() and reverse_channels[chanid] in self.channels.keys():
-                    # These channels are for show, but we like the icons!
+                    # These channels are for show, but we like the icons from source 2 and 3!
                     if not(chanid in empty_channels[index]):
                         self.channels[reverse_channels[chanid]].source_id[index] = chanid
 
+                    # Set the group
                     if self.channels[reverse_channels[chanid]].group == 10:
                         self.channels[reverse_channels[chanid]].group = xml_output.channelsource[index].all_channels[chanid]['group']
 
+                    # Set the Icon
                     if index == 3:
                         self.channels[reverse_channels[chanid]].icon_source = 2
                         self.channels[reverse_channels[chanid]].icon = xml_output.channelsource[index].all_channels[chanid]['icon']
@@ -1496,8 +1501,12 @@ class Configure:
         if self.read_commandline() == 0:
              return(0)
 
-        if self.args.version or self.args.description:
+        if self.args.version:
             print("The Netherlands: %s" % self.version(True))
+            return(0)
+
+        if self.args.description:
+            print( self.description)
             return(0)
 
         if self.args.description_long:
@@ -1539,7 +1548,6 @@ class Configure:
 
         # get config if available Overrule if set by commandline
         elif not self.read_config():
-            log('error reading configfile\n')
             return(1)
 
         if self.args.cache_save_interval == None:
@@ -1633,7 +1641,6 @@ class Configure:
                 if self.output == None:
                     return(2)
 
-
             except Exception:
                 log('Cannot write to outputfile: %s\n' % self.args.output_file)
                 return(2)
@@ -1672,6 +1679,8 @@ class Configure:
 
         self.args.tevedays = min(self.args.tevedays,(8 - self.args.offset))
         self.args.tevedays = min(self.args.days, self.args.tevedays)
+        if self.args.tevedays < 0:
+            self.args.tevedays = 0
 
         if self.args.rtldays == None:
             self.args.rtldays = self.opt_dict['rtldays']
@@ -1682,13 +1691,15 @@ class Configure:
         self.args.rtldays = min(self.args.rtldays,(14 - self.args.offset))
         self.args.rtldays = min(self.args.days, self.args.rtldays)
 
-        if self.configversion< 2.1:
+        if self.configversion < 2.1:
             # Update to a version 2.1 config
+            if self.configversion == 1.0:
+                self.write_defaults_list()
             if not self.write_config(None):
                 log('Error updating to new Config.\nPlease remove the old config and Re-run me with the --configure flag.\n')
                 return(1)
 
-            log('Updated the configfile!\nCheck if you are fine with the settings.')
+            log('Updated the configfile %s!\nCheck if you are fine with the settings.\n' % self.args.config_file)
             return(0)
 
         # Continue validating the settings for the individual channels
@@ -1696,20 +1707,20 @@ class Configure:
             self.channels[chanid].validate_settings()
 
         self.write_opts_to_log()
-        if self.args.save_options:
-            if not self.write_config(False):
-                log('Error writing new Config. Trying to restore an old one.\n')
-                return(1)
+        if self.args.configure:
+            if not self.write_config(True):
+                log('Error writing new Config. Trying to restore an old one.')
+                return 1
                 try:
                     os.rename(file + '.old', file)
                 except:
                     pass
             return(0)
 
-        if self.args.configure:
-            if not self.write_config(True):
-                log('Error writing new Config. Trying to restore an old one.')
-                return 1
+        if self.args.save_options:
+            if not self.write_config(False):
+                log('Error writing new Config. Trying to restore an old one.\n')
+                return(1)
                 try:
                     os.rename(file + '.old', file)
                 except:
@@ -1837,64 +1848,62 @@ class Configure:
         f.write(u'quiet = %s\n' % self.args.quiet)
         f.write(u'output_file = %s\n' % self.args.output_file)
         f.write(u'cache_save_interval = %s\n' % self.args.cache_save_interval)
-        f.write(u'compat = %s\n' % self.args.compat)
-        f.write(u'logos = %s\n' % self.args.logos)
+        f.write(u'compat = %s\n' % self.opt_dict['compat'])
+        f.write(u'logos = %s\n' % self.opt_dict['logos'])
         f.write(u'use_utc = %s\n' % self.args.use_utc)
-        f.write(u'fast = %s\n' % self.args.fast)
+        f.write(u'fast = %s\n' % self.opt_dict['fast'])
         f.write(u'offset = %s\n' % self.args.offset)
         f.write(u'days = %s\n' % self.args.days)
-        f.write(u'slowdays = %s\n' % self.args.slowdays)
+        f.write(u'slowdays = %s\n' % self.opt_dict['slowdays'])
         f.write(u'rtldays = %s\n' % self.args.rtldays)
         f.write(u'tevedays = %s\n' % self.args.tevedays)
-        f.write(u'mark_HD = %s\n' % self.args.mark_HD)
-        f.write(u'cattrans = %s\n' % self.args.cattrans)
-        f.write(u'overlap_strategy = %s\n' % self.args.overlap_strategy )
-        f.write(u'max_overlap = %s\n' % self.args.max_overlap)
-        f.write(u'desc_length = %s\n' % self.args.desc_length)
+        f.write(u'mark_HD = %s\n' % self.opt_dict['mark_HD'])
+        f.write(u'cattrans = %s\n' % self.opt_dict['cattrans'])
+        f.write(u'overlap_strategy = %s\n' % self.opt_dict['overlap_strategy'] )
+        f.write(u'max_overlap = %s\n' % self.opt_dict['max_overlap'])
+        f.write(u'desc_length = %s\n' % self.opt_dict['desc_length'])
         f.write(u'\n')
 
         f.write(u'# These are the channels to parse. You can disable a channel by placing\n')
         f.write(u'# a \'#\' in front. Seperated by \';\' you see on every line: The Name,\n')
         f.write(u'# the group, the ID\'s from tvgids.nl, tvgids.tv, rtl.nl and teveblad.be\n')
         f.write(u'# and finally the iconsource and name.\n')
-        f.write(u'# Set iconsource to 99, to add your own full url.\n')
-        f.write(u'# A missing ID means the source doesn\'t supply the channel.\n')
         f.write(u'# You can change the names to suit your own preferences or\n')
+        f.write(u'# A missing ID means the source doesn\'t supply the channel.\n')
         f.write(u'# remove an ID to not fetch from that source, but keep the \';\'s in place.\n')
+        f.write(u'# Set iconsource to 99, to add your own full url.\n')
         f.write(u'\n')
-        f.write(u'# To specify further Channel settings you can add tags in the form of\n')
+        f.write(u'# To specify further Channel settings you can add sections in the form of\n')
         f.write(u'# [Channel <channelID>], where <channelID> is the first ID on the line, \n')
         f.write(u'# (most of the times the nummeric tvgids.nl ID)\n')
         f.write(u'# !!THEY MUST BE BELOW THE CONFIGURATION AND CHANNEL SECTIONS!!\n')
         f.write(u'# You can use the following tags:\n')
-        f.write(u'# Boolean values (True/False, 1/0 or on/off; no value means True):\n')
+        f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
         f.write(u'#   fast, compat, logos, cattrans, mark_HD\n')
         f.write(u'# Integer values:\n')
         f.write(u'#   slowdays, max_overlap, desc_length, prime_source\n')
-        f.write(u'#     prime_source (0 -3) is the source whose timings are dominant\n')
+        f.write(u'#     prime_source (0-3) is the source whose timings are dominant\n')
         f.write(u'#     It defaults to the first available source or 2 for rtl channels\n')
         f.write(u'#     and 3 for group 2 and 8 (Flemmisch) channels\n')
         f.write(u'# String values:\n')
-        f.write(u'#   overlap_strategy (with possible values): \n')
+        f.write(u'#   overlap_strategy (With possible values): \n')
         f.write(u'#     average, stop, start; everything else sets it to none\n')
         f.write(u'\n')
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
 
-        if add_channels == None or add_channels == False:
-            # just copy over the channels section
+        # just copy over the channels section
+        if add_channels == False and configversion == 2.1:
             fo = self.open_file(self.config_file + '.old')
             if fo == None or not self.check_encoding(fo):
                 # We cannot read the old config, so we create a new one
                 log('Error Opening the old config. Creating a new one.')
                 add_channels = True
+
             else:
                 fo.seek(0,0)
                 type = 0
-                if add_channels == None:
-                    # it's an old type config without sections
-                    type = 2
                 for byteline in fo.readlines():
-                    line = self.get_line(fo, byteline, None, self.encoding)
+                    line = self.get_line(fo, byteline, None)
                     try:
                         if line == '# encoding: utf-8' or line == False:
                             continue
@@ -1906,7 +1915,18 @@ class Configure:
                                 if v == config_title.group(1):
                                     type = i
                                     continue
+
                             continue
+
+                        elif config_title != None and (config_title.group(1)[0:8] == 'Channel '):
+                            type = 9
+                            continue
+
+                        # Unknown Section header, so ignore
+                        if line[0:1] == '[':
+                            type = 0
+                            continue
+
 
                         if type > 1:
                             # We just copy everything except the old configuration (type = 1)
@@ -1918,6 +1938,209 @@ class Configure:
                 fo.close()
                 f.close()
                 return True
+
+        # This is an upgrade
+        if add_channels != True:
+            configlines = {}
+            configlines['2remarks'] = []
+            configlines['2'] = []
+            configlines['3remarks'] = []
+            configlines['3'] = []
+            # Get the old channels section to convert
+            fo = self.open_file(self.config_file + '.old')
+            if fo == None or not self.check_encoding(fo):
+                # We cannot read the old config, so we create a new one
+                log('Error Opening the old config. Creating a new one.')
+                self.get_channels()
+                add_channels = True
+
+            else:
+                fo.seek(0,0)
+                if self.configversion == 1.0:
+                    type = 2
+
+                else:
+                    type = 0
+
+                for byteline in fo.readlines():
+                    line = self.get_line(fo, byteline, None, self.encoding)
+                    try:
+                        if line == '# encoding: utf-8' or line[0:17] == '# configversion: ' or line == False:
+                            continue
+
+                        if self.configversion != 1.0:
+                            # Look for section headers
+                            config_title = re.search('\[(.*?)\]', line)
+                            if config_title != None and (config_title.group(1) in self.__CONFIG_SECTIONS__.values()):
+                                section = config_title.group(1)
+                                for i, v in self.__CONFIG_SECTIONS__.items():
+                                    if v == config_title.group(1):
+                                        type = i
+                                        continue
+
+                                continue
+
+                            elif config_title != None and (config_title.group(1)[0:8] == 'Channel '):
+                                section = config_title.group(1)
+                                type = 9
+                                chanid = config_title.group(1)[8:]
+                                configlines[chanid] = []
+                                continue
+
+                            # Unknown Section header, so ignore
+                            if line[0:1] == '[':
+                                type = 0
+                                continue
+
+                        if type == 2 and self.configversion <= 2.0:
+                            if line[0:1] == '#':
+                                configlines['2remarks'].append(line)
+
+                            else:
+                                configlines['2'].append(line)
+
+                        elif type == 3 and self.configversion > 2.0:
+                            if line[0:1] == '#':
+                                configlines['3remarks'].append(line)
+
+                            else:
+                                configlines['3'].append(line)
+
+                        elif type == 9 and self.configversion > 2.0:
+                            configlines[chanid].append(line)
+
+                    except:
+                        log('Error reading old config\n')
+                        continue
+
+                fo.close()
+
+                self.get_channels()
+                chan_added = []
+                chan_not_updated = []
+                chan_list = {}
+                for g in self.chan_groups.keys():
+                    chan_list[g] =[]
+
+                if self.configversion <= 2.0:
+                    for item in configlines['2']:
+                        chan = item.split(None, 1) # split on first whitespace
+                        if len(chan) != 2:
+                            chan_not_updated.append(u'# %s\n' % (item))
+                            continue
+
+                        if chan[0].strip() in self.channels.keys():
+                            chanid = chan[0].strip()
+                            chan_list[self.channels[chanid].group].append('%s;%s;%s;%s;%s;%s;%s;%s\n' % (\
+                                                                                                chan[1], \
+                                                                                                self.channels[chanid].group, \
+                                                                                                self.channels[chanid].source_id[0], \
+                                                                                                self.channels[chanid].source_id[1], \
+                                                                                                self.channels[chanid].source_id[2], \
+                                                                                                self.channels[chanid].source_id[3], \
+                                                                                                self.channels[chanid].icon_source, \
+                                                                                                self.channels[chanid].icon))
+                            chan_added.append(chanid)
+
+                        else:
+                            chan_not_updated.append(u'# %s\n' % (item))
+
+                    for item in configlines['2remarks']:
+                        chan = re.sub('#', '', item)
+                        chan = chan.split(None, 1) # split on first whitespace
+                        if len(chan) != 2:
+                            chan_not_updated.append(u'# %s\n' % (item))
+                            continue
+
+                        if chan[0].strip() in self.channels.keys():
+                            chanid = chan[0].strip()
+                            chan_list[self.channels[chanid].group].append('# %s;%s;%s;%s;%s;%s;%s;%s\n' % (\
+                                                                                                chan[1], \
+                                                                                                self.channels[chanid].group, \
+                                                                                                self.channels[chanid].source_id[0], \
+                                                                                                self.channels[chanid].source_id[1], \
+                                                                                                self.channels[chanid].source_id[2], \
+                                                                                                self.channels[chanid].source_id[3], \
+                                                                                                self.channels[chanid].icon_source, \
+                                                                                                self.channels[chanid].icon))
+                            chan_added.append(chanid)
+
+                        else:
+                            chan_not_updated.append(item + '\n')
+
+                if self.configversion > 2.0:
+                    for item in configlines['3']:
+                        chan = re.split(';', item)
+                        if len(chan) != 8:
+                            chan_not_updated.append(u'# %s\n' % (item))
+                            continue
+
+                        for channel in self.channels.values():
+                            if ((chan[2].strip() !='') and (chan[2].strip() == channel.source_id[0])) or \
+                              ((chan[3].strip() !='') and (chan[2].strip() == channel.source_id[1])) or \
+                              ((chan[4].strip() !='') and (chan[2].strip() == channel.source_id[2])) or \
+                              ((chan[5].strip() !='') and (chan[2].strip() == channel.source_id[3])):
+                                chan_list[chan[1]].append('%s;%s;%s;%s;%s;%s;%s;%s\n' % (chan[0], chan[1], \
+                                    channel.source_id[0], channel.source_id[1], channel.source_id[2], channel.source_id[3], chan[6], chan[7]))
+
+                                chan_added.append(channel.chanid)
+                                break
+
+                        else:
+                            chan_not_updated.append(u'# %s\n' % (item))
+
+                    for item in configlines['3remarks']:
+                        chan = re.sub('#', '', item)
+                        chan = re.split(';', chan)
+                        if len(chan) != 8:
+                            chan_not_updated.append(u'# %s\n' % (item))
+                            continue
+
+                        for channel in self.channels.values():
+                            if ((chan[2].strip() !='') and (chan[2].strip() == channel.source_id[0])) or \
+                              ((chan[3].strip() !='') and (chan[2].strip() == channel.source_id[1])) or \
+                              ((chan[4].strip() !='') and (chan[2].strip() == channel.source_id[2])) or \
+                              ((chan[5].strip() !='') and (chan[2].strip() == channel.source_id[3])):
+                                chan_list[chan[1]].append('# %s;%s;%s;%s;%s;%s;%s;%s\n' % (chan[0], chan[1], \
+                                    channel.source_id[0], channel.source_id[1], channel.source_id[2], channel.source_id[3], chan[6], chan[7]))
+
+                                chan_added.append(channel.chanid)
+                                break
+
+                        else:
+                            chan_not_updated.append(item+'\n')
+
+                del configlines['2']
+                del configlines['3']
+                del configlines['2remarks']
+                del configlines['3remarks']
+
+                for chanid in self.channels.keys():
+                    if not chanid in chan_added:
+                        chan_list[self.channels[chanid].group].append('# %s;%s;%s;%s;%s;%s;%s;%s\n' % (\
+                                                                                            self.channels[chanid].chan_name, \
+                                                                                            self.channels[chanid].group, \
+                                                                                            self.channels[chanid].source_id[0], \
+                                                                                            self.channels[chanid].source_id[1], \
+                                                                                            self.channels[chanid].source_id[2], \
+                                                                                            self.channels[chanid].source_id[3], \
+                                                                                            self.channels[chanid].icon_source, \
+                                                                                            self.channels[chanid].icon))
+
+                for g in self.chan_groups.keys():
+                    f.write('\n')
+                    f.write('# %s\n' % self.chan_groups[g])
+                    chan_list[g].sort()
+                    for channel in chan_list[g]:
+                        f.write( channel)
+
+                if len(chan_not_updated) > 0:
+                    f.write('\n')
+                    f.write('# Following are not converted lines!')
+                    for line in chan_not_updated:
+                        f.write(line)
+
+                # At a later config upgrade we here have to parse the type 9 sections
 
         if add_channels:
             chan_list = {}
@@ -2143,7 +2366,8 @@ class Configure:
         for channel in config.channels.values():
             channel.quit = True
 
-        xml_output.program_cache.quit = True
+        if xml_output.program_cache != None:
+            xml_output.program_cache.quit = True
 
         # close everything neatly
         try:
@@ -3996,18 +4220,18 @@ class FetchData(Thread):
         log_array.append('\n')
         if other_is_dominant:
             # This goes for the belgium/british channels from teveblad.be (programs) and the rtl channels
-            log('Merging %s (channel %s of %s): %s programs from tvgids.nl into %s programs from %s\n' % \
+            log('Now merging %s (channel %s of %s):\n  %s programs from tvgids.nl into %s programs from %s\n' % \
                 (config.channels[chanid].chan_name, counter, len(config.channels), len(info) , len(programs), self.source), 2)
 
-            log_array.append('Merg statistics of %s (channel %s of %s) from tvgids.nl into %s\n' % \
+            log_array.append('Merg statistics for %s (channel %s of %s) from tvgids.nl into %s\n' % \
                 (config.channels[chanid].chan_name, counter, len(config.channels), self.source))
 
         else:
             # this goes for adding tvgids.tv (programs) to tvgids.nl (info) and most channels from teveblad.be (programs)
-            log('Merging %s (channel %s of %s): %s programs from %s into %s programs from tvgids.nl\n' % \
+            log('Now merging %s (channel %s of %s):\n  %s programs from %s into %s programs from tvgids.nl\n' % \
                 (config.channels[chanid].chan_name , counter, len(config.channels), len(programs), self.source, len(info)), 2)
 
-            log_array.append('Merg statistics of %s (channel %s of %s) from %s into tvgids.nl\n' % \
+            log_array.append('Merg statistics for %s (channel %s of %s) from %s into tvgids.nl\n' % \
                 (config.channels[chanid].chan_name , counter, len(config.channels), self.source))
 
         # Do some general renaming to match tvgids.nl naming
@@ -4031,7 +4255,7 @@ class FetchData(Thread):
         # and organise them by name and start-time
         info_starttimes = {}
         info_names = {}
-        log_array.append('%6.0f programs in info     for range: %s - %s, \n' % \
+        log_array.append('%6.0f programs in tvgids.nl for range: %s - %s, \n' % \
             (len(info), infostarttime.strftime('%d-%b %H:%M:%S'), infoendtime.strftime('%d-%b %H:%M:%S')))
 
         gcount = 0
@@ -4087,7 +4311,7 @@ class FetchData(Thread):
         prog_stoptimes ={}
         prog_starttimes ={}
         log_array.append('%6.0f programs in %s for range: %s - %s\n' % \
-            (len(programs), self.source.ljust(8), progstarttime.strftime('%d-%b %H:%M:%S'), progendtime.strftime('%d-%b %H:%M:%S')))
+            (len(programs), self.source.ljust(9), progstarttime.strftime('%d-%b %H:%M:%S'), progendtime.strftime('%d-%b %H:%M:%S')))
 
         log_array.append('\n')
         for tdict in programs[:]:
@@ -4148,7 +4372,7 @@ class FetchData(Thread):
 
         log_array.append('%6.0f programs added outside common timerange\n' % ocount)
         log_array.append('%6.0f details  added from group slots\n' % gcount)
-        log_array.append('%6.0f programs left in info to match\n' % (len(info)))
+        log_array.append('%6.0f programs left in tvgids.nl to match\n' % (len(info)))
         log_array.append('%6.0f programs left in %s to match\n' % (len(programs), self.source))
         log_array.append('\n')
 
@@ -4638,7 +4862,7 @@ class tvgids_JSON(FetchData):
 
             channel_cnt += 1
             log('\n', 2)
-            log('Now fetching %s channels from tvgids.nl (day %s of %s).\n' % (len(self.channels), offset, config.args.days), 2)
+            log('Now fetching %s channels from tvgids.nl\n    (day %s of %s).\n' % (len(self.channels), offset, config.args.days), 2)
 
             channel_url = self.get_url('day', offset)
 
@@ -5056,7 +5280,7 @@ class tvgidstv_HTML(FetchData):
 
             else:
                 log('\n', 2)
-                log('Now fetching %s(xmltvid=%s%s) from tvgids.tv (channel %s of %s) for the remainder of %s days.\n' % \
+                log('Now fetching %s(xmltvid=%s%s) from tvgids.tv\n    (channel %s of %s) for the remainder of %s days.\n' % \
                     (config.channels[chanid].chan_name, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), chanid, channel_cnt, len(self.channels), config.args.days), 2)
 
             # Tvgids.tv shows programs per channel per day, so we loop over the number of days
@@ -5728,7 +5952,7 @@ class teveblad_HTML(FetchData):
                 return
 
             log('\n', 2)
-            log('Now fetching %s(xmltvid=%s%s) from teveblad.be (channel %s of %s) for %s days.\n' % \
+            log('Now fetching %s(xmltvid=%s%s) from teveblad.be\n    (channel %s of %s) for %s days.\n' % \
                 (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), channel_cnt, len(self.channels), config.args.tevedays), 2)
 
             channel = self.channels[chanid]
@@ -6032,8 +6256,8 @@ class Channel_Config(Thread):
                 log('%6.0f failures\n' % self.fail_count,4, 3, True)
                 log('%6.0f without detail info\n' % self.none_count, 4, 3, True)
                 log('\n', 4, 3, True)
-                log('%6.0f left in the tvgids.nl queues to process\n' % (len(xml_output.channelsource[0].detail_queue)), 4, 3, True)
-                log('%6.0f left in the tvgids.tv queues to process\n' % (len(xml_output.channelsource[1].detail_queue)), 4, 3, True)
+                log('%6.0f left in the tvgids.nl queue to process\n' % (len(xml_output.channelsource[0].detail_queue)), 4, 3, True)
+                log('%6.0f left in the tvgids.tv queue to process\n' % (len(xml_output.channelsource[1].detail_queue)), 4, 3, True)
 
             log('\n', 4, 3, True)
             config.log_lock.release()
@@ -6125,12 +6349,12 @@ class Channel_Config(Thread):
         self.all_programs = []
 
         if self.opt_dict['fast']:
-            log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s) (channel %s of %s) for %s days.\n' % \
+            log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
                 (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or ''), \
                 self.counter, chan_cnt, config.opt_dict['days']), 2)
 
         else:
-            log('\nNow fetching details for %s programs on %s(xmltvid=%s%s) (channel %s of %s) for %s days.\n' % \
+            log('\nNow fetching details for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
                 (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or ''), \
                 self.counter, chan_cnt, config.opt_dict['days']), 2)
 
