@@ -646,6 +646,8 @@ class Configure:
                                  'voetbal': 'Sport',
                                  'darts': 'Sport',
                                  'golf': 'Sport',
+                                 'wielrennen op de weg': 'Sport',
+                                 'baanwielrennen': 'Sport',
                                  'tennis': 'Sport',
                                  'veldrijden': 'Sport',
                                  'religieuze uitzending': 'Religieus',
@@ -2188,7 +2190,7 @@ class Configure:
                 f.write(u'# %s\n' % (chan_def.chan_name))
                 f.write(u'[Channel %s]\n' % (chan_def.chanid))
                 chan_name_written = True
-                f.write(u'  append_tvgidstv = False\n')
+                f.write(u'append_tvgidstv = False\n')
 
             for index in range(xml_output.source_count):
                 if chan_def.source_id[index] != '':
