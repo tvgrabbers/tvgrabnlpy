@@ -262,7 +262,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 0
-        self.patchdate = u'20150217'
+        self.patchdate = u'20150218'
         self.alfa = False
         self.beta = True
 
@@ -1229,7 +1229,7 @@ class Configure:
                         # Strip the name from the value
                         a = re.split('=',line)
                         # Boolean Values
-                        if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_HD'):
+                        if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_HD', 'append_tvgidstv'):
                             if len(a) == 1:
                                 self.channels[chanid].opt_dict[a[0].lower().strip()] = True
 
@@ -1491,6 +1491,10 @@ class Configure:
                     if channel.source_id[index] != '':
                         channel.opt_dict['prime_source'] = index
                         break
+
+            # For Veronica tvgids.tv contains Disney XD, so we don't append it
+            if channel.source_id[0] == '34':
+                channel.opt_dict['append_tvgidstv'] = False
 
         return 0
 
@@ -1776,11 +1780,18 @@ class Configure:
         log(u'Channel specific settings other then the above:', 1, 2)
         for chan_def in self.channels.values():
             chan_name_written = False
+            if not chan_def.opt_dict['append_tvgidstv']:
+                log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                chan_name_written = True
+                log(u'  append_tvgidstv = False\n', 1, 2)
+
             for index in range(xml_output.source_count):
                 if chan_def.source_id[index] != '':
                     if chan_def.opt_dict['prime_source'] != index:
-                        log(u'[Channel %s]\n' % (chan_def.chanid), 1, 2)
-                        chan_name_written = True
+                        if not chan_name_written:
+                            log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                            chan_name_written = True
+
                         log(u'  prime_source = %s\n' % ( chan_def.opt_dict['prime_source']), 1, 2)
 
                     break
@@ -1788,7 +1799,7 @@ class Configure:
             for val in ( 'fast', 'slowdays', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
-                        log(u'Channel: %s' % (chan_def.chan_name), 1, 2)
+                        log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
                         chan_name_written = True
 
                     log(u'  %s = %s' % (val, chan_def.opt_dict[val]), 1, 2)
@@ -1879,7 +1890,10 @@ class Configure:
         f.write(u'# !!THEY MUST BE BELOW THE CONFIGURATION AND CHANNEL SECTIONS!!\n')
         f.write(u'# You can use the following tags:\n')
         f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
-        f.write(u'#   fast, compat, logos, cattrans, mark_HD\n')
+        f.write(u'#   fast, compat, logos, cattrans, mark_HD, append_tvgidstv\n')
+        f.write(u'#     append_tvgidstv is True by default, which means: \'Don\'t get data\n')
+        f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
+        f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
         f.write(u'# Integer values:\n')
         f.write(u'#   slowdays, max_overlap, desc_length, prime_source\n')
         f.write(u'#     prime_source (0-3) is the source whose timings are dominant\n')
@@ -2169,12 +2183,22 @@ class Configure:
         f.write(u'# Channel specific settings other then the above or the default:\n')
         for chan_def in self.channels.values():
             chan_name_written = False
+            if not chan_def.opt_dict['append_tvgidstv']:
+                f.write(u'\n')
+                f.write(u'# %s\n' % (chan_def.chan_name))
+                f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                chan_name_written = True
+                f.write(u'  append_tvgidstv = False\n')
+
             for index in range(xml_output.source_count):
                 if chan_def.source_id[index] != '':
                     if chan_def.opt_dict['prime_source'] != index:
-                        f.write(u'\n')
-                        f.write(u'[Channel %s]\n' % (chan_def.chanid))
-                        chan_name_written = True
+                        if not chan_name_written:
+                            f.write(u'\n')
+                            f.write(u'# %s\n' % (chan_def.chan_name))
+                            f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                            chan_name_written = True
+
                         f.write(u'prime_source = %s\n' % ( chan_def.opt_dict['prime_source']))
 
                     break
@@ -2183,11 +2207,11 @@ class Configure:
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         f.write(u'\n')
+                        f.write(u'# %s\n' % (chan_def.chan_name))
                         f.write(u'[Channel %s]\n' % (chan_def.chanid))
                         chan_name_written = True
 
                     f.write(u'%s = %s\n' % (val, chan_def.opt_dict[val]))
-
 
         f.close()
         return True
@@ -2896,7 +2920,12 @@ class FetchData(Thread):
                     else:
                         detailed_program[xml_output.channelsource[self.proc_id].detail_check] = True
                         detailed_program['ID'] = detailed_program[xml_output.channelsource[self.proc_id].detail_id]
-                        log('[normal fetch] ' + logstring, 8, 1)
+                        if self.proc_id == 0:
+                            log('[normal fetch] ' + logstring, 8, 1)
+
+                        elif self.proc_id == 1:
+                            log('   [.tv fetch] ' + logstring, 8, 1)
+
                         config.channels[chanid].fetch_count[self.proc_id] -= 1
                         config.channels[chanid].fetched_count[self.proc_id] += 1
 
@@ -5264,15 +5293,15 @@ class tvgidstv_HTML(FetchData):
 
             channel = self.channels[chanid]
             # Start from the offset but skip the days allready fetched by tvgids.nl
-            # Veronica here contains Disney XD details
-            if chanid == '34':
-                fetch_range = range( config.args.offset, (config.args.offset + config.args.days))
-
-            else:
+            # Except when append_tvgidstv is False
+            if config.channels[chanid].opt_dict['append_tvgidstv']:
                 fetch_range = []
                 for i in range( config.args.offset, (config.args.offset + config.args.days)):
                     if not xml_output.channelsource[0].day_loaded[chanid][i]:
                         fetch_range.append(i)
+
+            else:
+                fetch_range = range( config.args.offset, (config.args.offset + config.args.days))
 
             if len(fetch_range) == 0:
                 config.channels[chanid].source_data[1] = None
@@ -5614,7 +5643,7 @@ class rtl_JSON(FetchData):
                     channels = '%s,%s' % (channels, chanid)
 
             return '%s&days_ahead=%s&days_back=%s&station=%s' % \
-                ( rtl_general, (config.args.offset + config.args.rtldays), config.args.offset, channels)
+                ( rtl_general, (config.args.offset + config.args.rtldays -1), config.args.offset, channels)
 
         else:
             return '%s&abstract_key=%s&days_ahead=%s' % ( rtl_abstract, abstract, days)
@@ -6177,6 +6206,7 @@ class Channel_Config(Thread):
         self.opt_dict['cattrans'] = config.opt_dict['cattrans']
         self.opt_dict['mark_HD'] = config.opt_dict['mark_HD']
         self.opt_dict['prime_source'] = -1
+        self.opt_dict['append_tvgidstv'] = True
 
     def validate_settings(self):
 
@@ -6373,9 +6403,9 @@ class Channel_Config(Thread):
                 continue
 
             counter += 1
-            logstring = '(%3.0f%%) %s: %s-%s: %s ' % \
-                                (100*float(counter)/float(nprograms), \
+            logstring = '%s:(%3.0f%%) %s-%s: %s ' % \
                                 self.chan_name, \
+                                (100*float(counter)/float(nprograms), \
                                 programs[i]['start-time'].strftime('%d %b %H:%M'), \
                                 programs[i]['stop-time'].strftime('%H:%M'), \
                                 programs[i]['name']) + u'\n'
