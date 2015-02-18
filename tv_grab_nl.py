@@ -6404,8 +6404,8 @@ class Channel_Config(Thread):
 
             counter += 1
             logstring = '%s:(%3.0f%%) %s-%s: %s ' % \
-                                self.chan_name, \
-                                (100*float(counter)/float(nprograms), \
+                                (self.chan_name, \
+                                100*float(counter)/float(nprograms), \
                                 programs[i]['start-time'].strftime('%d %b %H:%M'), \
                                 programs[i]['stop-time'].strftime('%H:%M'), \
                                 programs[i]['name']) + u'\n'
