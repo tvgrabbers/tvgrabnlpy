@@ -2383,7 +2383,11 @@ class Configure:
 
     def close(self):
 
-        infofiles.close()
+        try:
+            infofiles.close()
+
+        except:
+            log('\nAn unexpected error has occured closing infofiles: %s\n' %  (sys.exc_info()[1]), 0)
 
         # Quiting any remaining Threads
         for source in xml_output.channelsource.values():
@@ -2536,16 +2540,16 @@ class InfoFiles:
 
         if len(self.detail_list) > 0:
             f = config.open_file(config.xmltv_dir+'/detail_output')
-            if (f != None) and config.check_encoding(f):
+            if (f != None):
                 f.seek(0,0)
                 for byteline in f.readlines():
-                    line = config.get_line(f, byteline, False, self.encoding)
+                    line = config.get_line(f, byteline, False)
                     if line:
                         self.detail_list.append(line)
 
                 f.close()
 
-            f = config.open_file(config.xmltv_dir+'/detail_output', 'wb')
+            f = config.open_file(config.xmltv_dir+'/detail_output', 'w')
             if (f != None):
                 ds = set(self.detail_list)
                 ds = set(self.detail_list)
@@ -2553,7 +2557,7 @@ class InfoFiles:
                 tmp_list.extend(ds)
                 tmp_list.sort()
                 for i in tmp_list:
-                    f.write(i + '\n')
+                    f.write(u'%s\n' % i)
 
                 f.close()
 
@@ -2744,7 +2748,12 @@ class FetchURL(Thread):
         self.encoding = encoding
 
     def run(self):
-        self.result = self.get_page_internal(self.url, self.encoding)
+        try:
+            self.result = self.get_page_internal(self.url, self.encoding)
+
+        except:
+            log('\nAn unexpected error "%s" has occured while fetching page: %s\n' %  (self.url, sys.exc_info()[1]), 0)
+            return None
 
     def find_html_encoding(self, httphead, htmlhead):
         # look for the text '<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />'
@@ -4906,7 +4915,7 @@ class tvgids_JSON(FetchData):
             # get the raw programming for the day
             strdata = self.get_page(channel_url)
             if strdata == None or strdata.replace('\n','') == '{}':
-                log("No data for day=%d\n" % (offset))
+                log("No data on tvgids.nl for day=%d\n" % (offset))
                 continue
 
             # Just let the json library parse it.
@@ -4936,7 +4945,7 @@ class tvgids_JSON(FetchData):
 
         for chanid in self.channels.keys():
             if len(dl[chanid]) == 0:
-                log('No data for channel:%s on tvgids.nl' % (config.channels[chanid].chan_name))
+                log('No data on tvgids.nl for channel:%s' % (config.channels[chanid].chan_name))
                 config.channels[chanid].source_data[0] = None
                 continue
 
@@ -5228,7 +5237,7 @@ class tvgidstv_HTML(FetchData):
         dlast = datetime.date.fromordinal(self.current_date - 1).strftime('%d %b').split()
 
         if page_data == None:
-            log("Skip channel=%s, day=%d. No data!\n" % (channel, offset))
+            log("Skip channel=%s on tvgids.tv!, day=%d. No data\n" % (channel, offset))
             return None
 
         d = self.fetch_date.search(page_data)
@@ -6000,7 +6009,7 @@ class teveblad_HTML(FetchData):
                 strdata = self.get_page(channel_url)
 
                 if strdata == None:
-                    log("Skip channel=%s, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
+                    log("Skip channel=%s on teveblad.be, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
                     continue
 
                 if not self.check_date(self.datecheckdata.search(strdata), scan_date):
@@ -6927,6 +6936,7 @@ def main():
 
         log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
         return(99)
+
     # and return success
     return(0)
 # end main()
