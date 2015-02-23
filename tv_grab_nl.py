@@ -262,7 +262,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 0
-        self.patchdate = u'20150222'
+        self.patchdate = u'20150223'
         self.alfa = False
         self.beta = True
 
@@ -1115,7 +1115,7 @@ class Configure:
 
                     continue
 
-                elif config_title != None and (config_title.group(1) in self.__CHANNEL_CONFIG_SECTIONS__.values()):
+                elif config_title != None and (config_title.group(1) in self.__CHANNEL_CONFIG_SECTIONS__.keys()):
                     section = config_title.group(1)
                     type = 9
                     chanid = self.__CHANNEL_CONFIG_SECTIONS__[config_title.group(1)]
@@ -1127,7 +1127,7 @@ class Configure:
                     continue
 
                 # Read Configuration options
-                elif type == 1:
+                if type == 1:
                     try:
                         # Strip the name from the value
                         a = re.split('=',line)
