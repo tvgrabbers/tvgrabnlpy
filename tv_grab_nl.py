@@ -435,7 +435,7 @@ class Configure:
         self.groupnameremove = ['kro detectives',]
         # Titles to rename
         self.titlerename = {'navy ncis': 'NCIS',
-                                        'inspetor banks': 'DCI Banks'}
+                                        'inspector banks': 'DCI Banks'}
 
         # Create a category translation dictionary
         # Look in mythtv/themes/blue/ui.xml for all category names
@@ -1495,7 +1495,7 @@ class Configure:
                         break
 
             # For Veronica tvgids.tv contains Disney XD, so we don't append it
-            if channel.source_id[0] == '34':
+            if channel.source_id[0] in ('3', '34'):
                 channel.opt_dict['append_tvgidstv'] = False
 
         return 0
@@ -2528,10 +2528,10 @@ class InfoFiles:
 
         if self.fetch_list != None:
             for chanid in config.channels.keys():
-
-                for source in xml_output.channelsource.values():
-                    if source.source in self.fetch_strings[chanid].keys():
-                        self.fetch_list.write(self.fetch_strings[chanid][source.source])
+                if chanid in self.fetch_strings:
+                    for source in xml_output.channelsource.values():
+                        if source.source in self.fetch_strings[chanid].keys():
+                            self.fetch_list.write(self.fetch_strings[chanid][source.source])
 
             self.fetch_list.close()
 
@@ -3256,6 +3256,7 @@ class FetchData(Thread):
         # Check the Title rename list
         if ptitle.lower() in config.titlerename:
             log('Renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()]), 64)
+            infofiles.addto_detail_list(unicode('Title renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()])))
             ptitle = config.titlerename[ptitle.lower()]
 
         program['name'] = ptitle
@@ -5204,8 +5205,7 @@ class tvgidstv_HTML(FetchData):
         """
 
         # These regexes are used to get the time offset (whiche day they see as today)
-        self.fetch_date = re.compile('class="today " title="Vandaag op.*?\n.*?\n(.*?)\n',re.DOTALL)
-        self.fetch_date0 = re.compile('class="today active" title="Vandaag op.*?\n.*?\n(.*?)\n',re.DOTALL)
+        self.fetch_datecontent = re.compile('<div class="section-title select-scope">(.*?)<div class="section-content">',re.DOTALL)
         # These regexes fetch the relevant data out of thetvgids.tv pages, which then will be parsed to the ElementTree
         self.getcontent = re.compile('<div class="span47 offset1">(.*?)<div class="span30 offset1">',re.DOTALL)
         self.daydata = re.compile('<div class="section-content">(.*?)<div class="advertisement">',re.DOTALL)
@@ -5242,19 +5242,36 @@ class tvgidstv_HTML(FetchData):
             log("Skip channel=%s on tvgids.tv!, day=%d. No data\n" % (channel, offset))
             return None
 
-        d = self.fetch_date.search(page_data)
-        if d == None:
-             d = self.fetch_date0.search(page_data)
-
+        d = self.fetch_datecontent.search(page_data)
         if d == None:
             log('Unable to veryfy the right offset on .' )
             return None
 
-        d = d.group(1).strip().split()
-        if int(dnow[0]) == int(d[0]) and dnow[1].lower() == d[1].lower():
+        try:
+            d = self.fetch_datecontent.search(page_data).group(1)
+            d = self.clean_html(d)
+            htmldata = ET.fromstring( ('<div>' + d).encode('utf-8'))
+
+        except:
+            log('Unable to veryfy the right offset on .' )
+            return None
+
+        dd = htmldata.find('div/a[@class="today "]/br')
+        if dd == None:
+            dd = htmldata.find('div/a[@class="today"]/br')
+
+        if dd == None:
+            dd = htmldata.find('div/a[@class="today active"]/br')
+
+        if dd.tail == None:
+            log('Unable to veryfy the right offset on .' )
+            return None
+
+        d = dd.tail.strip().split()
+        if int(dnow[0]) == int(d[0]):
             return offset
 
-        elif int(dlast[0]) == int(d[0]) and dlast[1].lower() == d[1].lower():
+        elif int(dlast[0]) == int(d[0]):
             return offset - 1
 
         else:
@@ -5322,11 +5339,6 @@ class tvgidstv_HTML(FetchData):
                     config.channels[chanid].source_data[1] = None
                     continue
 
-                else:
-                    log('\n', 2)
-                    log('Now fetching %s(xmltvid=%s%s) from tvgids.tv\n    (channel %s of %s) for the remainder of %s days.\n' % \
-                        (config.channels[chanid].chan_name, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), chanid, channel_cnt, len(self.channels), config.args.days), 2)
-
                 # Tvgids.tv shows programs per channel per day, so we loop over the number of days
                 # we are required to grab
                 for offset in fetch_range:
@@ -5335,6 +5347,10 @@ class tvgidstv_HTML(FetchData):
                       (config.channels[chanid].opt_dict['append_tvgidstv'] and xml_output.channelsource[0].day_loaded[chanid][offset]):
                         continue
 
+                    log('\n', 2)
+                    log('Now fetching %s(xmltvid=%s%s) from tvgids.tv\n    (channel %s of %s) for day %s of %s.\n' % \
+                        (config.channels[chanid].chan_name, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), \
+                        chanid, channel_cnt, len(self.channels), offset, config.args.days), 2)
                     # get the raw programming for the day
                     channel_url = self.get_url(channel, offset)
                     strdata = self.get_page(channel_url)
