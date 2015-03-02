@@ -262,9 +262,9 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 0
-        self.patchdate = u'20150223'
+        self.patchdate = u'20150302'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         # Used for creating extra output to beter the code
         self.write_info_files = False
@@ -3323,7 +3323,7 @@ class FetchData(Thread):
                     else:
                         # Unknown tag we just check for text
                         content = content + format_text(d.text) + u' '
-                        infofiles.addto_detail_list(unicode('new tvgids.nl descriptiontag => ' + \
+                        infofiles.addto_detail_list(unicode('new '+ self.source+' descriptiontag => ' + \
                                                 unicode(d.tag.strip()) + ': ' + unicode(d.text.strip())))
 
                 # and we add the text inbetween the tags
