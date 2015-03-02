@@ -4460,10 +4460,10 @@ class tvgidstv_HTML(FetchData):
             return None
 
         d = d.group(1).strip().split()
-        if int(dnow[0]) == int(d[0]) and dnow[1].lower() == d[1].lower():
+        if int(dnow[0]) == int(d[0]):
             return offset
 
-        elif int(dlast[0]) == int(d[0]) and dlast[1].lower() == d[1].lower():
+        elif int(dlast[0]) == int(d[0]):
             return offset - 1
 
         else:
