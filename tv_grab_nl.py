@@ -1706,6 +1706,7 @@ class Configure:
                 return(1)
 
             log('Updated the configfile %s!\nCheck if you are fine with the settings.\n' % self.args.config_file)
+            log('If this is a first install, you have to enable the desired channels!\n', 1, 1)
             return(0)
 
         # Continue validating the settings for the individual channels
@@ -5565,7 +5566,7 @@ class tvgidstv_HTML(FetchData):
 
                         else:
                             tdict['genre'] = u'overige'
-                            infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext))
+                            infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + self.source))
 
                         tdict['subgenre'] = dtext
                         # And add them to tvtvcattrans (and tv_grab_nl_py.set for later reference
