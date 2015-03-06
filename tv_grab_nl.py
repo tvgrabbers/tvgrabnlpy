@@ -236,7 +236,7 @@ def log(message, log_level = 1, log_target = 3, Locked = False):
             pass
 
         # Log to the screen
-        elif log_level == 0 or ((not config.args.quiet) and (log_level & config.opt_dict['log_level']) and (log_target & 1)):
+        elif log_level == 0 or ((not config.opt_dict['quiet']) and (log_level & config.opt_dict['log_level']) and (log_target & 1)):
             sys.stdout.write(message.encode("utf-8"))
 
         # Log to the log-file
@@ -265,8 +265,8 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 1
-        self.patch = 1
-        self.patchdate = u'20150303'
+        self.patch = 2
+        self.patchdate = u'20150307'
         self.alfa = False
         self.beta = False
 
@@ -335,8 +335,11 @@ class Configure:
         # save the cache every # fetches
         self.opt_dict['cache_save_interval'] = 1000
 
+        self.clean_cache = True
+        self.clear_cache = False
+
         # where the output goes. None means to the screen (stdout)
-        self.output_file = None
+        self.opt_dict['output_file'] = None
 
         # how many seconds to wait before we timeout on a
         # url fetch, 10 seconds seems reasonable
@@ -950,8 +953,6 @@ class Configure:
 
     def read_commandline(self):
         """Initiate argparser and read the commandline"""
-        clean_cache = True
-        clear_cache = False
         self.description = 'The Netherlands: %s\n' % self.version(True) + \
                         '  A grabber that grabs tvguide data from tvgids.nl, tvgids.tv, rtl.nl and\n' + \
                         '  teveblad.be for up to 178+ channels and up to 14 days. Which it then stores\n' + \
@@ -999,10 +1000,10 @@ class Configure:
                         metavar = '<number>',
                         help = 'after how many fetches to save the cache <Default %s>' % self.opt_dict['cache_save_interval'])
 
-        parser.add_argument('--clean_cache', action = 'store_true', default = clean_cache, dest = 'clean_cache',
+        parser.add_argument('--clean_cache', action = 'store_true', default = self.clean_cache, dest = 'clean_cache',
                         help = 'clean the cache of outdated data before fetching')
 
-        parser.add_argument('--clear_cache', action = 'store_true', default = clear_cache, dest = 'clear_cache',
+        parser.add_argument('--clear_cache', action = 'store_true', default = self.clear_cache, dest = 'clear_cache',
                         help = 'empties the cache file before fetching data')
 
         parser.add_argument('-W', '--output', type = str, default = None, dest = 'output_file',
@@ -1148,7 +1149,7 @@ class Configure:
                                 self.opt_dict[a[0].lower().strip()] = False
 
                         elif a[0].lower().strip() == 'output_file':
-                            self.output_file = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1].strip()
+                            self.opt_dict['output_file'] = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1].strip()
 
                         elif len(a) == 2:
                             # Integer Values
@@ -1173,7 +1174,7 @@ class Configure:
                                     self.opt_dict[a[0].lower().strip()] = 'none'
 
                     except Exception:
-                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
                 # Read the channel stuff up to version 2.0
                 if type == 2:
@@ -1186,7 +1187,7 @@ class Configure:
                         self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[0].strip()] = unicode(channel[0]).strip()
 
                     except Exception:
-                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
                 # Changed Channel config since version 2.1
                 if type == 3:
@@ -1228,7 +1229,7 @@ class Configure:
                                     break
 
                     except Exception:
-                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
                 # Read the channel specific configuration
                 if type == 9:
@@ -1257,7 +1258,12 @@ class Configure:
                                         self.channels[chanid].opt_dict[a[0].lower().strip()] = None
 
                                 else:
-                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
+                                    if a[0].lower().strip() == 'prime_source':
+                                        if self.channels[chanid].source_id[int(a[1])] != '':
+                                            self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
+
+                                    else:
+                                        self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
 
                             # Select Values
                             elif a[0].lower().strip() == 'overlap_strategy':
@@ -1268,7 +1274,7 @@ class Configure:
                                     self.channels[chanid].opt_dict[a[0].lower().strip()] = 'none'
 
                     except Exception:
-                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.args.config_file, line))
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
             except Exception as e:
                 log(u'Error reading Config\n')
@@ -1536,14 +1542,11 @@ class Configure:
             self.log_file = self.args.config_file+'.log'
             log('Using config file: %s\n' % self.args.config_file)
 
-        # Save an old session log and open a new one
-        self.save_oldfile(self.log_file)
-        self.log_output = self.open_file(self.log_file, mode = 'a')
-        if self.log_output != None:
-            sys.stderr = self.log_output
+        if self.validate_option('log_file') != None:
+            return(2)
 
         if self.args.configure:
-            # check for the ~.xmltv dir
+            # check for the config dir
             config_dir = os.path.dirname(self.config_file)
             if (config_dir != '') and not os.path.exists(config_dir):
                 log('Creating %s directory,' % config_dir)
@@ -1555,148 +1558,85 @@ class Configure:
         elif not self.read_config():
             return(1)
 
-        if self.args.cache_save_interval == None:
-            self.args.cache_save_interval = self.opt_dict['cache_save_interval']
+        if self.args.cache_save_interval != None:
+            self.opt_dict['cache_save_interval'] = self.args.cache_save_interval
 
-        if self.args.quiet == None:
-            self.args.quiet = self.opt_dict['quiet']
+        if self.args.quiet != None:
+            self.opt_dict['quiet'] = self.args.quiet
 
-        if self.args.use_utc == None:
-            self.args.use_utc = self.opt_dict['use_utc']
+        if self.args.use_utc != None:
+            self.opt_dict['use_utc'] = self.args.use_utc
 
-        if self.args.compat == None:
-            self.args.compat = self.opt_dict['compat']
-
-        else:
+        if self.args.compat != None:
             self.opt_dict['compat'] = self.args.compat
             for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['compat'] = self.args.compat
+                self.channels[chanid].opt_dict['compat'] = self.opt_dict['compat']
 
-        if self.args.fast == None:
-            self.args.fast = self.opt_dict['fast']
-
-        else:
+        if self.args.fast != None:
             self.opt_dict['fast'] = self.args.fast
             for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['fast'] = self.args.fast
+                self.channels[chanid].opt_dict['fast'] = self.opt_dict['fast']
 
-        if self.args.logos == None:
-            self.args.logos = self.opt_dict['logos']
-
-        else:
+        if self.args.logos != None:
             self.opt_dict['logos'] = self.args.logos
             for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['logos'] = self.args.logos
+                self.channels[chanid].opt_dict['logos'] = self.opt_dict['logos']
 
-        if self.args.mark_HD == None:
-            self.args.mark_HD = self.opt_dict['mark_HD']
-
-        else:
+        if self.args.mark_HD != None:
             self.opt_dict['mark_HD'] = self.args.mark_HD
             for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['mark_HD'] = self.args.mark_HD
+                self.channels[chanid].opt_dict['mark_HD'] = self.opt_dict['mark_HD']
 
-        if self.args.cattrans == None:
-            self.args.cattrans = self.opt_dict['cattrans']
-
-        else:
+        if self.args.cattrans != None:
             self.opt_dict['cattrans'] = self.args.cattrans
             for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['cattrans'] = self.args.cattrans
+                self.channels[chanid].opt_dict['cattrans'] = self.opt_dict['cattrans']
 
-        if self.args.slowdays == None:
-            self.args.slowdays = self.opt_dict['slowdays']
-
-        else:
+        if self.args.slowdays != None:
             self.opt_dict['slowdays'] = self.args.slowdays
-
             for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['slowdays'] = self.args.slowdays
+                self.channels[chanid].opt_dict['slowdays'] = self.opt_dict['slowdays']
 
-        if self.args.desc_length == None:
-            self.args.desc_length = self.opt_dict['desc_length']
-
-        else:
+        if self.args.desc_length != None:
             self.opt_dict['desc_length'] = self.args.desc_length
             for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['desc_length'] = self.args.desc_length
+                self.channels[chanid].opt_dict['desc_length'] = self.opt_dict['desc_length']
 
-        if self.args.overlap_strategy == None:
-            self.args.overlap_strategy = self.opt_dict['overlap_strategy']
-
-        else:
+        if self.args.overlap_strategy != None:
             self.opt_dict['overlap_strategy'] = self.args.overlap_strategy
             for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['overlap_strategy'] = self.args.overlap_strategy
+                self.channels[chanid].opt_dict['overlap_strategy'] = self.opt_dict['overlap_strategy']
 
-        if self.args.max_overlap == None:
-            self.args.max_overlap = self.opt_dict['max_overlap']
-
-        else:
+        if self.args.max_overlap != None:
             self.opt_dict['max_overlap'] = self.args.max_overlap
             for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['max_overlap'] = self.args.max_overlap
-
-        if self.args.output_file == None:
-            self.args.output_file = self.output_file
+                self.channels[chanid].opt_dict['max_overlap'] = self.opt_dict['max_overlap']
 
         if self.args.output_file != None:
-            try:
-                self.output = self.open_file(self.args.output_file,'w')
-                if self.output == None:
-                    return(2)
-
-            except Exception:
-                log('Cannot write to outputfile: %s\n' % self.args.output_file)
-                return(2)
-
-        else: self.output = None
+            self.opt_dict['output_file'] = self.args.output_file
 
         # limit days to maximum supported by the several sites
-        if self.args.offset == None:
-            self.args.offset = self.opt_dict['offset']
+        if self.args.offset != None:
+            self.offset = self.opt_dict['offset']
+            self.opt_dict['offset'] = self.args.offset
 
-        if self.args.offset > 14:
-            if self.opt_dict['offset'] < 14:
-                log("Een zo hoge offset van: %s is belachelijk. We resetten naar %s\n" % (self.args.offset, self.opt_dict['offset']),1,1)
-                self.args.offset = self.opt_dict['offset']
+        if self.args.days != None:
+            self.opt_dict['days'] = self.args.days
 
-            else:
-                log("Een zo hoge offset van: %s is belachelijk. We resetten naar 0\n" % (self.args.offset),1,1)
-                self.args.offset = 0
+        if self.args.tevedays != None:
+            self.opt_dict['tevedays'] = self.args.tevedays
 
-        if self.args.days == None:
-            self.args.days = self.opt_dict['days']
+        if self.args.rtldays != None:
+            self.opt_dict['rtldays'] = self.args.rtldays
 
-        if self.args.days > (14 - self.args.offset):
-            log("tvgids.nl/tvgids.tv kunnen maximaal 14 dagen vooruit kijken. Resetting\n",1,1)
+        self.validate_option('offset')
+        self.validate_option('days')
+        self.validate_option('tevedays')
+        self.validate_option('rtldays')
+        if self.validate_option('output_file') != None:
+            return(2)
 
-        self.args.days = min(self.args.days,(14 - self.args.offset))
-
-        if self.args.slowdays == None:
-            self.opt_dict['slowdays'] = config.args.days
-
-        if self.args.tevedays == None:
-            self.args.tevedays = self.opt_dict['tevedays']
-
-        if self.args.tevedays > (8 - self.args.offset):
-            log("teveblad.be kan maximaal 7 dagen vooruit kijken. Resetting\n",1,1)
-
-        self.args.tevedays = min(self.args.tevedays,(8 - self.args.offset))
-        self.args.tevedays = min(self.args.days, self.args.tevedays)
-        if self.args.tevedays < 0:
-            self.args.tevedays = 0
-
-        if self.args.rtldays == None:
-            self.args.rtldays = self.opt_dict['rtldays']
-
-        if self.args.rtldays > (14 - self.args.offset):
-            log("rtl.nl kan maximaal 14 dagen vooruit kijken.\n",1,1)
-
-        self.args.rtldays = min(self.args.rtldays,(14 - self.args.offset))
-        self.args.rtldays = min(self.args.days, self.args.rtldays)
-
-        if self.configversion < 2.1:
+        if not self.args.configure and self.configversion < 2.1:
             # Update to a version 2.1 config
             if self.configversion == 1.0:
                 self.write_defaults_list()
@@ -1704,7 +1644,7 @@ class Configure:
                 log('Error updating to new Config.\nPlease remove the old config and Re-run me with the --configure flag.\n')
                 return(1)
 
-            log('Updated the configfile %s!\nCheck if you are fine with the settings.\n' % self.args.config_file)
+            log('Updated the configfile %s!\nCheck if you are fine with the settings.\n' % self.config_file)
             log('If this is a first install, you have to enable the desired channels!\n', 1, 1)
             return(0)
 
@@ -1716,34 +1656,191 @@ class Configure:
         if self.args.configure:
             if not self.write_config(True):
                 log('Error writing new Config. Trying to restore an old one.')
-                return 1
                 try:
                     os.rename(file + '.old', file)
+
                 except:
                     pass
+
+                return(1)
+
+            log('Created the configfile %s!\nCheck if you are fine with the settings.\n' % self.config_file)
+            log('If this is a first install, you have to enable the desired channels!\n', 1, 1)
             return(0)
 
         if self.args.save_options:
             if not self.write_config(False):
                 log('Error writing new Config. Trying to restore an old one.\n')
-                return(1)
                 try:
                     os.rename(file + '.old', file)
+
                 except:
                     pass
+
+                return(1)
+
+            log('Updated the options in the configfile %s!\nCheck if you are fine with the settings.\n' % self.config_file)
             return(0)
 
         #check for cache
-        xml_output.program_cache = ProgramCache(self.args.program_cache_file)
-        if self.args.clean_cache:
-            xml_output.program_cache.clean()
+        if self.args.clean_cache != self.clean_cache:
+            self.clean_cache = self.args.clean_cache
 
-        if self.args.clear_cache:
-            xml_output.program_cache.clear()
+        if self.args.clear_cache != self.clear_cache:
+            self.clear_cache = self.args.clear_cache
+
+        if self.args.program_cache_file != self.program_cache_file:
+            self.program_cache_file = self.args.program_cache_file
+
+        if self.validate_option('program_cache_file') != None:
+            return(2)
 
         self.read_defaults_list()
 
     # end validate_commandline()
+
+    def validate_option(self, option, channel = config):
+        """Validate an option"""
+        if option == 'offset':
+            if self.opt_dict['offset'] > 14:
+                if self.offset < 14:
+                    log("Een zo hoge offset van: %s is belachelijk. We resetten naar %s\n" % (self.opt_dict['offset'], self.offset),1,1)
+                    self.opt_dict['offset'] = self.offset
+
+                else:
+                    log("Een zo hoge offset van: %s is belachelijk. We resetten naar 0\n" % (self.opt_dict['offset']),1,1)
+                    self.opt_dict['offset'] = 0
+
+        if option == 'days':
+            if self.opt_dict['days'] > (14 - self.opt_dict['offset']):
+                log("tvgids.nl/tvgids.tv kunnen maximaal 14 dagen vooruit kijken. Resetting\n",1,1)
+
+            self.opt_dict['days'] = min(self.opt_dict['days'],(14 - self.opt_dict['offset']))
+
+            if self.opt_dict['slowdays'] == None:
+                self.opt_dict['slowdays'] = config.opt_dict['days']
+
+        if option == 'tevedays':
+            if self.opt_dict['tevedays'] > (8 - self.opt_dict['offset']):
+                log("teveblad.be kan maximaal 7 dagen vooruit kijken. Resetting\n",1,1)
+
+            self.opt_dict['tevedays'] = min(self.opt_dict['tevedays'],(8 - self.opt_dict['offset']))
+            self.opt_dict['tevedays'] = min(self.opt_dict['days'], self.opt_dict['tevedays'])
+            if self.opt_dict['tevedays'] < 0:
+                self.opt_dict['tevedays'] = 0
+
+        if option == 'rtldays':
+            if self.opt_dict['rtldays'] > (14 - self.opt_dict['offset']):
+                log("rtl.nl kan maximaal 14 dagen vooruit kijken.\n",1,1)
+
+            self.opt_dict['rtldays'] = min(self.opt_dict['rtldays'],(14 - self.opt_dict['offset']))
+            self.opt_dict['rtldays'] = min(self.opt_dict['days'], self.opt_dict['rtldays'])
+
+        if option == 'output_file':
+            if self.opt_dict['output_file'] != None:
+                try:
+                    output_dir = os.path.dirname(self.opt_dict['output_file'])
+                    if (output_dir != '') and not os.path.exists(output_dir):
+                        log('Creating %s directory,' % output_dir)
+                        os.mkdir(output_dir)
+
+                    self.output = self.open_file(self.opt_dict['output_file'],'w')
+                    if self.output == None:
+                        log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
+                        return(2)
+
+                except Exception:
+                    log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
+                    return(2)
+
+            else: self.output = None
+
+        if option == 'log_file':
+            # Save an old session log and open a new one
+            try:
+                log_dir = os.path.dirname(self.log_file)
+                if (log_dir != '') and not os.path.exists(log_dir):
+                    log('Creating %s directory,' % log_dir)
+                    os.mkdir(log_dir)
+
+                self.save_oldfile(self.log_file)
+                self.log_output = self.open_file(self.log_file, mode = 'a')
+                if self.log_output != None:
+                    sys.stderr = self.log_output
+
+                else:
+                    log('Cannot write to logfile: %s\n' % self.log_file)
+                    return(2)
+
+            except Exception:
+                log('Cannot write to logfile: %s\n' % self.log_file)
+                return(2)
+
+        if option == 'program_cache_file':
+            try:
+                cache_dir = os.path.dirname(self.program_cache_file)
+                if (cache_dir != '') and not os.path.exists(cache_dir):
+                    log('Creating %s directory,' % cache_dir)
+                    os.mkdir(cache_dir)
+
+                if os.access(self.program_cache_file, os.F_OK and os.W_OK):
+                    return
+
+                if not os.path.isfile(self.program_cache_file) and os.access(cache_dir, os.W_OK):
+                    return
+
+                else:
+                    log('Cannot write to cachefile: %s\n' % self.program_cache_file)
+                    return(2)
+
+            except Exception:
+                log('Cannot write to cachefile: %s\n' % self.program_cache_file)
+                return(2)
+
+            xml_output.program_cache = ProgramCache(self.program_cache_file)
+            if self.program_cache_file != None and self.clean_cache:
+                xml_output.program_cache.clean()
+
+            if self.program_cache_file != None and self.clear_cache:
+                xml_output.program_cache.clear()
+
+        if option == 'slowdays':
+            if channel.opt_dict['slowdays'] == None:
+                channel.opt_dict['slowdays'] = self.opt_dict['days']
+                if channel.opt_dict['desc_length'] == 0:
+                    # no description implies fast == True
+                    if not channel.opt_dict['fast']:
+                        log('Setting Channel: %s to Fast Mode\n' % channel.chan_name,1,1)
+                        channel.opt_dict['fast'] = True
+
+            else:
+                channel.opt_dict['slowdays'] = min(self.opt_dict['days'], channel.opt_dict['slowdays'])
+                # slowdays implies fast == False
+                if channel.opt_dict['slowdays'] < self.opt_dict['days']:
+                    channel.opt_dict['fast']  = False
+
+        if option == 'desc_length':
+            if channel.opt_dict['desc_length'] != self.opt_dict['desc_length']:
+                log('Using description length: %d for Cannel: %s\n' % (channel.opt_dict['desc_length'], channel.chan_name),1,1)
+
+        if option == 'overlap_strategy':
+            if not channel.opt_dict['overlap_strategy'] in ['average', 'stop', 'start']:
+                channel.opt_dict['overlap_strategy'] = 'none'
+
+        if option == 'max_overlap':
+            if channel.opt_dict['max_overlap'] == 0:
+                # no max_overlap implies strategie == 'None'
+                channel.opt_dict['overlap_strategy'] = 'None'
+                log('Maximum overlap 0 means overlap strategy for Channel: %s set to: \'%s\'\n' % (channel.chan_name, channel.opt_dict['overlap_strategy']),1,1)
+
+            elif channel.opt_dict['max_overlap'] != self.opt_dict['max_overlap']:
+                log('Using Maximum Overlap: %d for Channel %s\n' % (channel.opt_dict['max_overlap'], channel.chan_name),1,1)
+                if channel.opt_dict['overlap_strategy'] != self.opt_dict['overlap_strategy']:
+                    log('overlap strategy for Channel: %s set to: \'%s\'\n' % (channel.chan_name, channel.opt_dict['overlap_strategy']),1,1)
+
+        #~ if option == '':
+        #~ if option == '':
+    # end validate_option()
 
     def write_opts_to_log(self):
         """
@@ -1758,19 +1855,19 @@ class Configure:
         log(u'Preferred Methode: "allatonce"', 1, 2)
         log(u'log level = %s' % (self.opt_dict['log_level']), 1, 2)
         log(u'match log level = %s' % (self.opt_dict['match_log_level']), 1, 2)
-        log(u'config_file = %s' % (self.args.config_file), 1, 2)
-        log(u'program_cache_file = %s' % (self.args.program_cache_file), 1, 2)
-        log(u'cache_save_interval = %s' % (self.args.cache_save_interval), 1, 2)
-        log(u'clean_cache = %s' % (self.args.clean_cache), 1, 2)
-        log(u'clear_cache = %s' % (self.args.clear_cache), 1, 2)
-        log(u'output_file = %s' % (self.args.output_file), 1, 2)
-        log(u'quiet = %s' % (self.args.quiet), 1, 2)
+        log(u'config_file = %s' % (self.config_file), 1, 2)
+        log(u'program_cache_file = %s' % (self.program_cache_file), 1, 2)
+        log(u'cache_save_interval = %s' % (self.opt_dict['cache_save_interval']), 1, 2)
+        log(u'clean_cache = %s' % (self.clean_cache), 1, 2)
+        log(u'clear_cache = %s' % (self.clear_cache), 1, 2)
+        log(u'output_file = %s' % (self.opt_dict['output_file']), 1, 2)
+        log(u'quiet = %s' % (self.opt_dict['quiet']), 1, 2)
         log(u'fast = %s' % (self.opt_dict['fast']), 1, 2)
-        log(u'offset = %s' % (self.args.offset), 1, 2)
-        log(u'days = %s' % (self.args.days), 1, 2)
+        log(u'offset = %s' % (self.opt_dict['offset']), 1, 2)
+        log(u'days = %s' % (self.opt_dict['days']), 1, 2)
         log(u'slowdays = %s' % (self.opt_dict['slowdays']), 1, 2)
-        log(u'rtldays = %s' % (self.args.rtldays), 1, 2)
-        log(u'tevedays = %s' % (self.args.tevedays), 1, 2)
+        log(u'rtldays = %s' % (self.opt_dict['rtldays']), 1, 2)
+        log(u'tevedays = %s' % (self.opt_dict['tevedays']), 1, 2)
         log(u'compat = %s' % (self.opt_dict['compat']), 1, 2)
         log(u'max_overlap = %s' % (self.opt_dict['max_overlap']), 1, 2)
         log(u'overlap_strategy = %s' % (self.opt_dict['overlap_strategy']), 1, 2)
@@ -1778,7 +1875,7 @@ class Configure:
         log(u'desc_length = %s' % (self.opt_dict['desc_length']), 1, 2)
         log(u'cattrans = %s' % (self.opt_dict['cattrans']), 1, 2)
         log(u'mark_HD = %s' % (self.opt_dict['mark_HD']), 1, 2)
-        log(u'use_utc = %s' % (self.args.use_utc), 1, 2)
+        log(u'use_utc = %s' % (self.opt_dict['use_utc']), 1, 2)
         log(u'Channel specific settings other then the above:', 1, 2)
         for chan_def in self.channels.values():
             chan_name_written = False
@@ -1858,18 +1955,18 @@ class Configure:
         f.write(u'# 4 = Log matches\n')
         f.write(u'match_log_level = %s\n' % self.opt_dict['match_log_level'])
         f.write(u'\n')
-        f.write(u'quiet = %s\n' % self.args.quiet)
-        f.write(u'output_file = %s\n' % self.args.output_file)
-        f.write(u'cache_save_interval = %s\n' % self.args.cache_save_interval)
+        f.write(u'quiet = %s\n' % self.opt_dict['quiet'])
+        f.write(u'output_file = %s\n' % self.opt_dict['output_file'])
+        f.write(u'cache_save_interval = %s\n' % self.opt_dict['cache_save_interval'])
         f.write(u'compat = %s\n' % self.opt_dict['compat'])
         f.write(u'logos = %s\n' % self.opt_dict['logos'])
-        f.write(u'use_utc = %s\n' % self.args.use_utc)
+        f.write(u'use_utc = %s\n' % self.opt_dict['use_utc'])
         f.write(u'fast = %s\n' % self.opt_dict['fast'])
-        f.write(u'offset = %s\n' % self.args.offset)
-        f.write(u'days = %s\n' % self.args.days)
+        f.write(u'offset = %s\n' % self.opt_dict['offset'])
+        f.write(u'days = %s\n' % self.opt_dict['days'])
         f.write(u'slowdays = %s\n' % self.opt_dict['slowdays'])
-        f.write(u'rtldays = %s\n' % self.args.rtldays)
-        f.write(u'tevedays = %s\n' % self.args.tevedays)
+        f.write(u'rtldays = %s\n' % self.opt_dict['rtldays'])
+        f.write(u'tevedays = %s\n' % self.opt_dict['tevedays'])
         f.write(u'mark_HD = %s\n' % self.opt_dict['mark_HD'])
         f.write(u'cattrans = %s\n' % self.opt_dict['cattrans'])
         f.write(u'overlap_strategy = %s\n' % self.opt_dict['overlap_strategy'] )
@@ -2401,7 +2498,7 @@ class Configure:
 
         # close everything neatly
         try:
-            if self.output_file != None:
+            if self.opt_dict['output_file'] != None:
                 self.output.close()
 
             if self.log_output != None:
@@ -2589,7 +2686,8 @@ class ProgramCache(Thread):
         self.save = False
         self.counter = 0
 
-        if filename == None:
+        if self.filename == None:
+            log('Cache function disabled!')
             self.pdict = {}
 
         else:
@@ -2597,15 +2695,20 @@ class ProgramCache(Thread):
                 self.load()
 
             else:
+                log('Cache function disabled!')
+                self.filename = None
                 self.pdict = {}
 
     def run(self):
+        if self.filename == None:
+            return
+
         while True:
             if self.save:
                 self.dump()
                 self.save = False
 
-            if self.counter == config.args.cache_save_interval:
+            if self.counter == config.opt_dict['cache_save_interval']:
                 self.dump()
                 self.counter = 0
 
@@ -2690,6 +2793,9 @@ class ProgramCache(Thread):
         Adds a program
         """
         # First check if it was previously saved to prevent doubles
+        if self.filename == None:
+            return
+
         id = self.query_id(program)
         self.lock.acquire()
         if id != None and id in program and program[id] in self.pdict.keys():
@@ -2718,6 +2824,9 @@ class ProgramCache(Thread):
         Removes all cached programming before today.
         Also removes erroneously cached programming.
         """
+        if self.filename == None:
+            return
+
         dnow = datetime.date.today()
         self.lock.acquire()
         for key in self.pdict.keys():
@@ -2846,13 +2955,13 @@ class FetchData(Thread):
         # Specifics can be done in init_channels and init_json which are called here
         try:
             self.day_loaded[0] = {}
-            for day in range( config.args.offset, (config.args.offset + config.args.days)):
+            for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
                 self.day_loaded[0][day] = False
 
             for chanid in config.channels.keys():
                 self.channel_loaded[chanid] = False
                 self.day_loaded[chanid] ={}
-                for day in range( config.args.offset, (config.args.offset + config.args.days)):
+                for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
                     self.day_loaded[chanid][day] = False
 
                 self.program_data[chanid] = []
@@ -4879,7 +4988,7 @@ class tvgids_JSON(FetchData):
 
     def load_pages(self):
 
-        if config.args.offset > 4:
+        if config.opt_dict['offset'] > 4:
             return
 
         if len(self.channels) == 0 :
@@ -4895,7 +5004,7 @@ class tvgids_JSON(FetchData):
         channel_cnt = 0
 
         for retry in (0, 1):
-            for offset in range(config.args.offset, min((config.args.offset + config.args.days), 4)):
+            for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 4)):
                 if self.quit:
                     return
 
@@ -4905,7 +5014,7 @@ class tvgids_JSON(FetchData):
 
                 channel_cnt += 1
                 log('\n', 2)
-                log('Now fetching %s channels from tvgids.nl\n    (day %s of %s).\n' % (len(self.channels), offset, config.args.days), 2)
+                log('Now fetching %s channels from tvgids.nl\n    (day %s of %s).\n' % (len(self.channels), offset, config.opt_dict['days']), 2)
 
                 channel_url = self.get_url('day', offset)
 
@@ -5328,12 +5437,12 @@ class tvgidstv_HTML(FetchData):
                 # Except when append_tvgidstv is False
                 if config.channels[chanid].opt_dict['append_tvgidstv']:
                     fetch_range = []
-                    for i in range( config.args.offset, (config.args.offset + config.args.days)):
+                    for i in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
                         if not xml_output.channelsource[0].day_loaded[chanid][i]:
                             fetch_range.append(i)
 
                 else:
-                    fetch_range = range( config.args.offset, (config.args.offset + config.args.days))
+                    fetch_range = range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days']))
 
                 if len(fetch_range) == 0:
                     config.channels[chanid].source_data[1] = None
@@ -5350,7 +5459,7 @@ class tvgidstv_HTML(FetchData):
                     log('\n', 2)
                     log('Now fetching %s(xmltvid=%s%s) from tvgids.tv\n    (channel %s of %s) for day %s of %s.\n' % \
                         (config.channels[chanid].chan_name, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), \
-                        chanid, channel_cnt, len(self.channels), offset, config.args.days), 2)
+                        chanid, channel_cnt, len(self.channels), offset, config.opt_dict['days']), 2)
                     # get the raw programming for the day
                     channel_url = self.get_url(channel, offset)
                     strdata = self.get_page(channel_url)
@@ -5690,7 +5799,7 @@ class rtl_JSON(FetchData):
                     channels = '%s,%s' % (channels, chanid)
 
             return '%s&days_ahead=%s&days_back=%s&station=%s' % \
-                ( rtl_general, (config.args.offset + config.args.rtldays -1), config.args.offset, channels)
+                ( rtl_general, (config.opt_dict['offset'] + config.opt_dict['rtldays'] -1), config.opt_dict['offset'], channels)
 
         else:
             return '%s&abstract_key=%s&days_ahead=%s' % ( rtl_abstract, abstract, days)
@@ -5711,7 +5820,7 @@ class rtl_JSON(FetchData):
             return
 
         log('\n', 2)
-        log('Now fetching %s channels from rtl.nl for %s days.\n' %  (len(self.channels), config.args.rtldays), 2)
+        log('Now fetching %s channels from rtl.nl for %s days.\n' %  (len(self.channels), config.opt_dict['rtldays']), 2)
 
         channel_url = self.get_url()
 
@@ -5797,7 +5906,7 @@ class rtl_JSON(FetchData):
 
             self.parse_programs(chanid, 0, 'None')
             self.channel_loaded[chanid] = True
-            for day in range( config.args.offset, (config.args.offset + config.args.rtldays)):
+            for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['rtldays'])):
                 self.day_loaded[chanid][day] = True
 
             config.channels[chanid].source_data[2] = True
@@ -6035,13 +6144,13 @@ class teveblad_HTML(FetchData):
 
                 log('\n', 2)
                 log('Now fetching %s(xmltvid=%s%s) from teveblad.be\n    (channel %s of %s) for %s days.\n' % \
-                    (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), channel_cnt, len(self.channels), config.args.tevedays), 2)
+                    (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), channel_cnt, len(self.channels), config.opt_dict['tevedays']), 2)
 
                 channel = self.channels[chanid]
 
                 # teeveeblad.be shows programs per day, so we loop over the number of days
                 # we are required to grab
-                for offset in range(config.args.offset, (config.args.offset + config.args.tevedays)):
+                for offset in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
                     if self.day_loaded[chanid][offset] != False:
                         continue
 
@@ -6072,7 +6181,7 @@ class teveblad_HTML(FetchData):
                         if htmldata.findtext('div/p') == "We don't have any events for this broadcaster":
                             log('No data for channel:%s on teveblad.be' % (config.channels[chanid].chan_name))
                             config.channels[chanid].source_data[3] = None
-                            for i in range(config.args.offset, (config.args.offset + config.args.tevedays)):
+                            for i in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
                                 self.day_loaded[chanid][i] = None
                             break
 
@@ -6273,35 +6382,10 @@ class Channel_Config(Thread):
 
     def validate_settings(self):
 
-        if not self.opt_dict['overlap_strategy'] in ['average', 'stop', 'start']:
-            self.opt_dict['overlap_strategy'] = 'none'
-
-        if self.opt_dict['max_overlap'] == 0:
-            # no max_overlap implies strategie == 'None'
-            self.opt_dict['overlap_strategy'] = 'None'
-            log('Maximum overlap 0 means overlap strategy for Channel: %s set to: \'%s\'\n' % (self.chan_name, self.opt_dict['overlap_strategy']),1,1)
-
-        elif self.opt_dict['max_overlap'] != config.args.max_overlap:
-            log('Using Maximum Overlap: %d for Channel %s\n' % (self.opt_dict['max_overlap'], self.chan_name),1,1)
-            if self.opt_dict['overlap_strategy'] != config.args.overlap_strategy:
-                log('overlap strategy for Channel: %s set to: \'%s\'\n' % (self.chan_name, self.opt_dict['overlap_strategy']),1,1)
-
-        elif self.opt_dict['desc_length'] != config.args.desc_length:
-            log('Using description length: %d for Cannel: %s\n' % (self.opt_dict['desc_length'], self.chan_name),1,1)
-
-        if self.opt_dict['slowdays'] == None:
-            self.opt_dict['slowdays'] = config.args.days
-            if self.opt_dict['desc_length'] == 0:
-                # no description implies fast == True
-                if not self.opt_dict['fast']:
-                    log('Setting Channel: %s to Fast Mode\n' % self.chan_name,1,1)
-                    self.opt_dict['fast'] = True
-
-        else:
-            self.opt_dict['slowdays'] = min(config.args.days, self.opt_dict['slowdays'])
-            # slowdays implies fast == False
-            if self.opt_dict['slowdays'] < config.args.days:
-                self.opt_dict['fast']  = False
+        config.validate_option('overlap_strategy', self)
+        config.validate_option('max_overlap', self)
+        config.validate_option('desc_length', self)
+        config.validate_option('slowdays', self)
 
     def run(self):
 
@@ -6474,7 +6558,7 @@ class Channel_Config(Thread):
                                 programs[i]['name']) + u'\n'
 
             # We only fetch when we are in slow mode and slowdays is not set to tight
-            no_fetch = (self.opt_dict['fast'] or programs[i]['offset'] >= (config.args.offset + self.opt_dict['slowdays']))
+            no_fetch = (self.opt_dict['fast'] or programs[i]['offset'] >= (config.opt_dict['offset'] + self.opt_dict['slowdays']))
 
             # check the cache for this program's ID
             # If not found, check the various ID's and (if found) make it the prime one
@@ -6703,8 +6787,8 @@ class XMLoutput:
 
             # Start/Stop
             attribs = 'start="%s" stop="%s" channel="%s%s"' % \
-                (self.format_timezone(program['start-time'], config.args.use_utc), \
-                self.format_timezone(program['stop-time'], config.args.use_utc), \
+                (self.format_timezone(program['start-time'], config.opt_dict['use_utc']), \
+                self.format_timezone(program['stop-time'], config.opt_dict['use_utc']), \
                 chanid, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')
 
             if 'clumpidx' in program and program['clumpidx'] != '':
@@ -6889,7 +6973,7 @@ def get_brt1_channel(days):
 
     # een.be shows programs per day, so we loop over the number of days
     # we are required to grab
-    for offset in range( config.args.offset, (config.args.offset + config.args.days)):
+    for offset in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
 
         channel_url = brt1_zoeken +  unicode(offset + 1)
 
