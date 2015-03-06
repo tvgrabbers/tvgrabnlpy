@@ -231,12 +231,16 @@ def log(message, log_level = 1, log_target = 3, Locked = False):
             # If it's not locked beforehand
             config.log_lock.acquire()
 
+        # Log to the Frontend. To set-up later.
+        if opt_dict['graphic_frontend']:
+            pass
+
         # Log to the screen
-        if log_level == 0 or ((not config.args.quiet) and (log_level & config.log_level) and (log_target & 1)):
+        elif log_level == 0 or ((not config.args.quiet) and (log_level & config.opt_dict['log_level']) and (log_target & 1)):
             sys.stdout.write(message.encode("utf-8"))
 
         # Log to the log-file
-        if (log_level == 0 or ((log_level & config.log_level) and (log_target & 2))) and config.log_output != None:
+        if (log_level == 0 or ((log_level & config.opt_dict['log_level']) and (log_target & 2))) and config.log_output != None:
            sys.stderr.write(now() + message.replace('\n','') + '\n')
 
         if not Locked:
@@ -266,6 +270,10 @@ class Configure:
         self.alfa = False
         self.beta = False
 
+        self.channels = {}
+        self.opt_dict = {}
+        self.opt_dict['graphic_frontend'] = False
+
         # Used for creating extra output to beter the code
         self.write_info_files = False
 
@@ -278,7 +286,7 @@ class Configure:
         # 16 include detail fetches to the log
         # 32 include matchlogging (see below)
         # 64 Title renames
-        self.log_level = 47
+        self.opt_dict['log_level'] = 47
         # The log filehandler, gets set later
         self.log_output = None
         self.log_lock = Lock()
@@ -288,7 +296,7 @@ class Configure:
         # 1 = log not matched programs
         # 2 = log left over programs
         # 4 = Log matches
-        self.match_log_level = 1
+        self.opt_dict['match_log_level'] = 1
 
         # A selection of user agents we will impersonate, in an attempt to be less
         # conspicuous to the tvgids.nl police.
@@ -300,9 +308,6 @@ class Configure:
                'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.9) Gecko/20071105 Firefox/2.0.0.9',
                'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
                'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.8) Gecko/20071022 Ubuntu/7.10 (gutsy) Firefox/2.0.0.8']
-
-        self.channels = {}
-        self.opt_dict = {}
 
         # default encoding iso-8859-1 is general and iso-8859-15 is with euro support
         self.configencoding = 'iso-8859-15'
@@ -1271,12 +1276,6 @@ class Configure:
 
         f.close()
 
-        if 'log_level' in self.opt_dict.keys():
-            self.log_level = self.opt_dict['log_level']
-
-        if 'match_log_level' in self.opt_dict.keys():
-            self.match_log_level = self.opt_dict['match_log_level']
-
         # an extra option for gathering extra info to better the code
         if 'write_info_files' in self.opt_dict.keys():
             self.write_info_files = self.opt_dict['write_info_files']
@@ -1757,8 +1756,8 @@ class Configure:
         log(u'The Netherlands: %s' % self.version(True), 1, 2)
         log(u'Capabilities:"baseline" ,"cache" ,"manualconfig" ,"preferredmethod")', 1, 2)
         log(u'Preferred Methode: "allatonce"', 1, 2)
-        log(u'log level = %s' % (self.log_level), 1, 2)
-        log(u'match log level = %s' % (self.match_log_level), 1, 2)
+        log(u'log level = %s' % (self.opt_dict['log_level']), 1, 2)
+        log(u'match log level = %s' % (self.opt_dict['match_log_level']), 1, 2)
         log(u'config_file = %s' % (self.args.config_file), 1, 2)
         log(u'program_cache_file = %s' % (self.args.program_cache_file), 1, 2)
         log(u'cache_save_interval = %s' % (self.args.cache_save_interval), 1, 2)
@@ -1850,14 +1849,14 @@ class Configure:
         f.write(u'# 16 include detail fetches to the log\n')
         f.write(u'# 32 include matchlogging (see below)\n')
         f.write(u'# 64 Title renames\n')
-        f.write(u'log_level = %s\n' % self.log_level)
+        f.write(u'log_level = %s\n' % self.opt_dict['log_level'])
         f.write(u'\n')
         f.write(u'# What match results go to the log/screen (needs code 32 above)\n')
         f.write(u'# 0 = Log Nothing (just the overview)\n')
         f.write(u'# 1 = log not matched programs\n')
         f.write(u'# 2 = log left over programs\n')
         f.write(u'# 4 = Log matches\n')
-        f.write(u'match_log_level = %s\n' % self.match_log_level)
+        f.write(u'match_log_level = %s\n' % self.opt_dict['match_log_level'])
         f.write(u'\n')
         f.write(u'quiet = %s\n' % self.args.quiet)
         f.write(u'output_file = %s\n' % self.args.output_file)
@@ -3661,7 +3660,7 @@ class FetchData(Thread):
         # 4 = Log All
 
         def matchlog(matchstr, other_prog, tvgids_prog = None, mode = 1):
-            if not (mode & config.match_log_level):
+            if not (mode & config.opt_dict['match_log_level']):
                 return
 
             if tvgids_prog == None:
