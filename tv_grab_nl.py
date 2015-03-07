@@ -268,7 +268,7 @@ class Configure:
         self.patch = 2
         self.patchdate = u'20150307'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.channels = {}
         self.opt_dict = {}
