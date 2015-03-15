@@ -1,6 +1,8 @@
 # tvgrabnlpy
 **NOTE: We are moving from Google Code to here**. Expect all code to be here in a couple of days.
 
+[Ga naar de Wiki](Home)
+
 ###Samenvatting
 
 tv_grab_nl_py is een [XMLTV](http://xmltv.org)-compatibele grabber voor Nederlandse en Vlaamse televisie die [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be) en [RTL.nl](http://www.rtl.nl) als bron gebruikt.
