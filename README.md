@@ -1,7 +1,7 @@
 # tvgrabnlpy
 **NOTE: We are moving from Google Code to here**. Expect all code to be here in a couple of days.
 
-[Ga naar de Wiki](Home)
+[Ga naar de Wiki](https://github.com/tvgrabbers/tvgrabnlpy/wiki)
 
 ###Samenvatting
 
