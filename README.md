@@ -2,6 +2,7 @@
 **NOTE: We are moving from Google Code to here**. Expect all code to be here in a couple of days.
 
 [Ga naar de Wiki](https://github.com/tvgrabbers/tvgrabnlpy/wiki)
+[Ga naar de downloads](https://github.com/tvgrabbers/tvgrabnlpy/releases)
 
 ###Samenvatting
 
@@ -11,7 +12,11 @@ Prettige eigenschappen zijn:
   * detailinformatie wordt gecached
   * categorie-informatie wordt geconverteerd zodat de kleurcodering werkt in de EPG van MythTV
   * instelbaar aantal dagen dat met detailinformatie wordt opgehaald
-  * links naar zenderlogo's worden automatisch toegevoegd
+  * links naar zenderlogo's worden automatisch toegevoegd  
+ Sinds versie 2:
+  * meerdere bronnen
+  * meer kanalen
+  * meer configuratie mogelijkheden
 
 ###English Summary
 
