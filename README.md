@@ -18,6 +18,8 @@ Sinds versie 2:
   * meerdere bronnen
   * meer kanalen
   * meer configuratie mogelijkheden
+  * tot 14 dagen programma informatie!
+  * deels seizoen/episode informatie
 
 ###English Summary
 
