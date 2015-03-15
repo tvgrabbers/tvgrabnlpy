@@ -52,8 +52,7 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
             Added the possibility to grab channels without counterpart on tvgids.nl.  
             There are now a possible 178 channels. Fetching all for one day takes about 2 houres 20!  
             You can set which source will be leading in the timmings.  
-            Added further multy threading, giving every channel and every source it's own thread,  
-            thus optimizing the fetch  
+            Added further multy threading, giving every channel and every source it's own thread, thus optimizing the fetch  
             Added use of very nice teveblad icons  
             Made the code more universal to easy add extra sources.
 
@@ -76,8 +75,7 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
             Updated default cattrans table  
             Made default groupnameremove table only be used on first creation.
 
-**p20150127**   Fixed some failures on detail fetching due to invalid HTML/XMLtags  
-              in the website  
+**p20150127**   Fixed some failures on detail fetching due to invalid HTML/XMLtags in the website  
             Adjusted some helptext
 
 **p20150126**   Initial release Version 2.0.0-beta
