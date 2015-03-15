@@ -27,7 +27,7 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
 
 ###Release Notes Versie 2
 
-p20150307   version 2.1.2 beta Preparations for future external graphical frontend  
+**p20150307**   version 2.1.2 beta Preparations for future external graphical frontend  
             Added some option value checks  
             Made it possible (as suggested) to run without cache. But who wants that?  
             Fixed illogical detail fetch counter since 2.1.0  
