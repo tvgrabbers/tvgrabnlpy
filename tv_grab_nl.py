@@ -271,6 +271,7 @@ class Configure:
         self.beta = True
 
         self.channels = {}
+        self.chan_count = 0
         self.opt_dict = {}
         self.opt_dict['graphic_frontend'] = False
 
@@ -767,6 +768,7 @@ class Configure:
                                     409: 'RTCR',
                                     'rtl-telekids': 'RTLT'}
 
+        #Channel group names as used in tvgids.tv
         self.chan_groups = {1: 'Nederlands',
                                           2: 'Vlaams',
                                           3: 'Engels',
@@ -777,6 +779,18 @@ class Configure:
                                           8: 'Vlaams Overig',
                                           9: 'Internationaal',
                                          10: 'Overig'}
+
+        self.group_names = {1: 'Nederlandse kanalen',
+                                          2: 'Vlaamse kanalen',
+                                          3: 'Engelse kanalen',
+                                          4: 'Duitse kanalen',
+                                          5: 'Franse kanalen',
+                                          6: 'Nederlands Regionaal',
+                                          7: 'Overige Nederlands kanalen',
+                                          8: 'Overige Vlaamse kanalen ',
+                                          9: 'Internationale kanalen',
+                                         10: 'Overig kanalen',
+                                         -1: 'Alleen geselecteerde kanalen'}
 
         # DO NOT CHANGE THIS!
         self.configversion = None
@@ -1106,8 +1120,11 @@ class Configure:
         f.seek(0,0)
         for byteline in f.readlines():
             try:
-                line = self.get_line(f, byteline, False, self.encoding)
+                line = self.get_line(f, byteline, None, self.encoding)
                 if not line:
+                    continue
+
+                if line[0:1] == '#' and type != 3:
                     continue
 
                 # Look for section headers
@@ -1184,6 +1201,7 @@ class Configure:
                     try:
                         channel = line.split(None, 1) # split on first whitespace
                         self.channels[unicode(channel[0]).strip()] = Channel_Config(unicode(channel[0]).strip(), unicode(channel[1]).strip())
+                        self.channels[unicode(channel[0]).strip()].active = True
                         self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[0].strip()] = unicode(channel[0]).strip()
 
                     except Exception:
@@ -1195,6 +1213,13 @@ class Configure:
                         continue
 
                     try:
+                        if line[0:1] == '#':
+                            active = False
+                            line = line.lstrip('#').lstrip()
+
+                        else:
+                            active = True
+
                         channel = re.split(';', line)
                         if len(channel) != 8:
                             continue
@@ -1227,6 +1252,10 @@ class Configure:
                                 if self.channels[chanid].source_id[index] != '':
                                     self.channels[chanid].opt_dict['prime_source'] = index
                                     break
+
+                        self.channels[chanid].active = active
+                        if active:
+                            self.chan_count += 1
 
                     except Exception:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
@@ -1777,6 +1806,11 @@ class Configure:
                 return(2)
 
         if option == 'program_cache_file':
+            if self.program_cache_file.lower() == 'none' or self.program_cache_file == None:
+                self.program_cache_file = None
+                xml_output.program_cache = ProgramCache(self.program_cache_file)
+                return
+
             try:
                 cache_dir = os.path.dirname(self.program_cache_file)
                 if (cache_dir != '') and not os.path.exists(cache_dir):
@@ -1798,10 +1832,10 @@ class Configure:
                 return(2)
 
             xml_output.program_cache = ProgramCache(self.program_cache_file)
-            if self.program_cache_file != None and self.clean_cache:
+            if self.clean_cache:
                 xml_output.program_cache.clean()
 
-            if self.program_cache_file != None and self.clear_cache:
+            if self.clear_cache:
                 xml_output.program_cache.clear()
 
         if option == 'slowdays':
@@ -2260,16 +2294,22 @@ class Configure:
             for g in self.chan_groups.keys():
                 chan_list[g] =[]
 
-            for chanid in self.channels.keys():
-                chan_list[self.channels[chanid].group].append('%s;%s;%s;%s;%s;%s;%s;%s\n' % (\
-                                                                                    self.channels[chanid].chan_name, \
-                                                                                    self.channels[chanid].group, \
-                                                                                    self.channels[chanid].source_id[0], \
-                                                                                    self.channels[chanid].source_id[1], \
-                                                                                    self.channels[chanid].source_id[2], \
-                                                                                    self.channels[chanid].source_id[3], \
-                                                                                    self.channels[chanid].icon_source, \
-                                                                                    self.channels[chanid].icon))
+            for channel in self.channels.values():
+                chan_string = '%s;%s;%s;%s;%s;%s;%s;%s\n' % (\
+                                        channel.chan_name, \
+                                        channel.group, \
+                                        channel.source_id[0], \
+                                        channel.source_id[1], \
+                                        channel.source_id[2], \
+                                        channel.source_id[3], \
+                                        channel.icon_source, \
+                                        channel.icon)
+
+                if channel.active:
+                    chan_list[channel.group].append(chan_string)
+
+                else:
+                    chan_list[channel.group].append('# %s' % chan_string)
 
             for g in self.chan_groups.keys():
                 f.write('\n')
@@ -2989,7 +3029,7 @@ class FetchData(Thread):
 
                     # Check if all channels are ready
                     for channel in config.channels.values():
-                        if not channel.ready:
+                        if channel.active and not channel.ready:
                             break
 
                     else:
@@ -4372,18 +4412,18 @@ class FetchData(Thread):
         if other_is_dominant:
             # This goes for the belgium/british channels from teveblad.be (programs) and the rtl channels
             log('Now merging %s (channel %s of %s):\n  %s programs from tvgids.nl into %s programs from %s\n' % \
-                (config.channels[chanid].chan_name, counter, len(config.channels), len(info) , len(programs), self.source), 2)
+                (config.channels[chanid].chan_name, counter, config.chan_count, len(info) , len(programs), self.source), 2)
 
             log_array.append('Merg statistics for %s (channel %s of %s) from tvgids.nl into %s\n' % \
-                (config.channels[chanid].chan_name, counter, len(config.channels), self.source))
+                (config.channels[chanid].chan_name, counter, config.chan_count, self.source))
 
         else:
             # this goes for adding tvgids.tv (programs) to tvgids.nl (info) and most channels from teveblad.be (programs)
             log('Now merging %s (channel %s of %s):\n  %s programs from %s into %s programs from tvgids.nl\n' % \
-                (config.channels[chanid].chan_name , counter, len(config.channels), len(programs), self.source, len(info)), 2)
+                (config.channels[chanid].chan_name , counter, config.chan_count, len(programs), self.source, len(info)), 2)
 
             log_array.append('Merg statistics for %s (channel %s of %s) from %s into tvgids.nl\n' % \
-                (config.channels[chanid].chan_name , counter, len(config.channels), self.source))
+                (config.channels[chanid].chan_name , counter, config.chan_count, self.source))
 
         # Do some general renaming to match tvgids.nl naming
         for i in range(0, len(programs)):
@@ -4926,7 +4966,7 @@ class tvgids_JSON(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.source_id[0] != '':
+            if channel.active and channel.source_id[0] != '':
                 self.channels[chanid] = channel.source_id[0]
                 if self.url_channels == '':
                     self.url_channels = channel.source_id[0]
@@ -5323,7 +5363,7 @@ class tvgidstv_HTML(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.source_id[1] != '':
+            if channel.active and channel.source_id[1] != '':
                 self.channels[chanid] = channel.source_id[1]
 
     def get_url(self, channel = None, offset = 0, href = None):
@@ -5675,7 +5715,7 @@ class tvgidstv_HTML(FetchData):
 
                         else:
                             tdict['genre'] = u'overige'
-                            infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + self.source))
+                            infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
 
                         tdict['subgenre'] = dtext
                         # And add them to tvtvcattrans (and tv_grab_nl_py.set for later reference
@@ -5765,7 +5805,7 @@ class rtl_JSON(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.source_id[2] != '':
+            if channel.active and channel.source_id[2] != '':
                 self.channels[chanid] = channel.source_id[2]
                 self.schedule[channel.source_id[2]] =[]
 
@@ -6055,7 +6095,7 @@ class teveblad_HTML(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.source_id[3] != '':
+            if channel.active and channel.source_id[3] != '':
                 self.channels[chanid] = channel.source_id[3]
 
     def get_url(self, date = '', channel = ''):
@@ -6333,7 +6373,7 @@ class Channel_Config(Thread):
     """
     Class that holds the Channel definitions and manages the data retrieval and processing
     """
-    def __init__(self, chanid, name, group = 10):
+    def __init__(self, chanid = 0, name = '', group = 10):
         Thread.__init__(self)
         # Flag to stop the thread
         self.quit = False
@@ -6344,6 +6384,7 @@ class Channel_Config(Thread):
         # Flag to indicate all data is processed
         self.ready = False
 
+        self.active = False
         self.counter = 0
         self.chanid = chanid
         self.chan_name = name
@@ -6383,12 +6424,19 @@ class Channel_Config(Thread):
 
     def validate_settings(self):
 
+        if not self.active:
+            return
+
         config.validate_option('overlap_strategy', self)
         config.validate_option('max_overlap', self)
         config.validate_option('desc_length', self)
         config.validate_option('slowdays', self)
 
     def run(self):
+
+        if not self.active:
+            self.ready = True
+            return
 
         try:
             xml_data = False
@@ -6424,7 +6472,7 @@ class Channel_Config(Thread):
             xml_output.progress_counter+= 1
             counter = xml_output.progress_counter
             log('\n', 4, 3, True)
-            log('%6.0f cache hits for %s (channel %s of %s)\n' % (self.cache_count, self.chan_name, counter, len(config.channels)),4, 3, True)
+            log('%6.0f cache hits for %s (channel %s of %s)\n' % (self.cache_count, self.chan_name, counter, config.chan_count),4, 3, True)
             if self.opt_dict['fast']:
                 log('%6.0f without details in cache\n' % self.none_count,4, 3, True)
 
@@ -6521,7 +6569,6 @@ class Channel_Config(Thread):
         """
         Given a list of programs, from the several sources, retrieve program details
         """
-        chan_cnt = len(config.channels)
         # Check if there is data
         if len(self.all_programs) == 0:
             return
@@ -6532,12 +6579,12 @@ class Channel_Config(Thread):
         if self.opt_dict['fast']:
             log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
                 (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or ''), \
-                self.counter, chan_cnt, config.opt_dict['days']), 2)
+                self.counter, config.chan_count, config.opt_dict['days']), 2)
 
         else:
             log('\nNow fetching details for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
                 (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or ''), \
-                self.counter, chan_cnt, config.opt_dict['days']), 2)
+                self.counter, config.chan_count, config.opt_dict['days']), 2)
 
         # randomize detail requests
         self.fetch_counter = 0
@@ -6719,6 +6766,7 @@ class XMLoutput:
                                     105 : [1, 'spiceplatinum']}
 
         self.source_count = 4
+        self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be'}
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgidsnl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgidstv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
@@ -6934,9 +6982,10 @@ class XMLoutput:
         xml.append(u"".join(self.startstring))
 
         for chanid in config.channels.keys():
-            xml.append(u"".join(self.xml_channels[chanid]))
-            for program in self.xml_programs[chanid]:
-                xml.append(u"".join(program))
+            if config.channels[chanid].active:
+                xml.append(u"".join(self.xml_channels[chanid]))
+                for program in self.xml_programs[chanid]:
+                    xml.append(u"".join(program))
 
         xml.append(self.closestring)
 
@@ -7042,6 +7091,9 @@ def main():
         # Start the Channel threads
         counter = 0
         for channel in config.channels.values():
+            if not channel.active:
+                continue
+
             counter += 1
             channel.counter = counter
             x = channel.start()
