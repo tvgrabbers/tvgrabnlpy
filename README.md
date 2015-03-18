@@ -2,8 +2,8 @@
 **NOTE: We are moving from Google Code to here**. Expect all code to be here in a couple of days.
 
 [Ga naar de Wiki](https://github.com/tvgrabbers/tvgrabnlpy/wiki)  
-[Ga naar de downloads](https://github.com/tvgrabbers/tvgrabnlpy/releases)
-[Download laatste stabiele versie](https://github.com/tvgrabbers/tvgrabnlpy/releases/latest)
+[Ga naar de downloads](https://github.com/tvgrabbers/tvgrabnlpy/releases)  
+[Download laatste stabiele versie](https://github.com/tvgrabbers/tvgrabnlpy/releases/latest)  
 
 ###Samenvatting
 
