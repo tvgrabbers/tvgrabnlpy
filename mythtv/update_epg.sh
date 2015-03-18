@@ -1,17 +1,41 @@
 #!/bin/sh
 
-basename=`date '+%A%Hh'`
-mkdir -p "/var/tmp/tvgrabnl"
-mkdir -p "/var/log/tvgrabnl"
-xmlfile="/var/tmp/tvgrabnl/$basename.xml"
-logfile="/var/log/tvgrabnl/$basename.log"
-conffile="/home/user/.xmltv/tv_grab_py.conf"
+# Je kunt dit script met verschillende configuraties draaien
+# die je met de onderstaande code op de command line mee kunt geven
+# pas alle andere optie in het configuratie bestand aan
+# Wanneer je niets ingeeft dan wordt: $HOME/.xmltv/tv_grab_py.conf gebruikt
+# Als het goed is dan verwijst $HOME naar je homedirectory
 
-/usr/local/bin/tv_grab_nl.py --config-file $conffile --days 7 --slowdays 3 --output $xmlfile --cache tvgrab.cache 2> $logfile
+conffile=${1:-"$HOME/.xmltv/tv_grab_py.conf"}
+xmlfile="/tmp/tvgrabnl-xmlout.xml"
+
+if [ ! -f $conffile ]; then
+    echo "Ik kan het configuratie bestand: $conffile niet vinden"
+    exit
+fi
+
+# Pas het pad aan naar waar je tv_grab_nl.py hebt neergezet
+/usr/local/bin/tv_grab_nl.py --config-file $conffile --output $xmlfile
+
+errorcode=$?
+if [ $errorcode -ne 0 ]; then
+    echo "tv_grab_nl.py is met errorcode $errorcode afgesloten"
+    echo "Controleer je logbestand ${conffile}.log"
+    exit
+fi
 
 # Import into mythTV
-export QTDIR=/usr/lib/qt3
-/usr/local/bin/mythfilldatabase --update --file 1 /var/tmp/tvgrabnlpy/tvguide.xml
+# controleer of het pad klopt 'which mythfilldatabase' zou dit moeten geven
+# Bij Gentoo is dit bijv. /usr/bin/
+# pas ook eventueel sourceid aan naar het juiste id
+# met '--syslog local5' log je naar het systeemlog onder het id 'local5'
+# alternatief kun je met '--logpath <pathname>' een log directory ingeven
 
-# Run this script with a cron job, preferably after 04:00 at night. E.g.
+/usr/local/bin/mythfilldatabase --syslog local5 --file --xmlfile $xmlfile --sourceid 1
+
+# Draai dit script als een cron job, bij voorkeur na 04:00 's nachts. E.g.
 # 24 05 * * * /home/user/bin/update_epg.sh
+# Wanneer je tv_grab_nl.py in verbose modus laat staan (quiet = False)
+# en je cron ingesteld hebt om het resultaat te mailen dan krijg je het
+# resultaat log toegemaild.
+# Stel het log level dan bijvoorbeeld in op 5 (errors en sammenvattingen)
