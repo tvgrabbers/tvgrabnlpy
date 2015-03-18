@@ -3,6 +3,7 @@
 
 [Ga naar de Wiki](https://github.com/tvgrabbers/tvgrabnlpy/wiki)  
 [Ga naar de downloads](https://github.com/tvgrabbers/tvgrabnlpy/releases)
+[Download laatste stabiele versie](https://github.com/tvgrabbers/tvgrabnlpy/releases/latest)
 
 ###Samenvatting
 
