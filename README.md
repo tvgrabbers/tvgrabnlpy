@@ -1,5 +1,5 @@
 # tvgrabnlpy
-**NOTE: We are moving from Google Code to here**. Expect all code to be here in a couple of days.
+**NOTE: We have moved from [Google Code](https://code.google.com/p/tvgrabnlpy/) to here**. Part of the [wiki](https://code.google.com/p/tvgrabnlpy/w/list) is still there and can be watched [there](https://code.google.com/p/tvgrabnlpy/w/list)
 
 [Ga naar de Wiki](https://github.com/tvgrabbers/tvgrabnlpy/wiki)  
 [Ga naar de downloads](https://github.com/tvgrabbers/tvgrabnlpy/releases)  
