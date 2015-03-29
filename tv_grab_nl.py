@@ -266,9 +266,9 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 2
-        self.patchdate = u'201503018'
+        self.patchdate = u'201503029'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.channels = {}
         self.chan_count = 0
@@ -7081,6 +7081,8 @@ def main():
         x = config.validate_commandline()
         if x != None:
             return(x)
+
+        log("The Netherlands: %s\n" % config.version(True), 1, 1)
 
         # Start the seperate fetching threads
         for source in xml_output.channelsource.values():
