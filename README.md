@@ -28,6 +28,10 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
 
 ###Release Notes Versie 2
 
+**p20150329**   version 2.1.2 Declared stable  
+            Minor updates  
+            With updated MythTV script
+
 **p20150307**   version 2.1.2 beta Preparations for future external graphical frontend  
             Added some option value checks  
             Made it possible (as suggested) to run without cache. But who wants that?  
@@ -57,7 +61,8 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
             Added use of very nice teveblad icons  
             Made the code more universal to easy add extra sources.
 
-**p20150302**   version 2.0.4 Bugfix for tvgids.tv changed current date format
+**p20150302**   version 2.0.4 Bugfix for tvgids.tv changed current date format  
+            With updated MythTV script
 
 **p20150210**   version 2.0.3 Small change in --description argument for compatibility with tvheadend.
 
