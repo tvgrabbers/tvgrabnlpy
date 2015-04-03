@@ -265,8 +265,8 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 1
-        self.patch = 2
-        self.patchdate = u'201503029'
+        self.patch = 3
+        self.patchdate = u'20150403'
         self.alfa = False
         self.beta = False
 
@@ -2727,16 +2727,24 @@ class ProgramCache(Thread):
         self.counter = 0
 
         if self.filename == None:
-            log('Cache function disabled!')
+            log('Cache function disabled!\n')
             self.pdict = {}
 
         else:
             if os.path.isfile(filename):
                 self.load()
 
+            elif not os.path.exists(os.path.dirname(filename)):
+                try:
+                    os.makedirs(os.path.dirname(filename), 0755)
+
+                except:
+                    log('Cache function disabled!\n')
+                    self.filename = None
+
+                self.pdict = {}
+
             else:
-                log('Cache function disabled!')
-                self.filename = None
                 self.pdict = {}
 
     def run(self):
