@@ -265,10 +265,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 1
-        self.patch = 4
+        self.patch = 5
         self.patchdate = u'20150406'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.channels = {}
         self.chan_count = 0
@@ -2364,7 +2364,16 @@ class Configure:
 
                         f.write(u'prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']))
 
-            for val in ( 'fast', 'slowdays', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
+            if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
+
+                f.write(u'slowdays = %s\n' % (chan_def.opt_dict['slowdays']))
+
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         f.write(u'\n')
@@ -3002,13 +3011,16 @@ class FetchData(Thread):
         # Flag to stop the thread
         self.quit = False
         self.ready = False
+        self.isjson = isjson
+        # The ID of the source
         self.proc_id = proc_id
+        # The Name of the source
         self.source = source
+        # The dict name of the details etc.
         self.detail_id = detail_id
         self.detail_url = detail_url
         self.detail_check = detail_check
         self.detail_processor = detail_processor
-        self.isjson = isjson
         self.detail_queue = deque()
 
         self.all_channels = {}
@@ -3046,6 +3058,12 @@ class FetchData(Thread):
             self.init_json()
             # Load and proccess al the program pages
             self.load_pages()
+
+            # if this is the prefered description source set the value
+            for chanid in self.channels.keys():
+                if config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
+                    for i in range(len(self.program_data[chanid])):
+                        self.program_data[chanid][i]['prefered description'] = self.program_data[chanid][i]['description']
 
             if self.detail_processor:
                 # We process detail requests, so we loop till we are finished
@@ -3109,6 +3127,10 @@ class FetchData(Thread):
                             continue
 
                     else:
+                        # If this is the prefered description source for this channel, set its value
+                        if config.channels[detailed_program['channelid']].opt_dict['prefered_description'] == self.proc_id:
+                            detailed_program['prefered description'] = detailed_program['description']
+
                         detailed_program[xml_output.channelsource[self.proc_id].detail_check] = True
                         detailed_program['ID'] = detailed_program[xml_output.channelsource[self.proc_id].detail_id]
                         parent.all_programs.append(detailed_program)
@@ -3244,7 +3266,7 @@ class FetchData(Thread):
         #       blackwhite                hd
 
 
-        text_values = ('source', 'channel', 'unixtime', \
+        text_values = ('source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
               'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio')
@@ -4263,6 +4285,9 @@ class FetchData(Thread):
             if len(tvdict['description']) > len(tdict['description']):
                 tdict['description']  = tvdict['description']
 
+            if tvdict['prefered description'] != '':
+                tdict['prefered description']  = tvdict['prefered description']
+
             if tvdict['video']['present']:
                 tdict['video']['present']  = True
                 if tvdict['video']['HD']:
@@ -4331,6 +4356,9 @@ class FetchData(Thread):
 
             if len(tvdict['description']) > len(tdict['description']):
                 tdict['description']  = tvdict['description']
+
+            if tvdict['prefered description'] != '':
+                tdict['prefered description']  = tvdict['prefered description']
 
             if tvdict['rerun']:
                 tdict['rerun']  = True
@@ -6577,6 +6605,12 @@ class Channel_Config(Thread):
         if tdict['description'] > cached['description']:
             cached['description'] = tdict['description']
 
+        if not 'prefered description' in cached.keys():
+            cached['prefered description'] = tdict['prefered description']
+
+        if tdict['prefered description'] > cached['prefered description']:
+            cached['prefered description'] = tdict['prefered description']
+
         if tdict['titel aflevering'] != '':
             cached['titel aflevering'] = tdict['titel aflevering']
 
@@ -6894,6 +6928,11 @@ class XMLoutput:
                     program['genre'] = 'serie/soap'
 
             # Add an available subgenre in front off the description or give it as description
+
+            # A prefered description was set and found
+            if program['prefered description'] != '':
+                program['description'] = program['prefered description']
+
             if (program['description'] != '') and (program['subgenre'] != ''):
                 desc_line = u'%s: %s' % (program['subgenre'],program['description'] )
 
