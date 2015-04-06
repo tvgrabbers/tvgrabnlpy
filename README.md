@@ -4,6 +4,7 @@
 [Ga naar de Wiki](https://github.com/tvgrabbers/tvgrabnlpy/wiki)  
 [Ga naar de downloads](https://github.com/tvgrabbers/tvgrabnlpy/releases)  
 [Download laatste stabiele versie](https://github.com/tvgrabbers/tvgrabnlpy/releases/latest)  
+[Ga naar de discussie groep](https://groups.google.com/forum/#!forum/tvgrabnlpy)  
 
 ###Samenvatting
 
@@ -27,6 +28,11 @@ Sinds versie 2:
 tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be) and [RTL.nl](http://www.rtl.nl) as a source.
 
 ###Release Notes Versie 2
+
+**p20150406**   version 2.1.5-beta  
+            Added 'prefered_description' channel option.  
+            This option sets the preferred source for the descriptions for that channel, falling back to defaults(the longest one found) if no description present.  
+            Also removed the adding of 'slowdays = None' to a new config. It means use default, so not needed.
 
 **p20150406**   version 2.1.4  
             Bugfix on rtl.nl offset  
