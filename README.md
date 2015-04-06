@@ -39,12 +39,14 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
             Minor updates  
             With updated MythTV script
 
-**p20150307**   version 2.1.2 beta Preparations for future external graphical frontend  
+**p20150307**   version 2.1.2 beta  
+            Preparations for future external graphical frontend  
             Added some option value checks  
             Made it possible (as suggested) to run without cache. But who wants that?  
             Fixed illogical detail fetch counter since 2.1.0  
 
-**p20150303**   version 2.1.1 Added a warning on configure to enable the desired channels
+**p20150303**   version 2.1.1  
+            Added a warning on configure to enable the desired channels
 
 **p20150302**   version 2.1.0 Declared stable  
             Bugfix for tvgids.tv changed current date format
