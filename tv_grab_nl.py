@@ -1278,7 +1278,7 @@ class Configure:
 
                         elif len(a) == 2:
                             # Integer Values
-                            if a[0].lower().strip() in ('slowdays', 'max_overlap', 'desc_length', 'prime_source'):
+                            if a[0].lower().strip() in ('slowdays', 'max_overlap', 'desc_length', 'prime_source', 'prefered_description'):
                                 try:
                                     int(a[1])
 
@@ -1287,7 +1287,7 @@ class Configure:
                                         self.channels[chanid].opt_dict[a[0].lower().strip()] = None
 
                                 else:
-                                    if a[0].lower().strip() == 'prime_source':
+                                    if a[0].lower().strip() == 'prime_source' or a[0].lower().strip() == 'prefered_description':
                                         if self.channels[chanid].source_id[int(a[1])] != '':
                                             self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
 
@@ -1929,6 +1929,15 @@ class Configure:
 
                     break
 
+            if chan_def.opt_dict['prefered_description'] != -1:
+                if chan_def.opt_dict['prefered_description'] in chan_def.source_id.keys() and chan_def.source_id[chan_def.opt_dict['prefered_description']] != '':
+                    if chan_def.opt_dict['prefered_description'] != index:
+                        if not chan_name_written:
+                            log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                            chan_name_written = True
+
+                        log(u'  prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']), 1, 2)
+
             for val in ( 'fast', 'slowdays', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
@@ -2028,10 +2037,12 @@ class Configure:
         f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
         f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
         f.write(u'# Integer values:\n')
-        f.write(u'#   slowdays, max_overlap, desc_length, prime_source\n')
+        f.write(u'#   slowdays, max_overlap, desc_length, prime_source, prefered_description\n')
         f.write(u'#     prime_source (0-3) is the source whose timings are dominant\n')
         f.write(u'#     It defaults to the first available source or 2 for rtl channels\n')
         f.write(u'#     and 3 for group 2 and 8 (Flemmisch) channels\n')
+        f.write(u'#     prefered_description (0-3) is the source whose description, if present,\n')
+        f.write(u'#     is used. It defaults to the longest description found.\n')
         f.write(u'# String values:\n')
         f.write(u'#   overlap_strategy (With possible values): \n')
         f.write(u'#     average, stop, start; everything else sets it to none\n')
@@ -2341,6 +2352,17 @@ class Configure:
                         f.write(u'prime_source = %s\n' % ( chan_def.opt_dict['prime_source']))
 
                     break
+
+            if chan_def.opt_dict['prefered_description'] != -1:
+                if chan_def.opt_dict['prefered_description'] in chan_def.source_id.keys() and chan_def.source_id[chan_def.opt_dict['prefered_description']] != '':
+                    if chan_def.opt_dict['prefered_description'] != index:
+                        if not chan_name_written:
+                            f.write(u'\n')
+                            f.write(u'# %s\n' % (chan_def.chan_name))
+                            f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                            chan_name_written = True
+
+                        f.write(u'prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']))
 
             for val in ( 'fast', 'slowdays', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
@@ -6429,6 +6451,7 @@ class Channel_Config(Thread):
         self.opt_dict['cattrans'] = config.opt_dict['cattrans']
         self.opt_dict['mark_HD'] = config.opt_dict['mark_HD']
         self.opt_dict['prime_source'] = -1
+        self.opt_dict['prefered_description'] = -1
         self.opt_dict['append_tvgidstv'] = True
 
     def validate_settings(self):
