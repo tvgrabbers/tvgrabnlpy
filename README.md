@@ -28,6 +28,10 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
 
 ###Release Notes Versie 2
 
+**p20150406**   version 2.1.4
+            Bugfix on rtl.nl offset
+            Bogfix on detailfetch storing
+
 **p20150403**   version 2.1.3
             Bugfix on new cache creation
 
