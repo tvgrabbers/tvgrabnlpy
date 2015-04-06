@@ -28,23 +28,25 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
 
 ###Release Notes Versie 2
 
-**p20150406**   version 2.1.4
-            Bugfix on rtl.nl offset
-            Bogfix on detailfetch storing
+**p20150406**   version 2.1.4  
+            Bugfix on rtl.nl offset  
+            Bugfix on detailfetch storing
 
-**p20150403**   version 2.1.3
+**p20150403**   version 2.1.3  
             Bugfix on new cache creation
 
 **p20150329**   version 2.1.2 Declared stable  
             Minor updates  
             With updated MythTV script
 
-**p20150307**   version 2.1.2 beta Preparations for future external graphical frontend  
+**p20150307**   version 2.1.2 beta  
+            Preparations for future external graphical frontend  
             Added some option value checks  
             Made it possible (as suggested) to run without cache. But who wants that?  
             Fixed illogical detail fetch counter since 2.1.0  
 
-**p20150303**   version 2.1.1 Added a warning on configure to enable the desired channels
+**p20150303**   version 2.1.1  
+            Added a warning on configure to enable the desired channels
 
 **p20150302**   version 2.1.0 Declared stable  
             Bugfix for tvgids.tv changed current date format
@@ -68,14 +70,18 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
             Added use of very nice teveblad icons  
             Made the code more universal to easy add extra sources.
 
-**p20150302**   version 2.0.4 Bugfix for tvgids.tv changed current date format  
+**p20150302**   version 2.0.4  
+            Bugfix for tvgids.tv changed current date format  
             With updated MythTV script
 
-**p20150210**   version 2.0.3 Small change in --description argument for compatibility with tvheadend.
+**p20150210**   version 2.0.3  
+            Small change in --description argument for compatibility with tvheadend.
 
-**p20150210**   version 2.0.2 fixed small bug in configuring new channel list.
+**p20150210**   version 2.0.2  
+            fixed small bug in configuring new channel list.
 
-**p20150210**   version 2.0.1 added further channel ID linking between tvgids.nl and tvgids.tv
+**p20150210**   version 2.0.1  
+            added further channel ID linking between tvgids.nl and tvgids.tv
 
 **p20150209**   Declared Stable
 
