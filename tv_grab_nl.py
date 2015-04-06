@@ -265,8 +265,8 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 1
-        self.patch = 3
-        self.patchdate = u'20150403'
+        self.patch = 4
+        self.patchdate = u'20150406'
         self.alfa = False
         self.beta = False
 
