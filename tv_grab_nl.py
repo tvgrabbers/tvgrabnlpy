@@ -3089,6 +3089,7 @@ class FetchData(Thread):
                     else:
                         detailed_program[xml_output.channelsource[self.proc_id].detail_check] = True
                         detailed_program['ID'] = detailed_program[xml_output.channelsource[self.proc_id].detail_id]
+                        parent.all_programs.append(detailed_program)
                         if self.proc_id == 0:
                             log(u'[normal fetch] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
 
@@ -3100,7 +3101,7 @@ class FetchData(Thread):
 
                         # do not cache programming that is unknown at the time of fetching.
                         if tdict['name'].lower() != 'onbekend':
-                            xml_output.program_cache.add(xml_output.channelsource[0].checkout_program_dict(tdict))
+                            xml_output.program_cache.add(xml_output.channelsource[0].checkout_program_dict(detailed_program))
 
             else:
                 self.ready = True
@@ -5848,7 +5849,7 @@ class rtl_JSON(FetchData):
                     channels = '%s,%s' % (channels, chanid)
 
             return '%s&days_ahead=%s&days_back=%s&station=%s' % \
-                ( rtl_general, (config.opt_dict['offset'] + config.opt_dict['rtldays'] -1), config.opt_dict['offset'], channels)
+                ( rtl_general, (config.opt_dict['offset'] + config.opt_dict['rtldays'] -1), - config.opt_dict['offset'], channels)
 
         else:
             return '%s&abstract_key=%s&days_ahead=%s' % ( rtl_abstract, abstract, days)
