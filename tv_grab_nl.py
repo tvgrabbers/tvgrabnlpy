@@ -5824,7 +5824,6 @@ class tvgidstv_HTML(FetchData):
                         tdict[datatype] = unicode(d.find('div').get('class'))
 
                     elif d.find('a') != None and d.find('a').get('href') != None:
-                        if
                         infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
                         tdict[datatype] = unicode(d.find('a').get('href'))
 
