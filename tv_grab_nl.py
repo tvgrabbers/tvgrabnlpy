@@ -640,6 +640,7 @@ class Configure:
                                  'informatief programma': 'Informatief',
                                  'reportage': 'Informatief',
                                  'biografie': 'Informatief',
+                                 'schooltelevisie ': 'Informatief',
                                  'peuterprogramma': 'Jeugd',
                                  'kleuterprogramma': 'Jeugd',
                                  'tekenfilm': 'Jeugd',
@@ -659,6 +660,8 @@ class Configure:
                                  'baanwielrennen': 'Sport',
                                  'tennis': 'Sport',
                                  'veldrijden': 'Sport',
+                                 'volleybal': 'Sport',
+                                 'motorcross': 'Sport',
                                  'religieuze uitzending': 'Religieus',
                                  'docusoap': 'Informatief',
                                  'sitcom': 'Serie/Soap'}
@@ -5778,7 +5781,9 @@ class tvgidstv_HTML(FetchData):
 
                         tdict['subgenre'] = dtext
                         # And add them to tvtvcattrans (and tv_grab_nl_py.set for later reference
-                        config.tvtvcat.append((dtext.lower().strip(), tdict['genre']))
+                        # But not for Discovery Channel as that is garbage
+                        if not (tdict['genre'] == u'overige' and tdict['channelid'] == '29'):
+                            config.tvtvcat.append((dtext.lower().strip(), tdict['genre']))
 
                 elif datatype == 'jaar':
                     tdict['jaar van premiere'] = dtext
@@ -5806,7 +5811,7 @@ class tvgidstv_HTML(FetchData):
                     if durl != '':
                         tdict['infourl'] = durl
 
-                elif datatype in ('uitzending gemist', 'officiële twitter', 'kijkwijzer'):
+                elif datatype in ('uitzending gemist', 'officiële twitter', 'kijkwijzer', 'twitter hashtag', 'deel-url'):
                     pass
 
                 else:
@@ -5819,6 +5824,7 @@ class tvgidstv_HTML(FetchData):
                         tdict[datatype] = unicode(d.find('div').get('class'))
 
                     elif d.find('a') != None and d.find('a').get('href') != None:
+                        if
                         infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
                         tdict[datatype] = unicode(d.find('a').get('href'))
 
