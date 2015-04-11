@@ -640,7 +640,7 @@ class Configure:
                                  'informatief programma': 'Informatief',
                                  'reportage': 'Informatief',
                                  'biografie': 'Informatief',
-                                 'schooltelevisie ': 'Informatief',
+                                 'schooltelevisie ': 'educatief',
                                  'peuterprogramma': 'Jeugd',
                                  'kleuterprogramma': 'Jeugd',
                                  'tekenfilm': 'Jeugd',
