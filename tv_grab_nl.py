@@ -17,7 +17,7 @@ description_text = """
     website below for screenshots.  The newest version of this script can be
     found here:
 
-         http://code.google.com/p/tvgrabnlpy/
+         https://github.com/tvgrabbers/tvgrabnlpy/
 
     USAGE
 
@@ -32,7 +32,8 @@ description_text = """
 
     Questions (and patches) are welcome at:
     http://www.pwdebruin.net/mailman/listinfo/tv_grab_nl_py_pwdebruin.net
-    http://code.google.com/p/tvgrabnlpy/issues/list
+    https://github.com/tvgrabbers/tvgrabnlpy/issues
+    https://groups.google.com/forum/#!forum/tvgrabnlpy
 
     UPGRADE NOTES
 
@@ -640,7 +641,7 @@ class Configure:
                                  'informatief programma': 'Informatief',
                                  'reportage': 'Informatief',
                                  'biografie': 'Informatief',
-                                 'schooltelevisie ': 'educatief',
+                                 'schooltelevisie ': 'Informatief',
                                  'peuterprogramma': 'Jeugd',
                                  'kleuterprogramma': 'Jeugd',
                                  'tekenfilm': 'Jeugd',
