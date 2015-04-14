@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 5
-        self.patchdate = u'20150412'
+        self.patchdate = u'20150415'
         self.alfa = False
         self.beta = True
 
@@ -3039,6 +3039,7 @@ class FetchData(Thread):
         """The grabing thread"""
         # First some generic initiation that couldn't be done earlier in __init__
         # Specifics can be done in init_channels and init_json which are called here
+        tdict = self.checkout_program_dict()
         try:
             self.day_loaded[0] = {}
             for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
@@ -3103,7 +3104,12 @@ class FetchData(Thread):
                     parent = tdict['parent']
                     tdict = tdict['tdict']
                     chanid = tdict['channelid']
-                    detailed_program = self.load_detailpage(tdict)
+                    try:
+                        detailed_program = self.load_detailpage(tdict)
+
+                    except:
+                        detailed_program = None
+                        log('Error processing the detailpage: %s\n' % (tdict[self.detail_url]), 1)
 
                     if detailed_program == None:
                         # It failed! If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the cache again
@@ -3157,6 +3163,7 @@ class FetchData(Thread):
         except:
             err_obj = sys.exc_info()[2]
             log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
+            log('The current detail url is: %s\n' % (tdict[self.detail_url]), 0)
             #~ log('                                at line: %s, %s\n' %  (self.source, err_obj.tb_lineno, err_obj.tb_lasti, ), 0)
 
             #~ while True:
@@ -5283,7 +5290,11 @@ class tvgids_JSON(FetchData):
             infofiles.addto_raw_string(strdesc)
 
         # We scan every alinea of the description
-        tdict = self.filter_description(htmldata, 'div/p', tdict)
+        try:
+            tdict = self.filter_description(htmldata, 'div/p', tdict)
+
+        except:
+            log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
 
         # We scan all the details
         for d in htmldata.findall('div/ul/li'):
@@ -5685,7 +5696,11 @@ class tvgidstv_HTML(FetchData):
             return None
 
         # We scan every alinea of the description
-        tdict = self.filter_description(htmldata, 'div/div/p', tdict)
+        try:
+            tdict = self.filter_description(htmldata, 'div/div/p', tdict)
+
+        except:
+            log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
 
         data = htmldata.find('div[@class="section-content"]')
         datatype = u''
