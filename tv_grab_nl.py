@@ -5276,8 +5276,10 @@ class tvgids_JSON(FetchData):
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
-            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-            infofiles.write_raw_string('<root>\n' + strdesc + '\n' + strdetails.group(0) + '\n</root>\n')
+            if config.write_info_files:
+                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                infofiles.write_raw_string('<root>\n' + strdesc + '\n' + strdetails + '\n</root>\n')
+
             # if we cannot find the description page,
             # go to next in the loop
             return None
@@ -5287,7 +5289,7 @@ class tvgids_JSON(FetchData):
             strdesc = re.sub('\n+?', '\n',strdesc)
             strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
                                         '" name="' + tdict['name'] + '">\n' + strdesc + '\n   </div>'
-            infofiles.addto_raw_string(strdesc)
+            infofiles.write_raw_string(strdesc)
 
         # We scan every alinea of the description
         try:
@@ -5689,8 +5691,10 @@ class tvgidstv_HTML(FetchData):
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
-            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-            infofiles.write_raw_string(strdata + '\n')
+            if config.write_info_files:
+                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                infofiles.write_raw_string(strdata + '\n')
+
             # if we cannot find the description page,
             # go to next in the loop
             return None
@@ -5789,6 +5793,9 @@ class tvgidstv_HTML(FetchData):
                             tdict['genre'] = u'Serie/Soap'
 
                         elif 'komedie' in dtext.lower():
+                            tdict['genre'] = u'Serie/Soap'
+
+                        elif 'western' in dtext.lower():
                             tdict['genre'] = u'Serie/Soap'
 
                         else:
