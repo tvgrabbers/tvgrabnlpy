@@ -29,6 +29,9 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
 
 ###Release Notes Versie 2
 
+**p20150415**   version 2.1.5-beta  
+            Fixed a bug, that could cause the script to hang on an error in a detailpage, resuling in excessive processor use.
+            
 **p20150406**   version 2.1.5-beta  
             Added 'prefered_description' channel option.  
             This option sets the preferred source for the descriptions for that channel, falling back to defaults(the longest one found) if no description present.  
