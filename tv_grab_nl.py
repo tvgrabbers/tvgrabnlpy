@@ -3453,9 +3453,11 @@ class FetchData(Thread):
             if (len(ptitle) > len(group) + 3) and (ptitle[0:len(group)].lower() == group):
                 p = ptitle.split(':')
                 if len(p) >1:
-                   log('Removing \"%s\" from \"%s\"\n' %  (group, ptitle), 64)
-                   infofiles.addto_detail_list(unicode('Group removing = \"%s\" from \"%s\"' %  (group, ptitle)))
-                   ptitle = "".join(p[1:]).strip()
+                    log('Removing \"%s\" from \"%s\"\n' %  (group, ptitle), 64)
+                    if config.write_info_files:
+                        infofiles.addto_detail_list(unicode('Group removing = \"%s\" from \"%s\"' %  (group, ptitle)))
+
+                    ptitle = "".join(p[1:]).strip()
 
         # Fixing subtitle both named and added to the title
         if ptitle.lower() == psubtitle.lower() and program['genre'] != 'serie/soap':
@@ -3470,7 +3472,9 @@ class FetchData(Thread):
         # Check the Title rename list
         if ptitle.lower() in config.titlerename:
             log('Renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()]), 64)
-            infofiles.addto_detail_list(unicode('Title renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()])))
+            if config.write_info_files:
+                infofiles.addto_detail_list(unicode('Title renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()])))
+
             ptitle = config.titlerename[ptitle.lower()]
 
         program['name'] = ptitle
@@ -3503,7 +3507,8 @@ class FetchData(Thread):
 
             else:
                 atype[pcount] = self.empersant(p.get('class')).strip()
-                infofiles.addto_detail_list(u'%s descriptionattribute => class: %s' % (self.source, p.get('class').strip()))
+                if config.write_info_files:
+                    infofiles.addto_detail_list(u'%s descriptionattribute => class: %s' % (self.source, p.get('class').strip()))
 
             content = ''
             # Add the alinea text
@@ -3537,8 +3542,9 @@ class FetchData(Thread):
                     else:
                         # Unknown tag we just check for text
                         content = content + format_text(d.text) + u' '
-                        infofiles.addto_detail_list(unicode('new '+ self.source+' descriptiontag => ' + \
-                                                unicode(d.tag.strip()) + ': ' + unicode(d.text.strip())))
+                        if config.write_info_files:
+                            infofiles.addto_detail_list(unicode('new '+ self.source+' descriptiontag => ' + \
+                                                    unicode(d.tag.strip()) + ': ' + unicode(d.text.strip())))
 
                 # and we add the text inbetween the tags
                 if (d.tail != None) and d.tail != '' :
@@ -3599,7 +3605,8 @@ class FetchData(Thread):
 
                         strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
                                                     '" name="' + tdict['name'] + '">\n' + strdesc + '  </div>'
-                        infofiles.addto_raw_string(strdesc)
+                        if config.write_info_files:
+                            infofiles.addto_raw_string(strdesc)
 
             # We check to not ovrwrite an already present longer description
             if description > tdict['description']:
@@ -3927,7 +3934,9 @@ class FetchData(Thread):
             elif genre == 'kunst & cultuur':
                 return 'kunst en cultuur'
 
-            infofiles.addto_detail_list(unicode('unknown merge genre => ' + other_genre))
+            if config.write_info_files:
+                infofiles.addto_detail_list(unicode('unknown merge genre => ' + other_genre))
+
             return ('overige', '')
         # end get_tvgids_genre()
 
@@ -5333,7 +5342,9 @@ class tvgids_JSON(FetchData):
 
             # Add extra properties, while at the same time checking if we do not uncheck already set properties
             elif ctype == 'bijzonderheden':
-                infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
+                if config.write_info_files:
+                    infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
+
                 content = content.lower()
                 if tdict['video']['breedbeeld'] == False:
                     tdict['video']['breedbeeld'] = (content.find('breedbeeld') != -1)
@@ -5354,7 +5365,9 @@ class tvgids_JSON(FetchData):
             elif (ctype not in tdict) and (ctype.lower() not in ('zender', 'datum', 'uitzendtijd', 'titel')):
                 # In unmatched cases, we still add the parsed type and content to the program details.
                 # Some of these will lead to xmltv output during the xmlefy_programs step
-                infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
+                if config.write_info_files:
+                    infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
+
                 tdict[ctype] = content
 
         tdict['ID'] = tdict[self.detail_id]
@@ -5605,8 +5618,10 @@ class tvgidstv_HTML(FetchData):
 
                     except Exception as e:
                         log('Error extracting ElementTree for channel:%s day:%s/n' % (config.channels[chanid].chan_name, offset))
-                        infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-                        infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
+                        if config.write_info_files:
+                            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                            infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
+
                         self.day_loaded[chanid][offset] = None
                         continue
 
@@ -5800,7 +5815,8 @@ class tvgidstv_HTML(FetchData):
 
                         else:
                             tdict['genre'] = u'overige'
-                            infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
+                            if config.write_info_files:
+                                infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
 
                         tdict['subgenre'] = dtext
                         # And add them to tvtvcattrans (and tv_grab_nl_py.set for later reference
@@ -5839,21 +5855,27 @@ class tvgidstv_HTML(FetchData):
 
                 else:
                     if dtext != '':
-                        infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + dtext))
+                        if config.write_info_files:
+                            infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + dtext))
+
                         tdict[datatype] = dtext
 
                     elif d.find('div') != None and d.find('div').get('class') != None:
-                        infofiles.addto_detail_list(unicode('new tvgids.tv div-class detail => ' + datatype + '=' + d.find('div').get('class')))
+                        if config.write_info_files:
+                            infofiles.addto_detail_list(unicode('new tvgids.tv div-class detail => ' + datatype + '=' + d.find('div').get('class')))
+
                         tdict[datatype] = unicode(d.find('div').get('class'))
 
                     elif d.find('a') != None and d.find('a').get('href') != None:
-                        infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
+                        if config.write_info_files:
+                            infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
+
                         tdict[datatype] = unicode(d.find('a').get('href'))
 
-                    else:
+                    elif config.write_info_files:
                         infofiles.addto_detail_list(unicode('new tvgids.tv empty detail => ' + datatype))
 
-            else:
+            elif config.write_info_files:
                 infofiles.addto_detail_list(unicode('new tvgids.d-tag => ' + d.tag))
 
         tdict['ID'] = tdict[self.detail_id]
@@ -6315,8 +6337,10 @@ class teveblad_HTML(FetchData):
 
                     except Exception as e:
                         log('Error extracting ElementTree for channel:%s day:%s' % (config.channels[chanid].chan_name, offset))
-                        infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-                        infofiles.write_raw_string(strdata + u'\n')
+                        if config.write_info_files:
+                            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                            infofiles.write_raw_string(strdata + u'\n')
+
                         self.day_loaded[chanid][offset] = None
                         continue
 
@@ -6391,7 +6415,7 @@ class teveblad_HTML(FetchData):
                             elif d.get('class').lower() == 'country':
                                 continue
 
-                            else:
+                            elif config.write_info_files:
                                 infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
 
                         # The picons section
@@ -6413,7 +6437,7 @@ class teveblad_HTML(FetchData):
                                 elif d.get('title').lower() == 'dolby':
                                     tdict['audio']  = 'dolby'
 
-                                else:
+                                elif config.write_info_files:
                                     infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
 
                             elif 'genre' in d.get('class').lower():
@@ -6588,7 +6612,9 @@ class Channel_Config(Thread):
 
             xml_output.create_channel_strings(self.chanid)
             xml_output.create_program_string(self.chanid)
-            infofiles.write_raw_list()
+            if config.write_info_files:
+                infofiles.write_raw_list()
+
             self.ready = True
 
         except:
@@ -6762,7 +6788,8 @@ class Channel_Config(Thread):
             log('Splitting title \"%s\"\n' %  ptitle, 64)
             program['name'] = p[0].strip()
             program['titel aflevering'] = "".join(p[1:]).strip()
-            infofiles.addto_detail_list(unicode('Name split = %s + %s' % (program['name'] , program['titel aflevering'])))
+            if config.write_info_files:
+                infofiles.addto_detail_list(unicode('Name split = %s + %s' % (program['name'] , program['titel aflevering'])))
 
         return program
 
@@ -7103,7 +7130,8 @@ class XMLoutput:
             else:
                 config.output.write(xml)
 
-            infofiles.write_xmloutput(xml)
+            if config.write_info_files:
+                infofiles.write_xmloutput(xml)
 
 # end XMLoutput
 xml_output = XMLoutput()
