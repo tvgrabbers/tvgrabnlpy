@@ -3062,7 +3062,15 @@ class FetchData(Thread):
 
             self.init_json()
             # Load and proccess al the program pages
-            self.load_pages()
+            try:
+                self.load_pages()
+
+            except:
+                log('Fatal Error processing the basepages from: %s\n' % (self.source), 0)
+                log('Setting them all to being loaded, to let the other sources finish the job\n', 0)
+                for chanid in self.channels.keys():
+                    self.channel_loaded[chanid] = True
+                    config.channels[chanid].source_data[self.proc_id] = True
 
             # if this is the prefered description source set the value
             for chanid in self.channels.keys():
@@ -5293,13 +5301,6 @@ class tvgids_JSON(FetchData):
             # go to next in the loop
             return None
 
-        if config.write_info_files:
-            strdesc = re.sub(' +?', ' ',strdesc)
-            strdesc = re.sub('\n+?', '\n',strdesc)
-            strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
-                                        '" name="' + tdict['name'] + '">\n' + strdesc + '\n   </div>'
-            infofiles.write_raw_string(strdesc)
-
         # We scan every alinea of the description
         try:
             tdict = self.filter_description(htmldata, 'div/p', tdict)
@@ -6424,7 +6425,7 @@ class teveblad_HTML(FetchData):
                             if d.get('class').lower() == 'picon':
 
                                 # We don't use these (yet)
-                                if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering'):
+                                if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering', 'premiere'):
                                     continue
 
                                 if d.get('title').lower() == 'herhaling':
@@ -6436,6 +6437,9 @@ class teveblad_HTML(FetchData):
 
                                 elif d.get('title').lower() == 'dolby':
                                     tdict['audio']  = 'dolby'
+
+                                elif d.get('title').lower() == 'ondertiteld':
+                                    tdict['teletekst']  = True
 
                                 elif config.write_info_files:
                                     infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
