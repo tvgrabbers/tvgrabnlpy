@@ -267,9 +267,9 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 5
-        self.patchdate = u'20150417'
+        self.patchdate = u'20150501'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.channels = {}
         self.chan_count = 0
