@@ -266,10 +266,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 1
-        self.patch = 5
+        self.patch = 6
         self.patchdate = u'20150501'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.channels = {}
         self.chan_count = 0
@@ -1942,7 +1942,14 @@ class Configure:
 
                         log(u'  prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']), 1, 2)
 
-            for val in ( 'fast', 'slowdays', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
+            if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
+                if not chan_name_written:
+                    log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                    chan_name_written = True
+
+                log(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']), 1, 2)
+
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
@@ -5017,7 +5024,7 @@ class tvgids_JSON(FetchData):
     from the tvgids.nl json pages. Based on FetchData
     """
     def init_channels(self):
-        """ Detail Site layout
+        """ Detail Site layout oud
             <head>
             <body>
                 <div id="container">
@@ -5044,7 +5051,55 @@ class tvgids_JSON(FetchData):
                 </div>
                 <div id="footer-container">
             </body>
-        """
+            Nieuw
+            <head>
+            <body>
+                <input type="hidden" id="categoryClass" value="">
+                    <input type="hidden" id="notAllowedClass" value="">
+                        <input type="hidden" id="notAllowedTitles" value="">
+                            <div class="container pagecontainer">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div id="prog-content">
+                                            <div id="prog-video">
+                                            ...
+                                            </div>
+                                            <div class="programmering">
+                                                <h1>Harry Potter and the Goblet of Fire<span><sup>(2005)</sup></span></h1>
+                                                <div class="clear:both;"></div>
+                                                <script type="text/javascript" src="http://tvgidsassets.nl/v43/js/nlziet.js"></script>
+                                                <div class="programmering_details">
+                                                    <ul>
+                                                        <li class="datum_tijd"> 1 mei 2015, 22:45 - 23:55 uur</li>
+                                                        <li class="zender"><img src="http://tvgidsassets.nl/img/channels/53x27/36.png">SBS 6</li>
+                                                    </ul>
+                                                </div>
+                                                <div style="clear:both"></div>
+                                            </div>
+                                            <div class="clear"></div>
+                                                ...
+                                            <div class="clear"></div>
+                                            <p class="summary">
+                                                <span class="articleblock articleblock_color_fantasy">
+                                            FANTASY
+                                                </span>
+                                                                    Harry Potter gaat zijn vierde schooljaar in op de magische school Zweinstein, waar dit jaar het belangrijke internationale Triwizard Tournament wordt gehouden. Deze competitie is alleen voor de oudere en ervaren tovenaarsstudenten, maar toch komt Harry's naam boven als een van de deelnemers. Harry weet niet hoe dit mogelijk is, maar wordt toch gedwongen om mee te doen. Terwijl Harry zich voorbereidt op de gevaarlijke wedstrijd, wordt duidelijk dat de boosaardige Voldemort en zijn aanhangers steeds sterker worden en het nog altijd op zijn leven hebben gemunt. Dit nieuws is niet het enige wat Harry de rillingen bezorgt, hij heeft ook nog geen afspraakje voor het gala.
+                                            </p>
+                                            <p></p>
+                                            <br class="brclear" />
+                                            <div class="programmering_info_socials">
+                                                ...
+                                            </div>
+                                            <br class="clear" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </body>
+       """
 
         self.retime = re.compile(r'(\d\d\d\d)-(\d+)-(\d+) (\d+):(\d+)(?::\d+)')
 
@@ -5249,6 +5304,136 @@ class tvgids_JSON(FetchData):
                 pass
 
     def load_detailpage(self, tdict):
+
+        try:
+            strdata = self.get_page(tdict[self.detail_url])
+            if strdata == None:
+                log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
+                return
+
+            # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
+            tvgidsnldesc = re.compile('<p class="summary">(.*?)<br class="brclear" />',re.DOTALL)
+            strdesc = tvgidsnldesc.search(strdata)
+            # Just in case there are inbetween <div> tags. Like for a movie
+            div_count = len(re.findall('<div', strdesc.group(1)))
+            if div_count > 0:
+                while True:
+                    re_string = '<div id="prog-content">(.*?)</div>'
+                    for i in range(div_count):
+                        re_string += '(.*?)</div>'
+
+                    tvgidsnldesc = re.compile(re_string,re.DOTALL)
+                    strdesc = tvgidsnldesc.search(strdata)
+                    if len(re.findall('<div', strdesc.group(0))) == len(re.findall('</div>', strdesc.group(0))):
+                        break
+
+                    div_count += (len(re.findall('<div', strdesc.group(0))) - len(re.findall('</div>', strdesc.group(0))))
+
+            tvgidsnldetails = re.compile('<div class="programmering_info_detail">(.*?)</div>',re.DOTALL)
+            strdetails = tvgidsnldetails.search(strdata)
+            # Just in case there are inbetween <div> tags. Like for a movie
+            div_count = len(re.findall('<div', strdetails.group(1)))
+            if div_count > 0:
+                re_string = '<div id="prog-info-content">(.*?)</div>'
+                for i in range(div_count):
+                    re_string += '(.*?)</div>'
+
+                tvgidsnldetails = re.compile(re_string,re.DOTALL)
+                strdetails = tvgidsnldetails.search(strdata)
+
+            # Remove any movie reference for we don't need them and they can interfere with ET
+            strdesc = re.sub('<div id="prog-video">.*?</div>', '', strdesc.group(0), flags = re.DOTALL)
+            # There are titles containing '<' (eg. MTV<3) which interfere. Since whe don't need it we remove the title
+            strdetails = re.sub('<li><strong>Titel:</strong>.*?</li>', '', strdetails.group(0), flags = re.DOTALL)
+            strdata = (self.clean_html('<root>\n<p>\n' + strdesc + '\n<div>\n' + strdetails + '\n</div>\n</root>\n')).strip().encode('utf-8')
+            htmldata = ET.fromstring(strdata)
+
+        except Exception as e:
+            log('Fetching page %s returned an error\n' % (tdict[self.detail_url]), 1)
+            if config.write_info_files:
+                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                infofiles.write_raw_string('<root>\n<p>\n' + strdesc + '\n<div>\n' + strdetails + '\n</div>\n</root>\n')
+
+            # if we cannot find the description page,
+            # go to next in the loop
+            return None
+
+        # We scan every alinea of the description
+        try:
+            tdict = self.filter_description(htmldata, 'div/p', tdict)
+
+        except:
+            log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
+
+        htmldata.findall('div/a[@class]')
+        # We scan all the details
+        for d in htmldata.findall('div/ul/li'):
+            try:
+                ctype = self.empersant(d.find('span[@class]="col-lg-3"')).text.strip().lower()
+                content = self.empersant(d.find('span[@class]="col-lg-9 programma_detail_info"')).text.strip().lower()
+
+            except Exception as e:
+                continue
+
+            if content == '':
+                continue
+
+            if ctype == 'genre':
+                tdict['genre'] = content.title()
+
+            # Parse persons and their roles for credit info
+            elif ctype in config.roletrans:
+                if not config.roletrans[ctype] in tdict['credits']:
+                    tdict['credits'][config.roletrans[ctype]] = []
+                persons = content.split(',');
+                for name in persons:
+                    if name.find(':') != -1:
+                        name = name.split(':')[1]
+
+                    if name.find('-') != -1:
+                        name = name.split('-')[0]
+
+                    if name.find('e.a') != -1:
+                        name = name.split('e.a')[0]
+
+                    if not self.unescape(name.lower()) in tdict['credits'][config.roletrans[ctype]].lower():
+                        tdict['credits'][config.roletrans[ctype]].append(self.unescape(name.strip()))
+
+            # Add extra properties, while at the same time checking if we do not uncheck already set properties
+            elif ctype == 'bijzonderheden':
+                if config.write_info_files:
+                    infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
+
+                content = content.lower()
+                if tdict['video']['breedbeeld'] == False:
+                    tdict['video']['breedbeeld'] = (content.find('breedbeeld') != -1)
+                if tdict['video']['HD'] == False:
+                    tdict['video']['HD'] = (content.find('hd 1080i') != -1)
+                if tdict['video']['blackwhite'] == False:
+                    tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
+                tdict['video']['present']  = (tdict['video']['breedbeeld'] or tdict['video']['HD'] or tdict['video']['blackwhite'])
+                if tdict['teletekst'] == False:
+                    tdict['teletekst'] = (content.find('teletekst') != -1)
+                if content.find('stereo') != -1: tdict['audio'] = 'stereo'
+                if tdict['rerun'] == False:
+                    tdict['rerun'] = (content.find('herhaling') != -1)
+
+            elif ctype == 'nl-url':
+                tdict['infourl'] = content
+
+            elif (ctype not in tdict) and (ctype.lower() not in ('zender', 'datum', 'uitzendtijd', 'titel')):
+                # In unmatched cases, we still add the parsed type and content to the program details.
+                # Some of these will lead to xmltv output during the xmlefy_programs step
+                if config.write_info_files:
+                    infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
+
+                tdict[ctype] = content
+
+        tdict['ID'] = tdict[self.detail_id]
+        tdict[self.detail_check] = True
+        return tdict
+
+    def load_detailpage_oud(self, tdict):
 
         try:
             strdata = self.get_page(tdict[self.detail_url])
@@ -6319,7 +6504,7 @@ class teveblad_HTML(FetchData):
                         continue
 
                     if not self.check_date(self.datecheckdata.search(strdata), scan_date):
-                        log("Skip channel=%s on teveblad.be, day=%d. Wrong date!\n" % (config.channels[chanid].chan_name, offset))
+                        #~ log("Skip channel=%s on teveblad.be, day=%d. Wrong date!\n" % (config.channels[chanid].chan_name, offset))
                         failure_count += 1
                         continue
 
@@ -6330,14 +6515,14 @@ class teveblad_HTML(FetchData):
                         strdata = ('<div><div>' + self.progdata.search(strdata).group(1)).encode('utf-8')
                         htmldata = ET.fromstring(strdata)
                         if htmldata.findtext('div/p') == "We don't have any events for this broadcaster":
-                            log('No data for channel:%s on teveblad.be' % (config.channels[chanid].chan_name))
+                            log('No data for channel:%s on teveblad.be\n' % (config.channels[chanid].chan_name))
                             config.channels[chanid].source_data[3] = None
                             for i in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
                                 self.day_loaded[chanid][i] = None
                             break
 
                     except Exception as e:
-                        log('Error extracting ElementTree for channel:%s day:%s' % (config.channels[chanid].chan_name, offset))
+                        log('Error extracting ElementTree for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
                         if config.write_info_files:
                             infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
                             infofiles.write_raw_string(strdata + u'\n')
@@ -6355,7 +6540,7 @@ class teveblad_HTML(FetchData):
                         # The Title
                         title = p.find('div[@class="r"]/p/span[@class="title"]')
                         if title == None:
-                            log('Can not determine program title"')
+                            log('Can not determine program title"\n')
                             continue
 
                         href = title.find('a').get('href')
@@ -6364,13 +6549,13 @@ class teveblad_HTML(FetchData):
                             tdict[self.detail_id] = u'be-%s' % tdict[self.detail_url].split('/')[5]
                         tdict['name'] = self.empersant(title.findtext('a'))
                         if tdict['name'] == None or  tdict['name'] == '':
-                            log('Can not determine program title for "%s"' % tdict['be-url'])
+                            log('Can not determine program title for "%s"\n' % tdict['be-url'])
                             continue
 
                         # Starttime
                         start = p.findtext('div[@class="l"]/span[@class="starttime"]')
                         if start == None or start == '':
-                            log('Can not determine starttime for "%s"' % tdict['name'])
+                            log('Can not determine starttime for "%s"\n' % tdict['name'])
                             continue
 
                         prog_time = datetime.time(int(start.split('u')[0]), int(start.split('u')[1]), 0 ,0 ,CET_CEST)
