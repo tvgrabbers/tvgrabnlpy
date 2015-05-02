@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 6
-        self.patchdate = u'20150501'
+        self.patchdate = u'20150502'
         self.alfa = False
         self.beta = True
 
@@ -1430,7 +1430,7 @@ class Configure:
                     self.roletrans[a[0].lower().strip()] = a[1].strip()
 
             except Exception as e:
-                log('Error reading Defaults')
+                log('Error reading Defaults\n')
                 continue
 
         f.close()
@@ -1582,7 +1582,7 @@ class Configure:
             # check for the config dir
             config_dir = os.path.dirname(self.config_file)
             if (config_dir != '') and not os.path.exists(config_dir):
-                log('Creating %s directory,' % config_dir)
+                log('Creating %s directory,\n' % config_dir)
                 os.mkdir(config_dir)
             log('Creating config file: %s\n' % self.config_file)
             x = self.get_channels()
@@ -1688,7 +1688,7 @@ class Configure:
         self.write_opts_to_log()
         if self.args.configure:
             if not self.write_config(True):
-                log('Error writing new Config. Trying to restore an old one.')
+                log('Error writing new Config. Trying to restore an old one.\n')
                 try:
                     os.rename(file + '.old', file)
 
@@ -1774,7 +1774,7 @@ class Configure:
                 try:
                     output_dir = os.path.dirname(self.opt_dict['output_file'])
                     if (output_dir != '') and not os.path.exists(output_dir):
-                        log('Creating %s directory,' % output_dir)
+                        log('Creating %s directory,\n' % output_dir)
                         os.mkdir(output_dir)
 
                     self.output = self.open_file(self.opt_dict['output_file'],'w')
@@ -1793,7 +1793,7 @@ class Configure:
             try:
                 log_dir = os.path.dirname(self.log_file)
                 if (log_dir != '') and not os.path.exists(log_dir):
-                    log('Creating %s directory,' % log_dir)
+                    log('Creating %s directory,\n' % log_dir)
                     os.mkdir(log_dir)
 
                 self.save_oldfile(self.log_file)
@@ -1818,7 +1818,7 @@ class Configure:
             try:
                 cache_dir = os.path.dirname(self.program_cache_file)
                 if (cache_dir != '') and not os.path.exists(cache_dir):
-                    log('Creating %s directory,' % cache_dir)
+                    log('Creating %s directory,\n' % cache_dir)
                     os.mkdir(cache_dir)
 
                 if os.access(self.program_cache_file, os.F_OK and os.W_OK):
@@ -2065,7 +2065,7 @@ class Configure:
             fo = self.open_file(self.config_file + '.old')
             if fo == None or not self.check_encoding(fo):
                 # We cannot read the old config, so we create a new one
-                log('Error Opening the old config. Creating a new one.')
+                log('Error Opening the old config. Creating a new one.\n')
                 add_channels = True
 
             else:
@@ -2119,7 +2119,7 @@ class Configure:
             fo = self.open_file(self.config_file + '.old')
             if fo == None or not self.check_encoding(fo):
                 # We cannot read the old config, so we create a new one
-                log('Error Opening the old config. Creating a new one.')
+                log('Error Opening the old config. Creating a new one.\n')
                 self.get_channels()
                 add_channels = True
 
@@ -2815,7 +2815,7 @@ class ProgramCache(Thread):
             self.pdict = pickle.load(open(self.filename,'r'))
 
         except Exception:
-            log('Error loading cache file: %s (possibly corrupt)' % self.filename)
+            log('Error loading cache file: %s (possibly corrupt)\n' % self.filename)
             self.clear()
 
         self.lock.release()
@@ -2834,7 +2834,7 @@ class ProgramCache(Thread):
                 os.rename(self.filename, self.filename + '.tmp')
 
             except Exception:
-                log('Cannot rename %s, check permissions' % self.filename)
+                log('Cannot rename %s, check permissions\n' % self.filename)
 
         tmpfile = open(self.filename, 'w')
         pickle.dump(pdict_tmp, tmpfile)
@@ -2850,7 +2850,7 @@ class ProgramCache(Thread):
                 os.remove(self.filename +'.tmp')
 
             except Exception:
-                log('Cannot remove %s, check permissions' % self.filename +'.tmp')
+                log('Cannot remove %s, check permissions\n' % self.filename +'.tmp')
 
 
     def query(self, program_id):
@@ -2899,7 +2899,7 @@ class ProgramCache(Thread):
                 return
 
         self.lock.release()
-        log('Error saving program %s to the cache.' %  program['name'])
+        log('Error saving program %s to the cache.\n' %  program['name'])
 
     def clear(self):
         """
@@ -3532,7 +3532,11 @@ class FetchData(Thread):
 
             # Check for further tags like <i>talic and their following text
             for d in list(p.iter()):
-                if d.tag in ('br', 'img'):
+                if d.tag == 'span' and atype[pcount] == 'summary':
+                    # On tvgids.nl, this is the genre
+                    pass
+
+                elif d.tag in ('br', 'img'):
                     # Linebreaks don't contain text and images we ignore and don't count
                     # But we want the tail text
                     pass
@@ -5144,7 +5148,7 @@ class tvgids_JSON(FetchData):
                     int(match.group(3)),int(match.group(4)),int(match.group(5)),
                     tzinfo=CET_CEST)
         else:
-            log("Can not determine %s for %s" % (time,program))
+            log("Can not determine %s for %s\n" % (time,program))
             return None
 
     def get_channels(self):
@@ -5240,7 +5244,7 @@ class tvgids_JSON(FetchData):
 
         for chanid in self.channels.keys():
             if len(dl[chanid]) == 0:
-                log('No data on tvgids.nl for channel:%s' % (config.channels[chanid].chan_name))
+                log('No data on tvgids.nl for channel:%s\n' % (config.channels[chanid].chan_name))
                 config.channels[chanid].source_data[0] = None
                 continue
 
@@ -5276,7 +5280,7 @@ class tvgids_JSON(FetchData):
                 tdict['name'] = self.unescape(item['titel'])
                 tdict = self.check_title_name(tdict)
                 if  tdict['name'] == None or tdict['name'] == '':
-                    log('Can not determine program title for "%s"' % tdict[self.detail_url])
+                    log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
                     continue
 
                 # The timing
@@ -5312,47 +5316,49 @@ class tvgids_JSON(FetchData):
                 return
 
             # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
-            tvgidsnldesc = re.compile('<p class="summary">(.*?)<br class="brclear" />',re.DOTALL)
-            strdesc = tvgidsnldesc.search(strdata)
-            # Just in case there are inbetween <div> tags. Like for a movie
-            div_count = len(re.findall('<div', strdesc.group(1)))
-            if div_count > 0:
-                while True:
-                    re_string = '<div id="prog-content">(.*?)</div>'
-                    for i in range(div_count):
-                        re_string += '(.*?)</div>'
+            tvgidsnltitle = re.compile('<div class="programmering">(.*?)</h1>',re.DOTALL)
+            strtitle = tvgidsnltitle.search(strdata)
+            if strtitle == None:
+                strtitle = ''
 
-                    tvgidsnldesc = re.compile(re_string,re.DOTALL)
-                    strdesc = tvgidsnldesc.search(strdata)
-                    if len(re.findall('<div', strdesc.group(0))) == len(re.findall('</div>', strdesc.group(0))):
-                        break
+            else:
+                # There are titles containing '<' (eg. MTV<3) which interfere. Since whe don't need it we remove the title
+                strtitle = re.sub('<h1>.*?<span>', '<h1><span>', strtitle.group(0), flags = re.DOTALL)
 
-                    div_count += (len(re.findall('<div', strdesc.group(0))) - len(re.findall('</div>', strdesc.group(0))))
+
+            tvgidsnldesc = re.compile('<p class="summary">(.*?)</p>',re.DOTALL)
+            strdesc1 = tvgidsnldesc.search(strdata)
+            if strdesc1 == None:
+                strdesc1 = ''
+
+            else:
+                strdesc1 = re.sub('<p>', '', strdesc1.group(0), flags = re.DOTALL)
+
+            tvgidsnldesc = re.compile('<div class="tekst col-sm-12">(.*?)</div>',re.DOTALL)
+            strdesc2 = tvgidsnldesc.search(strdata)
+            if strdesc2 == None:
+                strdesc2 = ''
+
+            else:
+                strdesc2 = strdesc2.group(0)
 
             tvgidsnldetails = re.compile('<div class="programmering_info_detail">(.*?)</div>',re.DOTALL)
             strdetails = tvgidsnldetails.search(strdata)
-            # Just in case there are inbetween <div> tags. Like for a movie
-            div_count = len(re.findall('<div', strdetails.group(1)))
-            if div_count > 0:
-                re_string = '<div id="prog-info-content">(.*?)</div>'
-                for i in range(div_count):
-                    re_string += '(.*?)</div>'
+            if strdetails == None:
+                strdetails = ''
 
-                tvgidsnldetails = re.compile(re_string,re.DOTALL)
-                strdetails = tvgidsnldetails.search(strdata)
+            else:
+                strdetails = strdetails.group(0)
 
-            # Remove any movie reference for we don't need them and they can interfere with ET
-            strdesc = re.sub('<div id="prog-video">.*?</div>', '', strdesc.group(0), flags = re.DOTALL)
-            # There are titles containing '<' (eg. MTV<3) which interfere. Since whe don't need it we remove the title
-            strdetails = re.sub('<li><strong>Titel:</strong>.*?</li>', '', strdetails.group(0), flags = re.DOTALL)
-            strdata = (self.clean_html('<root>\n<p>\n' + strdesc + '\n<div>\n' + strdetails + '\n</div>\n</root>\n')).strip().encode('utf-8')
+            strdata = (self.clean_html('<root>\n' + strtitle + '\n' + strdesc1 + '\n</div>\n' + strdesc2 + '\n' + strdetails + '\n</root>\n')).strip().encode('utf-8')
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
-            log('Fetching page %s returned an error\n' % (tdict[self.detail_url]), 1)
+            log('Fetching page %s returned an error: %s\n' % (tdict[self.detail_url], sys.exc_info()[1]), 1)
             if config.write_info_files:
                 infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-                infofiles.write_raw_string('<root>\n<p>\n' + strdesc + '\n<div>\n' + strdetails + '\n</div>\n</root>\n')
+                infofiles.write_raw_string('<root>\n' + strtitle + '\n' + strdesc1 + '\n</div>\n' + strdesc2 + '\n' + strdetails + '\n</root>\n')
+                #~ infofiles.write_raw_string('<root>\n<div>\n' + strdesc1 + '\n</div>\n' + strdesc2 + '\n' + strdetails + '\n</root>\n')
 
             # if we cannot find the description page,
             # go to next in the loop
@@ -5365,69 +5371,96 @@ class tvgids_JSON(FetchData):
         except:
             log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
 
-        htmldata.findall('div/a[@class]')
+        try:
+            tmp = htmldata.find('div/h1/span/sup').text
+            if tmp != None:
+                tmp = re.sub('\(', '', tmp)
+                tdict['jaar van premiere'] = re.sub('\)', '', tmp).strip()
+
+        except Exception as e:
+            if config.write_info_files:
+                infofiles.write_raw_string('Error: %s\n' % (sys.exc_info()[1]))
+                infofiles.write_raw_string(strdata)
+
         # We scan all the details
         for d in htmldata.findall('div/ul/li'):
             try:
-                ctype = self.empersant(d.find('span[@class]="col-lg-3"')).text.strip().lower()
-                content = self.empersant(d.find('span[@class]="col-lg-9 programma_detail_info"')).text.strip().lower()
+                ctype = self.empersant(d.find('span[@class="col-lg-3"]').text).strip().lower()
+                if ctype[-1] == ':':
+                    ctype = ctype[0:len(ctype)-1]
+
+                if ctype == 'kijkwijzer':
+                    content = ''
+
+                else:
+                    content = self.empersant(d.find('span[@class="col-lg-9 programma_detail_info"]').text).strip()
 
             except Exception as e:
+                if config.write_info_files:
+                    infofiles.write_raw_string('Error: %s\n%s\n' % (sys.exc_info()[1], d))
+                    infofiles.write_raw_string(strdata)
+
                 continue
 
-            if content == '':
-                continue
+            try:
+                if content == '':
+                    continue
 
-            if ctype == 'genre':
-                tdict['genre'] = content.title()
+                if ctype == 'genre':
+                    tdict['genre'] = content.title()
 
-            # Parse persons and their roles for credit info
-            elif ctype in config.roletrans:
-                if not config.roletrans[ctype] in tdict['credits']:
-                    tdict['credits'][config.roletrans[ctype]] = []
-                persons = content.split(',');
-                for name in persons:
-                    if name.find(':') != -1:
-                        name = name.split(':')[1]
+                # Parse persons and their roles for credit info
+                elif ctype in config.roletrans:
+                    if not config.roletrans[ctype] in tdict['credits']:
+                        tdict['credits'][config.roletrans[ctype]] = []
+                    persons = content.split(',');
+                    for name in persons:
+                        if name.find(':') != -1:
+                            name = name.split(':')[1]
 
-                    if name.find('-') != -1:
-                        name = name.split('-')[0]
+                        if name.find('-') != -1:
+                            name = name.split('-')[0]
 
-                    if name.find('e.a') != -1:
-                        name = name.split('e.a')[0]
+                        if name.find('e.a') != -1:
+                            name = name.split('e.a')[0]
 
-                    if not self.unescape(name.lower()) in tdict['credits'][config.roletrans[ctype]].lower():
-                        tdict['credits'][config.roletrans[ctype]].append(self.unescape(name.strip()))
+                        if not self.unescape(name.strip()) in tdict['credits'][config.roletrans[ctype]]:
+                            tdict['credits'][config.roletrans[ctype]].append(self.unescape(name.strip()))
 
-            # Add extra properties, while at the same time checking if we do not uncheck already set properties
-            elif ctype == 'bijzonderheden':
+                # Add extra properties, while at the same time checking if we do not uncheck already set properties
+                elif ctype == 'bijzonderheden':
+                    if config.write_info_files:
+                        infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
+
+                    content = content.lower()
+                    if tdict['video']['breedbeeld'] == False:
+                        tdict['video']['breedbeeld'] = (content.find('breedbeeld') != -1)
+                    if tdict['video']['HD'] == False:
+                        tdict['video']['HD'] = (content.find('hd 1080i') != -1)
+                    if tdict['video']['blackwhite'] == False:
+                        tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
+                    tdict['video']['present']  = (tdict['video']['breedbeeld'] or tdict['video']['HD'] or tdict['video']['blackwhite'])
+                    if tdict['teletekst'] == False:
+                        tdict['teletekst'] = (content.find('teletekst') != -1)
+                    if content.find('stereo') != -1: tdict['audio'] = 'stereo'
+                    if tdict['rerun'] == False:
+                        tdict['rerun'] = (content.find('herhaling') != -1)
+
+                elif ctype == 'nl-url':
+                    tdict['infourl'] = content
+
+                elif (ctype not in tdict) and (ctype.lower() not in ('zender', 'datum', 'uitzendtijd', 'titel')):
+                    # In unmatched cases, we still add the parsed type and content to the program details.
+                    # Some of these will lead to xmltv output during the xmlefy_programs step
+                    if config.write_info_files:
+                        infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
+
+                    tdict[ctype] = content
+
+            except Exception as e:
                 if config.write_info_files:
-                    infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
-
-                content = content.lower()
-                if tdict['video']['breedbeeld'] == False:
-                    tdict['video']['breedbeeld'] = (content.find('breedbeeld') != -1)
-                if tdict['video']['HD'] == False:
-                    tdict['video']['HD'] = (content.find('hd 1080i') != -1)
-                if tdict['video']['blackwhite'] == False:
-                    tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
-                tdict['video']['present']  = (tdict['video']['breedbeeld'] or tdict['video']['HD'] or tdict['video']['blackwhite'])
-                if tdict['teletekst'] == False:
-                    tdict['teletekst'] = (content.find('teletekst') != -1)
-                if content.find('stereo') != -1: tdict['audio'] = 'stereo'
-                if tdict['rerun'] == False:
-                    tdict['rerun'] = (content.find('herhaling') != -1)
-
-            elif ctype == 'nl-url':
-                tdict['infourl'] = content
-
-            elif (ctype not in tdict) and (ctype.lower() not in ('zender', 'datum', 'uitzendtijd', 'titel')):
-                # In unmatched cases, we still add the parsed type and content to the program details.
-                # Some of these will lead to xmltv output during the xmlefy_programs step
-                if config.write_info_files:
-                    infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
-
-                tdict[ctype] = content
+                    infofiles.write_raw_string('Error: %s\n' % (sys.exc_info()[1]))
+                    infofiles.write_raw_string(strdata)
 
         tdict['ID'] = tdict[self.detail_id]
         tdict[self.detail_check] = True
@@ -5496,7 +5529,7 @@ class tvgids_JSON(FetchData):
         # We scan all the details
         for d in htmldata.findall('div/ul/li'):
             try:
-                ctype = self.empersant(d.find('strong')).text.strip().lower()
+                ctype = self.empersant(d.find('strong').text).strip().lower()
                 content = self.empersant(d.find('strong').tail).strip()
 
             except Exception as e:
@@ -5669,7 +5702,7 @@ class tvgidstv_HTML(FetchData):
 
         d = self.fetch_datecontent.search(page_data)
         if d == None:
-            log('Unable to veryfy the right offset on .' )
+            log('Unable to veryfy the right offset on .\n' )
             return None
 
         try:
@@ -5678,7 +5711,7 @@ class tvgidstv_HTML(FetchData):
             htmldata = ET.fromstring( ('<div>' + d).encode('utf-8'))
 
         except:
-            log('Unable to veryfy the right offset on .' )
+            log('Unable to veryfy the right offset on .\n' )
             return None
 
         dd = htmldata.find('div/a[@class="today "]/br')
@@ -5689,7 +5722,7 @@ class tvgidstv_HTML(FetchData):
             dd = htmldata.find('div/a[@class="today active"]/br')
 
         if dd.tail == None:
-            log('Unable to veryfy the right offset on .' )
+            log('Unable to veryfy the right offset on .\n' )
             return None
 
         d = dd.tail.strip().split()
@@ -5823,13 +5856,13 @@ class tvgidstv_HTML(FetchData):
                         tdict['name'] = self.empersant(p.get('title'))
                         tdict = self.check_title_name(tdict)
                         if  tdict['name'] == None or tdict['name'] == '':
-                            log('Can not determine program title for "%s"' % tdict[self.detail_url])
+                            log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
                             continue
 
                         # Get the starttime and make sure the midnight date change is properly crossed
                         start = p.findtext('div[@class="content"]/span[@class="section-item-title"]').split()[0]
                         if start == None or start == '':
-                            log('Can not determine starttime for "%s"' % tdict['name'])
+                            log('Can not determine starttime for "%s"\n' % tdict['name'])
                             continue
 
                         prog_time = datetime.time(int(start.split(':')[0]), int(start.split(':')[1]), 0 ,0 ,CET_CEST)
@@ -5859,7 +5892,7 @@ class tvgidstv_HTML(FetchData):
                     time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
                 if len(self.program_data) == 0:
-                    log('No data for channel:%s on tvgids.tv' % (config.channels[chanid].chan_name))
+                    log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
                     config.channels[chanid].source_data[1] = None
                     continue
 
