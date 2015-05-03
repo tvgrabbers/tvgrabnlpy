@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 6
-        self.patchdate = u'20150503'
+        self.patchdate = u'20150504'
         self.alfa = False
         self.beta = True
 
@@ -6537,7 +6537,13 @@ class teveblad_HTML(FetchData):
             elif item.tag == 'a':
                 chan = item.get('href')
                 if chan != None:
-                    chanid = re.split('/', chan)[4]
+                    c = re.split('/', chan)
+                    if c[3] == 'zenders':
+                        chanid = c[4]
+
+                    else:
+                        chanid = c[3]
+
                     icon = item.find('img').get('src')
                     icon = re.split('/', icon)
                     icon = '%s/%s' % (icon[8], icon[9])
@@ -6641,7 +6647,13 @@ class teveblad_HTML(FetchData):
                             url = c.find('div/a').get('href')
                             if url != None:
                                 channel_cnt += 1
-                                c = re.split('/', url)[3]
+                                c = re.split('/', url)
+                                if c[3] == 'zenders':
+                                    c = c[4]
+
+                                else:
+                                    c = c[3]
+
                                 if c in group_values['fetch_list']:
                                     chan_list[unicode(channel_cnt)] = c
 
