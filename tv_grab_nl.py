@@ -5428,6 +5428,9 @@ class tvgids_JSON(FetchData):
                             tdict['credits'][config.roletrans[ctype]].append(self.unescape(name.strip()))
 
                 # Add extra properties, while at the same time checking if we do not uncheck already set properties
+                elif ctype == 'kleur':
+                    tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
+
                 elif ctype == 'bijzonderheden':
                     if config.write_info_files:
                         infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
