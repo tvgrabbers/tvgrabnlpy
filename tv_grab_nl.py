@@ -126,7 +126,7 @@ description_text = """
 
 # Modules we need
 import re, sys, codecs, locale, argparse
-import time, random, io, json
+import time, random, io, json, shutil
 import os, os.path, curses, pickle
 try:
     import urllib.request as urllib
@@ -6447,6 +6447,33 @@ class teveblad_HTML(FetchData):
 
         return False
 
+    def read_channelfile(self):
+        try:
+            if not os.access(u'%s/teveblad_channels.html' % (config.xmltv_dir), os.F_OK):
+                if os.access(u'%s/teveblad_channels.html' % (config.hpath), os.F_OK):
+                    log('copying %s/teveblad_channels.html to %s\n' % (config.hpath, config.xmltv_dir))
+                    shutil.copy(u'%s/teveblad_channels.html' % (config.hpath), config.xmltv_dir)
+                else:
+                    log('teveblad channel info file: %s/teveblad_channels.html not found\n' % (config.hpath))
+                    return None
+
+            f = config.open_file( u'%s/teveblad_channels.html' % config.xmltv_dir)
+            if f == None:
+                return None
+
+            #~ htmldata = ET.parse(f)
+            strdata = u''
+            for byteline in f.readlines():
+                line = config.get_line(f, byteline)
+                strdata += self.clean_html(line)
+            f.close()
+
+            return ET.fromstring(strdata.encode('utf-8'))
+
+        except:
+            log('error parsing %s/teveblad_channels.html\n' % (config.xmltv_dir))
+            return None
+
     def get_channels(self):
         """
         Get a list of all available channels and store these
@@ -6456,13 +6483,18 @@ class teveblad_HTML(FetchData):
         try:
             strdata = self.get_page(self.get_url())
             if strdata == None:
-                return
+                htmldata = self.read_channelfile()
+                if htmldata == None:
+                    return None
 
-            strdata = self.clean_html('<div>' + self.channeldata.search(strdata).group(1)).encode('utf-8')
-            htmldata = ET.fromstring(strdata)
+            else:
+                strdata = self.clean_html('<div>' + self.channeldata.search(strdata).group(1)).encode('utf-8')
+                htmldata = ET.fromstring(strdata)
 
         except Exception as e:
-            return None
+            htmldata = self.read_channelfile()
+            if htmldata == None:
+                return None
 
         chan_groups = {'Nederlandstalig': 2,
                                     'Hoofdzenders': 2,
@@ -6487,7 +6519,7 @@ class teveblad_HTML(FetchData):
             elif item.tag == 'a':
                 chan = item.get('href')
                 if chan != None:
-                    chanid = re.split('/', chan)[3]
+                    chanid = re.split('/', chan)[4]
                     icon = item.find('img').get('src')
                     icon = re.split('/', icon)
                     icon = '%s/%s' % (icon[8], icon[9])
