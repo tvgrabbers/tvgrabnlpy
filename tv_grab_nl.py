@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 6
-        self.patchdate = u'20150502'
+        self.patchdate = u'20150503'
         self.alfa = False
         self.beta = True
 
@@ -3179,14 +3179,14 @@ class FetchData(Thread):
             err_obj = sys.exc_info()[2]
             log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
             log('The current detail url is: %s\n' % (tdict[self.detail_url]), 0)
-            #~ log('                                at line: %s, %s\n' %  (self.source, err_obj.tb_lineno, err_obj.tb_lasti, ), 0)
+            log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
-            #~ while True:
-                #~ err_obj = err_obj.tb_next
-                #~ if err_obj == None:
-                    #~ break
+            while True:
+                err_obj = err_obj.tb_next
+                if err_obj == None:
+                    break
 
-                #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+                log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
             log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
 
@@ -3555,7 +3555,7 @@ class FetchData(Thread):
                             aheader[pcount] = u''
                             content = content + format_text(d.text) + u' '
 
-                    elif d.tag in ('i', 'em', 'a'):
+                    elif d.tag in ('i', 'em', 'a', 'b'):
                         content = content + format_text(d.text) + u' '
 
                     else:
@@ -6415,6 +6415,8 @@ class teveblad_HTML(FetchData):
         self.datecheckdata = re.compile('<input id="epg_dateselector".*?data-value="([0-9]+)-([0-9]+)-([0-9]+)".*?/>',re.DOTALL)
         self.channeldata = re.compile('<div id="smallleftcol">(.*?)<div id="middlecolchaine">',re.DOTALL)
         self.progdata = re.compile('<div id="middlecolchaine">(.*?)<div id="epg_grid_view">channels</div>',re.DOTALL)
+        self.groupdata = re.compile('<div id="epg_channel_headers">(.*?)<div id="epg_scroller_right">.*?' + \
+                                                    '<div id="epg_channels">(.*?)<div id="epg_scroller">',re.DOTALL)
         self.seasondata = re.compile('Season ([0-9]+) \(([0-9]+)/([0-9]+)\)',re.DOTALL)
 
         basepath = 'div[@id="mainbox"]/div/div[@class="epg_container"]/div[@class="epg_content"]/' + \
@@ -6426,10 +6428,14 @@ class teveblad_HTML(FetchData):
             if channel.active and channel.source_id[3] != '':
                 self.channels[chanid] = channel.source_id[3]
 
-    def get_url(self, date = '', channel = ''):
+    def get_url(self, date = '', channel = '', get_group = False):
 
-         teveblad_zoeken = 'http://www.teveblad.be/tv-gids/'
-         return u'%s%s/zenders/%s' % (teveblad_zoeken,  date, channel)
+        teveblad_zoeken = 'http://www.teveblad.be/tv-gids/'
+        if get_group:
+            return u'%s%s/zendergroep/%s' % (teveblad_zoeken,  date, channel)
+
+        else:
+            return u'%s%s/zenders/%s' % (teveblad_zoeken,  date, channel)
 
     def check_date(self, return_date, search_date):
         try:
@@ -6440,6 +6446,7 @@ class teveblad_HTML(FetchData):
 
         except Exception as e:
             log('Invalid page returned by teveblad.be\n')
+            log('return_date: %s search_date: %s\n' % (return_date, search_date))
             return False
 
         log('Wrong date %s-%s-%s returned from teveblad.be, %s requested\n' % \
@@ -6506,6 +6513,7 @@ class teveblad_HTML(FetchData):
                                     'Kids & Jeugd': 8,
                                     'Anderstalige zenders': 9}
         self.all_channels ={}
+        self.page_strings = {}
         changroup = 10
         for item in htmldata.find('div[@class="greyrounded"]'):
             if item.tag == 'h2':
@@ -6515,6 +6523,13 @@ class teveblad_HTML(FetchData):
 
                 else:
                     changroup = 10
+
+                group_url = item.find('a').get('href')
+                group_url = re.split('/', group_url)[6]
+                self.page_strings[group] = {}
+                self.page_strings[group]['url'] = group_url
+                self.page_strings[group]['chan_list'] = []
+                self.page_strings[group]['fetch_list'] = []
 
             elif item.tag == 'a':
                 chan = item.get('href')
@@ -6527,13 +6542,302 @@ class teveblad_HTML(FetchData):
                     self.all_channels[chanid]['name'] = item.find('img').get('title')
                     self.all_channels[chanid]['icon'] = icon
                     self.all_channels[chanid]['group'] = changroup
+                    self.all_channels[chanid]['group_list'] = []
+                    self.page_strings[group]['chan_list'].append(chanid)
                     if group == 'Digitale zenders':
                         self.all_channels[chanid]['HD'] = True
 
                     else:
                         self.all_channels[chanid]['HD'] = False
 
+        for g, v in self.page_strings.items():
+            for chanid in v['chan_list']:
+                self.all_channels[chanid]['group_list'].append(g)
+
+
     def load_pages(self):
+        # First determin which pages need to be loaded
+        try:
+            self.get_channels()
+            for n, v in self.page_strings.items():
+                v['fetch_list'] = []
+                self.day_loaded[n] = {}
+                for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
+                    self.day_loaded[n][day] = False
+
+            for chanid, channel in self.channels.items():
+                if not channel in self.all_channels:
+                    # This channel is removed, for it reurns empty
+                    self.channel_loaded[chanid] = True
+                    config.channels[chanid].source_data[self.proc_id] = True
+                    continue
+
+                # Check wich grouppage to load
+                if len(self.all_channels[channel]['group_list']) > 0:
+                    self.page_strings[self.all_channels[channel]['group_list'][0]]['fetch_list'].append(channel)
+
+            for retry in (0, 1):
+                # There are 9 group pages. Check if any channel from a page is wanted
+                for group_page, group_values in self.page_strings.items():
+                    if len(group_values['fetch_list']) == 0:
+                        continue
+
+                    failure_count = 0
+                    if self.quit:
+                        return
+
+                    # teeveeblad.be shows programs per day, so we loop over the number of days
+                    # we are required to grab
+                    for offset in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
+                        if self.day_loaded[group_page][offset] != False:
+                            continue
+
+                        log('\n', 2)
+                        log('Now fetching GroupPage: %s from teveblad.be for day %s of %s.\n' % (group_page, offset, config.opt_dict['tevedays']), 2)
+
+                        date_offset = offset
+                        scan_date = datetime.date.fromordinal(self.current_date + offset)
+                        channel_url =self.get_url(scan_date.strftime('%Y-%m-%d'), group_values['url'], True)
+
+                        # get the raw programming for the day
+                        strdata = self.get_page(channel_url, encoding = 'utf-8')
+
+                        if strdata == None:
+                            log("Skip %s page on teveblad.be, day=%d. No data!\n" % (group_page, offset))
+                            failure_count += 1
+                            continue
+
+                        if not self.check_date(self.datecheckdata.search(strdata), scan_date):
+                            #~ log("Skip group=%s on teveblad.be, day=%d. Wrong date!\n" % (group_page, offset))
+                            failure_count += 1
+                            continue
+
+                        # and extract the ElementTree
+                        try:
+                            strdata = self.clean_html(strdata)
+                            strdata = re.sub('<div class="r" class="toowide">', '<div class="r">', strdata)
+                            strdata =self.groupdata.search(strdata)
+                            strdata = (u'<root><div>' + strdata.group(1) + u'\n<div>\n' + strdata.group(2)) + u'</root>'
+                            htmldata = ET.fromstring(strdata.encode('utf-8'))
+
+                        except Exception as e:
+                            log('Error extracting ElementTree for zendergroup:%s day:%s\n' % (group_page, offset))
+                            err_obj = sys.exc_info()[2]
+                            log('Error: %s at line %s\n' %  (sys.exc_info()[1], err_obj.tb_lineno), 0)
+                            if config.write_info_files:
+                                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                                infofiles.write_raw_string(strdata + u'\n')
+
+                            self.day_loaded[group_page][offset] = None
+                            continue
+
+                        channel_cnt = 0
+                        chan_list = {}
+                        # Retrieve the available channels and add the wanted channels to the channel list
+                        for c in  htmldata.findall('div/div[@id="epg_channel_headers_content"]/div[@class="channel"]'):
+                            url = c.find('div/a').get('href')
+                            if url != None:
+                                channel_cnt += 1
+                                c = re.split('/', url)[3]
+                                if c in group_values['fetch_list']:
+                                    chan_list[unicode(channel_cnt)] = c
+
+                        for c in  htmldata.findall('div/div[@id="epg_channels_content"]/div[@class="channel"]'):
+                            if not c.get('number') in chan_list.keys():
+                                continue
+
+                            last_program = datetime.datetime.combine(scan_date, datetime.time(1, 0, 0 ,0 ,CET_CEST))
+                            channel = chan_list[c.get('number')]
+                            for k, v in self.channels.items():
+                                if channel == v:
+                                    chanid = k
+
+                            for p in c.findall('div'):
+                                if not( p.get('class') == 'programme even' or p.get('class') == 'programme odd'):
+                                    continue
+
+                                p_duur = int(p.get('duration'))
+                                tdict = self.checkout_program_dict()
+                                p = p.find('div[@class="c"]')
+                                tdict['source'] = 'teveblad'
+                                tdict['channelid'] = chanid
+                                tdict['channel'] = config.channels[chanid].chan_name
+
+                                # The Title
+                                title = p.find('p/span[@class="title"]')
+                                if title == None:
+                                    log('Can not determine program title"\n')
+                                    continue
+
+                                href = title.find('a').get('href')
+                                if href != '' and href != None:
+                                    tdict[self.detail_url] = title.find('a').get('href')
+                                    tdict[self.detail_id] = u'be-%s' % tdict[self.detail_url].split('/')[5]
+                                tdict['name'] = self.empersant(title.findtext('a'))
+                                if tdict['name'] == None or  tdict['name'] == '':
+                                    log('Can not determine program title for "%s"\n' % tdict['be-url'])
+                                    continue
+
+                                # Starttime
+                                start = p.findtext('p/span[@class="starttime"]')
+                                if start == None or start == '':
+                                    log('Can not determine starttime for "%s"\n' % tdict['name'])
+                                    continue
+
+                                prog_time = datetime.time(int(start.split('u')[0]), int(start.split('u')[1]), 0 ,0 ,CET_CEST)
+
+                                # Make sure the midnight date change is properly crossed
+                                if datetime.datetime.combine(scan_date, prog_time) < last_program:
+                                    date_offset = offset +1
+                                    scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                                tdict['offset'] = date_offset
+                                tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
+                                last_program = tdict['start-time']
+                                tdict['stop-time'] = tdict['start-time'] + datetime.timedelta(0, 0, 0, 0, p_duur)
+
+                                # Subtitle
+                                subtitle = self.empersant(p.findtext('p/span[@class="title_episode"]'))
+                                tdict['titel aflevering'] = subtitle if (subtitle != None) else ''
+
+                                # Description. There is a possible long and short version. We try to take the long one
+                                descshort = self.empersant(p.findtext('p/span[@class="desc_short"]'))
+                                descshort = '' if (descshort == None) else descshort
+
+                                desc = self.empersant(p.findtext('div[@class="desc h"]/p'))
+                                tdict['description'] = desc if (desc != None) else descshort
+
+                                # The basicinfo section
+                                for d in p.iterfind('div[@class="basicinfo"]/span'):
+
+                                    if d.get('class').lower() == 'year':
+                                        tdict['jaar van premiere'] = d.text
+
+                                    elif d.get('class').lower() == 'episode':
+                                        tdict['episode'] = (re.sub('Episode', '', d.text)).strip()
+                                        tdict['episode'] = (re.sub('Aflevering', '', d.text)).strip()
+
+                                    elif d.get('class').lower() == 'season':
+                                        try:
+                                            season = self.seasondata.search(d.text)
+                                            if season != None:
+                                                tdict['season'] = unicode(season.group(1))
+                                                tdict['episode'] = unicode(season.group(2))
+                                                #stotal = season.group(3)
+
+                                        except:
+                                            if config.write_info_files:
+                                                infofiles.addto_detail_list('error processing seasonstring: %s\n\n' % season)
+
+                                    elif d.get('class').lower() == 'desc_short' and tdict['description'] == '':
+                                        tdict['description'] = self.empersant(d.text)
+
+                                    elif d.get('class').lower() == 'originaltitle':
+                                        tdict['originaltitle'] = self.empersant(d.text)
+
+                                    # We don't use it (yet)
+                                    elif d.get('class').lower() == 'country':
+                                        continue
+
+                                    elif config.write_info_files:
+                                        infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
+
+                                # The picons section
+                                for d in p.iterfind('p[@class="picons"]/span'):
+
+                                    if d.get('class').lower() == 'picon' or d.get('class').lower() == 'curvyignore picon' :
+
+                                        # We don't use these (yet)
+                                        if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering', 'premiere'):
+                                            continue
+
+                                        if d.get('title').lower() == 'herhaling':
+                                            tdict['rerun'] = True
+
+                                        elif d.get('title').lower() == 'hd':
+                                            tdict['video']['HD'] = True
+                                            tdict['video']['present']  = True
+
+                                        elif d.get('title').lower() == 'dolby':
+                                            tdict['audio']  = 'dolby'
+
+                                        elif d.get('title').lower() == '16:9':
+                                            tdict['breedbeeld']  = True
+
+                                        elif d.get('title').lower() == 'ondertiteld':
+                                            tdict['teletekst']  = True
+
+                                        elif config.write_info_files:
+                                            infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
+
+                                    elif 'genre' in d.get('class').lower():
+                                        genre = self.empersant(d.findtext('a'))
+                                        if genre == '' or genre == None:
+                                            continue
+
+                                        if genre.lower() in config.tevecattrans.keys():
+                                            tdict['genre'] = config.tevecattrans[genre.lower()][0].capitalize()
+                                            tdict['subgenre'] = config.tevecattrans[genre.lower()][1].capitalize()
+
+                                        else:
+                                            config.tevecat[genre] = (u'Overige', u'')
+
+                                for d in p.iterfind('span[@class]'):
+                                    if 'genre' in d.get('class').lower():
+                                        genre = self.empersant(p.findtext('a'))
+                                        if genre == '' or genre == None:
+                                            continue
+
+                                        if genre.lower() in config.tevecattrans.keys():
+                                            tdict['genre'] = config.tevecattrans[genre.lower()][0].capitalize()
+                                            tdict['subgenre'] = config.tevecattrans[genre.lower()][1].capitalize()
+
+                                        else:
+                                            config.tevecat[genre] = (u'Overige', u'')
+
+                                # and append the program to the list of programs
+                                tdict = self.check_title_name(tdict)
+                                self.program_data[chanid].append(tdict)
+
+                            self.day_loaded[chanid][offset] = True
+
+                        self.day_loaded[group_page][offset] = True
+                        # be nice to teveblad.be
+                        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+                    if failure_count == 0 or retry == 1:
+                        for chanid, channel in self.channels.items():
+                            if channel in group_values['fetch_list']:
+                                for tdict in self.program_data[chanid]:
+                                    self.program_by_id[tdict[self.detail_id]] = tdict
+
+                                self.channel_loaded[chanid] = True
+                                self.parse_programs(chanid, 0, 'None')
+                                config.channels[chanid].source_data[3] = True
+
+                                try:
+                                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+                                except:
+                                    pass
+
+        except:
+            err_obj = sys.exc_info()[2]
+            log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
+            log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+
+            while True:
+                err_obj = err_obj.tb_next
+                if err_obj == None:
+                    break
+
+                log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id] = True
+            return None
+
+    def load_pages_old(self):
 
         for retry in (0, 1):
             channel_cnt = 0
@@ -6545,7 +6849,8 @@ class teveblad_HTML(FetchData):
 
                 log('\n', 2)
                 log('Now fetching %s(xmltvid=%s%s) from teveblad.be\n    (channel %s of %s) for %s days.\n' % \
-                    (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), channel_cnt, len(self.channels), config.opt_dict['tevedays']), 2)
+                    (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and \
+                    '.tvgids.nl' or ''), channel_cnt, len(self.channels), config.opt_dict['tevedays']), 2)
 
                 channel = self.channels[chanid]
 
@@ -6641,7 +6946,7 @@ class teveblad_HTML(FetchData):
                         descshort = self.empersant(p.findtext('div[@class="r"]/p[@class="desc_short"]'))
                         descshort = '' if (descshort == None) else descshort
 
-                        desc = self.empersant(p.findtext('div[@class="r"]/[@div="desc h"]/p'))
+                        desc = self.empersant(p.findtext('div[@class="r"]/div[@class="desc h"]/p'))
                         tdict['description'] = desc if (desc != None) else descshort
 
                         # The basicinfo section
@@ -6872,16 +7177,16 @@ class Channel_Config(Thread):
             self.ready = True
 
         except:
-            #~ err_obj = sys.exc_info()[2]
+            err_obj = sys.exc_info()[2]
             log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.chan_name, sys.exc_info()[1]), 0)
-            #~ log('                                at line: %s, %s\n' %  (self.chan_name, err_obj.tb_lineno, err_obj.tb_lasti), 0)
+            log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
-            #~ while True:
-                #~ err_obj = err_obj.tb_next
-                #~ if err_obj == None:
-                    #~ break
+            while True:
+                err_obj = err_obj.tb_next
+                if err_obj == None:
+                    break
 
-                #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+                log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
             log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
 
