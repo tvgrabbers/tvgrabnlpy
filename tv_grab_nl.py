@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 6
-        self.patchdate = u'20150504'
+        self.patchdate = u'20150507'
         self.alfa = False
         self.beta = True
 
@@ -6559,6 +6559,10 @@ class teveblad_HTML(FetchData):
 
 
     def load_pages(self):
+        self.load_grouppages()
+        self.load_solopages()
+
+    def load_grouppages(self):
         # First determin which pages need to be loaded
         try:
             self.get_channels()
@@ -6807,7 +6811,8 @@ class teveblad_HTML(FetchData):
                         # be nice to teveblad.be
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
-                    if failure_count == 0 or retry == 1:
+                    # If all went well we set them loaded. Else we give the solopages atry
+                    if failure_count == 0:
                         for chanid, channel in self.channels.items():
                             if channel in group_values['fetch_list']:
                                 for tdict in self.program_data[chanid]:
@@ -6840,7 +6845,7 @@ class teveblad_HTML(FetchData):
                 config.channels[chanid].source_data[self.proc_id] = True
             return None
 
-    def load_pages_old(self):
+    def load_solopages(self):
 
         for retry in (0, 1):
             channel_cnt = 0
@@ -7029,6 +7034,7 @@ class teveblad_HTML(FetchData):
                 for tdict in self.program_data[chanid]:
                     self.program_by_id[tdict[self.detail_id]] = tdict
 
+                # If all went well or it's the last try we set them loaded
                 if failure_count == 0 or retry == 1:
                     self.channel_loaded[chanid] = True
                     self.parse_programs(chanid, 0, 'None')
