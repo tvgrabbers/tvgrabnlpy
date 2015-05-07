@@ -6528,7 +6528,7 @@ class teveblad_HTML(FetchData):
                     changroup = 10
 
                 group_url = item.find('a').get('href')
-                group_url = re.split('/', group_url)[6]
+                group_url = re.split('/', group_url)[-1]
                 self.page_strings[group] = {}
                 self.page_strings[group]['url'] = group_url
                 self.page_strings[group]['chan_list'] = []
@@ -6537,16 +6537,10 @@ class teveblad_HTML(FetchData):
             elif item.tag == 'a':
                 chan = item.get('href')
                 if chan != None:
-                    c = re.split('/', chan)
-                    if c[3] == 'zenders':
-                        chanid = c[4]
-
-                    else:
-                        chanid = c[3]
-
+                    chanid = re.split('/', chan)[-1]
                     icon = item.find('img').get('src')
                     icon = re.split('/', icon)
-                    icon = '%s/%s' % (icon[8], icon[9])
+                    icon = '%s/%s' % (icon[-2], icon[-1])
                     self.all_channels[chanid] = {}
                     self.all_channels[chanid]['name'] = item.find('img').get('title')
                     self.all_channels[chanid]['icon'] = icon
@@ -6647,13 +6641,7 @@ class teveblad_HTML(FetchData):
                             url = c.find('div/a').get('href')
                             if url != None:
                                 channel_cnt += 1
-                                c = re.split('/', url)
-                                if c[3] == 'zenders':
-                                    c = c[4]
-
-                                else:
-                                    c = c[3]
-
+                                c = re.split('/', url)[-1]
                                 if c in group_values['fetch_list']:
                                     chan_list[unicode(channel_cnt)] = c
 
