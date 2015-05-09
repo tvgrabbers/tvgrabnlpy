@@ -5919,48 +5919,53 @@ class tvgidstv_HTML(FetchData):
                         self.day_loaded[chanid][offset] = None
                         continue
 
-                    for p in htmldata.findall('div/a[@class]'):
-                        tdict = self.checkout_program_dict()
-                        tdict['source'] = u'tvgidstv'
-                        tdict['channelid'] = chanid
-                        tdict['channel'] = config.channels[chanid].chan_name
-                        tdict[self.detail_url] = self.get_url(href = p.get('href'))
-                        tdict[self.detail_id] = u'tv-%s' % tdict[self.detail_url].split('/')[5]  if (tdict[self.detail_url] != '') else ''
+                    try:
+                        for p in htmldata.findall('div/a[@class]'):
+                            tdict = self.checkout_program_dict()
+                            tdict['source'] = u'tvgidstv'
+                            tdict['channelid'] = chanid
+                            tdict['channel'] = config.channels[chanid].chan_name
+                            tdict[self.detail_url] = self.get_url(href = p.get('href'))
+                            tdict[self.detail_id] = u'tv-%s' % tdict[self.detail_url].split('/')[5]  if (tdict[self.detail_url] != '') else ''
 
-                        # The Title
-                        tdict['name'] = self.empersant(p.get('title'))
-                        tdict = self.check_title_name(tdict)
-                        if  tdict['name'] == None or tdict['name'] == '':
-                            log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
-                            continue
+                            # The Title
+                            tdict['name'] = self.empersant(p.get('title'))
+                            tdict = self.check_title_name(tdict)
+                            if  tdict['name'] == None or tdict['name'] == '':
+                                log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                                continue
 
-                        # Get the starttime and make sure the midnight date change is properly crossed
-                        start = p.findtext('div[@class="content"]/span[@class="section-item-title"]').split()[0]
-                        if start == None or start == '':
-                            log('Can not determine starttime for "%s"\n' % tdict['name'])
-                            continue
+                            # Get the starttime and make sure the midnight date change is properly crossed
+                            start = p.findtext('div[@class="content"]/span[@class="section-item-title"]').split()[0]
+                            if start == None or start == '':
+                                log('Can not determine starttime for "%s"\n' % tdict['name'])
+                                continue
 
-                        prog_time = datetime.time(int(start.split(':')[0]), int(start.split(':')[1]), 0 ,0 ,CET_CEST)
-                        if datetime.datetime.combine(scan_date, prog_time) < last_program:
-                            date_offset = date_offset +1
-                            scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                            prog_time = datetime.time(int(start.split(':')[0]), int(start.split(':')[1]), 0 ,0 ,CET_CEST)
+                            if datetime.datetime.combine(scan_date, prog_time) < last_program:
+                                date_offset = date_offset +1
+                                scan_date = datetime.date.fromordinal(self.current_date + date_offset)
 
-                        tdict['offset'] = date_offset
-                        tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
-                        last_program = tdict['start-time']
+                            tdict['offset'] = date_offset
+                            tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
+                            last_program = tdict['start-time']
 
-                        d = p.find('div[@class="content"]/span[@class="label"]/p')
-                        # span = "IMDB * n.n"
-                        # p      = "dd/mm/yy - IMDB * n.n - <genre>, beschrijving"
-                        if d != None:
-                            dd = unicode(d.split('-')[2])
-                            if dd != '':
-                                tdict['description'] = self.empersant(dd.split(',')[1])
-                                tdict['genre'] = self.empersant(dd.split(',')[0])
-                                config.tvtvcat.append(tdict['genre'])
+                            d = p.find('div[@class="content"]/span[@class="label"]/p')
+                            # span = "IMDB * n.n"
+                            # p      = "dd/mm/yy - IMDB * n.n - <genre>, beschrijving"
+                            if d != None:
+                                dd = unicode(d.split('-')[2])
+                                if dd != '':
+                                    tdict['description'] = self.empersant(dd.split(',')[1])
+                                    tdict['genre'] = self.empersant(dd.split(',')[0])
+                                    config.tvtvcat.append(tdict['genre'])
 
-                        # and append the program to the list of programs
-                        self.program_data[chanid].append(tdict)
+                            # and append the program to the list of programs
+                            self.program_data[chanid].append(tdict)
+
+                    except:
+                        log('Error processing data for channel:%s day:%s/n' % (config.channels[chanid].chan_name, offset))
+                        continue
 
                     self.day_loaded[chanid][offset] = True
                     # be nice to tvgids.tv
