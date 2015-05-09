@@ -3074,7 +3074,7 @@ class FetchData(Thread):
                 self.load_pages()
 
             except:
-                log('Fatal Error processing the basepages from: %s\n' % (self.source), 0)
+                log('Fatal Error: %s processing the basepages from: %s\n' % (sys.exc_info()[1], self.source), 0)
                 log('Setting them all to being loaded, to let the other sources finish the job\n', 0)
                 for chanid in self.channels.keys():
                     self.channel_loaded[chanid] = True
