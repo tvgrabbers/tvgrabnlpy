@@ -6559,7 +6559,9 @@ class teveblad_HTML(FetchData):
 
 
     def load_pages(self):
+        # We first try to get the grouppages
         self.load_grouppages()
+        # And for the failed pages we try the solo ones
         self.load_solopages()
 
     def load_grouppages(self):
