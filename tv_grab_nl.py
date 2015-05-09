@@ -424,14 +424,15 @@ class Configure:
 
         # Create a role translation dictionary for the xmltv credits part
         # The keys are the roles used by tvgids.nl (lowercase please)
-        self.roletrans = {'regisseur'                   : 'director',
-                             'regie'                           : 'director',
-                             'acteurs'                       : 'actor',
-                             'presentatie'               : 'presenter',
-                             'commentaar'                 : 'commentator',
-                             'componist'                   : 'composer',
-                             'scenario'                     : 'writer',
-                             'scenario schrijver' : 'writer'}
+        self.roletrans = {'regisseur'                         : 'director',
+                             'regie'                                        : 'director',
+                             'acteurs'                                    : 'actor',
+                             'acteursnamen_rolverdeling': 'actor',
+                             'presentatie'                            : 'presenter',
+                             'commentaar'                              : 'commentator',
+                             'componist'                                : 'composer',
+                             'scenario'                                  : 'writer',
+                             'scenario schrijver'              : 'writer'}
 
         # List of titles not to split with title_split().
         # these are mainly spin-off series like NCIS: Los Angeles
@@ -3126,8 +3127,16 @@ class FetchData(Thread):
                         detailed_program = None
                         log('Error processing the detailpage: %s\n' % (tdict[self.detail_url]), 1)
 
+                    # It failed! If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the json page and if that failes the cache again
+                    if detailed_program == None and (self.proc_id == 0):
+                        try:
+                            detailed_program = self.load_json_detailpage(tdict)
+
+                        except:
+                            detailed_program = None
+                            log('Error processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\n' % tdict[self.detail_id][3:], 1)
+
                     if detailed_program == None:
-                        # It failed! If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the cache again
                         if (self.proc_id == 0) and (cache_id != None):
                             cached_program = xml_output.program_cache.query(tdict[cache_id])
                             if cached_program[xml_output.channelsource[1].detail_check]:
@@ -5464,6 +5473,69 @@ class tvgids_JSON(FetchData):
                 if config.write_info_files:
                     infofiles.write_raw_string('Error: %s\n' % (sys.exc_info()[1]))
                     infofiles.write_raw_string(strdata)
+
+        tdict['ID'] = tdict[self.detail_id]
+        tdict[self.detail_check] = True
+        return tdict
+
+    def load_json_detailpage(self, tdict):
+        try:
+            # We first get the json url
+            url = 'http://www.tvgids.nl/json/lists/program.php?id=%s' % tdict[self.detail_id][3:]
+            strdata = self.get_page(url)
+            if strdata == None or strdata.replace('\n','') == '{}':
+                return None
+
+            detail_data = json.loads(strdata)
+
+        except Exception as e:
+            # if we cannot find the description page,
+            # go to next in the loop
+            return None
+
+        for ctype, content in detail_data.items():
+            if ctype in ('db_id', 'titel', 'datum', 'btijd', 'etijd', 'kijkwijzer', 'zender_id', 'genre'):
+                # We allready have these or we don use them
+                continue
+
+            if content == '':
+                continue
+
+            elif ctype == 'synop':
+                content = re.sub('<p>', '', content)
+                content = re.sub('</p>', '', content)
+                content = re.sub('<br/>', '', content)
+                content = re.sub('<strong>.*?</strong>', '', content)
+                content = re.sub('<.*?>', '', content)
+                content = re.sub('\\r\\n', '\\n', content)
+                content = re.sub('\\n\\n\\n', '\\n', content)
+                content = re.sub('\\n\\n', '\\n', content)
+                if tdict['subgenre'].lower().strip() == content[0:len(tdict['subgenre'])].lower().strip():
+                    content = content[len(tdict['subgenre'])+1:]
+                if content > tdict['description']:
+                    tdict['description'] = self.unescape(content)
+
+            # Parse persons and their roles for credit info
+            elif ctype in config.roletrans:
+                if not config.roletrans[ctype] in tdict['credits']:
+                    tdict['credits'][config.roletrans[ctype]] = []
+                persons = content.split(',');
+                for name in persons:
+                    if name.find(':') != -1:
+                        name = name.split(':')[1]
+
+                    if name.find('-') != -1:
+                        name = name.split('-')[0]
+
+                    if name.find('e.a') != -1:
+                        name = name.split('e.a')[0]
+
+                    if not self.unescape(name.strip()) in tdict['credits'][config.roletrans[ctype]]:
+                        tdict['credits'][config.roletrans[ctype]].append(self.unescape(name.strip()))
+
+                else:
+                    if config.write_info_files:
+                        infofiles.addto_detail_list(unicode('new tvgids.nl json detail => ' + ctype + ': ' + content))
 
         tdict['ID'] = tdict[self.detail_id]
         tdict[self.detail_check] = True
