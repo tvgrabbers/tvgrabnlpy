@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 6
-        self.patchdate = u'20150509'
+        self.patchdate = u'20150510'
         self.alfa = False
         self.beta = True
 
@@ -704,6 +704,7 @@ class Configure:
                                             11: 'rtl',
                                             305: 'discovery-world',
                                             306: 'discovery-science',
+                                            438: 'tlc',
                                             439: 'animal',
                                             413: 'historychannel',
                                             417: 'extreme',
@@ -1468,7 +1469,11 @@ class Configure:
             self.channels[chanid].source_id[0] = chanid
             if int(chanid) in xml_output.logo_names:
                 self.channels[chanid].icon_source = xml_output.logo_names[int(chanid)][0]
-                self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.gif'
+                if xml_output.logo_names[int(chanid)][0] == 4:
+                    self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.png'
+
+                else:
+                    self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.gif'
 
         # Get the other sources
         for index in (1, 3, 2):
@@ -1513,6 +1518,12 @@ class Configure:
                         self.channels[chanid].icon = xml_output.channelsource[2].all_channels[chanid]['icon']
 
         for channel in self.channels.values():
+            # Set a source 4 icon if present and not allready set to 0 or 2
+            if channel.icon_source in (-1, 1, 3) and channel.chanid in xml_output.logo_names.keys() \
+              and xml_output.logo_names[channel.chanid][0] == 4:
+                channel.icon_source = 4
+                channel.icon = '%s.png' % xml_output.logo_names[channel.chanid][1]
+
             # mark HD channels
             if channel.chan_name[-3:].lower() == ' hd':
                 channel.opt_dict['mark_HD'] = True
@@ -7462,76 +7473,189 @@ class XMLoutput:
         self.startstring.append(u'<tv generator-info-name="%s">\n' % config.version(True))
         self.closestring = u'</tv>\n'
 
-        # We have two sources of logos, the first provides the nice ones, but is not
+        # We have several sources of logos, the first provides the nice ones, but is not
         # complete. We use the tvgids logos to fill the missing bits.
         self.logo_provider = ['http://graphics.tudelft.nl/~paul/logos/gif/64x64/',
                                         'http://static.tvgids.nl/gfx/zenders/',
                                         'http://s4.cdn.sanomamedia.be/a/epg/q100/w60/h/',
-                                        'http://staticfiles.rtl.nl/styles/img/logos/']
+                                        'http://staticfiles.rtl.nl/styles/img/logos/',
+                                        'http://212.142.41.211/ChannelLogos/02/']
 
-        self.logo_names = { 1 : [0, 'ned1'],
-                                    2 : [0, 'ned2'],
-                                    3 : [0, 'ned3'],
-                                    4 : [0, 'rtl4'],
-                                    5 : [0, 'een'],
-                                    6 : [0, 'canvas_color'],
-                                    7 : [0, 'bbc1'],
-                                    8 : [0, 'bbc2'],
-                                    9 : [0,'ard'],
-                                    10 : [0,'zdf'],
-                                    12 : [0, 'wdr'],
-                                    17 : [0, 'tv5'],
-                                    18 : [0, 'ngc'],
-                                    21 : [0, 'cartoonnetwork'],
-                                    24 : [0, 'canal+red'],
-                                    25 : [0, 'mtv-color'],
-                                    26 : [0, 'cnn'],
-                                    27 : [0, 'rai'],
-                                    29 : [0, 'discover-spacey'],
-                                    31 : [0, 'rtl5'],
-                                    32 : [0, 'trt'],
-                                    34 : [0, 'veronica'],
-                                    35 : [0, 'tmf'],
-                                    36 : [0, 'sbs6'],
-                                    37 : [0, 'net5'],
-                                    39 : [0, 'canal+blue'],
-                                    40 : [0, 'at5'],
-                                    46 : [0, 'rtl7'],
-                                    65 : [0, 'animal-planet'],
-                                    86 : [0, 'bbc-world'],
-                                    90 : [0, 'bvn'],
-                                    91 : [0, 'comedy_central'],
-                                    92 : [0, 'rtl8'],
-                                    100 : [0, 'rtvu'],
-                                    101 : [0, 'tvwest'],
-                                    102 : [0, 'tvrijnmond'],
-                                    103 : [0, 'rtvnh'],
-                                    107 : [0, 'canal+yellow'],
-                                    108 : [0, 'tvnoord'],
-                                    109 : [0, 'omropfryslan'],
-                                    114 : [0, 'omroepbrabant'],
-                                    300 : [0, 'bbc3'],
-                                    301 : [0, 'bbc4'],
+                                    #~ 1 : [0, 'ned1'],
+                                    #~ 2 : [0, 'ned2'],
+                                    #~ 3 : [0, 'ned3'],
+                                    #~ 4 : [0, 'rtl4'],
+                                    #~ 5 : [0, 'een'],
+                                    #~ 6 : [0, 'canvas_color'],
+                                    #~ 7 : [0, 'bbc1'],
+                                    #~ 8 : [0, 'bbc2'],
+                                    #~ 9 : [0,'ard'],
+                                    #~ 10 : [0,'zdf'],
+                                    #~ 12 : [0, 'wdr'],
+                                    #~ 24 : [0, 'canal+red'],
+                                    #~ 26 : [0, 'cnn'],
+                                    #~ 31 : [0, 'rtl5'],
+                                    #~ 34 : [0, 'veronica'],
+                                    #~ 36 : [0, 'sbs6'],
+                                    #~ 37 : [0, 'net5'],
+                                    #~ 39 : [0, 'canal+blue'],
+                                    #~ 40 : [0, 'at5'],
+                                    #~ 46 : [0, 'rtl7'],
+                                    #~ 86 : [0, 'bbc-world'],
+                                    #~ 92 : [0, 'rtl8'],
+                                    #~ 100 : [0, 'rtvu'],
+                                    #~ 101 : [0, 'tvwest'],
+                                    #~ 102 : [0, 'tvrijnmond'],
+                                    #~ 103 : [0, 'rtvnh'],
+                                    #~ 107 : [0, 'canal+yellow'],
+                                    #~ 108 : [0, 'tvnoord'],
+                                    #~ 109 : [0, 'omropfryslan'],
+                                    #~ 114 : [0, 'omroepbrabant'],
+                                    #~ 300 : [0, 'bbc3'],
+                                    #~ 301 : [0, 'bbc4'],
+                                    #~ 13 : [1, 'ndr'],
+                                    #~ 28 : [1, 'sat1'],
+                                    #~ 38 : [1, 'arte'],
+                                    #~ 99 : [1, 'sport1_1'],
+                                    #~ 104 : [1, 'bbcprime'],
+                                    #~ 105 : [1, 'spiceplatinum'],
+
+        self.logo_names = {
+                                    1 : [4, 'npo1'],
+                                    2 : [4, 'npo2'],
+                                    3 : [4, 'npo3'],
+                                    4 : [4, 'rtl4_1'],
+                                    5 : [4, 'een'],
+                                    6 : [4, 'canvas'],
+                                    7 : [4, 'bbc1'],
+                                    8 : [4, 'bbc_two'],
+                                    9 : [4, 'ard'],
+                                    10 : [4, 'zdf'],
                                     11 : [1, 'rtl'],
-                                    13 : [1, 'ndr'],
+                                    12 : [4, 'wdr'],
+                                    13 : [4, 'ndr'],
                                     14 : [1, 'srsudwest'],
                                     15 : [1, 'rtbf1'],
                                     16 : [1, 'rtbf2'],
+                                    17 : [0, 'tv5'],
+                                    18 : [0, 'ngc'],
                                     19 : [1, 'eurosport'],
                                     20 : [1, 'tcm'],
-                                    28 : [1, 'sat1'],
-                                    38 : [1, 'arte'],
+                                    21 : [0, 'cartoonnetwork'],
+                                    24 : [4, 'film1_premiere'],
+                                    25 : [0, 'mtv-color'],
+                                    26 : [4, 'cnn'],
+                                    27 : [0, 'rai'],
+                                    28 : [4, 'sat_1'],
+                                    29 : [0, 'discover-spacey'],
+                                    31 : [4, 'rtl_5_1'],
+                                    32 : [0, 'trt'],
+                                    34 : [4, 'veronica_disney_xd'],
+                                    35 : [0, 'tmf'],
+                                    36 : [4, 'sbs6_1'],
+                                    37 : [4, 'net5'],
+                                    38 : [4, 'arte'],
+                                    39 : [4, 'film1_comedykids_sd'],
+                                    40 : [4, 'at5'],
+                                    46 : [4, 'rtl7'],
                                     49 : [1, 'vtm'],
                                     50 : [1, '3sat'],
                                     58 : [1, 'pro7'],
                                     59 : [1, 'kanaal2'],
                                     60 : [1, 'vt4'],
+                                    65 : [0, 'animal-planet'],
+                                    66 : [4, 'npo_humor'],
+                                    70 : [4, 'npo_cultura'],
                                     73 : [1, 'mezzo'],
+                                    81 : [4, 'npo_doc'],
+                                    86 : [4, 'bbc_world_news'],
                                     87 : [1, 'tve'],
                                     89 : [1, 'nick'],
-                                    99 : [1, 'sport1_1'],
-                                    104 : [1, 'bbcprime'],
-                                    105 : [1, 'spiceplatinum']}
+                                    90 : [0, 'bvn'],
+                                    91 : [0, 'comedy_central'],
+                                    92 : [4, 'rtl_8_1'],
+                                    99 : [4, 'sport1'],
+                                    100 : [4, 'rtvutrecht'],
+                                    101 : [4, 'tv_west'],
+                                    102 : [4, 'tv_rijnmond'],
+                                    103 : [4, 'rtv_nh'],
+                                    104 : [4, 'bbc_entertainment'],
+                                    105 : [4, 'private_spice'],
+                                    107 : [4, 'film1_sundance'],
+                                    108 : [4, 'rtv_noord'],
+                                    109 : [4, 'omroep_friesland'],
+                                    110 : [4, 'rtv_drenthe'],
+                                    111 : [4, 'rtv_oost'],
+                                    112 : [4, 'omroep_gelderland'],
+                                    113 : [4, 'omroep_flevoland'],
+                                    114 : [4, 'omroep_brabant'],
+                                    115 : [4, 'omroep_limburg'],
+                                    116 : [4, 'omroep_zeeland'],
+                                    148 : [4, 'fox_sports_ere_1_sd'],
+                                    300 : [4, 'bbc_three'],
+                                    301 : [4, 'bbc_four'],
+                                    311 : [4, 'disney_xd'],
+                                    312 : [4, 'nick_jr'],
+                                    313 : [4, 'boomerang_1'],
+                                    315 : [4, 'cbs_reality'],
+                                    316 : [4, 'npo_best'],
+                                    317 : [4, 'comedy_central_family1'],
+                                    406 : [4, 'nostalgienet'],
+                                    407 : [4, 'outtv_v2'],
+                                    408 : [4, 'rtl_lounge1'],
+                                    409 : [4, 'rtlcrime'],
+                                    410 : [4, 'npo_101'],
+                                    411 : [4, 'film1_action'],
+                                    413 : [4, 'history'],
+                                    414 : [4, 'investigation_discovery_2'],
+                                    415 : [4, 'travel_channel_new'],
+                                    416 : [4, 'nat_geo_wild'],
+                                    419 : [4, 'sport1_golf'],
+                                    420 : [4, 'sport1_tennis'],
+                                    422 : [4, 'euronews'],
+                                    423 : [4, 'al_jazeera_english1'],
+                                    427 : [4, 'mtv_brand_new'],
+                                    428 : [4, 'bravanl'],
+                                    429 : [4, 'tv_oranje'],
+                                    430 : [4, 'film1_spotlight_sd'],
+                                    431 : [4, 'hbo_sd'],
+                                    432 : [4, 'hbo_2sd'],
+                                    433 : [4, 'hbo_3sd'],
+                                    434 : [4, 'dusk_24'],
+                                    435 : [4, '24_kitchen'],
+                                    437 : [4, 'comedy_central_extra1'],
+                                    440 : [4, 'fox'],
+                                    460 : [4, 'sbs9'],
+                                    462 : [4, 'shortstv'],
+                                    'zone-realty' : [4, 'zone_reality'],
+                                    'animal-planet-hd' : [4, 'animal_planet_hd'],
+                                    'cbeebies' : [4, 'cbbc'],
+                                    'discovery-hd' : [4, 'discovery_hd'],
+                                    'ketnet-canvas-2' : [4, 'ketnet_canvas'],
+                                    'sport-1-extra-1' : [4, 'sport1_extra1'],
+                                    'sport1-extra-2' : [4, 'sport1_extra2'],
+                                    'sport-1-2' : [4, 'sport1_voetbal'],
+                                    'zone_reality' : [4, 'zone_reality'],
+                                    'rtl_telekids' : [4, 'rtl_telekids'],
+                                    'jimjam' : [4, 'jimjam'],
+                                    'zappelin' : [4, 'npo_zapp_xtra'],
+                                    'politiek-24' : [4, 'npo_politiek'],
+                                    'journaal-24' : [4, 'npo_nieuws'],
+                                    'history-hd' : [4, 'history_hd'],
+                                    'goed-tv' : [4, 'goedtv'],
+                                    'eredivisie-live-2' : [4, 'fox_sports2'],
+                                    'eredivisie-live-3' : [4, 'fox_sports_ere_3_sd'],
+                                    'eredivisie-live-4' : [4, 'fox_sports4'],
+                                    'fox-sports-5-eredivisie' : [4, 'fox_sports_ere_5_sd'],
+                                    'e-entertainment' : [4, 'e_entertainment'],
+                                    'sky-1' : [4, 'sky_news'],
+                                    'sky-2' : [4, 'sky_news'],
+                                    'sky-sports-1' : [4, 'sky_news'],
+                                    'sky-sports-2' : [4, 'sky_news'],
+                                    'sky-sports-3' : [4, 'sky_news'],
+                                    'sky-sports-4' : [4, 'sky_news'],
+                                    'sky-sports-news' : [4, 'sky_news'],
+                                    'bbc-hd' : [4, 'bbc_hd']}
 
         self.source_count = 4
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be'}
@@ -7585,7 +7709,7 @@ class XMLoutput:
         self.xml_channels[chanid].append(self.add_starttag('channel', 2, 'id="%s%s"' % (chanid, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
         self.xml_channels[chanid].append(self.add_starttag('display-name', 4, 'lang="nl"', config.channels[chanid].chan_name, True))
         if (config.channels[chanid].opt_dict['logos']):
-            if -1 < config.channels[chanid].icon_source < 4:
+            if -1 < config.channels[chanid].icon_source < 5:
                 full_logo_url = self.logo_provider[config.channels[chanid].icon_source] + config.channels[chanid].icon
                 self.xml_channels[chanid].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
 
