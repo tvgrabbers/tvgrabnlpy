@@ -1460,12 +1460,16 @@ class Configure:
         # download the json feed
         xml_output.channelsource[0].init_channels()
         xml_output.channelsource[0].get_channels()
-        self.channels = {}
+        if not isinstance(self.channels, dict):
+            self.channels = {}
+
         for chanid in xml_output.channelsource[0].all_channels.keys():
             if (chanid.lower() in empty_channels[0]):
                 continue
 
-            self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chanid]['name'])
+            if not chanid in self.channels.keys():
+                self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chanid]['name'])
+
             self.channels[chanid].source_id[0] = chanid
             if int(chanid) in xml_output.logo_names:
                 self.channels[chanid].icon_source = xml_output.logo_names[int(chanid)][0]
@@ -1591,11 +1595,16 @@ class Configure:
             return(2)
 
         if self.args.configure:
+
             # check for the config dir
             config_dir = os.path.dirname(self.config_file)
             if (config_dir != '') and not os.path.exists(config_dir):
                 log('Creating %s directory,\n' % config_dir)
                 os.mkdir(config_dir)
+
+            elif os.access(self.config_file, os.F_OK):
+                self.read_config()
+
             log('Creating config file: %s\n' % self.config_file)
             x = self.get_channels()
 
