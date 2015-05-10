@@ -1566,7 +1566,13 @@ class Configure:
             return(0)
 
         if self.args.description:
-            print( self.description)
+            v=self.version()
+            if v[5]:
+                print("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s-beta" % (v[1], v[2], v[3]))
+
+            else:
+                print("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s" % (v[1], v[2], v[3]))
+
             return(0)
 
         if self.args.description_long:
@@ -7754,14 +7760,6 @@ class XMLoutput:
             if 'titel aflevering' in program and program['titel aflevering'] != '':
                 xml.append(self.add_starttag('sub-title', 4, 'lang="nl"', program['titel aflevering'] ,True))
 
-            # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
-            if program['season'] != '' and program['episode'] != '' and program['episode'] != '0':
-                text = '%d . %d'  % (int(program['season']) - 1, int(program['episode']) - 1)
-                xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
-                # A Film with episode info makes it a series. They often do this if they are longer or independent.
-                if program['genre'].lower() == 'film':
-                    program['genre'] = 'serie/soap'
-
             # Add an available subgenre in front off the description or give it as description
 
             # A prefered description was set and found
@@ -7795,6 +7793,10 @@ class XMLoutput:
                             xml.append(self.add_starttag((role), 6, '', self.xmlescape(name),True))
 
                 xml.append(self.add_endtag('credits', 4))
+
+            # Original Air-Date
+            if program['jaar van premiere'] != '':
+                xml.append(self.add_starttag('date', 4, '', program['jaar van premiere'],True))
 
             # Genre
             if not config.channels[chanid].opt_dict['cattrans']:
@@ -7832,21 +7834,17 @@ class XMLoutput:
                 else:
                     xml.append(self.add_starttag('category', 4 , '', 'Unknown', True))
 
-            # It's been shown before
-            if program['rerun']:
-                if program['jaar van premiere'] != '' and (program['jaar van premiere'] != datetime.date.today().strftime('%Y')):
-                    xml.append(self.add_starttag('previously-shown', 4, 'start="%s"' % program['jaar van premiere'],'yes' ,True))
-
-                else:
-                    xml.append(self.add_starttag('previously-shown', 4, '', '',True))
-
-            # Original Air-Date
-            elif program['jaar van premiere'] != '':
-                xml.append(self.add_starttag('date', 4, '', program['jaar van premiere'],True))
-
             # An available url
             if program['infourl'] != '':
                 xml.append(self.add_starttag('url', 4, '', program['infourl'],True))
+
+            # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
+            if program['season'] != '' and program['episode'] != '' and program['episode'] != '0':
+                text = '%d . %d'  % (int(program['season']) - 1, int(program['episode']) - 1)
+                xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
+                # A Film with episode info makes it a series. They often do this if they are longer or independent.
+                if program['genre'].lower() == 'film':
+                    program['genre'] = 'serie/soap'
 
             # Process video/audio/teletext sections if present
             if program['video']['present']:
@@ -7867,6 +7865,10 @@ class XMLoutput:
                 xml.append(self.add_starttag('audio', 4))
                 xml.append(self.add_starttag('stereo', 6, '',program['audio'] ,True))
                 xml.append(self.add_endtag('audio', 4))
+
+            # It's been shown before
+            if program['rerun']:
+                xml.append(self.add_starttag('previously-shown', 4, '', '',True))
 
             if program['teletekst']:
                 xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
