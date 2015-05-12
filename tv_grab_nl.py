@@ -266,10 +266,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 1
-        self.patch = 6
+        self.patch = 7
         self.patchdate = u'20150512'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.channels = {}
         self.chan_count = 0
@@ -5138,9 +5138,15 @@ class tvgids_JSON(FetchData):
                     </div>
                 </div>
             </body>
-       """
+        """
 
+        # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
         self.retime = re.compile(r'(\d\d\d\d)-(\d+)-(\d+) (\d+):(\d+)(?::\d+)')
+        self.tvgidsnlprog = re.compile('<div id="prog-content">(.*?)<div id="prog-banner-content">',re.DOTALL)
+        self.tvgidsnltitle = re.compile('<div class="programmering">(.*?)</h1>',re.DOTALL)
+        self.tvgidsnldesc = re.compile('<p(.*?)</p>',re.DOTALL)
+        self.tvgidsnldesc2 = re.compile('<div class="tekst col-sm-12">(.*?)</div>',re.DOTALL)
+        self.tvgidsnldetails = re.compile('<div class="programmering_info_detail">(.*?)</div>',re.DOTALL)
 
         self.channels = {}
         self.url_channels = ''
@@ -5350,50 +5356,50 @@ class tvgids_JSON(FetchData):
                 log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
                 return
 
-            # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
-            tvgidsnltitle = re.compile('<div class="programmering">(.*?)</h1>',re.DOTALL)
-            strtitle = tvgidsnltitle.search(strdata)
-            if strtitle == None:
-                strtitle = ''
+            strdata = '<div>\n' +  self.tvgidsnlprog.search(strdata).group(1)
+            if strdata == None:
+                log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
+                return
 
-            else:
-                # There are titles containing '<' (eg. MTV<3) which interfere. Since whe don't need it we remove the title
-                strtitle = re.sub('<h1>.*?<span>', '<h1><span>', strtitle.group(0), flags = re.DOTALL)
+            if not re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', strdata):
 
+                # They sometimes forget to close a <p> tag
+                strdata = re.sub('<p>', '</p>xxx<p>', strdata, flags = re.DOTALL)
+                strtitle = self.tvgidsnltitle.search(strdata)
+                if strtitle == None:
+                    strtitle = ''
 
-            tvgidsnldesc = re.compile('<p class="summary">(.*?)</p>',re.DOTALL)
-            strdesc1 = tvgidsnldesc.search(strdata)
-            if strdesc1 == None:
-                strdesc1 = ''
+                else:
+                    # There are titles containing '<' (eg. MTV<3) which interfere. Since whe don't need it we remove the title
+                    strtitle = re.sub('<h1>.*?<span>', '<h1><span>', strtitle.group(0), flags = re.DOTALL)
+                    strtitle = strtitle + '\n</div>\n'
 
-            else:
-                strdesc1 = re.sub('<p>', '', strdesc1.group(0), flags = re.DOTALL)
+                strdesc = ''
+                for d in self.tvgidsnldesc.findall(strdata):
+                    strdesc += '<p%s</p>\n' % d
 
-            tvgidsnldesc = re.compile('<div class="tekst col-sm-12">(.*?)</div>',re.DOTALL)
-            strdesc2 = tvgidsnldesc.search(strdata)
-            if strdesc2 == None:
-                strdesc2 = ''
+                strdesc = '<div>\n' + strdesc + '\n</div>\n'
 
-            else:
-                strdesc2 = strdesc2.group(0)
+                d = self.tvgidsnldesc2.search(strdata)
+                if d != None:
+                    d = re.sub('</p>xxx<p>', '<p>', d.group(0), flags = re.DOTALL)
+                    strdesc += d + '\n'
 
-            tvgidsnldetails = re.compile('<div class="programmering_info_detail">(.*?)</div>',re.DOTALL)
-            strdetails = tvgidsnldetails.search(strdata)
+            strdetails = self.tvgidsnldetails.search(strdata)
             if strdetails == None:
                 strdetails = ''
 
             else:
                 strdetails = strdetails.group(0)
 
-            strdata = (self.clean_html('<root>\n' + strtitle + '\n' + strdesc1 + '\n</div>\n' + strdesc2 + '\n' + strdetails + '\n</root>\n')).strip().encode('utf-8')
+            strdata = (self.clean_html('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')).strip().encode('utf-8')
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
             log('Fetching page %s returned an error: %s\n' % (tdict[self.detail_url], sys.exc_info()[1]), 1)
             if config.write_info_files:
-                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-                infofiles.write_raw_string('<root>\n' + strtitle + '\n' + strdesc1 + '\n</div>\n' + strdesc2 + '\n' + strdetails + '\n</root>\n')
-                #~ infofiles.write_raw_string('<root>\n<div>\n' + strdesc1 + '\n</div>\n' + strdesc2 + '\n' + strdetails + '\n</root>\n')
+                infofiles.write_raw_string('%s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                infofiles.write_raw_string('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')
 
             # if we cannot find the description page,
             # go to next in the loop
@@ -5405,6 +5411,9 @@ class tvgids_JSON(FetchData):
 
         except:
             log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
+            if config.write_info_files:
+                infofiles.write_raw_string('%s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                infofiles.write_raw_string('<root>\n' + strdesc + '\n</root>\n')
 
         try:
             tmp = htmldata.find('div/h1/span/sup').text
@@ -6960,11 +6969,6 @@ class teveblad_HTML(FetchData):
                 if self.quit:
                     return
 
-                log('\n', 2)
-                log('Now fetching %s(xmltvid=%s%s) from teveblad.be\n    (channel %s of %s) for %s days.\n' % \
-                    (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and \
-                    '.tvgids.nl' or ''), channel_cnt, len(self.channels), config.opt_dict['tevedays']), 2)
-
                 channel = self.channels[chanid]
 
                 # teeveeblad.be shows programs per day, so we loop over the number of days
@@ -6972,6 +6976,11 @@ class teveblad_HTML(FetchData):
                 for offset in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
                     if self.day_loaded[chanid][offset] != False:
                         continue
+
+                    log('\n', 2)
+                    log('Now fetching %s(xmltvid=%s%s) from teveblad.be\n    (channel %s of %s) for day %s of %s days.\n' % \
+                        (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and \
+                        '.tvgids.nl' or ''), channel_cnt, len(self.channels), offset, config.opt_dict['tevedays']), 2)
 
                     date_offset = offset
                     scan_date = datetime.date.fromordinal(self.current_date + offset)
