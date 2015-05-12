@@ -7849,7 +7849,7 @@ class XMLoutput:
 
             # Process video/audio/teletext sections if present
             if (program['video']['breedbeeld'] or program['video']['blackwhite'] \
-              or (config.channels[chanid].opt_dict['mark_HD'] and program['video']['HD']))
+              or (config.channels[chanid].opt_dict['mark_HD'] and program['video']['HD'])):
                 xml.append(self.add_starttag('video', 4))
 
                 if program['video']['breedbeeld']:
