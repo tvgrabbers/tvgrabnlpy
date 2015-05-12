@@ -3335,7 +3335,7 @@ class FetchData(Thread):
         bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst')
         num_values = ('channelid', 'season', 'episode', 'offset')
         dict_values = ('credits', 'video')
-        video_values = ('present', 'HD', 'breedbeeld', 'blackwhite')
+        video_values = ('HD', 'breedbeeld', 'blackwhite')
 
         if tdict == None:
             tdict = {}
@@ -4362,16 +4362,14 @@ class FetchData(Thread):
             if tvdict['prefered description'] != '':
                 tdict['prefered description']  = tvdict['prefered description']
 
-            if tvdict['video']['present']:
-                tdict['video']['present']  = True
-                if tvdict['video']['HD']:
-                    tdict['video']['HD']  = True
+            if tvdict['video']['HD']:
+                tdict['video']['HD']  = True
 
-                if tvdict['video']['breedbeeld']:
-                    tdict['video']['breedbeeld']  = True
+            if tvdict['video']['breedbeeld']:
+                tdict['video']['breedbeeld']  = True
 
-                if tvdict['video']['blackwhite']:
-                    tdict['video']['blackwhite']  = True
+            if tvdict['video']['blackwhite']:
+                tdict['video']['blackwhite']  = True
 
             if tvdict['teletekst']:
                 tdict['teletekst']  = True
@@ -4436,16 +4434,14 @@ class FetchData(Thread):
 
             if tvdict['rerun']:
                 tdict['rerun']  = True
-            if tvdict['video']['present']:
-                tdict['video']['present']  = True
-                if tvdict['video']['HD']:
-                    tdict['video']['HD']  = True
+            if tvdict['video']['HD']:
+                tdict['video']['HD']  = True
 
-                if tvdict['video']['breedbeeld']:
-                    tdict['video']['breedbeeld']  = True
+            if tvdict['video']['breedbeeld']:
+                tdict['video']['breedbeeld']  = True
 
-                if tvdict['video']['blackwhite']:
-                    tdict['video']['blackwhite']  = True
+            if tvdict['video']['blackwhite']:
+                tdict['video']['blackwhite']  = True
 
             if tvdict['teletekst']:
                 tdict['teletekst']  = True
@@ -5486,7 +5482,6 @@ class tvgids_JSON(FetchData):
                         tdict['video']['HD'] = (content.find('hd 1080i') != -1)
                     if tdict['video']['blackwhite'] == False:
                         tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
-                    tdict['video']['present']  = (tdict['video']['breedbeeld'] or tdict['video']['HD'] or tdict['video']['blackwhite'])
                     if tdict['teletekst'] == False:
                         tdict['teletekst'] = (content.find('teletekst') != -1)
                     if content.find('stereo') != -1: tdict['audio'] = 'stereo'
@@ -5681,7 +5676,6 @@ class tvgids_JSON(FetchData):
                     tdict['video']['HD'] = (content.find('hd 1080i') != -1)
                 if tdict['video']['blackwhite'] == False:
                     tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
-                tdict['video']['present']  = (tdict['video']['breedbeeld'] or tdict['video']['HD'] or tdict['video']['blackwhite'])
                 if tdict['teletekst'] == False:
                     tdict['teletekst'] = (content.find('teletekst') != -1)
                 if content.find('stereo') != -1: tdict['audio'] = 'stereo'
@@ -6876,7 +6870,6 @@ class teveblad_HTML(FetchData):
 
                                         elif d.get('title').lower() == 'hd':
                                             tdict['video']['HD'] = True
-                                            tdict['video']['present']  = True
 
                                         elif d.get('title').lower() == 'dolby':
                                             tdict['audio']  = 'dolby'
@@ -7110,7 +7103,6 @@ class teveblad_HTML(FetchData):
 
                                 elif d.get('title').lower() == 'hd':
                                     tdict['video']['HD'] = True
-                                    tdict['video']['present']  = True
 
                                 elif d.get('title').lower() == 'dolby':
                                     tdict['audio']  = 'dolby'
@@ -7856,7 +7848,8 @@ class XMLoutput:
                     program['genre'] = 'serie/soap'
 
             # Process video/audio/teletext sections if present
-            if program['video']['present']:
+            if (program['video']['breedbeeld'] or program['video']['blackwhite'] \
+              or (config.channels[chanid].opt_dict['mark_HD'] and program['video']['HD']))
                 xml.append(self.add_starttag('video', 4))
 
                 if program['video']['breedbeeld']:
@@ -7901,6 +7894,9 @@ class XMLoutput:
         for chanid in config.channels.keys():
             if config.channels[chanid].active:
                 xml.append(u"".join(self.xml_channels[chanid]))
+
+        for chanid in config.channels.keys():
+            if config.channels[chanid].active:
                 for program in self.xml_programs[chanid]:
                     xml.append(u"".join(program))
 
