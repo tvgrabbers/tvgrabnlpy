@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 7
-        self.patchdate = u'20150512'
+        self.patchdate = u'20150513'
         self.alfa = False
         self.beta = True
 
@@ -412,7 +412,7 @@ class Configure:
 
         # mark programs with the HD 1080i tag in the output
         # leave off if you only record analog SD
-        self.opt_dict['mark_HD'] = False
+        self.opt_dict['mark_hd'] = False
 
         # don't convert all the program date/times to UTC (GMT) timezone.
         # by default the current timezone is Europe/Amsterdam. This works fine
@@ -1069,7 +1069,7 @@ class Configure:
         parser.add_argument('-n', '--nologos', action = 'store_false', default = None, dest = 'logos',
                         help = 'do not insert urls to channel icons')
 
-        parser.add_argument('-H', '--mark-HD', action = 'store_false', default = None, dest = 'mark_HD',
+        parser.add_argument('-H', '--mark-HD', action = 'store_false', default = None, dest = 'mark_hd',
                         help = 'mark HD programs,\ndo not set if you only record analog SD')
 
         parser.add_argument('--cattrans', action = 'store_false', default = None, dest = 'cattrans',
@@ -1161,7 +1161,7 @@ class Configure:
                         # Strip the name from the value
                         a = re.split('=',line)
                         # Boolean Values
-                        if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_HD', 'use_utc'):
+                        if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc'):
                             if len(a) == 1:
                                 self.opt_dict[a[0].lower().strip()] = True
 
@@ -1272,7 +1272,7 @@ class Configure:
                         # Strip the name from the value
                         a = re.split('=',line)
                         # Boolean Values
-                        if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_HD', 'append_tvgidstv'):
+                        if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv'):
                             if len(a) == 1:
                                 self.channels[chanid].opt_dict[a[0].lower().strip()] = True
 
@@ -1530,10 +1530,10 @@ class Configure:
 
             # mark HD channels
             if channel.chan_name[-3:].lower() == ' hd':
-                channel.opt_dict['mark_HD'] = True
+                channel.opt_dict['mark_hd'] = True
 
             if channel.source_id[3] != '' and xml_output.channelsource[3].all_channels[channel.source_id[3]]['HD']:
-                channel.opt_dict['mark_HD'] = True
+                channel.opt_dict['mark_hd'] = True
 
             # set the default prime_source
             if channel.source_id[2] != '':
@@ -1642,10 +1642,10 @@ class Configure:
             for chanid in self.channels.keys():
                 self.channels[chanid].opt_dict['logos'] = self.opt_dict['logos']
 
-        if self.args.mark_HD != None:
-            self.opt_dict['mark_HD'] = self.args.mark_HD
+        if self.args.mark_hd != None:
+            self.opt_dict['mark_hd'] = self.args.mark_hd
             for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['mark_HD'] = self.opt_dict['mark_HD']
+                self.channels[chanid].opt_dict['mark_hd'] = self.opt_dict['mark_hd']
 
         if self.args.cattrans != None:
             self.opt_dict['cattrans'] = self.args.cattrans
@@ -1939,7 +1939,7 @@ class Configure:
         log(u'logos = %s' % (self.opt_dict['logos']), 1, 2)
         log(u'desc_length = %s' % (self.opt_dict['desc_length']), 1, 2)
         log(u'cattrans = %s' % (self.opt_dict['cattrans']), 1, 2)
-        log(u'mark_HD = %s' % (self.opt_dict['mark_HD']), 1, 2)
+        log(u'mark_hd = %s' % (self.opt_dict['mark_hd']), 1, 2)
         log(u'use_utc = %s' % (self.opt_dict['use_utc']), 1, 2)
         log(u'Channel specific settings other then the above:', 1, 2)
         for chan_def in self.channels.values():
@@ -1969,6 +1969,13 @@ class Configure:
 
                         log(u'  prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']), 1, 2)
 
+            if chan_def.opt_dict['add_hd_id']:
+                if not chan_name_written:
+                    log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                    chan_name_written = True
+
+                log(u'  add_hd_id = True\n', 1, 2)
+
             if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
                 if not chan_name_written:
                     log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
@@ -1976,7 +1983,7 @@ class Configure:
 
                 log(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']), 1, 2)
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
@@ -2048,7 +2055,7 @@ class Configure:
         f.write(u'slowdays = %s\n' % self.opt_dict['slowdays'])
         f.write(u'rtldays = %s\n' % self.opt_dict['rtldays'])
         f.write(u'tevedays = %s\n' % self.opt_dict['tevedays'])
-        f.write(u'mark_HD = %s\n' % self.opt_dict['mark_HD'])
+        f.write(u'mark_hd = %s\n' % self.opt_dict['mark_hd'])
         f.write(u'cattrans = %s\n' % self.opt_dict['cattrans'])
         f.write(u'overlap_strategy = %s\n' % self.opt_dict['overlap_strategy'] )
         f.write(u'max_overlap = %s\n' % self.opt_dict['max_overlap'])
@@ -2070,10 +2077,13 @@ class Configure:
         f.write(u'# !!THEY MUST BE BELOW THE CONFIGURATION AND CHANNEL SECTIONS!!\n')
         f.write(u'# You can use the following tags:\n')
         f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
-        f.write(u'#   fast, compat, logos, cattrans, mark_HD, append_tvgidstv\n')
+        f.write(u'#   fast, compat, logos, cattrans, mark_hd, add_hd_id, append_tvgidstv\n')
         f.write(u'#     append_tvgidstv is True by default, which means: \'Don\'t get data\n')
         f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
         f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
+        f.write(u'#     add_hd_id: if set to True will create two listings for the given channel.\n')
+        f.write(u'#     One normal on without HD tagging and one with \'-hd\' added to the ID\n')
+        f.write(u'#     and with the HD tags. This will overrule any setting of mark_hd\n')
         f.write(u'# Integer values:\n')
         f.write(u'#   slowdays, max_overlap, desc_length, prime_source, prefered_description\n')
         f.write(u'#     prime_source (0-3) is the source whose timings are dominant\n')
@@ -2402,6 +2412,15 @@ class Configure:
 
                         f.write(u'prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']))
 
+            if chan_def.opt_dict['add_hd_id']:
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
+
+                f.write(u'add_hd_id = True\n')
+
             if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
                 if not chan_name_written:
                     f.write(u'\n')
@@ -2411,7 +2430,7 @@ class Configure:
 
                 f.write(u'slowdays = %s\n' % (chan_def.opt_dict['slowdays']))
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_HD'):
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         f.write(u'\n')
@@ -5357,8 +5376,11 @@ class tvgids_JSON(FetchData):
                 log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
                 return
 
-            if not re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', strdata):
+            if re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', strdata):
+                strtitle = ''
+                strdesc = ''
 
+            else:
                 # They sometimes forget to close a <p> tag
                 strdata = re.sub('<p>', '</p>xxx<p>', strdata, flags = re.DOTALL)
                 strtitle = self.tvgidsnltitle.search(strdata)
@@ -7203,7 +7225,8 @@ class Channel_Config(Thread):
         self.opt_dict['logos'] = config.opt_dict['logos']
         self.opt_dict['desc_length'] = config.opt_dict['desc_length']
         self.opt_dict['cattrans'] = config.opt_dict['cattrans']
-        self.opt_dict['mark_HD'] = config.opt_dict['mark_HD']
+        self.opt_dict['mark_hd'] = config.opt_dict['mark_hd']
+        self.opt_dict['add_hd_id'] = False
         self.opt_dict['prime_source'] = -1
         self.opt_dict['prefered_description'] = -1
         self.opt_dict['append_tvgidstv'] = True
@@ -7284,8 +7307,17 @@ class Channel_Config(Thread):
             for i, v in enumerate(self.all_programs):
                 self.all_programs[i] = self.title_split(v)
 
-            xml_output.create_channel_strings(self.chanid)
-            xml_output.create_program_string(self.chanid)
+            if self.opt_dict['add_hd_id']:
+                self.opt_dict['mark_hd'] = False
+                xml_output.create_channel_strings(self.chanid, False)
+                xml_output.create_program_string(self.chanid, False)
+                xml_output.create_channel_strings(self.chanid, True)
+                xml_output.create_program_string(self.chanid, True)
+
+            else:
+                xml_output.create_channel_strings(self.chanid)
+                xml_output.create_program_string(self.chanid)
+
             if config.write_info_files:
                 infofiles.write_raw_list()
 
@@ -7717,28 +7749,42 @@ class XMLoutput:
         '''
         return u'%s</%s>\n' % (''.rjust(ident), self.xmlescape(tag))
 
-    def create_channel_strings(self, chanid):
+    def create_channel_strings(self, chanid, add_HD = None):
         '''
         Create the strings for the channels we fetched info about
         '''
-        self.xml_channels[chanid] = []
-        self.xml_channels[chanid].append(self.add_starttag('channel', 2, 'id="%s%s"' % (chanid, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
-        self.xml_channels[chanid].append(self.add_starttag('display-name', 4, 'lang="nl"', config.channels[chanid].chan_name, True))
+        if add_HD == True:
+            chanidhd = '%s-hd' % chanid
+
+        else:
+            chanidhd = chanid
+
+        self.xml_channels[chanidhd] = []
+        self.xml_channels[chanidhd].append(self.add_starttag('channel', 2, 'id="%s%s"' % \
+            (chanidhd, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
+        self.xml_channels[chanidhd].append(self.add_starttag('display-name', 4, 'lang="nl"', \
+            config.channels[chanid].chan_name, True))
         if (config.channels[chanid].opt_dict['logos']):
             if -1 < config.channels[chanid].icon_source < 5:
                 full_logo_url = self.logo_provider[config.channels[chanid].icon_source] + config.channels[chanid].icon
-                self.xml_channels[chanid].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
+                self.xml_channels[chanidhd].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
 
             elif config.channels[chanid].icon_source == 99:
-                self.xml_channels[chanid].append(self.add_starttag('icon', 4, 'src="%s"' % config.channels[chanid].icon, '', True))
+                self.xml_channels[chanidhd].append(self.add_starttag('icon', 4, 'src="%s"' % config.channels[chanid].icon, '', True))
 
-        self.xml_channels[chanid].append(self.add_endtag('channel', 2))
+        self.xml_channels[chanidhd].append(self.add_endtag('channel', 2))
 
-    def create_program_string(self, chanid):
+    def create_program_string(self, chanid, add_HD = None):
         '''
         Create all the program strings
         '''
-        self.xml_programs[chanid] = []
+        if add_HD == True:
+            chanidhd = '%s-hd' % chanid
+
+        else:
+            chanidhd = chanid
+
+        self.xml_programs[chanidhd] = []
         config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
         for program in config.channels[chanid].all_programs:
             xml = []
@@ -7747,7 +7793,7 @@ class XMLoutput:
             attribs = 'start="%s" stop="%s" channel="%s%s"' % \
                 (self.format_timezone(program['start-time'], config.opt_dict['use_utc']), \
                 self.format_timezone(program['stop-time'], config.opt_dict['use_utc']), \
-                chanid, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')
+                chanidhd, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')
 
             if 'clumpidx' in program and program['clumpidx'] != '':
                 attribs += 'clumpidx="%s"' % program['clumpidx']
@@ -7849,7 +7895,8 @@ class XMLoutput:
 
             # Process video/audio/teletext sections if present
             if (program['video']['breedbeeld'] or program['video']['blackwhite'] \
-              or (config.channels[chanid].opt_dict['mark_HD'] and program['video']['HD'])):
+              or (config.channels[chanid].opt_dict['mark_hd'] \
+              or add_HD == True) and (program['video']['HD'])):
                 xml.append(self.add_starttag('video', 4))
 
                 if program['video']['breedbeeld']:
@@ -7858,7 +7905,8 @@ class XMLoutput:
                 if program['video']['blackwhite']:
                     xml.append(self.add_starttag('colour', 6, '', 'no',True))
 
-                if config.channels[chanid].opt_dict['mark_HD'] and (program['video']['HD']):
+                if (config.channels[chanid].opt_dict['mark_hd'] \
+                  or add_HD == True) and (program['video']['HD']):
                     xml.append(self.add_starttag('quality', 6, '', 'HDTV',True))
 
                 xml.append(self.add_endtag('video', 4))
@@ -7882,7 +7930,7 @@ class XMLoutput:
                 #~ xml.append(self.add_endtag('star-rating', 4))
 
             xml.append(self.add_endtag('programme', 2))
-            self.xml_programs[chanid].append(xml)
+            self.xml_programs[chanidhd].append(xml)
 
     def get_xmlstring(self):
         '''
@@ -7894,11 +7942,17 @@ class XMLoutput:
         for chanid in config.channels.keys():
             if config.channels[chanid].active:
                 xml.append(u"".join(self.xml_channels[chanid]))
+                if config.channels[chanid].opt_dict['add_hd_id']:
+                    xml.append(u"".join(self.xml_channels['%s-hd' % chanid]))
 
         for chanid in config.channels.keys():
             if config.channels[chanid].active:
                 for program in self.xml_programs[chanid]:
                     xml.append(u"".join(program))
+
+                if config.channels[chanid].opt_dict['add_hd_id']:
+                    for program in self.xml_programs['%s-hd' % chanid]:
+                        xml.append(u"".join(program))
 
         xml.append(self.closestring)
 
