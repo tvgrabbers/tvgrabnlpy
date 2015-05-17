@@ -1,5 +1,5 @@
 # tvgrabnlpy
-**NOTE: We have moved from [Google Code](https://code.google.com/p/tvgrabnlpy/) to here**. Part of the [wiki](https://code.google.com/p/tvgrabnlpy/w/list) is still there and can be watched [there](https://code.google.com/p/tvgrabnlpy/w/list)
+**NOTE: We have moved from [Google Code](https://code.google.com/p/tvgrabnlpy/) to here**. The old [wiki](https://code.google.com/p/tvgrabnlpy/w/list) is still there and can be watched [there](https://code.google.com/p/tvgrabnlpy/w/list)
 
 [ACTUELE INFO](https://github.com/tvgrabbers/tvgrabnlpy/wiki/actueel)
 
