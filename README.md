@@ -31,7 +31,7 @@ tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and F
 
 ###Release Notes Versie 2
 **p20150514**   version 2.1.7 beta  
-            Some fine-tuning
+            Some fine-tuning  
             Some further changes to conform with the xmltv standard  
             Added new channeloption add_hd_id to create two listings for a channel, one with HD tagging and one without  
 
