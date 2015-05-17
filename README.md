@@ -30,6 +30,18 @@ Sinds versie 2:
 tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be) and [RTL.nl](http://www.rtl.nl) as a source.
 
 ###Release Notes Versie 2
+**p20150514**   version 2.1.7 beta  
+            Some fine-tuning
+            Some further changes to conform with the xmltv standard  
+            Added new channeloption add_hd_id to create two listings for a channel, one with HD tagging and one without  
+
+**p20150512**   version 2.1.6 stable  
+            New base fetch for teveblad.be with the old one left for redundancy  
+            New detail fetch for the renewed tvgids.nl pages  
+            Added a json detail fetch for tvgids.nl for redundancy  
+            Added beter conformity with the xmltv standard  
+
+**p20150501**   version 2.1.5 stable  
 
 **p20150415**   version 2.1.5-beta  
             Fixed a bug, that could cause the script to hang on an error in a detailpage, resuling in excessive processor use.
