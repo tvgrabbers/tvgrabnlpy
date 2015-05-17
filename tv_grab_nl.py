@@ -7518,7 +7518,7 @@ class XMLoutput:
 
         self.startstring.append(u'<?xml version="1.0" encoding="%s"?>\n' % xmlencoding)
         self.startstring.append(u'<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
-        self.startstring.append(u'<tv generator-info-name="%s">\n' % config.version(True))
+        self.startstring.append(u'<tv generator-info-name="%s" generator-info-url="https://github.com/tvgrabbers/tvgrabnlpy">\n' % config.version(True))
         self.closestring = u'</tv>\n'
 
         # We have several sources of logos, the first provides the nice ones, but is not
