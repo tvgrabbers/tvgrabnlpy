@@ -4,6 +4,7 @@
 [ACTUELE INFO](https://github.com/tvgrabbers/tvgrabnlpy/wiki/actueel)
 
 [Ga naar de Wiki](https://github.com/tvgrabbers/tvgrabnlpy/wiki)  
+[Go to the English Wiki](https://github.com/tvgrabbers/tvgrabnlpy/wiki/English)  
 [Ga naar de downloads](https://github.com/tvgrabbers/tvgrabnlpy/releases)  
 [Download laatste stabiele versie](https://github.com/tvgrabbers/tvgrabnlpy/releases/latest)  
 [Ga naar de discussie groep](https://groups.google.com/forum/#!forum/tvgrabnlpy)  
