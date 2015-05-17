@@ -5,9 +5,6 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-__VERSION__ = "2.0.4-p20150302"
-#__VERSION__ += "-beta"
-
 description_text = """
     SYNOPSIS
 
@@ -20,7 +17,7 @@ description_text = """
     website below for screenshots.  The newest version of this script can be
     found here:
 
-         http://code.google.com/p/tvgrabnlpy/
+         https://github.com/tvgrabbers/tvgrabnlpy/
 
     USAGE
 
@@ -35,7 +32,8 @@ description_text = """
 
     Questions (and patches) are welcome at:
     http://www.pwdebruin.net/mailman/listinfo/tv_grab_nl_py_pwdebruin.net
-    http://code.google.com/p/tvgrabnlpy/issues/list
+    https://github.com/tvgrabbers/tvgrabnlpy/issues
+    https://groups.google.com/forum/#!forum/tvgrabnlpy
 
     UPGRADE NOTES
 
@@ -128,7 +126,7 @@ description_text = """
 
 # Modules we need
 import re, sys, codecs, locale, argparse
-import time, random, io, json
+import time, random, io, json, shutil
 import os, os.path, curses, pickle
 try:
     import urllib.request as urllib
@@ -139,8 +137,10 @@ try:
 except ImportError:
     from htmlentitydefs import name2codepoint
 from threading import Thread
+from threading import Lock
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
+from collections import deque
 try:
     unichr(42)
 except NameError:
@@ -212,7 +212,7 @@ CET_CEST = AmsterdamTimeZone()
 UTC  = UTCTimeZone()
 
 config = None
-def log(message, log_level = 1, log_target = 3):
+def log(message, log_level = 1, log_target = 3, Locked = False):
     # Prints a warning to stderr.
     # Note: The function encodes all ouput to utf-8. This may be wrong.
     # TODO: use sys.stdout.encoding, locale.getpreferredencoding(), sys.getfilesystemencoding(), and/or
@@ -221,19 +221,37 @@ def log(message, log_level = 1, log_target = 3):
     def now():
          return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S %Z') + ': '
 
-    # If config is not yet available
-    if (config == None) and (log_target & 1):
-        sys.stderr.write('Error writing to log. Not (yet) available?\n')
-        sys.stderr.write(message.encode("utf-8"))
-        return
+    try:
+        # If config is not yet available
+        if (config == None) and (log_target & 1):
+            sys.stderr.write('Error writing to log. Not (yet) available?\n')
+            sys.stderr.write(message.encode("utf-8"))
+            return
 
-    # Log to the screen
-    if log_level == 0 or ((not config.args.quiet) and (log_level & config.log_level) and (log_target & 1)):
-        sys.stdout.write(message.encode("utf-8"))
+        if not Locked:
+            # If it's not locked beforehand
+            config.log_lock.acquire()
 
-    # Log to the log-file
-    if (log_level == 0 or ((log_level & config.log_level) and (log_target & 2))) and config.log_output != None:
-       sys.stderr.write(now() + message.replace('\n','') + '\n')
+        # Log to the Frontend. To set-up later.
+        if config.opt_dict['graphic_frontend']:
+            pass
+
+        # Log to the screen
+        elif log_level == 0 or ((not config.opt_dict['quiet']) and (log_level & config.opt_dict['log_level']) and (log_target & 1)):
+            sys.stdout.write(message.encode("utf-8"))
+
+        # Log to the log-file
+        if (log_level == 0 or ((log_level & config.opt_dict['log_level']) and (log_target & 2))) and config.log_output != None:
+           sys.stderr.write(now() + message.replace('\n','') + '\n')
+
+        if not Locked:
+            config.log_lock.release()
+
+    except:
+        print 'An error ocured while logging!'
+        sys.stderr.write(now() + 'An error ocured while logging!\n')
+        if not Locked:
+            config.log_lock.release()
 
 # end log()
 
@@ -244,6 +262,19 @@ class Configure:
         """
         DEFAULT OPTIONS - Edit if you know what you are doing
         """
+        # Version info as returned by the version function
+        self.name ='tv_grab_nl_py'
+        self.major = 2
+        self.minor = 1
+        self.patch = 7
+        self.patchdate = u'20150513'
+        self.alfa = False
+        self.beta = True
+
+        self.channels = {}
+        self.chan_count = 0
+        self.opt_dict = {}
+        self.opt_dict['graphic_frontend'] = False
 
         # Used for creating extra output to beter the code
         self.write_info_files = False
@@ -257,16 +288,17 @@ class Configure:
         # 16 include detail fetches to the log
         # 32 include matchlogging (see below)
         # 64 Title renames
-        self.log_level = 47
+        self.opt_dict['log_level'] = 47
         # The log filehandler, gets set later
         self.log_output = None
+        self.log_lock = Lock()
 
         # What match results go to the log/screen (needs code 32 above)
         # 0 = Log Nothing (just the overview)
         # 1 = log not matched programs
         # 2 = log left over programs
         # 4 = Log matches
-        self.match_log_level = 1
+        self.opt_dict['match_log_level'] = 1
 
         # A selection of user agents we will impersonate, in an attempt to be less
         # conspicuous to the tvgids.nl police.
@@ -278,9 +310,6 @@ class Configure:
                'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.9) Gecko/20071105 Firefox/2.0.0.9',
                'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
                'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.8) Gecko/20071022 Ubuntu/7.10 (gutsy) Firefox/2.0.0.8']
-
-        self.channels = {}
-        self.opt_dict = {}
 
         # default encoding iso-8859-1 is general and iso-8859-15 is with euro support
         self.configencoding = 'iso-8859-15'
@@ -305,8 +334,14 @@ class Configure:
         # cache the detail information.
         self.program_cache_file = u'%s/program_cache' % self.xmltv_dir
 
+        # save the cache every # fetches
+        self.opt_dict['cache_save_interval'] = 1000
+
+        self.clean_cache = True
+        self.clear_cache = False
+
         # where the output goes. None means to the screen (stdout)
-        self.output_file = None
+        self.opt_dict['output_file'] = None
 
         # how many seconds to wait before we timeout on a
         # url fetch, 10 seconds seems reasonable
@@ -377,7 +412,7 @@ class Configure:
 
         # mark programs with the HD 1080i tag in the output
         # leave off if you only record analog SD
-        self.opt_dict['mark_HD'] = False
+        self.opt_dict['mark_hd'] = False
 
         # don't convert all the program date/times to UTC (GMT) timezone.
         # by default the current timezone is Europe/Amsterdam. This works fine
@@ -389,14 +424,15 @@ class Configure:
 
         # Create a role translation dictionary for the xmltv credits part
         # The keys are the roles used by tvgids.nl (lowercase please)
-        self.roletrans = {'regisseur'                   : 'director',
-                             'regie'                           : 'director',
-                             'acteurs'                       : 'actor',
-                             'presentatie'               : 'presenter',
-                             'commentaar'                 : 'commentator',
-                             'componist'                   : 'composer',
-                             'scenario'                     : 'writer',
-                             'scenario schrijver' : 'writer'}
+        self.roletrans = {'regisseur'                         : 'director',
+                             'regie'                                        : 'director',
+                             'acteurs'                                    : 'actor',
+                             'acteursnamen_rolverdeling': 'actor',
+                             'presentatie'                            : 'presenter',
+                             'commentaar'                              : 'commentator',
+                             'componist'                                : 'composer',
+                             'scenario'                                  : 'writer',
+                             'scenario schrijver'              : 'writer'}
 
         # List of titles not to split with title_split().
         # these are mainly spin-off series like NCIS: Los Angeles
@@ -410,7 +446,7 @@ class Configure:
         self.groupnameremove = ['kro detectives',]
         # Titles to rename
         self.titlerename = {'navy ncis': 'NCIS',
-                                        'inspetor banks': 'DCI Banks'}
+                                        'inspector banks': 'DCI Banks'}
 
         # Create a category translation dictionary
         # Look in mythtv/themes/blue/ui.xml for all category names
@@ -490,8 +526,10 @@ class Configure:
 
         self.genre_list = []
 
+        self.source_channels ={}
+        self.source_channels[0] = {}
         # channels for which to look on tvgids.tv
-        self.tvgidstv_channels = {1: u'nederland-1',
+        self.source_channels[1] = {1: u'nederland-1',
                                            2: u'nederland-2',
                                            3: u'nederland-3',
                                            4: u'rtl-4',
@@ -604,6 +642,7 @@ class Configure:
                                  'informatief programma': 'Informatief',
                                  'reportage': 'Informatief',
                                  'biografie': 'Informatief',
+                                 'schooltelevisie ': 'Informatief',
                                  'peuterprogramma': 'Jeugd',
                                  'kleuterprogramma': 'Jeugd',
                                  'tekenfilm': 'Jeugd',
@@ -619,8 +658,12 @@ class Configure:
                                  'voetbal': 'Sport',
                                  'darts': 'Sport',
                                  'golf': 'Sport',
+                                 'wielrennen op de weg': 'Sport',
+                                 'baanwielrennen': 'Sport',
                                  'tennis': 'Sport',
                                  'veldrijden': 'Sport',
+                                 'volleybal': 'Sport',
+                                 'motorcross': 'Sport',
                                  'religieuze uitzending': 'Religieus',
                                  'docusoap': 'Informatief',
                                  'sitcom': 'Serie/Soap'}
@@ -628,14 +671,75 @@ class Configure:
         self.tvtvcat = []
 
         # channels for which to look on teveblad.be
-        self.teveblad_channels = {5: 'een',
+        self.source_channels[3] = {5: 'een',
                                             6: 'canvas',
-                                            7: 'bbc1-nl',
-                                            8: 'bbc2-nl',
                                             1: 'npo-1',
                                             2: 'npo-2',
                                             3: 'npo-3',
-                                            9: 'ard'}
+                                            49: 'vtm',
+                                            60: 'vier',
+                                            59: '2be',
+                                            18: 'national-geographic',
+                                            4: 'rtl4',
+                                            31: 'rtl5',
+                                            36: 'sbs6',
+                                            20: 'tcm',
+                                            21: 'cartoon-network',
+                                            19: 'eurosport',
+                                            89: 'nickelodeonnl',
+                                            90: 'bvn-tv',
+                                            15: 'la-une',
+                                            16: 'la-deux',
+                                            17: 'tv5',
+                                            7: 'bbc1-nl',
+                                            8: 'bbc2-nl',
+                                            300: 'bbc3-nl',
+                                            301: 'bbc4-nl',
+                                            104: 'bbc-entertainment',
+                                            26: 'cnn',
+                                            86: 'bbc-world',
+                                            9: 'ard',
+                                            10: 'zdf',
+                                            12: 'wdr',
+                                            11: 'rtl',
+                                            305: 'discovery-world',
+                                            306: 'discovery-science',
+                                            438: 'tlc',
+                                            439: 'animal',
+                                            413: 'historychannel',
+                                            417: 'extreme',
+                                            461: 'pebbletv',
+                                            424: 'disneychannel',
+                                            94: 'syfy',
+                                            93: '13th-street',
+                                            304: 'mgmmoviechannel',
+                                            404: 'foxlife',
+                                            436: 'eurosport-2',
+                                            38: 'arte',
+                                            25: 'mtv',
+                                            'discovery-vlaanderen': 'discovery',
+                                            'vijftv': 'vijf',
+                                            'op12': 'op12',
+                                            'ketnet': 'ketnet',
+                                            'vitaya': 'vitaya',
+                                            'acht': 'acht',
+                                            'jim': 'jim',
+                                            'tmf': 'tmf',
+                                            'njam': 'njam',
+                                            'life-tv': 'life!tv',
+                                            'france-2': 'france-2',
+                                            'france-3': 'france-3',
+                                            'tf1': 'tf1',
+                                            'sudwest-fernsehen': 'swr',
+                                            'rai-uno': 'rai',
+                                            'tv-e': 'tve',
+                                            'espn-america': 'espn',
+                                            'espn-classic': 'espn-america',
+                                            'prime-star': 'primestar',
+                                            'prime-action': 'primeaction',
+                                            'prime-fezztival': 'primefezztival',
+                                            'prime-series': 'primeseries',
+                                            'vtmkzoom': 'vtm-kzoom'}
 
         # Program group names to exclude from teveblad.be if the counterpart contains details
         self.teveblad_genericnames = {"ochtend- en dagprogramma's", \
@@ -662,20 +766,45 @@ class Configure:
 
         # channels for which to look on rtl.nl
         # RTLL = RTL Lounge, RTLT = RTL Telekids, RTCR = RTL Crime
-        self.RTL_channels = {4: 'RTL4',
+        self.source_channels[2] = {4: 'RTL4',
                                     31: 'RTL5',
                                     46: 'RTL7',
                                     92: 'RTL8',
                                     408: 'RTLL',
-                                    409: 'RTCR'}
-                                    #~ : 'RTLT',
+                                    409: 'RTCR',
+                                    'rtl-telekids': 'RTLT'}
+
+        #Channel group names as used in tvgids.tv
+        self.chan_groups = {1: 'Nederlands',
+                                          2: 'Vlaams',
+                                          3: 'Engels',
+                                          4: 'Duits',
+                                          5: 'Frans',
+                                          6: 'Nederlands Regionaal',
+                                          7: 'Nederlands Overig',
+                                          8: 'Vlaams Overig',
+                                          9: 'Internationaal',
+                                         10: 'Overig'}
+
+        self.group_names = {1: 'Nederlandse kanalen',
+                                          2: 'Vlaamse kanalen',
+                                          3: 'Engelse kanalen',
+                                          4: 'Duitse kanalen',
+                                          5: 'Franse kanalen',
+                                          6: 'Nederlands Regionaal',
+                                          7: 'Overige Nederlands kanalen',
+                                          8: 'Overige Vlaamse kanalen ',
+                                          9: 'Internationale kanalen',
+                                         10: 'Overig kanalen',
+                                         -1: 'Alleen geselecteerde kanalen'}
 
         # DO NOT CHANGE THIS!
+        self.configversion = None
         self.__CONFIG_SECTIONS__ = { 1: u'Configuration', \
                                                             2: u'tvgids.nl Channels', \
-                                                            3: u'tvgids.tv Channels', \
-                                                            4: u'rtl.nl Channels', \
-                                                            5: u'teveblad.be Channels'}
+                                                            3: u'Channels'}
+
+        self.__CHANNEL_CONFIG_SECTIONS__ = {}
 
         self.__DEFAULT_SECTIONS__ = {1: u'genre conversion table', \
                                                              2: u'no title split list', \
@@ -689,6 +818,24 @@ class Configure:
         self.detail_ids = []
 
     # end Init()
+
+    def version(self, as_string = False):
+        """
+        return tuple or string with version info
+        """
+        if as_string and self.alfa:
+            return u'%s (Version: %s.%s.%s-p%s-alpha)' % (self.name, self.major, self.minor, self.patch, self.patchdate)
+
+        if as_string and self.beta:
+            return u'%s (Version: %s.%s.%s-p%s-beta)' % (self.name, self.major, self.minor, self.patch, self.patchdate)
+
+        if as_string and not self.beta:
+            return u'%s (Version: %s.%s.%s-p%s)' % (self.name, self.major, self.minor, self.patch, self.patchdate)
+
+        else:
+            return (self.name, self.major, self.minor, self.patch, self.patchdate, self.beta)
+
+    # end version()
 
     def save_oldfile(self, file):
         """ save the old file to .old if it exists """
@@ -754,16 +901,24 @@ class Configure:
 
     # end get_line()
 
-    def check_encoding(self, file, encoding = None):
-        """Check file encoding. Return True or False"""
+    def check_encoding(self, file, encoding = None, check_version = False):
+        """
+        Check file encoding. Return True or False
+        Encoding is stored in self.encoding
+        Optionally check for a version string
+        and store it in self.configversion
+        """
         # regex to get the encoding string
         reconfigline = re.compile(r'#\s*(\w+):\s*(.+)')
+
+        self.encoding = None
+        self.configversion = None
 
         if encoding == None:
             encoding = self.file_encoding
 
         for byteline in file.readlines():
-            line = self.get_line(file, byteline, True)
+            line = self.get_line(file, byteline, True, self.encoding)
             if not line:
                 continue
 
@@ -774,56 +929,62 @@ class Configure:
 
                     try:
                         codecs.getencoder(encoding)
+                        self.encoding = encoding
 
                     except LookupError:
                         log('%s has invalid encoding %s.\n' % (file.name, encoding))
                         return False
 
-                    return True
+                    if (not check_version) or self.configversion != None:
+                        return True
+
+                    continue
+
+                elif match is not None and match.group(1) == "configversion":
+                    self.configversion = float(match.group(2))
+                    if self.encoding != None:
+                        return True
 
                 continue
 
-        return False
+        if check_version and self.configversion == None:
+            file.seek(0,0)
+            for byteline in file.readlines():
+                line = self.get_line(file, byteline, False, self.encoding)
+                if not line:
+                    continue
 
-    # end check_encoding()
-
-    def check_oldconfig(self, file, encoding = None):
-        """
-        Check for old style (without headers) configuration files
-        Return False if no headers are found
-        """
-        if encoding == None:
-            encoding = self.file_encoding
-        file.seek(0,0)
-        for byteline in file.readlines():
-            line = self.get_line(file, byteline, False)
-            if not line:
-                continue
+                else:
+                    config_title = re.search('[(.*?)]', line)
+                    if config_title != None:
+                        self.configversion = float(2.0)
+                        break
 
             else:
-                config_title = re.search('[(.*?)]', line)
-                if config_title != None:
-                    return True
+                self.configversion = float(1.0)
 
-        return False
+        if self.encoding == None:
+            return False
+
+        else:
+            return True
 
     # end check_encoding()
 
     def read_commandline(self):
         """Initiate argparser and read the commandline"""
-        clean_cache = True
-        clear_cache = False
+        self.description = 'The Netherlands: %s\n' % self.version(True) + \
+                        '  A grabber that grabs tvguide data from tvgids.nl, tvgids.tv, rtl.nl and\n' + \
+                        '  teveblad.be for up to 178+ channels and up to 14 days. Which it then stores\n' + \
+                        '  in XMLTV-compatible format.'
 
-        parser = argparse.ArgumentParser(description=u'%(prog)s: ' +
-                        'A grabber that grabs tvguide data from tvgids.nl\n' +
-                        'and stores it in XMLTV-compatible format.',
-                        formatter_class=argparse.RawTextHelpFormatter)
+        parser = argparse.ArgumentParser(description = self.description, formatter_class=argparse.RawTextHelpFormatter)
 
         parser.add_argument('-V', '--version', action = 'store_true', default = False, dest = 'version',
                         help = 'display version')
 
         parser.add_argument('--description', action = 'store_true', default = False, dest = 'description',
-                        help = 'prints a short description in english of the grabber')
+                        help = 'prints the above short description of the grabber')
 
         parser.add_argument('-d', '--long-descr', action = 'store_true', default = False, dest = 'description_long',
                         help = 'prints a long description in english of the grabber')
@@ -845,7 +1006,7 @@ class Configure:
 
         parser.add_argument('-C', '--config-file', type = str, default = self.config_file, dest = 'config_file',
                         metavar = '<file>',
-                        help = 'name of the configuration file\n(default = \'~/.xmltv/tv_grab_nl_py.conf\')')
+                        help = 'name of the configuration file\n<default = \'%s\'>' % self.config_file)
 
         parser.add_argument('-O', '--save-options', action = 'store_true', default = False, dest = 'save_options',
                         help = 'save the currently defined options to the config file\n' +
@@ -853,12 +1014,16 @@ class Configure:
 
         parser.add_argument('-A', '--cache', type = str, default = self.program_cache_file, dest = 'program_cache_file',
                         metavar = '<file>',
-                        help = 'cache descriptions and use the file to store')
+                        help = 'cache descriptions and use the file to store\n<default = \'%s\'>' % self.program_cache_file)
 
-        parser.add_argument('--clean_cache', action = 'store_true', default = clean_cache, dest = 'clean_cache',
-                        help = 'clean the cache file before fetching')
+        parser.add_argument('-S', '--cache-save-interval', type = int, default = None, dest = 'cache_save_interval',
+                        metavar = '<number>',
+                        help = 'after how many fetches to save the cache <Default %s>' % self.opt_dict['cache_save_interval'])
 
-        parser.add_argument('--clear_cache', action = 'store_true', default = clear_cache, dest = 'clear_cache',
+        parser.add_argument('--clean_cache', action = 'store_true', default = self.clean_cache, dest = 'clean_cache',
+                        help = 'clean the cache of outdated data before fetching')
+
+        parser.add_argument('--clear_cache', action = 'store_true', default = self.clear_cache, dest = 'clear_cache',
                         help = 'empties the cache file before fetching data')
 
         parser.add_argument('-W', '--output', type = str, default = None, dest = 'output_file',
@@ -879,11 +1044,11 @@ class Configure:
 
         parser.add_argument('-o', '--offset', type = int, default = None, dest = 'offset',
                         metavar = '<days>',
-                        help = 'The day to start grabbing (defaults to 0)')
+                        help = 'The day to start grabbing <defaults to 0 is today>')
 
         parser.add_argument('-g', '--days', type = int, default = None, dest = 'days',
                         metavar = '<days>',
-                        help = '# number of days to grab from tvgids.nl/tvgids.tv\nstarting from offset. (max 14 = default)\n' +
+                        help = '# number of days to grab from tvgids.nl/tvgids.tv\nstarting from offset. <max 14 = default>\n' +
                                      'The first 4 are grabed from tvgids.nl.\nThe rest plus failures from tvgids.tv\n')
 
         parser.add_argument('-G', '--slowdays', type = int, default = None, dest = 'slowdays',
@@ -904,11 +1069,11 @@ class Configure:
         parser.add_argument('-n', '--nologos', action = 'store_false', default = None, dest = 'logos',
                         help = 'do not insert urls to channel icons')
 
-        parser.add_argument('-H', '--mark-HD', action = 'store_false', default = None, dest = 'mark_HD',
+        parser.add_argument('-H', '--mark-HD', action = 'store_false', default = None, dest = 'mark_hd',
                         help = 'mark HD programs,\ndo not set if you only record analog SD')
 
         parser.add_argument('--cattrans', action = 'store_false', default = None, dest = 'cattrans',
-                        help = '<default> translate the grabbed genres into\nMythTV-genres')
+                        help = '<default> translate the grabbed genres into\nMythTV-genres. See the tv_grab_nl_py.set file')
 
         parser.add_argument('-t', '--nocattrans', action = 'store_true', default = None, dest = 'cattrans',
                         help = 'do not translate the grabbed genres into MythTV-genres.\n' +
@@ -947,32 +1112,42 @@ class Configure:
             log('Re-run me with the --configure flag.\n')
             return False
 
-        if not self.check_encoding(f):
+        if not self.check_encoding(f, None, True):
             return False
 
-        if not self.check_oldconfig(f):
-            f.close()
-            self.write_config()
-            f = self.open_file(self.config_file)
+        if self.configversion == 1.0:
+            type = 2
+            section = self.__CONFIG_SECTIONS__[2]
 
+        else:
+            type = 0
+            section = ''
 
         f.seek(0,0)
-        # Make sure that old style configs are read
-        type = 2
         for byteline in f.readlines():
             try:
-                line = self.get_line(f, byteline)
+                line = self.get_line(f, byteline, None, self.encoding)
                 if not line:
+                    continue
+
+                if line[0:1] == '#' and type != 3:
                     continue
 
                 # Look for section headers
                 config_title = re.search('\[(.*?)\]', line)
                 if config_title != None and (config_title.group(1) in self.__CONFIG_SECTIONS__.values()):
+                    section = config_title.group(1)
                     for i, v in self.__CONFIG_SECTIONS__.items():
                         if v == config_title.group(1):
                             type = i
                             continue
 
+                    continue
+
+                elif config_title != None and (config_title.group(1) in self.__CHANNEL_CONFIG_SECTIONS__.keys()):
+                    section = config_title.group(1)
+                    type = 9
+                    chanid = self.__CHANNEL_CONFIG_SECTIONS__[config_title.group(1)]
                     continue
 
                 # Unknown Section header, so ignore
@@ -981,11 +1156,12 @@ class Configure:
                     continue
 
                 # Read Configuration options
-                elif type == 1:
+                if type == 1:
                     try:
                         # Strip the name from the value
                         a = re.split('=',line)
-                        if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans' , 'mark_HD', 'use_utc'):
+                        # Boolean Values
+                        if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc'):
                             if len(a) == 1:
                                 self.opt_dict[a[0].lower().strip()] = True
 
@@ -996,10 +1172,12 @@ class Configure:
                                 self.opt_dict[a[0].lower().strip()] = False
 
                         elif a[0].lower().strip() == 'output_file':
-                            self.output_file = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1]
+                            self.opt_dict['output_file'] = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1].strip()
 
                         elif len(a) == 2:
-                            if a[0].lower().strip() in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', 'tevedays', 'max_overlap', 'desc_length'):
+                            # Integer Values
+                            if a[0].lower().strip() in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', \
+                              'tevedays', 'max_overlap', 'desc_length', 'cache_save_interval'):
                                 try:
                                     int(a[1])
 
@@ -1010,6 +1188,7 @@ class Configure:
                                 else:
                                     self.opt_dict[a[0].lower().strip()] = int(a[1])
 
+                            # Select Values
                             elif a[0].lower().strip() == 'overlap_strategy':
                                 if a[1].lower().strip() in ('average', 'stop', 'start'):
                                     self.opt_dict[a[0].lower().strip()] = a[1].lower().strip()
@@ -1018,28 +1197,125 @@ class Configure:
                                     self.opt_dict[a[0].lower().strip()] = 'none'
 
                     except Exception:
-                        log('Invalid line in config file %s: %r\n' % (self.args.config_file, line))
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
-                # Read the channel stuff
+                # Read the channel stuff up to version 2.0
                 if type == 2:
+                    if self.configversion > 2.0:
+                        continue
+
                     try:
                         channel = line.split(None, 1) # split on first whitespace
-                        self.channels[int(channel[0])] = channel[1]
+                        self.channels[unicode(channel[0]).strip()] = Channel_Config(unicode(channel[0]).strip(), unicode(channel[1]).strip())
+                        self.channels[unicode(channel[0]).strip()].active = True
+                        self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[0].strip()] = unicode(channel[0]).strip()
 
                     except Exception:
-                        log('Invalid line in config file %s: %r\n' % (self.args.config_file, line))
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
+
+                # Changed Channel config since version 2.1
+                if type == 3:
+                    if self.configversion < 2.1:
+                        continue
+
+                    try:
+                        if line[0:1] == '#':
+                            active = False
+                            line = line.lstrip('#').lstrip()
+
+                        else:
+                            active = True
+
+                        channel = re.split(';', line)
+                        if len(channel) != 8:
+                            continue
+
+                        for index in range(xml_output.source_count):
+                            if channel[index + 2].strip() != '':
+                                chanid = unicode(channel[index + 2]).strip()
+                                self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[index + 2].strip()] = chanid
+                                break
+
+                        else:
+                            # No sources!
+                            continue
+
+                        self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]).strip(), int(channel[1]))
+                        for index in range(xml_output.source_count):
+                            self.channels[chanid].source_id[index] = unicode(channel[index + 2]).strip()
+
+                        self.channels[chanid].icon_source = int(channel[6])
+                        self.channels[chanid].icon = unicode(channel[7]).strip()
+                        # set the default prime_source
+                        if channel [4] != '':
+                            self.channels[chanid].opt_dict['prime_source'] = 2
+
+                        elif (channel [5] != '') and ((int(channel[1]) == 2) or (int(channel[1]) == 8)):
+                            self.channels[chanid].opt_dict['prime_source'] = 3
+
+                        else:
+                            for index in (0, 1, 3):
+                                if self.channels[chanid].source_id[index] != '':
+                                    self.channels[chanid].opt_dict['prime_source'] = index
+                                    break
+
+                        self.channels[chanid].active = active
+                        if active:
+                            self.chan_count += 1
+
+                    except Exception:
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
+
+                # Read the channel specific configuration
+                if type == 9:
+                    try:
+                        # Strip the name from the value
+                        a = re.split('=',line)
+                        # Boolean Values
+                        if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv'):
+                            if len(a) == 1:
+                                self.channels[chanid].opt_dict[a[0].lower().strip()] = True
+
+                            elif a[1].lower().strip() in ('true', '1' , 'on'):
+                                self.channels[chanid].opt_dict[a[0].lower().strip()] = True
+
+                            else:
+                                self.channels[chanid].opt_dict[a[0].lower().strip()] = False
+
+                        elif len(a) == 2:
+                            # Integer Values
+                            if a[0].lower().strip() in ('slowdays', 'max_overlap', 'desc_length', 'prime_source', 'prefered_description'):
+                                try:
+                                    int(a[1])
+
+                                except ValueError:
+                                    if (a[0].lower().strip() == 'slowdays') and (a[1].lower().strip() == 'none'):
+                                        self.channels[chanid].opt_dict[a[0].lower().strip()] = None
+
+                                else:
+                                    if a[0].lower().strip() == 'prime_source' or a[0].lower().strip() == 'prefered_description':
+                                        if self.channels[chanid].source_id[int(a[1])] != '':
+                                            self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
+
+                                    else:
+                                        self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
+
+                            # Select Values
+                            elif a[0].lower().strip() == 'overlap_strategy':
+                                if a[1].lower().strip() in ('average', 'stop', 'start'):
+                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = a[1].lower().strip()
+
+                                else:
+                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = 'none'
+
+                    except Exception:
+                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
             except Exception as e:
-                log(u'Error reading Config')
+                log(u'Error reading Config\n')
                 continue
 
         f.close()
-
-        if 'log_level' in self.opt_dict.keys():
-            self.log_level = self.opt_dict['log_level']
-
-        if 'match_log_level' in self.opt_dict.keys():
-            self.match_log_level = self.opt_dict['match_log_level']
 
         # an extra option for gathering extra info to better the code
         if 'write_info_files' in self.opt_dict.keys():
@@ -1065,7 +1341,7 @@ class Configure:
         type = 0
         for byteline in f.readlines():
             try:
-                line = self.get_line(f, byteline)
+                line = self.get_line(f, byteline, False, self.encoding)
                 if not line:
                     continue
 
@@ -1156,7 +1432,7 @@ class Configure:
                     self.roletrans[a[0].lower().strip()] = a[1].strip()
 
             except Exception as e:
-                log('Error reading Defaults')
+                log('Error reading Defaults\n')
                 continue
 
         f.close()
@@ -1169,19 +1445,113 @@ class Configure:
         Get a list of all available channels and store these
         in a file.
         """
-
+        # These channels contain no data!
+        empty_channels = {}
+        empty_channels[0] = ('83','308','309','310','20','65','401','403','412')
+        empty_channels[1] = ('eurosport-hd', 'la-une-hd', 'tf1-hd', 'vtm-hd', 'nat-geo-hd', 'tmf', 'life-tv', \
+            'espn-america', 'espn-classic', 'canal-z', 'disney-playhouse', 'exqi-sport-culture', \
+            'prime-sport', 'vitaliteit', 'vtmkzoom-2', 'ketnet-op12', 'cnbc-europe', 'virgin-1')
+        empty_channels[2] = []
+        empty_channels[3] = ('rtl4', 'rtl5', 'sbs6', 'tv5monde-europe', 'cnn', 'tcm', 'cartoon-network', \
+            'rtp-international', 'foxlife', 'discovery-id', 'studio100-tv', 'fashion-one', 'tnt-benelux', \
+            'historychannel', 'nickelodeonnl', 'bbc-world', 'mgmmoviechannel', 'discovery-world', \
+            'discovery-science', 'sport-10', 'culture-7', 'espn', 'pebbletv', 'lacht', '13th-street', \
+            'live!tv', 'stories', 'op12', 'actua-tv', 'espn-america', 'swr', '', 'mtv', 'tmf', 'cultuur-7')
         # download the json feed
-        tvgids_json.get_channels()
-        self.channels = tvgids_json.all_channels
+        xml_output.channelsource[0].init_channels()
+        xml_output.channelsource[0].get_channels()
+        if not isinstance(self.channels, dict):
+            self.channels = {}
 
-        # and create a file with the channels
-        if not self.write_config(False, True):
-            log('Error writing new Config. Trying to restore an old one.')
-            return 1
-            try:
-                os.rename(file + '.old', file)
-            except:
-                pass
+        for chanid in xml_output.channelsource[0].all_channels.keys():
+            if (chanid.lower() in empty_channels[0]):
+                continue
+
+            if not chanid in self.channels.keys():
+                self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chanid]['name'])
+
+            self.channels[chanid].source_id[0] = chanid
+            if int(chanid) in xml_output.logo_names:
+                self.channels[chanid].icon_source = xml_output.logo_names[int(chanid)][0]
+                if xml_output.logo_names[int(chanid)][0] == 4:
+                    self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.png'
+
+                else:
+                    self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.gif'
+
+        # Get the other sources
+        for index in (1, 3, 2):
+            xml_output.channelsource[index].init_channels()
+            xml_output.channelsource[index].get_channels()
+            reverse_channels = {}
+            for i, v in self.source_channels[index].items():
+                reverse_channels[v] = unicode(i)
+
+            for chanid in xml_output.channelsource[index].all_channels.keys():
+                if chanid in self.source_channels[index].values() and reverse_channels[chanid] in self.channels.keys():
+                    # These channels are for show, but we like the icons from source 2 and 3!
+                    if not(chanid in empty_channels[index]):
+                        self.channels[reverse_channels[chanid]].source_id[index] = chanid
+
+                    # Set the group
+                    if self.channels[reverse_channels[chanid]].group == 10:
+                        self.channels[reverse_channels[chanid]].group = xml_output.channelsource[index].all_channels[chanid]['group']
+
+                    # Set the Icon
+                    if index == 3:
+                        self.channels[reverse_channels[chanid]].icon_source = 2
+                        self.channels[reverse_channels[chanid]].icon = xml_output.channelsource[index].all_channels[chanid]['icon']
+
+                    elif index == 2 and (self.channels[reverse_channels[chanid]].icon_source == -1 or self.channels[reverse_channels[chanid]].icon_source == 1):
+                        self.channels[reverse_channels[chanid]].icon_source = 3
+                        self.channels[reverse_channels[chanid]].icon = xml_output.channelsource[2].all_channels[chanid]['icon']
+
+                else:
+                    if (chanid in empty_channels[index]):
+                        continue
+
+                    self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[index].all_channels[chanid]['name'])
+                    self.channels[chanid].source_id[index] = chanid
+                    self.channels[chanid].group = xml_output.channelsource[index].all_channels[chanid]['group']
+                    if index == 3:
+                        self.channels[chanid].icon_source = 2
+                        self.channels[chanid].icon = xml_output.channelsource[index].all_channels[chanid]['icon']
+
+                    elif index == 2 and (self.channels[chanid].icon_source == -1 or self.channels[chanid].icon_source == 1):
+                        self.channels[chanid].icon_source = 3
+                        self.channels[chanid].icon = xml_output.channelsource[2].all_channels[chanid]['icon']
+
+        for channel in self.channels.values():
+            # Set a source 4 icon if present and not allready set to 0 or 2
+            if channel.icon_source in (-1, 1, 3) and channel.chanid in xml_output.logo_names.keys() \
+              and xml_output.logo_names[channel.chanid][0] == 4:
+                channel.icon_source = 4
+                channel.icon = '%s.png' % xml_output.logo_names[channel.chanid][1]
+
+            # mark HD channels
+            if channel.chan_name[-3:].lower() == ' hd':
+                channel.opt_dict['mark_hd'] = True
+
+            if channel.source_id[3] != '' and xml_output.channelsource[3].all_channels[channel.source_id[3]]['HD']:
+                channel.opt_dict['mark_hd'] = True
+
+            # set the default prime_source
+            if channel.source_id[2] != '':
+                channel.opt_dict['prime_source'] = 2
+
+            elif (channel.source_id[3] != '') and ((channel.group == 2) or (channel.group == 8)) :
+                channel.opt_dict['prime_source'] = 3
+
+            else:
+                for index in (0, 1, 3):
+                    if channel.source_id[index] != '':
+                        channel.opt_dict['prime_source'] = index
+                        break
+
+            # For Veronica tvgids.tv contains Disney XD, so we don't append it
+            if channel.source_id[0] in ('3', '34'):
+                channel.opt_dict['append_tvgidstv'] = False
+
         return 0
 
     # end get_channels()
@@ -1191,12 +1561,22 @@ class Configure:
         if self.read_commandline() == 0:
              return(0)
 
-        if self.args.version or self.args.description:
-            print("The Netherlands (tv_grab_nl_py version %s)" % __VERSION__)
+        if self.args.version:
+            print("The Netherlands: %s" % self.version(True))
+            return(0)
+
+        if self.args.description:
+            v=self.version()
+            if v[5]:
+                print("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s-beta" % (v[1], v[2], v[3]))
+
+            else:
+                print("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s" % (v[1], v[2], v[3]))
+
             return(0)
 
         if self.args.description_long:
-            print("The Netherlands (tv_grab_nl_py version %s)" % __VERSION__)
+            print("The Netherlands: %s" % self.version(True))
             print(description_text)
             return(0)
 
@@ -1217,166 +1597,315 @@ class Configure:
             self.log_file = self.args.config_file+'.log'
             log('Using config file: %s\n' % self.args.config_file)
 
-        # Save an old session log and open a new one
-        self.save_oldfile(self.log_file)
-        self.log_output = self.open_file(self.log_file, mode = 'a')
-        if self.log_output != None:
-            sys.stderr = self.log_output
+        if self.validate_option('log_file') != None:
+            return(2)
 
         if self.args.configure:
-            # check for the ~.xmltv dir
+
+            # check for the config dir
             config_dir = os.path.dirname(self.config_file)
             if (config_dir != '') and not os.path.exists(config_dir):
-                log('Creating %s directory,' % config_dir)
+                log('Creating %s directory,\n' % config_dir)
                 os.mkdir(config_dir)
+
+            elif os.access(self.config_file, os.F_OK):
+                self.read_config()
+
             log('Creating config file: %s\n' % self.config_file)
             x = self.get_channels()
-            # If save options was also set, we continue to validate and add them.
-            if not self.args.save_options or x != 0:
-                return(x)
 
-        # get config if available
-        if not self.read_config():
-            log('error reading configfile\n')
+        # get config if available Overrule if set by commandline
+        elif not self.read_config():
             return(1)
 
-        if self.args.quiet == None:
-            self.args.quiet = self.opt_dict['quiet']
+        if self.args.cache_save_interval != None:
+            self.opt_dict['cache_save_interval'] = self.args.cache_save_interval
 
-        if self.args.compat == None:
-            self.args.compat = self.opt_dict['compat']
+        if self.args.quiet != None:
+            self.opt_dict['quiet'] = self.args.quiet
 
-        if self.args.use_utc == None:
-            self.args.use_utc = self.opt_dict['use_utc']
+        if self.args.use_utc != None:
+            self.opt_dict['use_utc'] = self.args.use_utc
 
-        if self.args.fast == None:
-            self.args.fast = self.opt_dict['fast']
+        if self.args.compat != None:
+            self.opt_dict['compat'] = self.args.compat
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['compat'] = self.opt_dict['compat']
 
-        if self.args.logos == None:
-            self.args.logos = self.opt_dict['logos']
+        if self.args.fast != None:
+            self.opt_dict['fast'] = self.args.fast
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['fast'] = self.opt_dict['fast']
 
-        if self.args.mark_HD == None:
-            self.args.mark_HD = self.opt_dict['mark_HD']
+        if self.args.logos != None:
+            self.opt_dict['logos'] = self.args.logos
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['logos'] = self.opt_dict['logos']
 
-        if self.args.cattrans == None:
-            self.args.cattrans = self.opt_dict['cattrans']
+        if self.args.mark_hd != None:
+            self.opt_dict['mark_hd'] = self.args.mark_hd
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['mark_hd'] = self.opt_dict['mark_hd']
 
-        if self.args.output_file == None:
-            self.args.output_file = self.output_file
+        if self.args.cattrans != None:
+            self.opt_dict['cattrans'] = self.args.cattrans
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['cattrans'] = self.opt_dict['cattrans']
+
+        if self.args.slowdays != None:
+            self.opt_dict['slowdays'] = self.args.slowdays
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['slowdays'] = self.opt_dict['slowdays']
+
+        if self.args.desc_length != None:
+            self.opt_dict['desc_length'] = self.args.desc_length
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['desc_length'] = self.opt_dict['desc_length']
+
+        if self.args.overlap_strategy != None:
+            self.opt_dict['overlap_strategy'] = self.args.overlap_strategy
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['overlap_strategy'] = self.opt_dict['overlap_strategy']
+
+        if self.args.max_overlap != None:
+            self.opt_dict['max_overlap'] = self.args.max_overlap
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['max_overlap'] = self.opt_dict['max_overlap']
 
         if self.args.output_file != None:
-            try:
-                self.output = open(self.args.output_file,'w')
-
-            except Exception:
-                log('Cannot write to outputfile: %s\n' % self.args.output_file)
-                return(2)
-
-        else: self.output = None
+            self.opt_dict['output_file'] = self.args.output_file
 
         # limit days to maximum supported by the several sites
-        if self.args.offset == None:
-            self.args.offset = self.opt_dict['offset']
+        if self.args.offset != None:
+            self.offset = self.opt_dict['offset']
+            self.opt_dict['offset'] = self.args.offset
 
-        if self.args.offset > 14:
-            if self.opt_dict['offset'] < 14:
-                log("Een zo hoge offset van: %s is belachelijk. We resetten naar %s\n" % (self.args.offset, self.opt_dict['offset']),1,1)
-                self.args.offset = self.opt_dict['offset']
+        if self.args.days != None:
+            self.opt_dict['days'] = self.args.days
 
-            else:
-                log("Een zo hoge offset van: %s is belachelijk. We resetten naar 0\n" % (self.args.offset),1,1)
-                self.args.offset = 0
+        if self.args.tevedays != None:
+            self.opt_dict['tevedays'] = self.args.tevedays
 
-        if self.args.days == None:
-            self.args.days = self.opt_dict['days']
+        if self.args.rtldays != None:
+            self.opt_dict['rtldays'] = self.args.rtldays
 
-        if self.args.days > (14 - self.args.offset):
-            log("tvgids.nl/tvgids.tv kunnen maximaal 14 dagen vooruit kijken. Resetting\n",1,1)
+        self.validate_option('offset')
+        self.validate_option('days')
+        self.validate_option('tevedays')
+        self.validate_option('rtldays')
+        if self.validate_option('output_file') != None:
+            return(2)
 
-        self.args.days = min(self.args.days,(14 - self.args.offset))
+        if not self.args.configure and self.configversion < 2.1:
+            # Update to a version 2.1 config
+            if self.configversion == 1.0:
+                self.write_defaults_list()
+            if not self.write_config(None):
+                log('Error updating to new Config.\nPlease remove the old config and Re-run me with the --configure flag.\n')
+                return(1)
 
-        if self.args.tevedays == None:
-            self.args.tevedays = self.opt_dict['tevedays']
+            log('Updated the configfile %s!\nCheck if you are fine with the settings.\n' % self.config_file)
+            log('If this is a first install, you have to enable the desired channels!\n', 1, 1)
+            return(0)
 
-        if self.args.tevedays > (8 - self.args.offset):
-            log("teveblad.be kan maximaal 7 dagen vooruit kijken. Resetting\n",1,1)
-
-        self.args.tevedays = min(self.args.tevedays,(8 - self.args.offset))
-        self.args.tevedays = min(self.args.days, self.args.tevedays)
-
-        if self.args.rtldays == None:
-            self.args.rtldays = self.opt_dict['rtldays']
-
-        if self.args.rtldays > (14 - self.args.offset):
-            log("rtl.nl kan maximaal 14 dagen vooruit kijken.\n",1,1)
-
-        self.args.rtldays = min(self.args.rtldays,(14 - self.args.offset))
-        self.args.rtldays = min(self.args.days, self.args.rtldays)
-
-        slow_set = True
-        if self.args.slowdays == None:
-            slow_set = False
-            self.args.slowdays = self.opt_dict['slowdays']
-
-        if self.args.slowdays == None:
-            self.args.slowdays = self.args.days
-
-        else:
-            self.args.slowdays = min(self.args.days, self.args.slowdays)
-            # slowdays implies fast == False
-            if slow_set and self.args.slowdays < self.args.days:
-                self.args.fast = False
-
-        if self.args.desc_length == None:
-            self.args.desc_length = self.opt_dict['desc_length']
-
-        if self.args.desc_length == 0:
-            # no description implies fast == True
-            log('Setting to Fast Mode\n',1,1)
-            self.args.fast = True
-        else:
-            log('Using description length: %d\n' % self.args.desc_length,1,1)
-
-        if self.args.overlap_strategy == None:
-            self.args.overlap_strategy = self.opt_dict['overlap_strategy']
-
-        if self.args.overlap_strategy in ['average', 'stop', 'start']:
-            self.args.overlap_strategy = self.args.overlap_strategy
-
-        else:
-            self.args.overlap_strategy = 'none'
-
-        if self.opt_dict['overlap_strategy'] != self.args.overlap_strategy:
-            log('overlap strategy set to: \'%s\'\n' % self.args.overlap_strategy,1,1)
-
-        if self.args.max_overlap == None:
-            self.args.max_overlap = self.opt_dict['max_overlap']
-
-        elif self.args.max_overlap == 0:
-            # no max_overlap implies strategie == 'None'
-            self.args.overlap_strategy = 'None'
-            log('Maximum overlap 0 means overlap strategy set to: \'%s\'\n' % self.args.overlap_strategy,1,1)
-
-        else:
-            log('Using Maximum Overlap: %d\n' % self.args.max_overlap,1,1)
-
+        # Continue validating the settings for the individual channels
+        for chanid in self.channels.keys():
+            self.channels[chanid].validate_settings()
 
         self.write_opts_to_log()
+        if self.args.configure:
+            if not self.write_config(True):
+                log('Error writing new Config. Trying to restore an old one.\n')
+                try:
+                    os.rename(file + '.old', file)
+
+                except:
+                    pass
+
+                return(1)
+
+            log('Created the configfile %s!\nCheck if you are fine with the settings.\n' % self.config_file)
+            log('If this is a first install, you have to enable the desired channels!\n', 1, 1)
+            return(0)
+
         if self.args.save_options:
-            self.write_config(True, False)
+            if not self.write_config(False):
+                log('Error writing new Config. Trying to restore an old one.\n')
+                try:
+                    os.rename(file + '.old', file)
+
+                except:
+                    pass
+
+                return(1)
+
+            log('Updated the options in the configfile %s!\nCheck if you are fine with the settings.\n' % self.config_file)
             return(0)
 
         #check for cache
-        xml_output.program_cache = ProgramCache(self.args.program_cache_file)
-        if self.args.clean_cache:
-            xml_output.program_cache.clean()
+        if self.args.clean_cache != self.clean_cache:
+            self.clean_cache = self.args.clean_cache
 
-        if self.args.clear_cache:
-            xml_output.program_cache.clear()
+        if self.args.clear_cache != self.clear_cache:
+            self.clear_cache = self.args.clear_cache
+
+        if self.args.program_cache_file != self.program_cache_file:
+            self.program_cache_file = self.args.program_cache_file
+
+        if self.validate_option('program_cache_file') != None:
+            return(2)
 
         self.read_defaults_list()
 
     # end validate_commandline()
+
+    def validate_option(self, option, channel = config):
+        """Validate an option"""
+        if option == 'offset':
+            if self.opt_dict['offset'] > 14:
+                if self.offset < 14:
+                    log("Een zo hoge offset van: %s is belachelijk. We resetten naar %s\n" % (self.opt_dict['offset'], self.offset),1,1)
+                    self.opt_dict['offset'] = self.offset
+
+                else:
+                    log("Een zo hoge offset van: %s is belachelijk. We resetten naar 0\n" % (self.opt_dict['offset']),1,1)
+                    self.opt_dict['offset'] = 0
+
+        if option == 'days':
+            if self.opt_dict['days'] > (14 - self.opt_dict['offset']):
+                log("tvgids.nl/tvgids.tv kunnen maximaal 14 dagen vooruit kijken. Resetting\n",1,1)
+
+            self.opt_dict['days'] = min(self.opt_dict['days'],(14 - self.opt_dict['offset']))
+
+            if self.opt_dict['slowdays'] == None:
+                self.opt_dict['slowdays'] = config.opt_dict['days']
+
+        if option == 'tevedays':
+            if self.opt_dict['tevedays'] > (8 - self.opt_dict['offset']):
+                log("teveblad.be kan maximaal 7 dagen vooruit kijken. Resetting\n",1,1)
+
+            self.opt_dict['tevedays'] = min(self.opt_dict['tevedays'],(8 - self.opt_dict['offset']))
+            self.opt_dict['tevedays'] = min(self.opt_dict['days'], self.opt_dict['tevedays'])
+            if self.opt_dict['tevedays'] < 0:
+                self.opt_dict['tevedays'] = 0
+
+        if option == 'rtldays':
+            if self.opt_dict['rtldays'] > (14 - self.opt_dict['offset']):
+                log("rtl.nl kan maximaal 14 dagen vooruit kijken.\n",1,1)
+
+            self.opt_dict['rtldays'] = min(self.opt_dict['rtldays'],(14 - self.opt_dict['offset']))
+            self.opt_dict['rtldays'] = min(self.opt_dict['days'], self.opt_dict['rtldays'])
+
+        if option == 'output_file':
+            if self.opt_dict['output_file'] != None:
+                try:
+                    output_dir = os.path.dirname(self.opt_dict['output_file'])
+                    if (output_dir != '') and not os.path.exists(output_dir):
+                        log('Creating %s directory,\n' % output_dir)
+                        os.mkdir(output_dir)
+
+                    self.output = self.open_file(self.opt_dict['output_file'],'w')
+                    if self.output == None:
+                        log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
+                        return(2)
+
+                except Exception:
+                    log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
+                    return(2)
+
+            else: self.output = None
+
+        if option == 'log_file':
+            # Save an old session log and open a new one
+            try:
+                log_dir = os.path.dirname(self.log_file)
+                if (log_dir != '') and not os.path.exists(log_dir):
+                    log('Creating %s directory,\n' % log_dir)
+                    os.mkdir(log_dir)
+
+                self.save_oldfile(self.log_file)
+                self.log_output = self.open_file(self.log_file, mode = 'a')
+                if self.log_output != None:
+                    sys.stderr = self.log_output
+
+                else:
+                    log('Cannot write to logfile: %s\n' % self.log_file)
+                    return(2)
+
+            except Exception:
+                log('Cannot write to logfile: %s\n' % self.log_file)
+                return(2)
+
+        if option == 'program_cache_file':
+            if self.program_cache_file.lower() == 'none' or self.program_cache_file == None:
+                self.program_cache_file = None
+                xml_output.program_cache = ProgramCache(self.program_cache_file)
+                return
+
+            try:
+                cache_dir = os.path.dirname(self.program_cache_file)
+                if (cache_dir != '') and not os.path.exists(cache_dir):
+                    log('Creating %s directory,\n' % cache_dir)
+                    os.mkdir(cache_dir)
+
+                if os.access(self.program_cache_file, os.F_OK and os.W_OK):
+                    pass
+
+                elif not os.path.isfile(self.program_cache_file) and os.access(cache_dir, os.W_OK):
+                    pass
+
+                else:
+                    log('Cannot write to cachefile: %s\n' % self.program_cache_file)
+                    return(2)
+
+            except Exception:
+                log('Cannot write to cachefile: %s\n' % self.program_cache_file)
+                return(2)
+
+            xml_output.program_cache = ProgramCache(self.program_cache_file)
+            if self.clean_cache:
+                xml_output.program_cache.clean()
+
+            if self.clear_cache:
+                xml_output.program_cache.clear()
+
+        if option == 'slowdays':
+            if channel.opt_dict['slowdays'] == None:
+                channel.opt_dict['slowdays'] = self.opt_dict['days']
+                if channel.opt_dict['desc_length'] == 0:
+                    # no description implies fast == True
+                    if not channel.opt_dict['fast']:
+                        log('Setting Channel: %s to Fast Mode\n' % channel.chan_name,1,1)
+                        channel.opt_dict['fast'] = True
+
+            else:
+                channel.opt_dict['slowdays'] = min(self.opt_dict['days'], channel.opt_dict['slowdays'])
+                # slowdays implies fast == False
+                if channel.opt_dict['slowdays'] < self.opt_dict['days']:
+                    channel.opt_dict['fast']  = False
+
+        if option == 'desc_length':
+            if channel.opt_dict['desc_length'] != self.opt_dict['desc_length']:
+                log('Using description length: %d for Cannel: %s\n' % (channel.opt_dict['desc_length'], channel.chan_name),1,1)
+
+        if option == 'overlap_strategy':
+            if not channel.opt_dict['overlap_strategy'] in ['average', 'stop', 'start']:
+                channel.opt_dict['overlap_strategy'] = 'none'
+
+        if option == 'max_overlap':
+            if channel.opt_dict['max_overlap'] == 0:
+                # no max_overlap implies strategie == 'None'
+                channel.opt_dict['overlap_strategy'] = 'None'
+                log('Maximum overlap 0 means overlap strategy for Channel: %s set to: \'%s\'\n' % (channel.chan_name, channel.opt_dict['overlap_strategy']),1,1)
+
+            elif channel.opt_dict['max_overlap'] != self.opt_dict['max_overlap']:
+                log('Using Maximum Overlap: %d for Channel %s\n' % (channel.opt_dict['max_overlap'], channel.chan_name),1,1)
+                if channel.opt_dict['overlap_strategy'] != self.opt_dict['overlap_strategy']:
+                    log('overlap strategy for Channel: %s set to: \'%s\'\n' % (channel.chan_name, channel.opt_dict['overlap_strategy']),1,1)
+
+        #~ if option == '':
+        #~ if option == '':
+    # end validate_option()
 
     def write_opts_to_log(self):
         """
@@ -1386,37 +1915,87 @@ class Configure:
             return(0)
 
         log(u'Python versie: %s.%s.%s' % (sys.version_info[0], sys.version_info[1], sys.version_info[2]),1, 2)
-        log(u'The Netherlands (tv_grab_nl_py version %s)' % __VERSION__, 1, 2)
+        log(u'The Netherlands: %s' % self.version(True), 1, 2)
         log(u'Capabilities:"baseline" ,"cache" ,"manualconfig" ,"preferredmethod")', 1, 2)
         log(u'Preferred Methode: "allatonce"', 1, 2)
-        log(u'log level = %s' % (self.log_level), 1, 2)
-        log(u'match log level = %s' % (self.match_log_level), 1, 2)
-        log(u'config_file = %s' % (self.args.config_file), 1, 2)
-        log(u'program_cache_file = %s' % (self.args.program_cache_file), 1, 2)
-        log(u'clean_cache = %s' % (self.args.clean_cache), 1, 2)
-        log(u'clear_cache = %s' % (self.args.clear_cache), 1, 2)
-        log(u'output_file = %s' % (self.args.output_file), 1, 2)
-        log(u'quiet = %s' % (self.args.quiet), 1, 2)
-        log(u'fast = %s' % (self.args.fast), 1, 2)
-        log(u'offset = %s' % (self.args.offset), 1, 2)
-        log(u'days = %s' % (self.args.days), 1, 2)
-        log(u'slowdays = %s' % (self.args.slowdays), 1, 2)
-        log(u'rtldays = %s' % (self.args.rtldays), 1, 2)
-        log(u'tevedays = %s' % (self.args.tevedays), 1, 2)
-        log(u'compat = %s' % (self.args.compat), 1, 2)
-        log(u'max_overlap = %s' % (self.args.max_overlap), 1, 2)
-        log(u'overlap_strategy = ' + self.args.overlap_strategy, 1, 2)
-        log(u'logos = %s' % (self.args.logos), 1, 2)
-        log(u'desc_length = %s' % (self.args.desc_length), 1, 2)
-        log(u'cattrans = %s' % (self.args.cattrans), 1, 2)
-        log(u'mark_HD = %s' % (self.args.mark_HD), 1, 2)
-        log(u'use_utc = %s' % (self.args.use_utc), 1, 2)
+        log(u'log level = %s' % (self.opt_dict['log_level']), 1, 2)
+        log(u'match log level = %s' % (self.opt_dict['match_log_level']), 1, 2)
+        log(u'config_file = %s' % (self.config_file), 1, 2)
+        log(u'program_cache_file = %s' % (self.program_cache_file), 1, 2)
+        log(u'cache_save_interval = %s' % (self.opt_dict['cache_save_interval']), 1, 2)
+        log(u'clean_cache = %s' % (self.clean_cache), 1, 2)
+        log(u'clear_cache = %s' % (self.clear_cache), 1, 2)
+        log(u'output_file = %s' % (self.opt_dict['output_file']), 1, 2)
+        log(u'quiet = %s' % (self.opt_dict['quiet']), 1, 2)
+        log(u'fast = %s' % (self.opt_dict['fast']), 1, 2)
+        log(u'offset = %s' % (self.opt_dict['offset']), 1, 2)
+        log(u'days = %s' % (self.opt_dict['days']), 1, 2)
+        log(u'slowdays = %s' % (self.opt_dict['slowdays']), 1, 2)
+        log(u'rtldays = %s' % (self.opt_dict['rtldays']), 1, 2)
+        log(u'tevedays = %s' % (self.opt_dict['tevedays']), 1, 2)
+        log(u'compat = %s' % (self.opt_dict['compat']), 1, 2)
+        log(u'max_overlap = %s' % (self.opt_dict['max_overlap']), 1, 2)
+        log(u'overlap_strategy = %s' % (self.opt_dict['overlap_strategy']), 1, 2)
+        log(u'logos = %s' % (self.opt_dict['logos']), 1, 2)
+        log(u'desc_length = %s' % (self.opt_dict['desc_length']), 1, 2)
+        log(u'cattrans = %s' % (self.opt_dict['cattrans']), 1, 2)
+        log(u'mark_hd = %s' % (self.opt_dict['mark_hd']), 1, 2)
+        log(u'use_utc = %s' % (self.opt_dict['use_utc']), 1, 2)
+        log(u'Channel specific settings other then the above:', 1, 2)
+        for chan_def in self.channels.values():
+            chan_name_written = False
+            if not chan_def.opt_dict['append_tvgidstv']:
+                log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                chan_name_written = True
+                log(u'  append_tvgidstv = False\n', 1, 2)
+
+            for index in range(xml_output.source_count):
+                if chan_def.source_id[index] != '':
+                    if chan_def.opt_dict['prime_source'] != index:
+                        if not chan_name_written:
+                            log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                            chan_name_written = True
+
+                        log(u'  prime_source = %s\n' % ( chan_def.opt_dict['prime_source']), 1, 2)
+
+                    break
+
+            if chan_def.opt_dict['prefered_description'] != -1:
+                if chan_def.opt_dict['prefered_description'] in chan_def.source_id.keys() and chan_def.source_id[chan_def.opt_dict['prefered_description']] != '':
+                    if chan_def.opt_dict['prefered_description'] != index:
+                        if not chan_name_written:
+                            log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                            chan_name_written = True
+
+                        log(u'  prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']), 1, 2)
+
+            if chan_def.opt_dict['add_hd_id']:
+                if not chan_name_written:
+                    log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                    chan_name_written = True
+
+                log(u'  add_hd_id = True\n', 1, 2)
+
+            if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
+                if not chan_name_written:
+                    log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                    chan_name_written = True
+
+                log(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']), 1, 2)
+
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd'):
+                if chan_def.opt_dict[val] != self.opt_dict[val]:
+                    if not chan_name_written:
+                        log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                        chan_name_written = True
+
+                    log(u'  %s = %s' % (val, chan_def.opt_dict[val]), 1, 2)
 
     # end write_opts_to_log()
 
-    def write_config(self, with_args = False, add_channels = None):
+    def write_config(self, add_channels = None):
         """
-        Save the channel info and the default options if with_args is True
+        Save the channel info and the default options
         if add_channels is False or None we copy over the Channels sections
         If add_channels is None we convert the channel info to the new form
         if add_channels is True we create a fresh channels section
@@ -1427,77 +2006,108 @@ class Configure:
             return False
 
         f.write(u'# encoding: utf-8\n')
+        f.write(u'# configversion: %s.%s\n' % (self.major, self.minor))
         f.write(u'\n')
 
         # Save the options
-        if with_args:
-            f.write(u'# This is a list with default options set by the --save-options (-O)\n')
-            f.write(u'# argument. They can be overruled on the commandline.\n')
-            f.write(u'# Be carefull with manually editing. Invalid options will be\n')
-            f.write(u'# silently ignored. Boolean options can be set with True/False,\n')
-            f.write(u'# On/Off or 1/0. Leaving it blank sets them on. Setting an invalid\n')
-            f.write(u'# value sets them off. You can always check the log for the used values.\n')
-            f.write(u'# To edit you beter run --save-options with all the desired defaults.\n')
-            f.write(u'# Options not shown here can not be set this way.\n')
+        f.write(u'# This is a list with default options set by the --save-options (-O)\n')
+        f.write(u'# argument. They can be overruled on the commandline.\n')
+        f.write(u'# !!THIS MUST COME FIRST BEFORE THE CHANNEL SECTIONS!!\n')
+        f.write(u'# !!OR SYSTEM DEFAULTS WILL BE USED INSTEAD!!\n')
+        f.write(u'# Be carefull with manually editing. Invalid options will be\n')
+        f.write(u'# silently ignored. Boolean options can be set with True/False,\n')
+        f.write(u'# On/Off or 1/0. Leaving it blank sets them on. Setting an invalid\n')
+        f.write(u'# value sets them off. You can always check the log for the used values.\n')
+        f.write(u'# To edit you beter run --save-options with all the desired defaults.\n')
+        f.write(u'# Options not shown here can not be set this way.\n')
+        f.write(u'\n')
+        f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[1])
+        if self.write_info_files:
+            f.write(u'write_info_files = True\n')
             f.write(u'\n')
-            f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[1])
-            if self.write_info_files:
-                f.write(u'write_info_files = True\n')
-                f.write(u'\n')
-            f.write(u'# This handles what goes to the log and screen\n')
-            f.write(u'# 0 Nothing (use quiet mode to turns off screen output, but keep a log)\n')
-            f.write(u'# 1 include Errors and Warnings\n')
-            f.write(u'# 2 include page fetches\n')
-            f.write(u'# 4 include (merge) summaries\n')
-            f.write(u'# 8 include detail fetches to the screen\n')
-            f.write(u'# 16 include detail fetches to the log\n')
-            f.write(u'# 32 include matchlogging (see below)\n')
-            f.write(u'# 64 Title renames\n')
-            f.write(u'log_level = %s\n' % self.log_level)
-            f.write(u'\n')
-            f.write(u'# What match results go to the log/screen (needs code 32 above)\n')
-            f.write(u'# 0 = Log Nothing (just the overview)\n')
-            f.write(u'# 1 = log not matched programs\n')
-            f.write(u'# 2 = log left over programs\n')
-            f.write(u'# 4 = Log matches\n')
-            f.write(u'match_log_level = %s\n' % self.match_log_level)
-            f.write(u'\n')
-            f.write(u'quiet = %s\n' % self.args.quiet)
-            f.write(u'output_file = %s\n' % self.args.output_file)
-            f.write(u'compat = %s\n' % self.args.compat)
-            f.write(u'logos = %s\n' % self.args.logos)
-            f.write(u'use_utc = %s\n' % self.args.use_utc)
-            f.write(u'fast = %s\n' % self.args.fast)
-            f.write(u'offset = %s\n' % self.args.offset)
-            f.write(u'days = %s\n' % self.args.days)
-            f.write(u'slowdays = %s\n' % self.args.slowdays)
-            f.write(u'rtldays = %s\n' % self.args.rtldays)
-            f.write(u'tevedays = %s\n' % self.args.tevedays)
-            f.write(u'mark_HD = %s\n' % self.args.mark_HD)
-            f.write(u'cattrans = %s\n' % self.args.cattrans)
-            f.write(u'overlap_strategy = %s\n' % self.args.overlap_strategy )
-            f.write(u'max_overlap = %s\n' % self.args.max_overlap)
-            f.write(u'desc_length = %s\n' % self.args.desc_length)
-            f.write(u'\n')
+        f.write(u'# This handles what goes to the log and screen\n')
+        f.write(u'# 0 Nothing (use quiet mode to turns off screen output, but keep a log)\n')
+        f.write(u'# 1 include Errors and Warnings\n')
+        f.write(u'# 2 include page fetches\n')
+        f.write(u'# 4 include (merge) summaries\n')
+        f.write(u'# 8 include detail fetches to the screen\n')
+        f.write(u'# 16 include detail fetches to the log\n')
+        f.write(u'# 32 include matchlogging (see below)\n')
+        f.write(u'# 64 Title renames\n')
+        f.write(u'log_level = %s\n' % self.opt_dict['log_level'])
+        f.write(u'\n')
+        f.write(u'# What match results go to the log/screen (needs code 32 above)\n')
+        f.write(u'# 0 = Log Nothing (just the overview)\n')
+        f.write(u'# 1 = log not matched programs\n')
+        f.write(u'# 2 = log left over programs\n')
+        f.write(u'# 4 = Log matches\n')
+        f.write(u'match_log_level = %s\n' % self.opt_dict['match_log_level'])
+        f.write(u'\n')
+        f.write(u'quiet = %s\n' % self.opt_dict['quiet'])
+        f.write(u'output_file = %s\n' % self.opt_dict['output_file'])
+        f.write(u'cache_save_interval = %s\n' % self.opt_dict['cache_save_interval'])
+        f.write(u'compat = %s\n' % self.opt_dict['compat'])
+        f.write(u'logos = %s\n' % self.opt_dict['logos'])
+        f.write(u'use_utc = %s\n' % self.opt_dict['use_utc'])
+        f.write(u'fast = %s\n' % self.opt_dict['fast'])
+        f.write(u'offset = %s\n' % self.opt_dict['offset'])
+        f.write(u'days = %s\n' % self.opt_dict['days'])
+        f.write(u'slowdays = %s\n' % self.opt_dict['slowdays'])
+        f.write(u'rtldays = %s\n' % self.opt_dict['rtldays'])
+        f.write(u'tevedays = %s\n' % self.opt_dict['tevedays'])
+        f.write(u'mark_hd = %s\n' % self.opt_dict['mark_hd'])
+        f.write(u'cattrans = %s\n' % self.opt_dict['cattrans'])
+        f.write(u'overlap_strategy = %s\n' % self.opt_dict['overlap_strategy'] )
+        f.write(u'max_overlap = %s\n' % self.opt_dict['max_overlap'])
+        f.write(u'desc_length = %s\n' % self.opt_dict['desc_length'])
+        f.write(u'\n')
 
         f.write(u'# These are the channels to parse. You can disable a channel by placing\n')
-        f.write(u'# a \'#\' in front. You can change the names to suit your own preferences.\n')
+        f.write(u'# a \'#\' in front. Seperated by \';\' you see on every line: The Name,\n')
+        f.write(u'# the group, the ID\'s from tvgids.nl, tvgids.tv, rtl.nl and teveblad.be\n')
+        f.write(u'# and finally the iconsource and name.\n')
+        f.write(u'# You can change the names to suit your own preferences or\n')
+        f.write(u'# A missing ID means the source doesn\'t supply the channel.\n')
+        f.write(u'# remove an ID to not fetch from that source, but keep the \';\'s in place.\n')
+        f.write(u'# Set iconsource to 99, to add your own full url.\n')
         f.write(u'\n')
-        f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[2])
+        f.write(u'# To specify further Channel settings you can add sections in the form of\n')
+        f.write(u'# [Channel <channelID>], where <channelID> is the first ID on the line, \n')
+        f.write(u'# (most of the times the nummeric tvgids.nl ID)\n')
+        f.write(u'# !!THEY MUST BE BELOW THE CONFIGURATION AND CHANNEL SECTIONS!!\n')
+        f.write(u'# You can use the following tags:\n')
+        f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
+        f.write(u'#   fast, compat, logos, cattrans, mark_hd, add_hd_id, append_tvgidstv\n')
+        f.write(u'#     append_tvgidstv is True by default, which means: \'Don\'t get data\n')
+        f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
+        f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
+        f.write(u'#     add_hd_id: if set to True will create two listings for the given channel.\n')
+        f.write(u'#     One normal on without HD tagging and one with \'-hd\' added to the ID\n')
+        f.write(u'#     and with the HD tags. This will overrule any setting of mark_hd\n')
+        f.write(u'# Integer values:\n')
+        f.write(u'#   slowdays, max_overlap, desc_length, prime_source, prefered_description\n')
+        f.write(u'#     prime_source (0-3) is the source whose timings are dominant\n')
+        f.write(u'#     It defaults to the first available source or 2 for rtl channels\n')
+        f.write(u'#     and 3 for group 2 and 8 (Flemmisch) channels\n')
+        f.write(u'#     prefered_description (0-3) is the source whose description, if present,\n')
+        f.write(u'#     is used. It defaults to the longest description found.\n')
+        f.write(u'# String values:\n')
+        f.write(u'#   overlap_strategy (With possible values): \n')
+        f.write(u'#     average, stop, start; everything else sets it to none\n')
+        f.write(u'\n')
+        f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
 
-        if add_channels == None or add_channels == False:
-            # just copy over the channels section
+        # just copy over the channels section
+        if add_channels == False and configversion == 2.1:
             fo = self.open_file(self.config_file + '.old')
             if fo == None or not self.check_encoding(fo):
                 # We cannot read the old config, so we create a new one
-                log('Error Opening the old config. Creating a new one.')
+                log('Error Opening the old config. Creating a new one.\n')
                 add_channels = True
+
             else:
                 fo.seek(0,0)
                 type = 0
-                if add_channels == None:
-                    # it's an old type config without sections
-                    type = 2
                 for byteline in fo.readlines():
                     line = self.get_line(fo, byteline, None)
                     try:
@@ -1511,7 +2121,18 @@ class Configure:
                                 if v == config_title.group(1):
                                     type = i
                                     continue
+
                             continue
+
+                        elif config_title != None and (config_title.group(1)[0:8] == 'Channel '):
+                            type = 9
+                            continue
+
+                        # Unknown Section header, so ignore
+                        if line[0:1] == '[':
+                            type = 0
+                            continue
+
 
                         if type > 1:
                             # We just copy everything except the old configuration (type = 1)
@@ -1524,9 +2145,300 @@ class Configure:
                 f.close()
                 return True
 
+        # This is an upgrade
+        if add_channels != True:
+            configlines = {}
+            configlines['2remarks'] = []
+            configlines['2'] = []
+            configlines['3remarks'] = []
+            configlines['3'] = []
+            # Get the old channels section to convert
+            fo = self.open_file(self.config_file + '.old')
+            if fo == None or not self.check_encoding(fo):
+                # We cannot read the old config, so we create a new one
+                log('Error Opening the old config. Creating a new one.\n')
+                self.get_channels()
+                add_channels = True
+
+            else:
+                fo.seek(0,0)
+                if self.configversion == 1.0:
+                    type = 2
+
+                else:
+                    type = 0
+
+                for byteline in fo.readlines():
+                    line = self.get_line(fo, byteline, None, self.encoding)
+                    try:
+                        if line == '# encoding: utf-8' or line[0:17] == '# configversion: ' or line == False:
+                            continue
+
+                        if self.configversion != 1.0:
+                            # Look for section headers
+                            config_title = re.search('\[(.*?)\]', line)
+                            if config_title != None and (config_title.group(1) in self.__CONFIG_SECTIONS__.values()):
+                                section = config_title.group(1)
+                                for i, v in self.__CONFIG_SECTIONS__.items():
+                                    if v == config_title.group(1):
+                                        type = i
+                                        continue
+
+                                continue
+
+                            elif config_title != None and (config_title.group(1)[0:8] == 'Channel '):
+                                section = config_title.group(1)
+                                type = 9
+                                chanid = config_title.group(1)[8:]
+                                configlines[chanid] = []
+                                continue
+
+                            # Unknown Section header, so ignore
+                            if line[0:1] == '[':
+                                type = 0
+                                continue
+
+                        if type == 2 and self.configversion <= 2.0:
+                            if line[0:1] == '#':
+                                configlines['2remarks'].append(line)
+
+                            else:
+                                configlines['2'].append(line)
+
+                        elif type == 3 and self.configversion > 2.0:
+                            if line[0:1] == '#':
+                                configlines['3remarks'].append(line)
+
+                            else:
+                                configlines['3'].append(line)
+
+                        elif type == 9 and self.configversion > 2.0:
+                            configlines[chanid].append(line)
+
+                    except:
+                        log('Error reading old config\n')
+                        continue
+
+                fo.close()
+
+                self.get_channels()
+                chan_added = []
+                chan_not_updated = []
+                chan_list = {}
+                for g in self.chan_groups.keys():
+                    chan_list[g] =[]
+
+                if self.configversion <= 2.0:
+                    for item in configlines['2']:
+                        chan = item.split(None, 1) # split on first whitespace
+                        if len(chan) != 2:
+                            chan_not_updated.append(u'# %s\n' % (item))
+                            continue
+
+                        if chan[0].strip() in self.channels.keys():
+                            chanid = chan[0].strip()
+                            chan_list[self.channels[chanid].group].append('%s;%s;%s;%s;%s;%s;%s;%s\n' % (\
+                                                                                                chan[1], \
+                                                                                                self.channels[chanid].group, \
+                                                                                                self.channels[chanid].source_id[0], \
+                                                                                                self.channels[chanid].source_id[1], \
+                                                                                                self.channels[chanid].source_id[2], \
+                                                                                                self.channels[chanid].source_id[3], \
+                                                                                                self.channels[chanid].icon_source, \
+                                                                                                self.channels[chanid].icon))
+                            chan_added.append(chanid)
+
+                        else:
+                            chan_not_updated.append(u'# %s\n' % (item))
+
+                    for item in configlines['2remarks']:
+                        chan = re.sub('#', '', item)
+                        chan = chan.split(None, 1) # split on first whitespace
+                        if len(chan) != 2:
+                            chan_not_updated.append(u'# %s\n' % (item))
+                            continue
+
+                        if chan[0].strip() in self.channels.keys():
+                            chanid = chan[0].strip()
+                            chan_list[self.channels[chanid].group].append('# %s;%s;%s;%s;%s;%s;%s;%s\n' % (\
+                                                                                                chan[1], \
+                                                                                                self.channels[chanid].group, \
+                                                                                                self.channels[chanid].source_id[0], \
+                                                                                                self.channels[chanid].source_id[1], \
+                                                                                                self.channels[chanid].source_id[2], \
+                                                                                                self.channels[chanid].source_id[3], \
+                                                                                                self.channels[chanid].icon_source, \
+                                                                                                self.channels[chanid].icon))
+                            chan_added.append(chanid)
+
+                        else:
+                            chan_not_updated.append(item + '\n')
+
+                if self.configversion > 2.0:
+                    for item in configlines['3']:
+                        chan = re.split(';', item)
+                        if len(chan) != 8:
+                            chan_not_updated.append(u'# %s\n' % (item))
+                            continue
+
+                        for channel in self.channels.values():
+                            if ((chan[2].strip() !='') and (chan[2].strip() == channel.source_id[0])) or \
+                              ((chan[3].strip() !='') and (chan[2].strip() == channel.source_id[1])) or \
+                              ((chan[4].strip() !='') and (chan[2].strip() == channel.source_id[2])) or \
+                              ((chan[5].strip() !='') and (chan[2].strip() == channel.source_id[3])):
+                                chan_list[chan[1]].append('%s;%s;%s;%s;%s;%s;%s;%s\n' % (chan[0], chan[1], \
+                                    channel.source_id[0], channel.source_id[1], channel.source_id[2], channel.source_id[3], chan[6], chan[7]))
+
+                                chan_added.append(channel.chanid)
+                                break
+
+                        else:
+                            chan_not_updated.append(u'# %s\n' % (item))
+
+                    for item in configlines['3remarks']:
+                        chan = re.sub('#', '', item)
+                        chan = re.split(';', chan)
+                        if len(chan) != 8:
+                            chan_not_updated.append(u'# %s\n' % (item))
+                            continue
+
+                        for channel in self.channels.values():
+                            if ((chan[2].strip() !='') and (chan[2].strip() == channel.source_id[0])) or \
+                              ((chan[3].strip() !='') and (chan[2].strip() == channel.source_id[1])) or \
+                              ((chan[4].strip() !='') and (chan[2].strip() == channel.source_id[2])) or \
+                              ((chan[5].strip() !='') and (chan[2].strip() == channel.source_id[3])):
+                                chan_list[chan[1]].append('# %s;%s;%s;%s;%s;%s;%s;%s\n' % (chan[0], chan[1], \
+                                    channel.source_id[0], channel.source_id[1], channel.source_id[2], channel.source_id[3], chan[6], chan[7]))
+
+                                chan_added.append(channel.chanid)
+                                break
+
+                        else:
+                            chan_not_updated.append(item+'\n')
+
+                del configlines['2']
+                del configlines['3']
+                del configlines['2remarks']
+                del configlines['3remarks']
+
+                for chanid in self.channels.keys():
+                    if not chanid in chan_added:
+                        chan_list[self.channels[chanid].group].append('# %s;%s;%s;%s;%s;%s;%s;%s\n' % (\
+                                                                                            self.channels[chanid].chan_name, \
+                                                                                            self.channels[chanid].group, \
+                                                                                            self.channels[chanid].source_id[0], \
+                                                                                            self.channels[chanid].source_id[1], \
+                                                                                            self.channels[chanid].source_id[2], \
+                                                                                            self.channels[chanid].source_id[3], \
+                                                                                            self.channels[chanid].icon_source, \
+                                                                                            self.channels[chanid].icon))
+
+                for g in self.chan_groups.keys():
+                    f.write('\n')
+                    f.write('# %s\n' % self.chan_groups[g])
+                    chan_list[g].sort()
+                    for channel in chan_list[g]:
+                        f.write( channel)
+
+                if len(chan_not_updated) > 0:
+                    f.write('\n')
+                    f.write('# Following are not converted lines!')
+                    for line in chan_not_updated:
+                        f.write(line)
+
+                # At a later config upgrade we here have to parse the type 9 sections
+
         if add_channels:
-            for i, v in self.channels.iteritems():
-                f.write('%s %s\n' % (i, v))
+            chan_list = {}
+            for g in self.chan_groups.keys():
+                chan_list[g] =[]
+
+            for channel in self.channels.values():
+                chan_string = '%s;%s;%s;%s;%s;%s;%s;%s\n' % (\
+                                        channel.chan_name, \
+                                        channel.group, \
+                                        channel.source_id[0], \
+                                        channel.source_id[1], \
+                                        channel.source_id[2], \
+                                        channel.source_id[3], \
+                                        channel.icon_source, \
+                                        channel.icon)
+
+                if channel.active:
+                    chan_list[channel.group].append(chan_string)
+
+                else:
+                    chan_list[channel.group].append('# %s' % chan_string)
+
+            for g in self.chan_groups.keys():
+                f.write('\n')
+                f.write('# %s\n' % self.chan_groups[g])
+                chan_list[g].sort()
+                for channel in chan_list[g]:
+                    f.write(channel)
+
+        f.write(u'\n')
+        f.write(u'# Channel specific settings other then the above or the default:\n')
+        for chan_def in self.channels.values():
+            chan_name_written = False
+            if not chan_def.opt_dict['append_tvgidstv']:
+                f.write(u'\n')
+                f.write(u'# %s\n' % (chan_def.chan_name))
+                f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                chan_name_written = True
+                f.write(u'append_tvgidstv = False\n')
+
+            for index in range(xml_output.source_count):
+                if chan_def.source_id[index] != '':
+                    if chan_def.opt_dict['prime_source'] != index:
+                        if not chan_name_written:
+                            f.write(u'\n')
+                            f.write(u'# %s\n' % (chan_def.chan_name))
+                            f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                            chan_name_written = True
+
+                        f.write(u'prime_source = %s\n' % ( chan_def.opt_dict['prime_source']))
+
+                    break
+
+            if chan_def.opt_dict['prefered_description'] != -1:
+                if chan_def.opt_dict['prefered_description'] in chan_def.source_id.keys() and chan_def.source_id[chan_def.opt_dict['prefered_description']] != '':
+                    if chan_def.opt_dict['prefered_description'] != index:
+                        if not chan_name_written:
+                            f.write(u'\n')
+                            f.write(u'# %s\n' % (chan_def.chan_name))
+                            f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                            chan_name_written = True
+
+                        f.write(u'prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']))
+
+            if chan_def.opt_dict['add_hd_id']:
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
+
+                f.write(u'add_hd_id = True\n')
+
+            if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
+
+                f.write(u'slowdays = %s\n' % (chan_def.opt_dict['slowdays']))
+
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd'):
+                if chan_def.opt_dict[val] != self.opt_dict[val]:
+                    if not chan_name_written:
+                        f.write(u'\n')
+                        f.write(u'# %s\n' % (chan_def.chan_name))
+                        f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                        chan_name_written = True
+
+                    f.write(u'%s = %s\n' % (val, chan_def.opt_dict[val]))
 
         f.close()
         return True
@@ -1695,11 +2607,26 @@ class Configure:
     # end write_defaults_list()
 
     def close(self):
-        # close everything neatly
+
         try:
             infofiles.close()
 
-            if self.output_file != None:
+        except:
+            log('\nAn unexpected error has occured closing infofiles: %s\n' %  (sys.exc_info()[1]), 0)
+
+        # Quiting any remaining Threads
+        for source in xml_output.channelsource.values():
+            source.quit = True
+
+        for channel in config.channels.values():
+            channel.quit = True
+
+        if xml_output.program_cache != None:
+            xml_output.program_cache.quit = True
+
+        # close everything neatly
+        try:
+            if self.opt_dict['output_file'] != None:
                 self.output.close()
 
             if self.log_output != None:
@@ -1772,22 +2699,22 @@ class InfoFiles:
 
         if config.write_info_files: self.detail_list.append(detail_data)
 
-    def write_fetch_list(self, programs, channel, source, ismerge = False):
+    def write_fetch_list(self, programs, chanid, source, ismerge = False):
 
         if (not config.write_info_files) or (self.fetch_list == None):
             return
 
-        if not channel in  self.fetch_strings:
-             self.fetch_strings[channel] = {}
+        if not chanid in  self.fetch_strings:
+             self.fetch_strings[chanid] = {}
 
-        if not source in  self.fetch_strings[channel]:
-            self.fetch_strings[channel][source] = ''
+        if not source in  self.fetch_strings[chanid]:
+            self.fetch_strings[chanid][source] = ''
 
         if ismerge:
-            self.fetch_strings[channel][source] += u'(%3.0f) merging channel: %s from: %s\n' % (len(programs), channel, source)
+            self.fetch_strings[chanid][source] += u'(%3.0f) merging channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
 
         else:
-            self.fetch_strings[channel][source] += u'(%3.0f) channel: %s from: %s\n' % (len(programs), config.channels[channel], source)
+            self.fetch_strings[chanid][source] += u'(%3.0f) channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
 
         programs.sort(key=lambda program: (program['start-time']))
 
@@ -1801,14 +2728,14 @@ class InfoFiles:
             else:
                 id = ''
 
-            self.fetch_strings[channel][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
+            self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
                             tdict['start-time'].strftime('%d %b %H:%M'), \
                             tdict['stop-time'].strftime('%H:%M'), \
                             id.rjust(15), tdict['genre'][0:10].rjust(10), \
                             tdict['name'], tdict['titel aflevering'], \
                             tdict['season'], tdict['episode'])
 
-        if ismerge: self.fetch_strings[channel][source] += u'#\n'
+        if ismerge: self.fetch_strings[chanid][source] += u'#\n'
 
     def write_xmloutput(self, xml):
 
@@ -1825,19 +2752,11 @@ class InfoFiles:
             return
 
         if self.fetch_list != None:
-            for id in config.channels.keys():
-
-                if tvgids_json.source in self.fetch_strings[id].keys():
-                    self.fetch_list.write(self.fetch_strings[id][tvgids_json.source])
-
-                if tvgidstv.source in self.fetch_strings[id].keys():
-                    self.fetch_list.write(self.fetch_strings[id][tvgidstv.source])
-
-                if teveblad.source in self.fetch_strings[id].keys():
-                    self.fetch_list.write(self.fetch_strings[id][teveblad.source])
-
-                if rtl_json.source in self.fetch_strings[id].keys():
-                    self.fetch_list.write(self.fetch_strings[id][rtl_json.source])
+            for chanid in config.channels.keys():
+                if chanid in self.fetch_strings:
+                    for source in xml_output.channelsource.values():
+                        if source.source in self.fetch_strings[chanid].keys():
+                            self.fetch_list.write(self.fetch_strings[chanid][source.source])
 
             self.fetch_list.close()
 
@@ -1846,10 +2765,10 @@ class InfoFiles:
 
         if len(self.detail_list) > 0:
             f = config.open_file(config.xmltv_dir+'/detail_output')
-            if (f != None) and config.check_encoding(f):
+            if (f != None):
                 f.seek(0,0)
                 for byteline in f.readlines():
-                    line = config.get_line(f, byteline)
+                    line = config.get_line(f, byteline, False)
                     if line:
                         self.detail_list.append(line)
 
@@ -1863,7 +2782,7 @@ class InfoFiles:
                 tmp_list.extend(ds)
                 tmp_list.sort()
                 for i in tmp_list:
-                    f.write(i + '\n')
+                    f.write(u'%s\n' % i)
 
                 f.close()
 
@@ -1873,7 +2792,7 @@ infofiles = InfoFiles()
 # Work in progress, the idea is to cache program categories and
 # descriptions to eliminate a lot of page fetches from tvgids.nl
 # for programs that do not have interesting/changing descriptions
-class ProgramCache:
+class ProgramCache(Thread):
     """
     A cache to hold program name and category info.
     TVgids stores the detail for each program on a separate URL with an
@@ -1882,6 +2801,7 @@ class ProgramCache:
     page fetch.
     """
     def __init__(self, filename=None):
+        Thread.__init__(self)
         """
         Create a new ProgramCache object, optionally from file
         """
@@ -1889,68 +2809,119 @@ class ProgramCache:
         # where we store our info
         self.filename  = filename
         self.delta_hour = datetime.timedelta(hours = 1)
+        self.lock = Lock()
+        self.quit = False
+        self.save = False
+        self.counter = 0
 
-        if filename == None:
+        if self.filename == None:
+            log('Cache function disabled!\n')
             self.pdict = {}
 
         else:
             if os.path.isfile(filename):
-                self.load(filename)
+                self.load()
+
+            elif not os.path.exists(os.path.dirname(filename)):
+                try:
+                    os.makedirs(os.path.dirname(filename), 0755)
+
+                except:
+                    log('Cache function disabled!\n')
+                    self.filename = None
+
+                self.pdict = {}
 
             else:
                 self.pdict = {}
 
-    def load(self, filename):
+    def run(self):
+        if self.filename == None:
+            return
+
+        while True:
+            if self.save:
+                self.dump()
+                self.save = False
+
+            if self.counter == config.opt_dict['cache_save_interval']:
+                self.dump()
+                self.counter = 0
+
+            if self.quit:
+                self.dump()
+                break
+
+    def load(self):
         """
         Loads a pickled cache dict from file
         """
+        self.lock.acquire()
         try:
-            self.pdict = pickle.load(open(filename,'r'))
+            self.pdict = pickle.load(open(self.filename,'r'))
 
         except Exception:
-            log('Error loading cache file: %s (possibly corrupt)' % filename)
+            log('Error loading cache file: %s (possibly corrupt)\n' % self.filename)
             self.clear()
 
-    def dump(self, filename):
+        self.lock.release()
+
+    def dump(self):
         """
         Dumps a pickled cache, and makes sure it is valid
         """
 
-        if os.access(filename, os.F_OK):
+        self.lock.acquire()
+        pdict_tmp = self.pdict.copy()
+        self.lock.release()
+
+        if os.access(self.filename, os.F_OK):
             try:
-                os.remove(filename)
+                os.rename(self.filename, self.filename + '.tmp')
 
             except Exception:
-                log('Cannot remove %s, check permissions' % filename)
+                log('Cannot rename %s, check permissions\n' % self.filename)
 
-        tmpfile = open(filename+'.tmp', 'w')
-        pickle.dump(self.pdict, tmpfile)
-
+        tmpfile = open(self.filename, 'w')
+        pickle.dump(pdict_tmp, tmpfile)
+        pdict_tmp = None
         try:
             tmpfile.close()
 
         except IOError:
             pass
 
-        os.rename(filename+'.tmp', filename)
+        if os.access(self.filename +'.tmp', os.F_OK):
+            try:
+                os.remove(self.filename +'.tmp')
+
+            except Exception:
+                log('Cannot remove %s, check permissions\n' % self.filename +'.tmp')
+
 
     def query(self, program_id):
         """
         Updates/gets/whatever.
         """
+        self.lock.acquire()
         if program_id in self.pdict.keys():
+            self.lock.release()
             return self.pdict[program_id]
 
+        self.lock.release()
         return None
 
     def query_id(self, program):
         """
         Check which ID is used
         """
+        self.lock.acquire()
         for id in self.ID_list:
             if program[id] != '' and program[id] != None and program[id] in self.pdict.keys():
+                self.lock.release()
                 return id
 
+        self.lock.release()
         return None
 
     def add(self, program):
@@ -1958,29 +2929,42 @@ class ProgramCache:
         Adds a program
         """
         # First check if it was previously saved to prevent doubles
+        if self.filename == None:
+            return
+
         id = self.query_id(program)
-        if id != None and id in program and program[id] in self.pdict:
+        self.lock.acquire()
+        if id != None and id in program and program[id] in self.pdict.keys():
             del self.pdict[program[id]]
 
         for id in self.ID_list:
             if program[id] != '' and program[id] != None:
                 self.pdict[program[id]] = program
+                self.counter+= 1
+                self.lock.release()
                 return
 
-        log('Error saving program %s to the cache.' %  program['name'])
+        self.lock.release()
+        log('Error saving program %s to the cache.\n' %  program['name'])
 
     def clear(self):
         """
         Clears the cache (i.e. empties it)
         """
+        self.lock.acquire()
         self.pdict = {}
+        self.lock.release()
 
     def clean(self):
         """
         Removes all cached programming before today.
         Also removes erroneously cached programming.
         """
+        if self.filename == None:
+            return
+
         dnow = datetime.date.today()
+        self.lock.acquire()
         for key in self.pdict.keys():
             try:
                 p = self.pdict[key]
@@ -1994,23 +2978,9 @@ class ProgramCache:
             except LookupError:
                 continue
 
+        self.lock.release()
+
 # end ProgramCache
-
-def find_html_encoding(httphead, htmlhead):
-    # look for the text '<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />'
-    # in the first 600 bytes of the HTTP page
-    m = re.search(r'<meta[^>]+\bcharset=["\']?([A-Za-z0-9\-]+)\b', htmlhead[:512].decode('ascii', 'ignore'))
-    if m:
-        return m.group(1)
-
-    # Find a HTTP header: Content-Type: text/html; charset=UTF-8
-    m = re.search(r'\bcharset=([A-Za-z0-9\-]+)\b', httphead.info().getheader('Content-Type'))
-    if m:
-        return m.group(1)
-
-    return 'iso-8859-1' # the default HTTP encoding.
-
-# end find_html_encoding()
 
 class FetchURL(Thread):
     """
@@ -2023,7 +2993,26 @@ class FetchURL(Thread):
         self.encoding = encoding
 
     def run(self):
-        self.result = self.get_page_internal(self.url, self.encoding)
+        try:
+            self.result = self.get_page_internal(self.url, self.encoding)
+
+        except:
+            log('An unexpected error "%s" has occured while fetching page: %s\n' %  (sys.exc_info()[1], self.url), 0)
+            return None
+
+    def find_html_encoding(self, httphead, htmlhead):
+        # look for the text '<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />'
+        # in the first 600 bytes of the HTTP page
+        m = re.search(r'<meta[^>]+\bcharset=["\']?([A-Za-z0-9\-]+)\b', htmlhead[:512].decode('ascii', 'ignore'))
+        if m:
+            return m.group(1)
+
+        # Find a HTTP header: Content-Type: text/html; charset=UTF-8
+        m = re.search(r'\bcharset=([A-Za-z0-9\-]+)\b', httphead.info().getheader('Content-Type'))
+        if m:
+            return m.group(1)
+
+        return 'iso-8859-1' # the default HTTP encoding.
 
     def get_page_internal(self, url, encoding = "default encoding"):
         """
@@ -2042,7 +3031,7 @@ class FetchURL(Thread):
             page = None
 
             try:
-                encoding = find_html_encoding(fp, bytes)
+                encoding = self.find_html_encoding(fp, bytes)
                 # log ('parse %s as %s' % (url, encoding))
                 page = bytes.decode(encoding, 'replace')
 
@@ -2063,66 +3052,6 @@ class FetchURL(Thread):
 
 # end FetchURL
 
-def get_page(url, encoding = "default encoding"):
-    """
-    Wrapper around get_page_internal to catch the
-    timeout exception
-    """
-    try:
-        fu = FetchURL(url, encoding)
-        fu.start()
-        fu.join(config.global_timeout)
-        page = fu.result
-        if (page == None) or (page.replace('\n','') == '') or (page.replace('\n','') =='{}'):
-            return None
-
-        else:
-            return page
-
-    except Exception:
-        log('get_page timed out on (>%s s): %s\n' % (config.global_timeout, url), 1, 1)
-        return None
-
-# end get_page()
-
-# Removes HTML or XML character references and entities from a text string.
-# source: http://effbot.org/zone/re-sub.htm#unescape-html
-#
-# @param text The HTML (or XML) source text.
-# @return The plain text, as a Unicode string
-
-def unescape(text):
-    def fixup(m):
-        text = m.group(0)
-        if text[:2] == "&#":
-            # character reference
-            try:
-                if text[:3] == "&#x":
-                    return unichr(int(text[3:-1], 16))
-
-                else:
-                    return unichr(int(text[2:-1]))
-
-            except ValueError:
-                pass
-
-        else:
-            # named entity
-            try:
-                text = unichr(name2codepoint[text[1:-1]])
-
-            except KeyError:
-                pass
-
-        return text # leave as is
-
-    text = re.sub("", "...", text)
-    text = re.sub("", "'", text)
-    text = re.sub("", "'", text)
-    return re.sub("&#?\w+;", fixup, text)
-
-# end unescape()
-
 class FetchData(Thread):
     """
     Generic Class to fetch the data
@@ -2134,14 +3063,23 @@ class FetchData(Thread):
     """
     current_date = datetime.date.today().toordinal()
 
-    def __init__(self):
+    def __init__(self, proc_id, source, detail_id, detail_url = '', isjson = False, detail_check = '', detail_processor = False):
         Thread.__init__(self)
-        self.isjson = True
-        self.source = ''
-        self.detail_id = ''
-        self.detail_url = ''
-        self.detail_check = ''
-        self.make_dominant = []
+        # Flag to stop the thread
+        self.quit = False
+        self.ready = False
+        self.isjson = isjson
+        # The ID of the source
+        self.proc_id = proc_id
+        # The Name of the source
+        self.source = source
+        # The dict name of the details etc.
+        self.detail_id = detail_id
+        self.detail_url = detail_url
+        self.detail_check = detail_check
+        self.detail_processor = detail_processor
+        self.detail_queue = deque()
+
         self.all_channels = {}
         self.channels = {}
         self.channel_loaded = {}
@@ -2154,18 +3092,19 @@ class FetchData(Thread):
         """The grabing thread"""
         # First some generic initiation that couldn't be done earlier in __init__
         # Specifics can be done in init_channels and init_json which are called here
+        tdict = self.checkout_program_dict()
         try:
             self.day_loaded[0] = {}
-            for day in range( config.args.offset, (config.args.offset + config.args.days)):
+            for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
                 self.day_loaded[0][day] = False
 
-            for id in config.channels.keys():
-                self.channel_loaded[id] = False
-                self.day_loaded[id] ={}
-                for day in range( config.args.offset, (config.args.offset + config.args.days)):
-                    self.day_loaded[id][day] = False
+            for chanid in config.channels.keys():
+                self.channel_loaded[chanid] = False
+                self.day_loaded[chanid] ={}
+                for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
+                    self.day_loaded[chanid][day] = False
 
-                self.program_data[id] = []
+                self.program_data[chanid] = []
 
             self.init_channels()
             if not self.source in config.sources.keys():
@@ -2175,12 +3114,126 @@ class FetchData(Thread):
                 config.detail_ids.append(self.detail_id)
 
             self.init_json()
-            self.load_pages()
+            # Load and proccess al the program pages
+            try:
+                self.load_pages()
+
+            except:
+                log('Fatal Error: %s processing the basepages from: %s\n' % (sys.exc_info()[1], self.source), 0)
+                log('Setting them all to being loaded, to let the other sources finish the job\n', 0)
+                for chanid in self.channels.keys():
+                    self.channel_loaded[chanid] = True
+                    config.channels[chanid].source_data[self.proc_id] = True
+
+            # if this is the prefered description source set the value
+            for chanid in self.channels.keys():
+                if config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
+                    for i in range(len(self.program_data[chanid])):
+                        self.program_data[chanid][i]['prefered description'] = self.program_data[chanid][i]['description']
+
+            if self.detail_processor:
+                # We process detail requests, so we loop till we are finished
+                while True:
+                    if self.quit:
+                        self.ready = True
+                        break
+
+                    # be nice to the source site
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+                    # Check if all channels are ready
+                    for channel in config.channels.values():
+                        if channel.active and not channel.ready:
+                            break
+
+                    else:
+                        # All channels are ready, so if there is nothing in the queue
+                        if len(self.detail_queue) == 0:
+                            # if we are tvgids.tv we wait for followup requests from tvgids.nl failures
+                            if (self.proc_id == 1) and (not xml_output.channelsource[0].ready):
+                                continue
+
+                            self.ready = True
+                            break
+
+                    if len(self.detail_queue) == 0:
+                        continue
+
+                    tdict = self.detail_queue.popleft()
+                    cache_id = tdict['cache_id']
+                    logstring = tdict['logstring']
+                    parent = tdict['parent']
+                    tdict = tdict['tdict']
+                    chanid = tdict['channelid']
+                    try:
+                        detailed_program = self.load_detailpage(tdict)
+
+                    except:
+                        detailed_program = None
+                        log('Error processing the detailpage: %s\n' % (tdict[self.detail_url]), 1)
+
+                    # It failed! If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the json page and if that failes the cache again
+                    if detailed_program == None and (self.proc_id == 0):
+                        try:
+                            detailed_program = self.load_json_detailpage(tdict)
+
+                        except:
+                            detailed_program = None
+                            log('Error processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\n' % tdict[self.detail_id][3:], 1)
+
+                    if detailed_program == None:
+                        if (self.proc_id == 0) and (cache_id != None):
+                            cached_program = xml_output.program_cache.query(tdict[cache_id])
+                            if cached_program[xml_output.channelsource[1].detail_check]:
+                                log(u'      [cached] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+                                tdict= config.channels[chanid].use_cache(tdict, cached_program)
+                                config.channels[chanid].all_programs.append(tdict)
+                                config.channels[chanid].fetch_count[self.proc_id] -= 1
+                                config.channels[chanid].cache_count += 1
+                                continue
+
+                            elif programs[i][xml_output.channelsource[1].detail_url] != '':
+                                xml_output.channelsource[1].detail_queue.append({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent})
+                                config.channels[chanid].fetch_count[self.proc_id] -= 1
+                                config.channels[chanid].fetch_count[1] += 1
+                                continue
+
+                        else:
+                            log(u'[fetch failed or timed out] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+                            config.channels[chanid].all_programs.append(tdict)
+                            config.channels[chanid].fetch_count[self.proc_id] -= 1
+                            config.channels[chanid].fail_count += 1
+                            continue
+
+                    else:
+                        # If this is the prefered description source for this channel, set its value
+                        if config.channels[detailed_program['channelid']].opt_dict['prefered_description'] == self.proc_id:
+                            detailed_program['prefered description'] = detailed_program['description']
+
+                        detailed_program[xml_output.channelsource[self.proc_id].detail_check] = True
+                        detailed_program['ID'] = detailed_program[xml_output.channelsource[self.proc_id].detail_id]
+                        parent.all_programs.append(detailed_program)
+                        if self.proc_id == 0:
+                            log(u'[normal fetch] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+
+                        elif self.proc_id == 1:
+                            log(u'   [.tv fetch] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+
+                        config.channels[chanid].fetch_count[self.proc_id] -= 1
+                        config.channels[chanid].fetched_count[self.proc_id] += 1
+
+                        # do not cache programming that is unknown at the time of fetching.
+                        if tdict['name'].lower() != 'onbekend':
+                            xml_output.program_cache.add(xml_output.channelsource[0].checkout_program_dict(detailed_program))
+
+            else:
+                self.ready = True
 
         except:
             err_obj = sys.exc_info()[2]
-            log('\nAn unexpected error has occured in the %s thread\n' %  (self.source), 0)
-            log('                                at line: %s, %s: %s\n' %  (self.source, err_obj.tb_lineno, err_obj.tb_lasti, sys.exc_info()[1]), 0)
+            log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
+            log('The current detail url is: %s\n' % (tdict[self.detail_url]), 0)
+            log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
             while True:
                 err_obj = err_obj.tb_next
@@ -2190,6 +3243,15 @@ class FetchData(Thread):
                 log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
             log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+
+            self.ready = True
+            for source in xml_output.channelsource.values():
+                source.quit = True
+
+            for channel in config.channels.values():
+                channel.quit = True
+
+            xml_output.program_cache.quit = True
             return(98)
 
     # Dummys to be filled in by the sub-Classes
@@ -2222,7 +3284,7 @@ class FetchData(Thread):
         if len(self.channels) == 0 :
             return
 
-    def load_detailpage(self, tdict, logstring):
+    def load_detailpage(self, tdict):
         """The code for retreiving and processing a detail page"""
         return tdict
 
@@ -2284,7 +3346,7 @@ class FetchData(Thread):
         #       blackwhite                hd
 
 
-        text_values = ('source', 'channel', 'unixtime', \
+        text_values = ('source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
               'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio')
@@ -2292,7 +3354,7 @@ class FetchData(Thread):
         bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst')
         num_values = ('channelid', 'season', 'episode', 'offset')
         dict_values = ('credits', 'video')
-        video_values = ('present', 'HD', 'breedbeeld', 'blackwhite')
+        video_values = ('HD', 'breedbeeld', 'blackwhite')
 
         if tdict == None:
             tdict = {}
@@ -2345,9 +3407,65 @@ class FetchData(Thread):
 
         return tdict
 
+    def get_page(self, url, encoding = "default encoding"):
+        """
+        Wrapper around get_page_internal to catch the
+        timeout exception
+        """
+        try:
+            fu = FetchURL(url, encoding)
+            fu.start()
+            fu.join(config.global_timeout)
+            page = fu.result
+            if (page == None) or (page.replace('\n','') == '') or (page.replace('\n','') =='{}'):
+                return None
+
+            else:
+                return page
+
+        except Exception:
+            log('get_page timed out on (>%s s): %s\n' % (config.global_timeout, url), 1, 1)
+            return None
+
+    def unescape(self, text):
+        # Removes HTML or XML character references and entities from a text string.
+        # source: http://effbot.org/zone/re-sub.htm#unescape-html
+        #
+        # @param text The HTML (or XML) source text.
+        # @return The plain text, as a Unicode string
+
+        def fixup(m):
+            text = m.group(0)
+            if text[:2] == "&#":
+                # character reference
+                try:
+                    if text[:3] == "&#x":
+                        return unichr(int(text[3:-1], 16))
+
+                    else:
+                        return unichr(int(text[2:-1]))
+
+                except ValueError:
+                    pass
+
+            else:
+                # named entity
+                try:
+                    text = unichr(name2codepoint[text[1:-1]])
+
+                except KeyError:
+                    pass
+
+            return text # leave as is
+
+        text = re.sub("", "...", text)
+        text = re.sub("", "'", text)
+        text = re.sub("", "'", text)
+        return re.sub("&#?\w+;", fixup, text)
+
     def clean_html(self, data):
         """Process characters that interfere with ElementTree processing"""
-        data = unescape(data)
+        data = self.unescape(data)
         data = re.sub('&raquo<', '<', data)
         data = re.sub('&', ' emprsant ', data)
         return data
@@ -2361,29 +3479,29 @@ class FetchData(Thread):
 
         return re.sub(' emprsant ', '&', data)
 
-    def add_endtimes(self, id, date_switch = 6):
+    def add_endtimes(self, chanid, date_switch = 6):
         """
         For the sites that only give start times, add the next starttime as endtime
         date_switch is the time we asume the last program will end if started before that time
         else  we assume next midnight
         """
-        if len(self.program_data[id]) > 0:
-            for i, tdict in enumerate(self.program_data[id]):
+        if len(self.program_data[chanid]) > 0:
+            for i, tdict in enumerate(self.program_data[chanid]):
                 if i > 0:
-                     self.program_data[id][i-1]['stop-time'] =  tdict['start-time']
+                     self.program_data[chanid][i-1]['stop-time'] =  tdict['start-time']
 
             # And one for the last program
-            prog_date = datetime.date.fromordinal(self.current_date + self.program_data[id][-1]['offset'])
-            if int(self.program_data[id][-1]['start-time'].strftime('%H')) < date_switch:
-                self.program_data[id][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(date_switch, 0,0 ,0 ,CET_CEST))
+            prog_date = datetime.date.fromordinal(self.current_date + self.program_data[chanid][-1]['offset'])
+            if int(self.program_data[chanid][-1]['start-time'].strftime('%H')) < date_switch:
+                self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(date_switch, 0,0 ,0 ,CET_CEST))
 
             else:
-                self.program_data[id][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(23, 59,0 ,0 ,CET_CEST))
+                self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(23, 59,0 ,0 ,CET_CEST))
 
             # remove programs that end when they start
-            for tdict in self.program_data[id][:]:
+            for tdict in self.program_data[chanid][:]:
                 if tdict['start-time'] == tdict['stop-time']:
-                    self.program_data[id].remove(tdict)
+                    self.program_data[chanid].remove(tdict)
 
     def get_offset(self, date):
         """Return the offset from today"""
@@ -2404,9 +3522,11 @@ class FetchData(Thread):
             if (len(ptitle) > len(group) + 3) and (ptitle[0:len(group)].lower() == group):
                 p = ptitle.split(':')
                 if len(p) >1:
-                   log('Removing \"%s\" from \"%s\"\n' %  (group, ptitle), 64)
-                   infofiles.addto_detail_list(unicode('Group removing = \"%s\" from \"%s\"' %  (group, ptitle)))
-                   ptitle = "".join(p[1:]).strip()
+                    log('Removing \"%s\" from \"%s\"\n' %  (group, ptitle), 64)
+                    if config.write_info_files:
+                        infofiles.addto_detail_list(unicode('Group removing = \"%s\" from \"%s\"' %  (group, ptitle)))
+
+                    ptitle = "".join(p[1:]).strip()
 
         # Fixing subtitle both named and added to the title
         if ptitle.lower() == psubtitle.lower() and program['genre'] != 'serie/soap':
@@ -2421,40 +3541,13 @@ class FetchData(Thread):
         # Check the Title rename list
         if ptitle.lower() in config.titlerename:
             log('Renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()]), 64)
+            if config.write_info_files:
+                infofiles.addto_detail_list(unicode('Title renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()])))
+
             ptitle = config.titlerename[ptitle.lower()]
 
         program['name'] = ptitle
         program['titel aflevering'] = psubtitle
-        return program
-
-    def title_split(self,program):
-        """
-        Some channels have the annoying habit of adding the subtitle to the title of a program.
-        This function attempts to fix this, by splitting the name at a ': '.
-        """
-        # Some programs (BBC3 when this happened) have no genre. If none, then set to a default
-        if program['genre'] is None:
-            program['genre'] = 'overige';
-
-        ptitle = program['name']
-        psubtitle = program['titel aflevering']
-        if  ptitle == None or ptitle == '':
-            return program
-
-        # exclude certain programs
-        if  ('titel aflevering' in program and psubtitle != '')  \
-          or ('genre' in program and program['genre'].lower() in ['movies','film']) \
-          or (ptitle.lower() in config.notitlesplit):
-            return program
-
-        # and do the title split test
-        p = ptitle.split(':')
-        if len(p) >1:
-            log('Splitting title \"%s\"\n' %  ptitle, 64)
-            program['name'] = p[0].strip()
-            program['titel aflevering'] = "".join(p[1:]).strip()
-            infofiles.addto_detail_list(unicode('Name split = %s + %s' % (program['name'] , program['titel aflevering'])))
-
         return program
 
     def filter_description(self,ETitem, ETfind, tdict):
@@ -2483,7 +3576,8 @@ class FetchData(Thread):
 
             else:
                 atype[pcount] = self.empersant(p.get('class')).strip()
-                infofiles.addto_detail_list(u'%s descriptionattribute => class: %s' % (self.source, p.get('class').strip()))
+                if config.write_info_files:
+                    infofiles.addto_detail_list(u'%s descriptionattribute => class: %s' % (self.source, p.get('class').strip()))
 
             content = ''
             # Add the alinea text
@@ -2492,7 +3586,11 @@ class FetchData(Thread):
 
             # Check for further tags like <i>talic and their following text
             for d in list(p.iter()):
-                if d.tag in ('br', 'img'):
+                if d.tag == 'span' and atype[pcount] == 'summary':
+                    # On tvgids.nl, this is the genre
+                    pass
+
+                elif d.tag in ('br', 'img'):
                     # Linebreaks don't contain text and images we ignore and don't count
                     # But we want the tail text
                     pass
@@ -2511,14 +3609,15 @@ class FetchData(Thread):
                             aheader[pcount] = u''
                             content = content + format_text(d.text) + u' '
 
-                    elif d.tag in ('i', 'em', 'a'):
+                    elif d.tag in ('i', 'em', 'a', 'b'):
                         content = content + format_text(d.text) + u' '
 
                     else:
                         # Unknown tag we just check for text
                         content = content + format_text(d.text) + u' '
-                        infofiles.addto_detail_list(unicode('new tvgids.nl descriptiontag => ' + \
-                                                unicode(d.tag.strip()) + ': ' + unicode(d.text.strip())))
+                        if config.write_info_files:
+                            infofiles.addto_detail_list(unicode('new '+ self.source+' descriptiontag => ' + \
+                                                    unicode(d.tag.strip()) + ': ' + unicode(d.text.strip())))
 
                 # and we add the text inbetween the tags
                 if (d.tail != None) and d.tail != '' :
@@ -2579,7 +3678,8 @@ class FetchData(Thread):
 
                         strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
                                                     '" name="' + tdict['name'] + '">\n' + strdesc + '  </div>'
-                        infofiles.addto_raw_string(strdesc)
+                        if config.write_info_files:
+                            infofiles.addto_raw_string(strdesc)
 
             # We check to not ovrwrite an already present longer description
             if description > tdict['description']:
@@ -2601,7 +3701,7 @@ class FetchData(Thread):
             return None
 
         if item in self.json_by_id[id].keys():
-            return unescape(self.json_by_id[id][item])
+            return self.unescape(self.json_by_id[id][item])
 
         if item in self.jsondata.keys():
             tdict = self.jsondata[item]
@@ -2609,42 +3709,42 @@ class FetchData(Thread):
                 key =self.json_by_id[id][tdict['keyname']]
                 if key in self.jsondict[tdict['listname']] and \
                   tdict['valuename'] in self.jsondict[tdict['listname']][key]:
-                    return unescape(self.jsondict[tdict['listname']][key][tdict['valuename']])
+                    return self.unescape(self.jsondict[tdict['listname']][key][tdict['valuename']])
 
-    def get_programcount(self, id = 0, offset = None):
+    def get_programcount(self, chanid = 0, offset = None):
         """Return the programcount for given channel id and Offset"""
-        if not id in self.channels.keys():
+        if not chanid in self.channels.keys():
             return 0
 
-        if not self.channel_loaded[id]:
+        if not self.channel_loaded[chanid]:
             return 0
 
         if offset == None:
-            if id == 0:
+            if chanid == 0:
                 count = 0
 
             else:
-                return len(self.program_data[id])
+                return len(self.program_data[chanid])
 
-        if not self.day_loaded[id][offset]:
+        if not self.day_loaded[chanid][offset]:
             return 0
 
         pcount = 0
-        for tdict in self.program_data[id]:
+        for tdict in self.program_data[chanid]:
             if tdict['offset'] == offset:
                 pcount += 1
 
         return pcount
 
-    def get_channel(self, id):
+    def get_channel(self, chanid):
         """Return program_data for given channel"""
-        if not id in self.channels.keys():
+        if not chanid in self.channels.keys():
             return []
 
-        if not self.channel_loaded[id]:
+        if not self.channel_loaded[chanid]:
             return []
 
-        return self.program_data[id]
+        return self.program_data[chanid]
 
     def get_program(self, id):
         """Return program data for given program id"""
@@ -2664,48 +3764,22 @@ class FetchData(Thread):
             return None
 
     # Filter/merge processes
-    def merge_data(self, fetch_details = False):
-        """
-        Top process for merging source data into main data
-        """
-        for id in self.channels.keys():
-            if self.get_programcount(id) > 0:
-                self.merge_sources(id, (id in self.make_dominant))
-                self.parse_programs(id, 1, 'None')
-                for i in range(0, len(xml_output.all_programs[id])):
-                    xml_output.all_programs[id][i] = self.checkout_program_dict(xml_output.all_programs[id][i])
-
-    def prepare_output(self):
-        """
-        The last things to do with the data before creating xml output
-        """
-        for id in config.channels.keys():
-            # a final check on the sanity of the data
-            self.parse_programs(id, 1)
-
-            # Split titles with colon in it
-            # Note: this only takes place if all days retrieved are also grabbed with details (slowdays=days)
-            # otherwise this function might change some titles after a few grabs and thus may result in
-            # loss of programmed recordings for these programs.
-            for i, v in enumerate(xml_output.all_programs[id]):
-                xml_output.all_programs[id][i] = self.title_split(v)
-
-    def parse_programs(self, id, mode = 0, overlap_strategy = None):
+    def parse_programs(self, chanid, mode = 0, overlap_strategy = None):
         """
         Parse a list of programs as generated by parser and
         adjust begin and end times to avoid gaps and overlap.
         Depending on the mode either:
-        it's own data 'self.program_data[id]' (mode = 0) or
-        the finally joined data 'xml_output.all_programs[id]' (mode = 1) is parsed.
+        it's own data 'self.program_data[chanid]' (mode = 0) or
+        the finally joined data 'config.channels[chanid].all_programs' (mode = 1) is parsed.
         Not setting the overlap_strategy will use the configured default.
         For inbetween parsing you best set it to 'None'
         """
 
         if mode == 0:
-            programs = self.program_data[id]
+            programs = self.program_data[chanid]
 
         elif mode == 1:
-            programs = xml_output.all_programs[id]
+            programs = config.channels[chanid].all_programs
 
         else:
             return
@@ -2723,7 +3797,7 @@ class FetchData(Thread):
         # sort all programs by startdate, enddate
         programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
         if overlap_strategy == None:
-            overlap_strategy = config.args.overlap_strategy
+            overlap_strategy = config.channels[chanid].opt_dict['overlap_strategy']
 
         # next, correct for missing end time and copy over all good programming to the
         # good_programs list
@@ -2792,7 +3866,7 @@ class FetchData(Thread):
                 overlap = 24*60*60*dt.days + dt.seconds
 
                 # check for the size of the overlap
-                if 0 < abs(overlap) <= config.args.max_overlap*60:
+                if 0 < abs(overlap) <= config.channels[chanid].opt_dict['max_overlap']*60:
                     if overlap > 0:
                         log('"%s" and "%s" overlap %s minutes. Adjusting times.\n' % \
                             (good_programs[i]['name'],good_programs[i+1]['name'],overlap // 60), 64)
@@ -2834,7 +3908,7 @@ class FetchData(Thread):
                 l0 = length0.days*24*60*60 + length0.seconds
                 l1 = length1.days*24*60*60 + length0.seconds
 
-                if abs(overlap) >= config.args.max_overlap*60 <= min(l0,l1)*60 and \
+                if abs(overlap) >= config.channels[chanid].opt_dict['max_overlap']*60 <= min(l0,l1)*60 and \
                     'clumpidx' not in good_programs[i]   and \
                     'clumpidx' not in good_programs[i+1]:
                     good_programs[i]['clumpidx']   = '0/2'
@@ -2845,11 +3919,11 @@ class FetchData(Thread):
 
         # done, nothing to see here, please move on
         if mode == 0:
-            self.program_data[id] = good_programs
+            self.program_data[chanid] = good_programs
         elif mode == 1:
-            xml_output.all_programs[id] = good_programs
+            config.channels[chanid].all_programs = good_programs
 
-    def merge_sources(self, id, other_is_dominant = False):
+    def merge_sources(self, chanid, other_is_dominant = False, counter = 0):
         """
         Try to match the source channel info into the tvgids.nl. For all channels except the RTL channels
         tvgids.nl is the dominant source. It provides the ID', and the best genre info, but only
@@ -2861,21 +3935,18 @@ class FetchData(Thread):
         the dutch commercial channels. For the Belgium channels we let them be dominant.
         """
 
-        if (not id in self.program_data):
-            self.program_data[id] = []
+        if (not chanid in self.program_data):
+            self.program_data[chanid] = []
 
-        if not id in xml_output.all_programs:
-            xml_output.all_programs[id] = []
-
-        if (len(self.program_data[id]) == 0):
+        if (len(self.program_data[chanid]) == 0):
             return
 
-        if len(xml_output.all_programs[id]) == 0:
-            xml_output.all_programs[id] = self.program_data[id]
+        if len(config.channels[chanid].all_programs) == 0:
+            config.channels[chanid].all_programs = self.program_data[chanid]
             return
 
-        programs = self.program_data[id]
-        info = xml_output.all_programs[id]
+        programs = self.program_data[chanid]
+        info = config.channels[chanid].all_programs
 
         # 0 = Log Nothing
         # 1 = log not matched programs
@@ -2883,16 +3954,16 @@ class FetchData(Thread):
         # 4 = Log All
 
         def matchlog(matchstr, other_prog, tvgids_prog = None, mode = 1):
-            if not (mode & config.match_log_level):
+            if not (mode & config.opt_dict['match_log_level']):
                 return
 
             if tvgids_prog == None:
                 log(u'%s: %s: %s: %s Genre: %s.\n' % \
-                        (matchstr.rjust(20), config.channels[id], other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'], \
+                        (matchstr.rjust(20), config.channels[chanid].chan_name, other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'], \
                         other_prog['genre']), 32)
             else:
                 log(u'%s: %s: %s: %s.\n%s%s: %s.\n' % \
-                        (matchstr.rjust(12), config.channels[id],  other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'] , \
+                        (matchstr.rjust(12), config.channels[chanid].chan_name,  other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'] , \
                         'to tvgids.nl: '.rjust(22 + len(other_prog['channel'])), tvgids_prog['start-time'].strftime('%d %b %H:%M'), \
                         tvgids_prog['name']), 32)
         # end matchlog()
@@ -2936,7 +4007,9 @@ class FetchData(Thread):
             elif genre == 'kunst & cultuur':
                 return 'kunst en cultuur'
 
-            infofiles.addto_detail_list(unicode('unknown merge genre => ' + other_genre))
+            if config.write_info_files:
+                infofiles.addto_detail_list(unicode('unknown merge genre => ' + other_genre))
+
             return ('overige', '')
         # end get_tvgids_genre()
 
@@ -2944,7 +4017,7 @@ class FetchData(Thread):
             # Some renaming to cover diferences between the sources
             mname = name.lower()
             if self.source == 'tvgidstv':
-                if id in (1, 2, 3):
+                if chanid in ('1', '2', '3'):
                     if mname == 'nos-journaal':
                         return 'NOS Journaal'
 
@@ -2952,27 +4025,27 @@ class FetchData(Thread):
                         return 'Tekst-TV'
 
             elif self.source == 'teveblad':
-                if id in (1, 2):
+                if chanid in ('1', '2'):
                     if mname == 'nieuws':
                         return 'NOS Journaal'
 
                     if mname == 'tekst tv':
                         return 'Tekst-TV'
 
-                elif id == 3:
+                elif chanid == '3':
                     if mname == 'nieuws':
                         return 'NOS op 3'
 
                     if mname == 'tekst tv':
                         return 'Tekst-TV'
 
-                elif id == 5:
+                elif chanid == '5':
                     pass
 
-                elif id == 6:
+                elif chanid == '6':
                     pass
 
-                elif id in (7, 8):
+                elif chanid in ('7', '8'):
                     if mname == 'nieuws':
                         return 'BBC News'
                         #~ return 'Regional News and Weather'
@@ -2980,7 +4053,7 @@ class FetchData(Thread):
                     if mname == 'het weer':
                         return 'Regional News and Weather'
 
-                elif id == 9:
+                elif chanid == '9':
                     if mname == 'nieuws':
                         return 'Tagesschau'
 
@@ -2997,37 +4070,37 @@ class FetchData(Thread):
             """
             def rename_to_tvgids_name(name):
                 if self.source == 'tvgidstv':
-                    if id in (1, 2, 3):
+                    if chanid in ('1', '2', '3'):
                         if name[0:4] == 'nos-':
                             return 'nos ' + name[4:]
                         #~ if name = 'vandaag de dag':
 
                 if self.source == 'rtl':
-                    if id == 4:
+                    if chanid == '4':
                         if 'name' == 'weddingplanner':
                             return 'the wedding planner'
 
-                    elif id == 31:
+                    elif chanid == '31':
                         pass
 
-                    elif id == 46:
+                    elif chanid == '46':
                         pass
 
-                    elif id == 92:
+                    elif chanid == '92':
                         if 'name' == 'koala broertjes':
                             return 'de koalabroertjes'
 
-                    elif id == 408:
+                    elif chanid == '408':
                         pass
 
-                    elif id == 409:
+                    elif chanid == '409':
                         pass
 
-                    elif id == 'RTLT':
+                    elif chanid == 'rtl-telekids':
                         pass
 
                 elif self.source == 'teveblad':
-                    if id == 5:
+                    if chanid == '5':
                         if name == 'het journaal':
                             return 'journaallus'
 
@@ -3037,25 +4110,25 @@ class FetchData(Thread):
                         if name == 'winst joker+/lotto':
                             return 'winst joker+ lotto'
 
-                    elif id == 6:
+                    elif chanid == '6':
                         if name == 'terzake':
                             return 'canvaslus'
 
                         if name == 'vranckx':
                             return 'canvaslus'
 
-                    elif id in (1, 2, 3):
+                    elif chanid in ('1', '2', '3'):
                         if name == 'nieuws':
                             return 'nos journaal'
 
                         if name[0:4] == 'nos-':
                             return 'nos ' + name[4:]
 
-                    elif id in (7, 8):
+                    elif chanid in ('7', '8'):
                         if name == 'regional news and weather':
                             return 'weather for the week ahead'
 
-                    elif id == 9:
+                    elif chanid == '9':
                         if name == 'tagesschau':
                             return 'tagesthemen'
 
@@ -3248,17 +4321,11 @@ class FetchData(Thread):
         # end match_genre()
 
         def set_main_id(tdict):
-            if tdict[tvgids_json.detail_id] != '':
-                tdict['ID'] = tdict[tvgids_json.detail_id]
 
-            elif tdict[tvgidstv.detail_id] != '':
-                tdict['ID'] = tdict[tvgidstv.detail_id]
-
-            elif tdict[rtl_json.detail_id] != '':
-                tdict['ID'] = tdict[rtl_json.detail_id]
-
-            elif tdict[teveblad.detail_id] != '':
-                tdict['ID'] = tdict[teveblad.detail_id]
+            for source in xml_output.channelsource.values():
+                if tdict[source.detail_id] != '':
+                    tdict['ID'] = tdict[source.detail_id]
+                    break
 
             return tdict
         # end set_main_id()
@@ -3267,7 +4334,7 @@ class FetchData(Thread):
         def add_using_tvgids_timing(tdict, tvdict, use_other_title = False):
             """Merge the source into the main data"""
             if tdict['merge-source'] == '':
-                tdict['merge-source'] = tvgids_json.source
+                tdict['merge-source'] = xml_output.channelsource[0].source
 
             if self.source == 'teveblad':
                 if tvdict['titel aflevering'] != '':
@@ -3311,16 +4378,17 @@ class FetchData(Thread):
             if len(tvdict['description']) > len(tdict['description']):
                 tdict['description']  = tvdict['description']
 
-            if tvdict['video']['present']:
-                tdict['video']['present']  = True
-                if tvdict['video']['HD']:
-                    tdict['video']['HD']  = True
+            if tvdict['prefered description'] != '':
+                tdict['prefered description']  = tvdict['prefered description']
 
-                if tvdict['video']['breedbeeld']:
-                    tdict['video']['breedbeeld']  = True
+            if tvdict['video']['HD']:
+                tdict['video']['HD']  = True
 
-                if tvdict['video']['blackwhite']:
-                    tdict['video']['blackwhite']  = True
+            if tvdict['video']['breedbeeld']:
+                tdict['video']['breedbeeld']  = True
+
+            if tvdict['video']['blackwhite']:
+                tdict['video']['blackwhite']  = True
 
             if tvdict['teletekst']:
                 tdict['teletekst']  = True
@@ -3346,11 +4414,11 @@ class FetchData(Thread):
             tdict['genre'] = tvdict['genre']
             tdict['subgenre'] = tvdict['subgenre']
 
-            if tvdict[tvgids_json.detail_check]:
-                tdict[tvgids_json.detail_check]  = True
+            if tvdict[xml_output.channelsource[0].detail_check]:
+                tdict[xml_output.channelsource[0].detail_check]  = True
 
-            if tvdict[tvgidstv.detail_check]:
-                tdict[tvgidstv.detail_check]  = True
+            if tvdict[xml_output.channelsource[1].detail_check]:
+                tdict[xml_output.channelsource[1].detail_check]  = True
 
             if tvdict['infourl'] != '':
                 tdict['infourl']  = tvdict['infourl']
@@ -3380,18 +4448,19 @@ class FetchData(Thread):
             if len(tvdict['description']) > len(tdict['description']):
                 tdict['description']  = tvdict['description']
 
+            if tvdict['prefered description'] != '':
+                tdict['prefered description']  = tvdict['prefered description']
+
             if tvdict['rerun']:
                 tdict['rerun']  = True
-            if tvdict['video']['present']:
-                tdict['video']['present']  = True
-                if tvdict['video']['HD']:
-                    tdict['video']['HD']  = True
+            if tvdict['video']['HD']:
+                tdict['video']['HD']  = True
 
-                if tvdict['video']['breedbeeld']:
-                    tdict['video']['breedbeeld']  = True
+            if tvdict['video']['breedbeeld']:
+                tdict['video']['breedbeeld']  = True
 
-                if tvdict['video']['blackwhite']:
-                    tdict['video']['blackwhite']  = True
+            if tvdict['video']['blackwhite']:
+                tdict['video']['blackwhite']  = True
 
             if tvdict['teletekst']:
                 tdict['teletekst']  = True
@@ -3410,7 +4479,7 @@ class FetchData(Thread):
                 pstart = tdict['start-time']
                 pname = tdict['name'].lower().strip()
                 prog_names[pname][pstart]['state'] = 'matched'
-                prog_names[pname][pstart][tvgids_json.detail_url]  = tvdict[tvgids_json.detail_url]
+                prog_names[pname][pstart][xml_output.channelsource[0].detail_url]  = tvdict[xml_output.channelsource[0].detail_url]
                 prog_names[pname][pstart]['genre'] = tvdict['genre']
                 prog_names[pname][pstart]['subgenre'] = tvdict['subgenre']
 
@@ -3485,14 +4554,24 @@ class FetchData(Thread):
 
         # end check_match_to_programs()
 
-        log('\n', 4)
+        log('\n', 2)
+        log_array =[]
+        log_array.append('\n')
         if other_is_dominant:
             # This goes for the belgium/british channels from teveblad.be (programs) and the rtl channels
-            log('Merging %s: %s programs from tvgids.nl into %s programs from %s\n' % (config.channels[id], len(info) , len(programs), self.source), 4)
+            log('Now merging %s (channel %s of %s):\n  %s programs from tvgids.nl into %s programs from %s\n' % \
+                (config.channels[chanid].chan_name, counter, config.chan_count, len(info) , len(programs), self.source), 2)
+
+            log_array.append('Merg statistics for %s (channel %s of %s) from tvgids.nl into %s\n' % \
+                (config.channels[chanid].chan_name, counter, config.chan_count, self.source))
 
         else:
             # this goes for adding tvgids.tv (programs) to tvgids.nl (info) and most channels from teveblad.be (programs)
-            log('Merging %s: %s programs from %s into %s programs from tvgids.nl\n' % (config.channels[id] , len(programs), self.source, len(info)), 4)
+            log('Now merging %s (channel %s of %s):\n  %s programs from %s into %s programs from tvgids.nl\n' % \
+                (config.channels[chanid].chan_name , counter, config.chan_count, len(programs), self.source, len(info)), 2)
+
+            log_array.append('Merg statistics for %s (channel %s of %s) from %s into tvgids.nl\n' % \
+                (config.channels[chanid].chan_name , counter, config.chan_count, self.source))
 
         # Do some general renaming to match tvgids.nl naming
         for i in range(0, len(programs)):
@@ -3515,8 +4594,8 @@ class FetchData(Thread):
         # and organise them by name and start-time
         info_starttimes = {}
         info_names = {}
-        log('%4.0f programs in info     for range: %s - %s, \n' % \
-            (len(info), infostarttime.strftime('%d-%b %H:%M:%S'), infoendtime.strftime('%d-%b %H:%M:%S')), 4)
+        log_array.append('%6.0f programs in tvgids.nl for range: %s - %s, \n' % \
+            (len(info), infostarttime.strftime('%d-%b %H:%M:%S'), infoendtime.strftime('%d-%b %H:%M:%S')))
 
         gcount = 0
         ocount = 0
@@ -3524,7 +4603,7 @@ class FetchData(Thread):
         # And we create a list of starttimes and of names for matching
         for tdict in info[:]:
             # Passing over generic timeslots that maybe detailed in the other
-            if ((self.source == 'tvgidstv') and ((id in (1, 2, 3)) and  (tdict['name'].lower() == 'kro kindertijd'))) \
+            if ((self.source == 'tvgidstv') and ((chanid in ('1', '2', '3')) and  (tdict['name'].lower() == 'kro kindertijd'))) \
               or (tdict['name'].lower() == 'pause'):
                 pcount = 0
                 for tvdict in programs[:]:
@@ -3540,7 +4619,7 @@ class FetchData(Thread):
                 # For teveblad we only remove if there is alternative content
                 if not ((self.source == 'teveblad') and (pcount > 0)) or (self.source == 'tvgidstv'):
                     if tdict['merge-source'] == '':
-                        tdict['merge-source'] = tvgids_json.source
+                        tdict['merge-source'] = xml_output.channelsource[0].source
 
                     matched_programs.append(tdict)
 
@@ -3560,7 +4639,7 @@ class FetchData(Thread):
                 ocount += 1
                 tdict = set_main_id(tdict)
                 if tdict['merge-source'] == '':
-                    tdict['merge-source'] = tvgids_json.source
+                    tdict['merge-source'] = xml_output.channelsource[0].source
 
                 matched_programs.append(tdict)
                 if tdict in info: info.remove(tdict)
@@ -3570,9 +4649,10 @@ class FetchData(Thread):
         prog_names = {}
         prog_stoptimes ={}
         prog_starttimes ={}
-        log('%4.0f programs in %s for range: %s - %s\n' % \
-            (len(programs), self.source.ljust(8), progstarttime.strftime('%d-%b %H:%M:%S'), progendtime.strftime('%d-%b %H:%M:%S')), 4)
+        log_array.append('%6.0f programs in %s for range: %s - %s\n' % \
+            (len(programs), self.source.ljust(9), progstarttime.strftime('%d-%b %H:%M:%S'), progendtime.strftime('%d-%b %H:%M:%S')))
 
+        log_array.append('\n')
         for tdict in programs[:]:
             # Remove generic slots from teveblad.be en move the counterparts to matched
             if (self.source == 'teveblad') and tdict['name'].lower() in config.teveblad_genericnames:
@@ -3583,7 +4663,7 @@ class FetchData(Thread):
                         pcount += 1
                         tvdict = set_main_id(tvdict)
                         if tdict['merge-source'] == '':
-                            tdict['merge-source'] = tvgids_json.source
+                            tdict['merge-source'] = xml_output.channelsource[0].source
 
                         matched_programs.append(tvdict)
                         if tvdict in info: info.remove(tvdict)
@@ -3629,10 +4709,11 @@ class FetchData(Thread):
                 prog_names[rname][tdict['start-time']] = {}
                 prog_names[rname][tdict['start-time']]['state'] = 'no match'
 
-        log('%4.0f programs added outside common timerange\n' % ocount, 4)
-        log('%4.0f details  added from group slots\n' % gcount, 4)
-        log('%4.0f programs left in info to match\n' % (len(info)), 4)
-        log('%4.0f programs left in %s to match\n' % (len(programs), self.source), 4)
+        log_array.append('%6.0f programs added outside common timerange\n' % ocount)
+        log_array.append('%6.0f details  added from group slots\n' % gcount)
+        log_array.append('%6.0f programs left in tvgids.nl to match\n' % (len(info)))
+        log_array.append('%6.0f programs left in %s to match\n' % (len(programs), self.source))
+        log_array.append('\n')
 
         # Try to match programs outside the reach of  info to get genre
         for tdict in generic_match[:]:
@@ -3819,13 +4900,13 @@ class FetchData(Thread):
                                 rcount += 1
                                 break
 
-                log('%4.0f programs generically matched on name to get genre\n' % rcount, 4)
+                log_array.append('%6.0f programs generically matched on name to get genre\n' % rcount)
                 if rcount == 0:
                     break
 
-            log('%4.0f programs matched on time and name\n' % ncount, 4)
-            log('%4.0f programs matched on time and genre\n' % gcount, 4)
-            log('%4.0f programs added unmatched from %s\n' % (len(programs), self.source), 4)
+            log_array.append('%6.0f programs matched on time and name\n' % ncount)
+            log_array.append('%6.0f programs matched on time and genre\n' % gcount)
+            log_array.append('%6.0f programs added unmatched from %s\n' % (len(programs), self.source))
 
             # List unmatched items to the log
             for tdict in programs[:]:
@@ -3954,15 +5035,15 @@ class FetchData(Thread):
                     else:
                         add_using_tvgids_timing(tdict, pi, True)
 
-            log('%4.0f programs matched on time and name\n' % ncount, 4)
-            log('%4.0f programs added unmatched from info\n' % len(info), 4)
+            log_array.append('%6.0f programs matched on time and name\n' % ncount)
+            log_array.append('%6.0f programs added unmatched from info\n' % len(info))
 
             # List unmatched items to the log
             for tdict in info[:]:
                 matchlog('unmatched in info', tdict, None, 1)
                 tdict = set_main_id(tdict)
                 if tdict['merge-source'] == '':
-                    tdict['merge-source'] = tvgids_json.source
+                    tdict['merge-source'] = xml_output.channelsource[0].source
 
                 matched_programs.append(tdict)
 
@@ -3975,8 +5056,19 @@ class FetchData(Thread):
             for tdict in p:
                 matchlog('left over in %s' % self.source, tdict, None , 2)
 
-        infofiles.write_fetch_list(matched_programs, id, self.source, True)
-        xml_output.all_programs[id] = matched_programs
+        config.log_lock.acquire()
+        for item in log_array:
+            log(item, 4, 3, True)
+
+        log('\n', 4, 3, True)
+        config.log_lock.release()
+
+        config.channels[chanid].all_programs = matched_programs
+        try:
+            infofiles.write_fetch_list(matched_programs, chanid, self.source, True)
+
+        except:
+            pass
 
 # end FetchData
 
@@ -3986,7 +5078,7 @@ class tvgids_JSON(FetchData):
     from the tvgids.nl json pages. Based on FetchData
     """
     def init_channels(self):
-        """ Detail Site layout
+        """ Detail Site layout oud
             <head>
             <body>
                 <div id="container">
@@ -4013,24 +5105,76 @@ class tvgids_JSON(FetchData):
                 </div>
                 <div id="footer-container">
             </body>
+            Nieuw
+            <head>
+            <body>
+                <input type="hidden" id="categoryClass" value="">
+                    <input type="hidden" id="notAllowedClass" value="">
+                        <input type="hidden" id="notAllowedTitles" value="">
+                            <div class="container pagecontainer">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div id="prog-content">
+                                            <div id="prog-video">
+                                            ...
+                                            </div>
+                                            <div class="programmering">
+                                                <h1>Harry Potter and the Goblet of Fire<span><sup>(2005)</sup></span></h1>
+                                                <div class="clear:both;"></div>
+                                                <script type="text/javascript" src="http://tvgidsassets.nl/v43/js/nlziet.js"></script>
+                                                <div class="programmering_details">
+                                                    <ul>
+                                                        <li class="datum_tijd"> 1 mei 2015, 22:45 - 23:55 uur</li>
+                                                        <li class="zender"><img src="http://tvgidsassets.nl/img/channels/53x27/36.png">SBS 6</li>
+                                                    </ul>
+                                                </div>
+                                                <div style="clear:both"></div>
+                                            </div>
+                                            <div class="clear"></div>
+                                                ...
+                                            <div class="clear"></div>
+                                            <p class="summary">
+                                                <span class="articleblock articleblock_color_fantasy">
+                                            FANTASY
+                                                </span>
+                                                                    Harry Potter gaat zijn vierde schooljaar in op de magische school Zweinstein, waar dit jaar het belangrijke internationale Triwizard Tournament wordt gehouden. Deze competitie is alleen voor de oudere en ervaren tovenaarsstudenten, maar toch komt Harry's naam boven als een van de deelnemers. Harry weet niet hoe dit mogelijk is, maar wordt toch gedwongen om mee te doen. Terwijl Harry zich voorbereidt op de gevaarlijke wedstrijd, wordt duidelijk dat de boosaardige Voldemort en zijn aanhangers steeds sterker worden en het nog altijd op zijn leven hebben gemunt. Dit nieuws is niet het enige wat Harry de rillingen bezorgt, hij heeft ook nog geen afspraakje voor het gala.
+                                            </p>
+                                            <p></p>
+                                            <br class="brclear" />
+                                            <div class="programmering_info_socials">
+                                                ...
+                                            </div>
+                                            <br class="clear" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </body>
         """
 
+        # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
         self.retime = re.compile(r'(\d\d\d\d)-(\d+)-(\d+) (\d+):(\d+)(?::\d+)')
+        self.tvgidsnlprog = re.compile('<div id="prog-content">(.*?)<div id="prog-banner-content">',re.DOTALL)
+        self.tvgidsnltitle = re.compile('<div class="programmering">(.*?)</h1>',re.DOTALL)
+        self.tvgidsnldesc = re.compile('<p(.*?)</p>',re.DOTALL)
+        self.tvgidsnldesc2 = re.compile('<div class="tekst col-sm-12">(.*?)</div>',re.DOTALL)
+        self.tvgidsnldetails = re.compile('<div class="programmering_info_detail">(.*?)</div>',re.DOTALL)
 
-        self.source = 'tvgidsnl'
-        self.detail_id = 'nl-ID'
-        self.detail_url = 'nl-url'
-        self.detail_check = 'tvgids-fetched'
-        self.channels = config.channels
+        self.channels = {}
         self.url_channels = ''
 
-        for id in config.channels.keys():
-            self.program_data[id] = []
-            if self.url_channels == '':
-                self.url_channels = id
+        for chanid, channel in config.channels.iteritems():
+            self.program_data[chanid] = []
+            if channel.active and channel.source_id[0] != '':
+                self.channels[chanid] = channel.source_id[0]
+                if self.url_channels == '':
+                    self.url_channels = channel.source_id[0]
 
-            else:
-                self.url_channels  = '%s,%s' % (self.url_channels, id)
+                else:
+                    self.url_channels  = '%s,%s' % (self.url_channels, channel.source_id[0])
 
     def get_url(self, type = 'channels', offset = 0, id = None):
 
@@ -4053,14 +5197,14 @@ class tvgids_JSON(FetchData):
             return u'%sprogram.php?id=%s/' % (tvgids_json, id)
 
     def match_to_date(self, timestring, time, program):
-        match = self.retime.match(unescape(timestring))
+        match = self.retime.match(self.unescape(timestring))
 
         if match:
             return datetime.datetime(int(match.group(1)),int(match.group(2)),\
                     int(match.group(3)),int(match.group(4)),int(match.group(5)),
                     tzinfo=CET_CEST)
         else:
-            log("Can not determine %s for %s" % (time,program))
+            log("Can not determine %s for %s\n" % (time,program))
             return None
 
     def get_channels(self):
@@ -4070,7 +5214,7 @@ class tvgids_JSON(FetchData):
         """
 
         # download the json feed
-        total = get_page(self.get_url())
+        total = self.get_page(self.get_url())
         if total == None:
             log("Don't write configuration file\n")
             return 69  # EX_UNAVAILABLE
@@ -4081,13 +5225,13 @@ class tvgids_JSON(FetchData):
         self.all_channels ={}
         for channel in channel_list:
             # the json data has the channel names in XML entities.
-            name = unescape(channel['name'])
-            chid = int(channel['id'])
-            self.all_channels[chid] = name
+            chanid = channel['id']
+            self.all_channels[chanid] = {}
+            self.all_channels[chanid]['name'] = self.unescape(channel['name']).strip()
 
     def load_pages(self):
 
-        if config.args.offset > 4:
+        if config.opt_dict['offset'] > 4:
             return
 
         if len(self.channels) == 0 :
@@ -4095,66 +5239,69 @@ class tvgids_JSON(FetchData):
 
         dl = {}
         dd = {}
-        for id in self.channels.keys():
-            dl[id] =[]
-            dd[id] =[]
+        for chanid in self.channels.keys():
+            dl[chanid] =[]
+            dd[chanid] =[]
 
         first_fetched = False
         channel_cnt = 0
 
-        for offset in range(config.args.offset, min((config.args.offset + config.args.days), 4)):
+        for retry in (0, 1):
+            for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 4)):
+                if self.quit:
+                    return
 
-            if self.day_loaded[0][offset]:
-                continue
-
-            channel_cnt += 1
-            log('\n', 2)
-            log('Now fetching %s channels from tvgids.nl (day %s of %s).\n' % (len(config.channels), offset, config.args.days), 2)
-
-            channel_url = self.get_url('day', offset)
-
-            if first_fetched:
-
-                # be nice to tvgids.nl
-                time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-                first_fetched = True
-
-            # get the raw programming for the day
-            strdata = get_page(channel_url)
-            if strdata == None or strdata.replace('\n','') == '{}':
-                log("No data for day=%d\n" % (offset))
-                continue
-
-            # Just let the json library parse it.
-            for id, v in json.loads(strdata).iteritems():
-                # Most channels profide a list of program dicts, some a numbered dict
-                try:
-                    if isinstance(v, dict):
-                        v=list(v.values())
-
-                    elif not isinstance(v, (list,tuple)):
-                        raise TypeError
-
-                except (TypeError, LookupError):
-                    log("Unsubscriptable content from channel url: %r\n" % channel_url)
+                # Check if it is allready loaded
+                if self.day_loaded[0][offset]:
                     continue
-                # remove the overlap at daychange and seperate the channels
-                for p in v:
-                    if not p in dl[int(id)]:
-                        dd[int(id)].append(p)
 
-            self.day_loaded[0][offset] = True
-            for id in self.channels.keys():
-                if len(dd) > 0:
-                    self.day_loaded[id][offset] = True
-                    dl[id].extend(dd[id])
-                    dd[id] =[]
+                channel_cnt += 1
+                log('\n', 2)
+                log('Now fetching %s channels from tvgids.nl\n    (day %s of %s).\n' % (len(self.channels), offset, config.opt_dict['days']), 2)
 
-        for id in self.channels.keys():
-            if len(dl[id]) > 0:
-                self.channel_loaded[id] = True
+                channel_url = self.get_url('day', offset)
 
-            else:
+                if first_fetched:
+
+                    # be nice to tvgids.nl
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                    first_fetched = True
+
+                # get the raw programming for the day
+                strdata = self.get_page(channel_url)
+                if strdata == None or strdata.replace('\n','') == '{}':
+                    log("No data on tvgids.nl for day=%d\n" % (offset))
+                    continue
+
+                # Just let the json library parse it.
+                for chanid, v in json.loads(strdata).iteritems():
+                    # Most channels profide a list of program dicts, some a numbered dict
+                    try:
+                        if isinstance(v, dict):
+                            v=list(v.values())
+
+                        elif not isinstance(v, (list,tuple)):
+                            raise TypeError
+
+                    except (TypeError, LookupError):
+                        log("Unsubscriptable content from channel url: %r\n" % channel_url)
+                        continue
+                    # remove the overlap at daychange and seperate the channels
+                    for p in v:
+                        if not p in dl[chanid]:
+                            dd[chanid].append(p)
+
+                self.day_loaded[0][offset] = True
+                for chanid in self.channels.keys():
+                    if len(dd) > 0:
+                        self.day_loaded[chanid][offset] = True
+                        dl[chanid].extend(dd[chanid])
+                        dd[chanid] =[]
+
+        for chanid in self.channels.keys():
+            if len(dl[chanid]) == 0:
+                log('No data on tvgids.nl for channel:%s\n' % (config.channels[chanid].chan_name))
+                config.channels[chanid].source_data[0] = None
                 continue
 
             # item is a dict, like:
@@ -4173,7 +5320,7 @@ class tvgids_JSON(FetchData):
             # }
 
             # parse the list to adjust to what we want
-            for item in dl[id]:
+            for item in dl[chanid]:
                 tdict = self.checkout_program_dict()
                 if (item['db_id'] != '') and (item['db_id'] != None):
                     tdict[self.detail_id] = u'nl-%s' % (item['db_id'])
@@ -4181,15 +5328,15 @@ class tvgids_JSON(FetchData):
                     tdict['ID'] = tdict[self.detail_id]
 
                 tdict['source'] = self.source
-                tdict['channelid'] = id
-                tdict['channel']  = config.channels[id]
+                tdict['channelid'] = chanid
+                tdict['channel']  = config.channels[chanid].chan_name
                 tdict[self.detail_url] = self.get_url(type= 'detail', id = item['db_id'])
 
                 # The Title
-                tdict['name'] = unescape(item['titel'])
+                tdict['name'] = self.unescape(item['titel'])
                 tdict = self.check_title_name(tdict)
                 if  tdict['name'] == None or tdict['name'] == '':
-                    log('Can not determine program title for "%s"' % tdict[self.detail_url])
+                    log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
                     continue
 
                 # The timing
@@ -4200,22 +5347,256 @@ class tvgids_JSON(FetchData):
 
                 tdict['offset'] = self.get_offset(tdict['start-time'])
 
-                tdict['genre'] = unescape(item['genre']) if ('genre' in item and item['genre'] != None) else ''
-                tdict['subgenre'] = unescape(item['soort']) if ('soort' in item and item['soort'] != None) else ''
+                tdict['genre'] = self.unescape(item['genre']) if ('genre' in item and item['genre'] != None) else ''
+                tdict['subgenre'] = self.unescape(item['soort']) if ('soort' in item and item['soort'] != None) else ''
                 self.program_by_id[tdict[self.detail_id]] = tdict
-                self.program_data[id].append(tdict)
+                self.program_data[chanid].append(tdict)
                 config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
 
-            self.program_data[id].sort(key=lambda program: (program['start-time'],program['stop-time']))
-            infofiles.write_fetch_list(self.program_data[id], id, self.source)
-            self.parse_programs(id, 0, 'None')
+            self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+            self.parse_programs(chanid, 0, 'None')
+            self.channel_loaded[chanid] = True
+            config.channels[chanid].source_data[0] = True
+            try:
+                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
 
-        xml_output.all_programs = self.program_data
+            except:
+                pass
 
     def load_detailpage(self, tdict):
 
         try:
-            strdata = get_page(tdict[self.detail_url])
+            strdata = self.get_page(tdict[self.detail_url])
+            if strdata == None:
+                log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
+                return
+
+            strdata = '<div>\n' +  self.tvgidsnlprog.search(strdata).group(1)
+            if strdata == None:
+                log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
+                return
+
+            if re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', strdata):
+                strtitle = ''
+                strdesc = ''
+
+            else:
+                # They sometimes forget to close a <p> tag
+                strdata = re.sub('<p>', '</p>xxx<p>', strdata, flags = re.DOTALL)
+                strtitle = self.tvgidsnltitle.search(strdata)
+                if strtitle == None:
+                    strtitle = ''
+
+                else:
+                    # There are titles containing '<' (eg. MTV<3) which interfere. Since whe don't need it we remove the title
+                    strtitle = re.sub('<h1>.*?<span>', '<h1><span>', strtitle.group(0), flags = re.DOTALL)
+                    strtitle = strtitle + '\n</div>\n'
+
+                strdesc = ''
+                for d in self.tvgidsnldesc.findall(strdata):
+                    strdesc += '<p%s</p>\n' % d
+
+                strdesc = '<div>\n' + strdesc + '\n</div>\n'
+
+                d = self.tvgidsnldesc2.search(strdata)
+                if d != None:
+                    d = re.sub('</p>xxx<p>', '<p>', d.group(0), flags = re.DOTALL)
+                    strdesc += d + '\n'
+
+            strdetails = self.tvgidsnldetails.search(strdata)
+            if strdetails == None:
+                strdetails = ''
+
+            else:
+                strdetails = strdetails.group(0)
+
+            strdata = (self.clean_html('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')).strip().encode('utf-8')
+            htmldata = ET.fromstring(strdata)
+
+        except Exception as e:
+            log('Fetching page %s returned an error: %s\n' % (tdict[self.detail_url], sys.exc_info()[1]), 1)
+            if config.write_info_files:
+                infofiles.write_raw_string('%s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                infofiles.write_raw_string('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')
+
+            # if we cannot find the description page,
+            # go to next in the loop
+            return None
+
+        # We scan every alinea of the description
+        try:
+            tdict = self.filter_description(htmldata, 'div/p', tdict)
+
+        except:
+            log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
+            if config.write_info_files:
+                infofiles.write_raw_string('%s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                infofiles.write_raw_string('<root>\n' + strdesc + '\n</root>\n')
+
+        try:
+            tmp = htmldata.find('div/h1/span/sup').text
+            if tmp != None:
+                tmp = re.sub('\(', '', tmp)
+                tdict['jaar van premiere'] = re.sub('\)', '', tmp).strip()
+
+        except Exception as e:
+            if config.write_info_files:
+                infofiles.write_raw_string('Error: %s\n' % (sys.exc_info()[1]))
+                infofiles.write_raw_string(strdata)
+
+        # We scan all the details
+        for d in htmldata.findall('div/ul/li'):
+            try:
+                ctype = self.empersant(d.find('span[@class="col-lg-3"]').text).strip().lower()
+                if ctype[-1] == ':':
+                    ctype = ctype[0:len(ctype)-1]
+
+                if ctype == 'kijkwijzer':
+                    content = ''
+
+                else:
+                    content = self.empersant(d.find('span[@class="col-lg-9 programma_detail_info"]').text).strip()
+
+            except Exception as e:
+                if config.write_info_files:
+                    infofiles.write_raw_string('Error: %s\n%s\n' % (sys.exc_info()[1], d))
+                    infofiles.write_raw_string(strdata)
+
+                continue
+
+            try:
+                if content == '':
+                    continue
+
+                if ctype == 'genre':
+                    tdict['genre'] = content.title()
+
+                # Parse persons and their roles for credit info
+                elif ctype in config.roletrans:
+                    if not config.roletrans[ctype] in tdict['credits']:
+                        tdict['credits'][config.roletrans[ctype]] = []
+                    persons = content.split(',');
+                    for name in persons:
+                        if name.find(':') != -1:
+                            name = name.split(':')[1]
+
+                        if name.find('-') != -1:
+                            name = name.split('-')[0]
+
+                        if name.find('e.a') != -1:
+                            name = name.split('e.a')[0]
+
+                        if not self.unescape(name.strip()) in tdict['credits'][config.roletrans[ctype]]:
+                            tdict['credits'][config.roletrans[ctype]].append(self.unescape(name.strip()))
+
+                # Add extra properties, while at the same time checking if we do not uncheck already set properties
+                elif ctype == 'kleur':
+                    tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
+
+                elif ctype == 'bijzonderheden':
+                    if config.write_info_files:
+                        infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
+
+                    content = content.lower()
+                    if tdict['video']['breedbeeld'] == False:
+                        tdict['video']['breedbeeld'] = (content.find('breedbeeld') != -1)
+                    if tdict['video']['HD'] == False:
+                        tdict['video']['HD'] = (content.find('hd 1080i') != -1)
+                    if tdict['video']['blackwhite'] == False:
+                        tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
+                    if tdict['teletekst'] == False:
+                        tdict['teletekst'] = (content.find('teletekst') != -1)
+                    if content.find('stereo') != -1: tdict['audio'] = 'stereo'
+                    if tdict['rerun'] == False:
+                        tdict['rerun'] = (content.find('herhaling') != -1)
+
+                elif ctype == 'nl-url':
+                    tdict['infourl'] = content
+
+                elif (ctype not in tdict) and (ctype.lower() not in ('zender', 'datum', 'uitzendtijd', 'titel')):
+                    # In unmatched cases, we still add the parsed type and content to the program details.
+                    # Some of these will lead to xmltv output during the xmlefy_programs step
+                    if config.write_info_files:
+                        infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
+
+                    tdict[ctype] = content
+
+            except Exception as e:
+                if config.write_info_files:
+                    infofiles.write_raw_string('Error: %s\n' % (sys.exc_info()[1]))
+                    infofiles.write_raw_string(strdata)
+
+        tdict['ID'] = tdict[self.detail_id]
+        tdict[self.detail_check] = True
+        return tdict
+
+    def load_json_detailpage(self, tdict):
+        try:
+            # We first get the json url
+            url = 'http://www.tvgids.nl/json/lists/program.php?id=%s' % tdict[self.detail_id][3:]
+            strdata = self.get_page(url)
+            if strdata == None or strdata.replace('\n','') == '{}':
+                return None
+
+            detail_data = json.loads(strdata)
+
+        except Exception as e:
+            # if we cannot find the description page,
+            # go to next in the loop
+            return None
+
+        for ctype, content in detail_data.items():
+            if ctype in ('db_id', 'titel', 'datum', 'btijd', 'etijd', 'kijkwijzer', 'zender_id', 'genre'):
+                # We allready have these or we don use them
+                continue
+
+            if content == '':
+                continue
+
+            elif ctype == 'synop':
+                content = re.sub('<p>', '', content)
+                content = re.sub('</p>', '', content)
+                content = re.sub('<br/>', '', content)
+                content = re.sub('<strong>.*?</strong>', '', content)
+                content = re.sub('<.*?>', '', content)
+                content = re.sub('\\r\\n', '\\n', content)
+                content = re.sub('\\n\\n\\n', '\\n', content)
+                content = re.sub('\\n\\n', '\\n', content)
+                if tdict['subgenre'].lower().strip() == content[0:len(tdict['subgenre'])].lower().strip():
+                    content = content[len(tdict['subgenre'])+1:]
+                if content > tdict['description']:
+                    tdict['description'] = self.unescape(content)
+
+            # Parse persons and their roles for credit info
+            elif ctype in config.roletrans:
+                if not config.roletrans[ctype] in tdict['credits']:
+                    tdict['credits'][config.roletrans[ctype]] = []
+                persons = content.split(',');
+                for name in persons:
+                    if name.find(':') != -1:
+                        name = name.split(':')[1]
+
+                    if name.find('-') != -1:
+                        name = name.split('-')[0]
+
+                    if name.find('e.a') != -1:
+                        name = name.split('e.a')[0]
+
+                    if not self.unescape(name.strip()) in tdict['credits'][config.roletrans[ctype]]:
+                        tdict['credits'][config.roletrans[ctype]].append(self.unescape(name.strip()))
+
+                else:
+                    if config.write_info_files:
+                        infofiles.addto_detail_list(unicode('new tvgids.nl json detail => ' + ctype + ': ' + content))
+
+        tdict['ID'] = tdict[self.detail_id]
+        tdict[self.detail_check] = True
+        return tdict
+
+    def load_detailpage_oud(self, tdict):
+
+        try:
+            strdata = self.get_page(tdict[self.detail_url])
             if strdata == None:
                 return
 
@@ -4257,26 +5638,25 @@ class tvgids_JSON(FetchData):
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
-            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-            infofiles.write_raw_string('<root>\n' + strdesc + '\n' + strdetails.group(0) + '\n</root>\n')
+            if config.write_info_files:
+                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                infofiles.write_raw_string('<root>\n' + strdesc + '\n' + strdetails + '\n</root>\n')
+
             # if we cannot find the description page,
             # go to next in the loop
             return None
 
-        if config.write_info_files:
-            strdesc = re.sub(' +?', ' ',strdesc)
-            strdesc = re.sub('\n+?', '\n',strdesc)
-            strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
-                                        '" name="' + tdict['name'] + '">\n' + strdesc + '\n   </div>'
-            infofiles.addto_raw_string(strdesc)
-
         # We scan every alinea of the description
-        tdict = self.filter_description(htmldata, 'div/p', tdict)
+        try:
+            tdict = self.filter_description(htmldata, 'div/p', tdict)
+
+        except:
+            log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
 
         # We scan all the details
         for d in htmldata.findall('div/ul/li'):
             try:
-                ctype = self.empersant(d.find('strong')).text.strip().lower()
+                ctype = self.empersant(d.find('strong').text).strip().lower()
                 content = self.empersant(d.find('strong').tail).strip()
 
             except Exception as e:
@@ -4303,12 +5683,14 @@ class tvgids_JSON(FetchData):
                     if name.find('e.a') != -1:
                         name = name.split('e.a')[0]
 
-                    if not unescape(name.lower()) in tdict['credits'][config.roletrans[ctype]].lower():
-                        tdict['credits'][config.roletrans[ctype]].append(unescape(name.strip()))
+                    if not self.unescape(name.lower()) in tdict['credits'][config.roletrans[ctype]].lower():
+                        tdict['credits'][config.roletrans[ctype]].append(self.unescape(name.strip()))
 
             # Add extra properties, while at the same time checking if we do not uncheck already set properties
             elif ctype == 'bijzonderheden':
-                infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
+                if config.write_info_files:
+                    infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
+
                 content = content.lower()
                 if tdict['video']['breedbeeld'] == False:
                     tdict['video']['breedbeeld'] = (content.find('breedbeeld') != -1)
@@ -4316,7 +5698,6 @@ class tvgids_JSON(FetchData):
                     tdict['video']['HD'] = (content.find('hd 1080i') != -1)
                 if tdict['video']['blackwhite'] == False:
                     tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
-                tdict['video']['present']  = (tdict['video']['breedbeeld'] or tdict['video']['HD'] or tdict['video']['blackwhite'])
                 if tdict['teletekst'] == False:
                     tdict['teletekst'] = (content.find('teletekst') != -1)
                 if content.find('stereo') != -1: tdict['audio'] = 'stereo'
@@ -4329,7 +5710,9 @@ class tvgids_JSON(FetchData):
             elif (ctype not in tdict) and (ctype.lower() not in ('zender', 'datum', 'uitzendtijd', 'titel')):
                 # In unmatched cases, we still add the parsed type and content to the program details.
                 # Some of these will lead to xmltv output during the xmlefy_programs step
-                infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
+                if config.write_info_files:
+                    infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
+
                 tdict[ctype] = content
 
         tdict['ID'] = tdict[self.detail_id]
@@ -4337,7 +5720,6 @@ class tvgids_JSON(FetchData):
         return tdict
 
 # end tvgids_JSON
-tvgids_json = tvgids_JSON()
 
 class tvgidstv_HTML(FetchData):
     """
@@ -4406,24 +5788,17 @@ class tvgidstv_HTML(FetchData):
             </div>
         """
 
-        self.isjson = False
-        self.source = 'tvgidstv'
-        self.detail_id = 'tv-ID'
-        self.detail_url = 'tv-url'
-        self.detail_check = 'tvgidstv-fetched'
-
         # These regexes are used to get the time offset (whiche day they see as today)
-        self.fetch_date = re.compile('class="today " title="Vandaag op.*?\n.*?\n(.*?)\n',re.DOTALL)
-        self.fetch_date0 = re.compile('class="today active" title="Vandaag op.*?\n.*?\n(.*?)\n',re.DOTALL)
+        self.fetch_datecontent = re.compile('<div class="section-title select-scope">(.*?)<div class="section-content">',re.DOTALL)
         # These regexes fetch the relevant data out of thetvgids.tv pages, which then will be parsed to the ElementTree
         self.getcontent = re.compile('<div class="span47 offset1">(.*?)<div class="span30 offset1">',re.DOTALL)
         self.daydata = re.compile('<div class="section-content">(.*?)<div class="advertisement">',re.DOTALL)
         self.detaildata = re.compile('<div class="section-title">(.*?)<div class="advertisement">',re.DOTALL)
 
-        for id in config.channels.keys():
-            self.program_data[id] = []
-            if id in config.tvgidstv_channels.keys():
-                self.channels[id] = config.tvgidstv_channels[id]
+        for chanid, channel in config.channels.iteritems():
+            self.program_data[chanid] = []
+            if channel.active and channel.source_id[1] != '':
+                self.channels[chanid] = channel.source_id[1]
 
     def get_url(self, channel = None, offset = 0, href = None):
 
@@ -4439,7 +5814,7 @@ class tvgidstv_HTML(FetchData):
             return ''
 
         else:
-            return u'%s%s' % (tvgidstv_url, unescape(href))
+            return u'%s%s' % (tvgidstv_url, self.unescape(href))
 
     def check_date(self, page_data, channel, offset):
 
@@ -4448,18 +5823,35 @@ class tvgidstv_HTML(FetchData):
         dlast = datetime.date.fromordinal(self.current_date - 1).strftime('%d %b').split()
 
         if page_data == None:
-            log("Skip channel=%s, day=%d. No data!\n" % (channel, offset))
+            log("Skip channel=%s on tvgids.tv!, day=%d. No data\n" % (channel, offset))
             return None
 
-        d = self.fetch_date.search(page_data)
+        d = self.fetch_datecontent.search(page_data)
         if d == None:
-             d = self.fetch_date0.search(page_data)
-
-        if d == None:
-            log('Unable to veryfy the right offset on .' )
+            log('Unable to veryfy the right offset on .\n' )
             return None
 
-        d = d.group(1).strip().split()
+        try:
+            d = self.fetch_datecontent.search(page_data).group(1)
+            d = self.clean_html(d)
+            htmldata = ET.fromstring( ('<div>' + d).encode('utf-8'))
+
+        except:
+            log('Unable to veryfy the right offset on .\n' )
+            return None
+
+        dd = htmldata.find('div/a[@class="today "]/br')
+        if dd == None:
+            dd = htmldata.find('div/a[@class="today"]/br')
+
+        if dd == None:
+            dd = htmldata.find('div/a[@class="today active"]/br')
+
+        if dd.tail == None:
+            log('Unable to veryfy the right offset on .\n' )
+            return None
+
+        d = dd.tail.strip().split()
         if int(dnow[0]) == int(d[0]):
             return offset
 
@@ -4470,127 +5862,193 @@ class tvgidstv_HTML(FetchData):
             log("Skip channel=%s, day=%d. Wrong date!\n" % (channel, offset))
             return None
 
-    def load_pages(self):
+    def get_channels(self):
+        """
+        Get a list of all available channels and store these
+        in all_channels.
+        """
 
-        channel_cnt = 0
-        for id in self.channels.keys():
-            channel_cnt += 1
-
-            if id in self.channels.keys():
-                channel = self.channels[id]
-                # Start from the offset but skip the days allready fetched by tvgids.nl
-                # Veronica here contains Disney XD details
-                if id == 34:
-                    fetch_range = range( config.args.offset, (config.args.offset + config.args.days))
-
-                else:
-                    fetch_range = []
-                    for i in range( config.args.offset, (config.args.offset + config.args.days)):
-                        if not tvgids_json.day_loaded[id][i]:
-                            fetch_range.append(i)
-
-                if len(fetch_range) == 0:
-                    return
-
-                else:
-                    log('\n', 2)
-                    log('Now fetching %s(xmltvid=%s%s) from tvgids.tv (channel %s of %s) for the remainder of %s days.\n' % \
-                        (config.channels[id], (config.args.compat and '.tvgids.nl' or ''), id, channel_cnt, len(self.channels), config.args.days), 2)
-
-            else:
+        try:
+            strdata = self.get_page(self.get_url())
+            if strdata == None:
                 return
 
-            # Tvgids.tv shows programs per channel per day, so we loop over the number of days
-            # we are required to grab
-            for offset in fetch_range:
+            strdata = self.clean_html('<div>' + self.getcontent.search(strdata).group(1)).encode('utf-8')
+            htmldata = ET.fromstring(strdata)
 
-                # get the raw programming for the day
-                channel_url = self.get_url(channel, offset)
-                strdata = get_page(channel_url)
+        except Exception as e:
+            return None
 
-                # Check on the right offset for appending the date to the time. Their date switch is aroud 6:00
-                x = self.check_date(strdata, config.tvgidstv_channels[id], offset)
-                if x == None:
+        self.all_channels ={}
+        for changroup in htmldata.findall('div[@class="section"]'):
+            group_name = self.empersant(changroup.findtext('div[@class="section-title"]')).strip()
+            for chan in changroup.findall('div[@class="section-content"]/div[@class="section-item channels"]/div[@class="section-item-content"]/a'):
+                chanid = chan.get('href')
+                if chanid == None:
                     continue
 
-                date_offset = x
-                scan_date = datetime.date.fromordinal(self.current_date + date_offset)
-                last_program = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + date_offset - 1), datetime.time(0, 0, 0 ,0 ,CET_CEST))
+                chanid = re.split('/', chanid)[2]
+                name = self.empersant(chan.findtext('div[@class="channel-name ellipsis"]'))
+                self.all_channels[chanid] = {}
+                self.all_channels[chanid]['name'] = name
+                self.all_channels[chanid]['group'] = 10
+                for id in config.chan_groups.keys():
+                    if group_name == config.chan_groups[id]:
+                        self.all_channels[chanid]['group'] = id
+                        break
 
-                # and extract the ElementTree
+    def load_pages(self):
+
+        for retry in (0, 1):
+            channel_cnt = 0
+            for chanid in self.channels.keys():
+                channel_cnt += 1
+                failure_count = 0
+                if self.quit:
+                    return
+
+                channel = self.channels[chanid]
+                # Start from the offset but skip the days allready fetched by tvgids.nl
+                # Except when append_tvgidstv is False
+                if config.channels[chanid].opt_dict['append_tvgidstv']:
+                    fetch_range = []
+                    for i in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
+                        if not xml_output.channelsource[0].day_loaded[chanid][i]:
+                            fetch_range.append(i)
+
+                else:
+                    fetch_range = range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days']))
+
+                if len(fetch_range) == 0:
+                    config.channels[chanid].source_data[1] = None
+                    continue
+
+                # Tvgids.tv shows programs per channel per day, so we loop over the number of days
+                # we are required to grab
+                for offset in fetch_range:
+                    # Check if it is allready loaded
+                    if self.day_loaded[chanid][offset] != False or \
+                      (config.channels[chanid].opt_dict['append_tvgidstv'] and xml_output.channelsource[0].day_loaded[chanid][offset]):
+                        continue
+
+                    log('\n', 2)
+                    log('Now fetching %s(xmltvid=%s%s) from tvgids.tv\n    (channel %s of %s) for day %s of %s.\n' % \
+                        (config.channels[chanid].chan_name, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), \
+                        chanid, channel_cnt, len(self.channels), offset, config.opt_dict['days']), 2)
+                    # get the raw programming for the day
+                    channel_url = self.get_url(channel, offset)
+                    strdata = self.get_page(channel_url)
+
+                    if strdata == None:
+                        log("Skip channel=%s on tvgids,tv, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
+                        failure_count += 1
+                        continue
+
+                    # Check on the right offset for appending the date to the time. Their date switch is aroud 6:00
+                    x = self.check_date(strdata, config.channels[chanid].chan_name, offset)
+                    if x == None:
+                        log("Skip channel=%s on tvgids,tv, day=%d. Wrong date!\n" % (config.channels[chanid].chan_name, offset))
+                        failure_count += 1
+                        continue
+
+                    date_offset = x
+                    scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                    last_program = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + date_offset - 1), datetime.time(0, 0, 0 ,0 ,CET_CEST))
+
+                    # and extract the ElementTree
+                    try:
+                        strdata =self.daydata.search(strdata).group(1)
+                        strdata = self.clean_html(strdata)
+                        htmldata = ET.fromstring( ('<div><div>' + strdata).encode('utf-8'))
+
+                    except Exception as e:
+                        log('Error extracting ElementTree for channel:%s day:%s/n' % (config.channels[chanid].chan_name, offset))
+                        if config.write_info_files:
+                            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                            infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
+
+                        self.day_loaded[chanid][offset] = None
+                        continue
+
+                    try:
+                        for p in htmldata.findall('div/a[@class]'):
+                            tdict = self.checkout_program_dict()
+                            tdict['source'] = u'tvgidstv'
+                            tdict['channelid'] = chanid
+                            tdict['channel'] = config.channels[chanid].chan_name
+                            tdict[self.detail_url] = self.get_url(href = p.get('href'))
+                            tdict[self.detail_id] = u'tv-%s' % tdict[self.detail_url].split('/')[5]  if (tdict[self.detail_url] != '') else ''
+
+                            # The Title
+                            tdict['name'] = self.empersant(p.get('title'))
+                            tdict = self.check_title_name(tdict)
+                            if  tdict['name'] == None or tdict['name'] == '':
+                                log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                                continue
+
+                            # Get the starttime and make sure the midnight date change is properly crossed
+                            start = p.findtext('div[@class="content"]/span[@class="section-item-title"]').split()[0]
+                            if start == None or start == '':
+                                log('Can not determine starttime for "%s"\n' % tdict['name'])
+                                continue
+
+                            prog_time = datetime.time(int(start.split(':')[0]), int(start.split(':')[1]), 0 ,0 ,CET_CEST)
+                            if datetime.datetime.combine(scan_date, prog_time) < last_program:
+                                date_offset = date_offset +1
+                                scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+
+                            tdict['offset'] = date_offset
+                            tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
+                            last_program = tdict['start-time']
+
+                            d = p.find('div[@class="content"]/span[@class="label"]/p')
+                            # span = "IMDB * n.n"
+                            # p      = "dd/mm/yy - IMDB * n.n - <genre>, beschrijving"
+                            if d != None:
+                                dd = unicode(d.split('-')[2])
+                                if dd != '':
+                                    tdict['description'] = self.empersant(dd.split(',')[1])
+                                    tdict['genre'] = self.empersant(dd.split(',')[0])
+                                    config.tvtvcat.append(tdict['genre'])
+
+                            # and append the program to the list of programs
+                            self.program_data[chanid].append(tdict)
+
+                    except:
+                        log('Error processing data for channel:%s day:%s/n' % (config.channels[chanid].chan_name, offset))
+                        continue
+
+                    self.day_loaded[chanid][offset] = True
+                    # be nice to tvgids.tv
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+                if len(self.program_data) == 0:
+                    log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
+                    config.channels[chanid].source_data[1] = None
+                    continue
+
+                # Add starttime of the next program as the endtime
+                self.program_data[chanid].sort(key=lambda program: (program['start-time']))
+                self.add_endtimes(chanid, 6)
+
+                for tdict in self.program_data[chanid]:
+                    self.program_by_id[tdict[self.detail_id]] = tdict
+
+                if failure_count == 0 or retry == 1:
+                    self.channel_loaded[chanid] = True
+                    self.parse_programs(chanid, 0, 'None')
+                    config.channels[chanid].source_data[1] = True
+
                 try:
-                    strdata =self.daydata.search(strdata).group(1)
-                    strdata = self.clean_html(strdata)
-                    htmldata = ET.fromstring( ('<div><div>' + strdata).encode('utf-8'))
+                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
 
-                except Exception as e:
-                    log('Error extracting ElementTree for channel:%s day:%s/n' % (config.tvgidstv_channels[id], offset))
-                    infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-                    infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
-                    continue
-
-                for p in htmldata.findall('div/a[@class]'):
-                    tdict = self.checkout_program_dict()
-                    tdict['source'] = u'tvgidstv'
-                    tdict['channelid'] = id
-                    tdict['channel'] = config.channels[id]
-                    tdict[self.detail_url] = self.get_url(href = p.get('href'))
-                    tdict[self.detail_id] = u'tv-%s' % tdict[self.detail_url].split('/')[5]  if (tdict[self.detail_url] != '') else ''
-
-                    # The Title
-                    tdict['name'] = self.empersant(p.get('title'))
-                    tdict = self.check_title_name(tdict)
-                    if  tdict['name'] == None or tdict['name'] == '':
-                        log('Can not determine program title for "%s"' % tdict[self.detail_url])
-                        continue
-
-                    # Get the starttime and make sure the midnight date change is properly crossed
-                    start = p.find('div[@class="content"]/span[@class="section-item-title"]').text.split()[0]
-                    if start == None or start == '':
-                        log('Can not determine starttime for "%s"' % tdict['name'])
-                        continue
-
-                    prog_time = datetime.time(int(start.split(':')[0]), int(start.split(':')[1]), 0 ,0 ,CET_CEST)
-                    if datetime.datetime.combine(scan_date, prog_time) < last_program:
-                        date_offset = date_offset +1
-                        scan_date = datetime.date.fromordinal(self.current_date + date_offset)
-
-                    tdict['offset'] = date_offset
-                    tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
-                    last_program = tdict['start-time']
-
-                    d = p.find('div[@class="content"]/span[@class="label"]/p')
-                    # span = "IMDB * n.n"
-                    # p      = "dd/mm/yy - IMDB * n.n - <genre>, beschrijving"
-                    if d != None:
-                        dd = unicode(d.split('-')[2])
-                        if dd != '':
-                            tdict['description'] = self.empersant(dd.split(',')[1])
-                            tdict['genre'] = self.empersant(dd.split(',')[0])
-                            config.tvtvcat.append(tdict['genre'])
-
-                    # and append the program to the list of programs
-                    self.program_data[id].append(tdict)
-
-                self.day_loaded[id][offset] = True
-                # be nice to tvgids.tv
-                time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-
-            # Add starttime of the next program as the endtime
-            self.program_data[id].sort(key=lambda program: (program['start-time']))
-            self.add_endtimes(id, 6)
-
-            for tdict in self.program_data[id]:
-                self.program_by_id[tdict[self.detail_id]] = tdict
-
-            self.channel_loaded[id] = True
-            self.parse_programs(id, 0, 'None')
-            infofiles.write_fetch_list(self.program_data[id], id, self.source)
+                except:
+                    pass
 
     def load_detailpage(self, tdict):
 
         try:
-            strdata = get_page(tdict[self.detail_url])
+            strdata = self.get_page(tdict[self.detail_url])
             if strdata == None:
                 return
 
@@ -4598,14 +6056,20 @@ class tvgidstv_HTML(FetchData):
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
-            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-            infofiles.write_raw_string(strdata + '\n')
+            if config.write_info_files:
+                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                infofiles.write_raw_string(strdata + '\n')
+
             # if we cannot find the description page,
             # go to next in the loop
             return None
 
         # We scan every alinea of the description
-        tdict = self.filter_description(htmldata, 'div/div/p', tdict)
+        try:
+            tdict = self.filter_description(htmldata, 'div/div/p', tdict)
+
+        except:
+            log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
 
         data = htmldata.find('div[@class="section-content"]')
         datatype = u''
@@ -4696,13 +6160,19 @@ class tvgidstv_HTML(FetchData):
                         elif 'komedie' in dtext.lower():
                             tdict['genre'] = u'Serie/Soap'
 
+                        elif 'western' in dtext.lower():
+                            tdict['genre'] = u'Serie/Soap'
+
                         else:
                             tdict['genre'] = u'overige'
-                            infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext))
+                            if config.write_info_files:
+                                infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
 
                         tdict['subgenre'] = dtext
                         # And add them to tvtvcattrans (and tv_grab_nl_py.set for later reference
-                        config.tvtvcat.append((dtext.lower().strip(), tdict['genre']))
+                        # But not for Discovery Channel as that is garbage
+                        if not (tdict['genre'] == u'overige' and tdict['channelid'] == '29'):
+                            config.tvtvcat.append((dtext.lower().strip(), tdict['genre']))
 
                 elif datatype == 'jaar':
                     tdict['jaar van premiere'] = dtext
@@ -4730,26 +6200,32 @@ class tvgidstv_HTML(FetchData):
                     if durl != '':
                         tdict['infourl'] = durl
 
-                elif datatype in ('uitzending gemist', 'officiële twitter', 'kijkwijzer'):
+                elif datatype in ('uitzending gemist', 'officiële twitter', 'kijkwijzer', 'twitter hashtag', 'deel-url'):
                     pass
 
                 else:
                     if dtext != '':
-                        infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + dtext))
+                        if config.write_info_files:
+                            infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + dtext))
+
                         tdict[datatype] = dtext
 
                     elif d.find('div') != None and d.find('div').get('class') != None:
-                        infofiles.addto_detail_list(unicode('new tvgids.tv div-class detail => ' + datatype + '=' + d.find('div').get('class')))
+                        if config.write_info_files:
+                            infofiles.addto_detail_list(unicode('new tvgids.tv div-class detail => ' + datatype + '=' + d.find('div').get('class')))
+
                         tdict[datatype] = unicode(d.find('div').get('class'))
 
                     elif d.find('a') != None and d.find('a').get('href') != None:
-                        infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
+                        if config.write_info_files:
+                            infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
+
                         tdict[datatype] = unicode(d.find('a').get('href'))
 
-                    else:
+                    elif config.write_info_files:
                         infofiles.addto_detail_list(unicode('new tvgids.tv empty detail => ' + datatype))
 
-            else:
+            elif config.write_info_files:
                 infofiles.addto_detail_list(unicode('new tvgids.d-tag => ' + d.tag))
 
         tdict['ID'] = tdict[self.detail_id]
@@ -4758,7 +6234,6 @@ class tvgidstv_HTML(FetchData):
         return tdict
 
 # end tvgidstv_HTML()
-tvgidstv = tvgidstv_HTML()
 
 class rtl_JSON(FetchData):
     """
@@ -4784,17 +6259,14 @@ class rtl_JSON(FetchData):
             ]}
         """
 
-        self.source = 'rtl'
-        self.detail_id = 'rtl-ID'
-        self.make_dominant = (4, 31, 46, 92, 408,409)
         self.page_loaded = False
         self.schedule = {}
 
-        for id in config.channels.keys():
-            self.program_data[id] = []
-            if id in config.RTL_channels.keys():
-                self.channels[id] = config.RTL_channels[id]
-                self.schedule[config.RTL_channels[id]] =[]
+        for chanid, channel in config.channels.iteritems():
+            self.program_data[chanid] = []
+            if channel.active and channel.source_id[2] != '':
+                self.channels[chanid] = channel.source_id[2]
+                self.schedule[channel.source_id[2]] =[]
 
     def init_json(self):
 
@@ -4819,28 +6291,28 @@ class rtl_JSON(FetchData):
 
         if abstract == None:
             channels = ''
-            for id in self.channels.values():
+            for chanid in self.channels.values():
                 if len(channels) == 0:
-                    channels = id
+                    channels = chanid
 
                 else:
-                    channels = '%s,%s' % (channels, id)
+                    channels = '%s,%s' % (channels, chanid)
 
             return '%s&days_ahead=%s&days_back=%s&station=%s' % \
-                ( rtl_general, (config.args.offset + config.args.rtldays), config.args.offset, channels)
+                ( rtl_general, (config.opt_dict['offset'] + config.opt_dict['rtldays'] -1), - config.opt_dict['offset'], channels)
 
         else:
             return '%s&abstract_key=%s&days_ahead=%s' % ( rtl_abstract, abstract, days)
 
     def get_channels(self):
 
-        self.all_channels = {4: 'RTL4',
-                                    31: 'RTL5',
-                                    46: 'RTL7',
-                                    92: 'RTL8',
-                                    408: 'RTLL',
-                                    409: 'RTCR'}
-                                    #~ : 'RTLT',
+        self.all_channels = {'RTL4': {'name': 'RTL 4', 'icon': 'logo_rtl4_med_dark.png', 'group': 1},
+                                         'RTL5': {'name': 'RTL 5', 'icon': 'logo_rtl5.png', 'group': 1},
+                                         'RTL7': {'name': 'RTL 7', 'icon': 'logo_rtl7_trans.png', 'group': 1},
+                                         'RTL8': {'name': 'RTL 8', 'icon': 'logo_rtl8.png', 'group': 1},
+                                         'RTLL': {'name': 'RTL Lounge', 'icon': 'logo_rtllounge.png', 'group': 7},
+                                         'RTCR': {'name': 'RTL Crime', 'icon': 'logo_rtlcrime.png', 'group': 7},
+                                         'RTLT': {'name': 'RTL Telekids', 'icon': 'logo_telekids.png', 'group': 7}}
 
     def load_pages(self):
 
@@ -4848,18 +6320,22 @@ class rtl_JSON(FetchData):
             return
 
         log('\n', 2)
-        log('Now fetching %s channels from rtl.nl for %s days.\n' %  (len(self.channels), config.args.rtldays), 2)
+        log('Now fetching %s channels from rtl.nl for %s days.\n' %  (len(self.channels), config.opt_dict['rtldays']), 2)
 
         channel_url = self.get_url()
 
         # get the raw programming for the day
-        strdata = get_page(channel_url)
+        strdata = self.get_page(channel_url)
+
+        if strdata == None or strdata.replace('\n','') == '{}':
+            # Wait a while and try again
+            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+            strdata = self.get_page(channel_url)
+            if strdata == None or strdata.replace('\n','') == '{}':
+                log("Error loading rtl json data\n")
+                return False
 
         # Just let the json library parse it.
-        if strdata == None or strdata.replace('\n','') == '{}':
-            log("Error loading rtl json data\n")
-            return False
-
         total = json.loads(strdata)
         # and find relevant programming info
         schedules = total['schedule']
@@ -4879,13 +6355,9 @@ class rtl_JSON(FetchData):
 
         self.page_loaded = True
 
-        for id, channel in self.channels.iteritems():
-            if len( self.schedule[channel]) > 0:
-                self.channel_loaded[id] = True
-                for day in range( config.args.offset, (config.args.offset + config.args.rtldays)):
-                    self.day_loaded[id][day] = True
-
-            else:
+        for chanid, channel in self.channels.iteritems():
+            if len( self.schedule[channel]) == 0:
+                config.channels[chanid].source_id[2] = None
                 continue
 
             for item in self.schedule[channel]:
@@ -4893,8 +6365,8 @@ class rtl_JSON(FetchData):
                 tdict[self.detail_id] = u'%s-%s' % (channel,  item['unixtime'])
                 self.json_by_id[tdict[self.detail_id]] = item
                 tdict['source'] = 'rtl'
-                tdict['channelid'] = id
-                tdict['channel']  = config.channels[id]
+                tdict['channelid'] = chanid
+                tdict['channel']  = config.channels[chanid].chan_name
 
                 # The Title
                 tdict['name'] = self.get_json_data(tdict[self.detail_id],'abstract_name')
@@ -4923,20 +6395,28 @@ class rtl_JSON(FetchData):
                 description = self.get_json_data(tdict[self.detail_id],'description')
                 tdict['description'] = description if (description != None) else ''
 
-                self.program_data[id].append(tdict)
+                self.program_data[chanid].append(tdict)
 
             # Add starttime of the next program as the endtime
-            self.program_data[id].sort(key=lambda program: (program['start-time']))
-            self.add_endtimes(id, 7)
+            self.program_data[chanid].sort(key=lambda program: (program['start-time']))
+            self.add_endtimes(chanid, 7)
 
-            for tdict in self.program_data[id]:
+            for tdict in self.program_data[chanid]:
                 self.program_by_id[tdict[self.detail_id]] = tdict
 
-            self.parse_programs(id, 0, 'None')
-            infofiles.write_fetch_list(self.program_data[id], id, self.source)
+            self.parse_programs(chanid, 0, 'None')
+            self.channel_loaded[chanid] = True
+            for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['rtldays'])):
+                self.day_loaded[chanid][day] = True
+
+            config.channels[chanid].source_data[2] = True
+            try:
+                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+            except:
+                pass
 
 # end rtl_JSON
-rtl_json = rtl_JSON()
 
 class teveblad_HTML(FetchData):
     """
@@ -5063,30 +6543,30 @@ class teveblad_HTML(FetchData):
             </body>
         """
 
-        self.isjson = False
-        self.source = 'teveblad'
-        self.detail_id = 'be-ID'
-        self.detail_url = 'be-url'
-        # The channels for which this source is dominant (een and canvas)
-        self.make_dominant = (5, 6)
-
         self.datecheckdata = re.compile('<input id="epg_dateselector".*?data-value="([0-9]+)-([0-9]+)-([0-9]+)".*?/>',re.DOTALL)
+        self.channeldata = re.compile('<div id="smallleftcol">(.*?)<div id="middlecolchaine">',re.DOTALL)
         self.progdata = re.compile('<div id="middlecolchaine">(.*?)<div id="epg_grid_view">channels</div>',re.DOTALL)
+        self.groupdata = re.compile('<div id="epg_channel_headers">(.*?)<div id="epg_scroller_right">.*?' + \
+                                                    '<div id="epg_channels">(.*?)<div id="epg_scroller">',re.DOTALL)
         self.seasondata = re.compile('Season ([0-9]+) \(([0-9]+)/([0-9]+)\)',re.DOTALL)
 
         basepath = 'div[@id="mainbox"]/div/div[@class="epg_container"]/div[@class="epg_content"]/' + \
                                     'div[@id="epg"]/div[@id="epg_c"]/div[@id="genrechanneloverview"]/'
         self.channelpath = basepath + 'div[@id="smallleftcol"]/div[@id="class="greyrounded"]'
 
-        for id in config.channels.keys():
-            self.program_data[id] = []
-            if id in config.teveblad_channels.keys():
-                self.channels[id] = config.teveblad_channels[id]
+        for chanid, channel in config.channels.iteritems():
+            self.program_data[chanid] = []
+            if channel.active and channel.source_id[3] != '':
+                self.channels[chanid] = channel.source_id[3]
 
-    def get_url(self, date, channel):
+    def get_url(self, date = '', channel = '', get_group = False):
 
-         teveblad_zoeken = 'http://www.teveblad.be/tv-gids/'
-         return u'%s%s/zenders/%s' % (teveblad_zoeken,  date, channel)
+        teveblad_zoeken = 'http://www.teveblad.be/tv-gids/'
+        if get_group:
+            return u'%s%s/zendergroep/%s' % (teveblad_zoeken,  date, channel)
+
+        else:
+            return u'%s%s/zenders/%s' % (teveblad_zoeken,  date, channel)
 
     def check_date(self, return_date, search_date):
         try:
@@ -5097,6 +6577,7 @@ class teveblad_HTML(FetchData):
 
         except Exception as e:
             log('Invalid page returned by teveblad.be\n')
+            log('return_date: %s search_date: %s\n' % (return_date, search_date))
             return False
 
         log('Wrong date %s-%s-%s returned from teveblad.be, %s requested\n' % \
@@ -5104,186 +6585,921 @@ class teveblad_HTML(FetchData):
 
         return False
 
-    def load_pages(self):
+    def read_channelfile(self):
+        try:
+            if not os.access(u'%s/teveblad_channels.html' % (config.xmltv_dir), os.F_OK):
+                if os.access(u'%s/teveblad_channels.html' % (config.hpath), os.F_OK):
+                    log('copying %s/teveblad_channels.html to %s\n' % (config.hpath, config.xmltv_dir))
+                    shutil.copy(u'%s/teveblad_channels.html' % (config.hpath), config.xmltv_dir)
+                else:
+                    log('teveblad channel info file: %s/teveblad_channels.html not found\n' % (config.hpath))
+                    return None
 
-        channel_cnt = 0
-        for id in self.channels.keys():
-            channel_cnt += 1
-            log('\n', 2)
-            log('Now fetching %s(xmltvid=%s%s) from teveblad.be (channel %s of %s) for %s days.\n' % \
-                (config.channels[id], id, (config.args.compat and '.tvgids.nl' or ''), channel_cnt, len(self.channels), config.args.tevedays), 2)
+            f = config.open_file( u'%s/teveblad_channels.html' % config.xmltv_dir)
+            if f == None:
+                return None
 
-            if id in self.channels.keys():
-                channel = self.channels[id]
+            #~ htmldata = ET.parse(f)
+            strdata = u''
+            for byteline in f.readlines():
+                line = config.get_line(f, byteline)
+                strdata += self.clean_html(line)
+            f.close()
+
+            return ET.fromstring(strdata.encode('utf-8'))
+
+        except:
+            log('error parsing %s/teveblad_channels.html\n' % (config.xmltv_dir))
+            return None
+
+    def get_channels(self):
+        """
+        Get a list of all available channels and store these
+        in all_channels.
+        """
+
+        try:
+            strdata = self.get_page(self.get_url())
+            if strdata == None:
+                htmldata = self.read_channelfile()
+                if htmldata == None:
+                    return None
 
             else:
-                return []
+                strdata = self.clean_html('<div>' + self.channeldata.search(strdata).group(1)).encode('utf-8')
+                htmldata = ET.fromstring(strdata)
 
-            # teeveeblad.be shows programs per day, so we loop over the number of days
-            # we are required to grab
-            for offset in range(config.args.offset, (config.args.offset + config.args.tevedays)):
-                date_offset = offset
-                scan_date = datetime.date.fromordinal(self.current_date + offset)
-                last_program = datetime.datetime.combine(scan_date, datetime.time(1, 0, 0 ,0 ,CET_CEST))
-                channel_url =self.get_url(scan_date.strftime('%Y-%m-%d'), channel)
+        except Exception as e:
+            htmldata = self.read_channelfile()
+            if htmldata == None:
+                return None
+
+        chan_groups = {'Nederlandstalig': 2,
+                                    'Hoofdzenders': 2,
+                                    'Engelstalig': 3,
+                                    'Franstalig': 5,
+                                    'Digitale zenders': 8,
+                                    'Documentaire': 8,
+                                    'Sport': 8,
+                                    'Kids & Jeugd': 8,
+                                    'Anderstalige zenders': 9}
+        self.all_channels ={}
+        self.page_strings = {}
+        changroup = 10
+        for item in htmldata.find('div[@class="greyrounded"]'):
+            if item.tag == 'h2':
+                group =  self.empersant(item.findtext('a[@href]'))
+                if group in chan_groups:
+                    changroup = chan_groups[group]
+
+                else:
+                    changroup = 10
+
+                group_url = item.find('a').get('href')
+                group_url = re.split('/', group_url)[-1]
+                self.page_strings[group] = {}
+                self.page_strings[group]['url'] = group_url
+                self.page_strings[group]['chan_list'] = []
+                self.page_strings[group]['fetch_list'] = []
+
+            elif item.tag == 'a':
+                chan = item.get('href')
+                if chan != None:
+                    chanid = re.split('/', chan)[-1]
+                    icon = item.find('img').get('src')
+                    icon = re.split('/', icon)
+                    icon = '%s/%s' % (icon[-2], icon[-1])
+                    self.all_channels[chanid] = {}
+                    self.all_channels[chanid]['name'] = item.find('img').get('title')
+                    self.all_channels[chanid]['icon'] = icon
+                    self.all_channels[chanid]['group'] = changroup
+                    self.all_channels[chanid]['group_list'] = []
+                    self.page_strings[group]['chan_list'].append(chanid)
+                    if group == 'Digitale zenders':
+                        self.all_channels[chanid]['HD'] = True
+
+                    else:
+                        self.all_channels[chanid]['HD'] = False
+
+        for g, v in self.page_strings.items():
+            for chanid in v['chan_list']:
+                self.all_channels[chanid]['group_list'].append(g)
 
 
-                # get the raw programming for the day
-                strdata = get_page(channel_url)
+    def load_pages(self):
+        # We first try to get the grouppages
+        self.load_grouppages()
+        # And for the failed pages we try the solo ones
+        self.load_solopages()
 
-                if strdata == None:
-                    log("Skip channel=%s, day=%d. No data!\n" % (config.channels[id], offset))
+    def load_grouppages(self):
+        # First determin which pages need to be loaded
+        try:
+            self.get_channels()
+            for n, v in self.page_strings.items():
+                v['fetch_list'] = []
+                self.day_loaded[n] = {}
+                for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
+                    self.day_loaded[n][day] = False
+
+            for chanid, channel in self.channels.items():
+                if not channel in self.all_channels:
+                    # This channel is removed, for it reurns empty
+                    self.channel_loaded[chanid] = True
+                    config.channels[chanid].source_data[self.proc_id] = True
                     continue
 
-                if not self.check_date(self.datecheckdata.search(strdata), scan_date):
-                    log("Skip channel=%s, day=%d. Wrong date!\n" % (config.channels[id], offset))
-                    continue
+                # Check wich grouppage to load
+                if len(self.all_channels[channel]['group_list']) > 0:
+                    self.page_strings[self.all_channels[channel]['group_list'][0]]['fetch_list'].append(channel)
 
-                # and extract the ElementTree
-                try:
-                    strdata = self.clean_html(strdata)
-                    strdata = re.sub('<div class="r" class="toowide">', '<div class="r">', strdata)
-                    strdata = ('<div><div>' + self.progdata.search(strdata).group(1)).encode('utf-8')
-                    htmldata = ET.fromstring(strdata)
-
-                except Exception as e:
-                    log('Error extracting ElementTree for channel:%s day:%s' % (config.channels[id], offset))
-                    infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-                    infofiles.write_raw_string(strdata + u'\n')
-                    continue
-
-                for p in htmldata.findall('div/div'):
-                    if not ((p.tag == 'div') and (p.get('class') == 'programme')):
+            for retry in (0, 1):
+                # There are 9 group pages. Check if any channel from a page is wanted
+                for group_page, group_values in self.page_strings.items():
+                    if len(group_values['fetch_list']) == 0:
                         continue
 
-                    tdict = self.checkout_program_dict()
-                    p = p.find('div[@class="c"]')
-                    tdict['source'] = 'teveblad'
-                    tdict['channelid'] = id
-                    tdict['channel'] = config.channels[id]
+                    failure_count = 0
+                    if self.quit:
+                        return
 
-                    # The Title
-                    title = p.find('div[@class="r"]/p/span[@class="title"]')
-                    if title == None:
-                        log('Can not determine program title"')
-                        continue
-
-                    href = title.find('a').get('href')
-                    if href != '' and href != None:
-                        tdict[self.detail_url] = title.find('a').get('href')
-                        tdict[self.detail_id] = u'be-%s' % tdict[self.detail_url].split('/')[5]
-                    tdict['name'] = self.empersant(title.findtext('a'))
-                    if tdict['name'] == None or  tdict['name'] == '':
-                        log('Can not determine program title for "%s"' % tdict['be-url'])
-                        continue
-
-                    # Starttime
-                    start = p.findtext('div[@class="l"]/span[@class="starttime"]')
-                    if start == None or start == '':
-                        log('Can not determine starttime for "%s"' % tdict['name'])
-                        continue
-
-                    prog_time = datetime.time(int(start.split('u')[0]), int(start.split('u')[1]), 0 ,0 ,CET_CEST)
-
-                    # Make sure the midnight date change is properly crossed
-                    if datetime.datetime.combine(scan_date, prog_time) < last_program:
-                        date_offset = offset +1
-                        scan_date = datetime.date.fromordinal(self.current_date + date_offset)
-                    tdict['offset'] = date_offset
-                    tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
-                    last_program = tdict['start-time']
-
-                    # Subtitle
-                    subtitle = self.empersant(p.findtext('div[@class="r"]/p/span[@class="title_episode"]'))
-                    tdict['titel aflevering'] = subtitle if (subtitle != None) else ''
-
-                    # Description. There is a possible long and short version. We try to take the long one
-                    descshort = self.empersant(p.findtext('div[@class="r"]/p[@class="desc_short"]'))
-                    descshort = '' if (descshort == None) else descshort
-
-                    desc = self.empersant(p.findtext('div[@class="r"]/[@div="desc h"]/p'))
-                    tdict['description'] = desc if (desc != None) else descshort
-
-                    # The basicinfo section
-                    for d in p.iterfind('div[@class="r"]/p[@class="basicinfo"]/span'):
-
-                        if d.get('class').lower() == 'year':
-                            tdict['jaar van premiere'] = d.text
-
-                        elif d.get('class').lower() == 'episode':
-                            tdict['episode'] = (re.sub('Episode', '', d.text)).strip()
-
-                        elif d.get('class').lower() == 'season':
-                            season = self.seasondata.search(d.text)
-                            tdict['season'] = unicode(season.group(1))
-                            tdict['episode'] = unicode(season.group(2))
-                            #stotal = season.group(3)
-
-                        elif d.get('class').lower() == 'originaltitle':
-                            tdict['originaltitle'] = self.empersant(d.text)
-
-                        # We don't use it (yet)
-                        elif d.get('class').lower() == 'country':
+                    # teeveeblad.be shows programs per day, so we loop over the number of days
+                    # we are required to grab
+                    for offset in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
+                        if self.day_loaded[group_page][offset] != False:
                             continue
 
-                        else:
-                            infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
+                        log('\n', 2)
+                        log('Now fetching GroupPage: %s from teveblad.be for day %s of %s.\n' % (group_page, offset, config.opt_dict['tevedays']), 2)
 
-                    # The picons section
-                    for d in p.iterfind('div[@class="r"]/p[@class="picons"]/span'):
+                        date_offset = offset
+                        scan_date = datetime.date.fromordinal(self.current_date + offset)
+                        channel_url =self.get_url(scan_date.strftime('%Y-%m-%d'), group_values['url'], True)
 
-                        if d.get('class').lower() == 'picon':
+                        # get the raw programming for the day
+                        strdata = self.get_page(channel_url, encoding = 'utf-8')
 
-                            # We don't use these (yet)
-                            if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering'):
+                        if strdata == None:
+                            log("Skip %s page on teveblad.be, day=%d. No data!\n" % (group_page, offset))
+                            failure_count += 1
+                            continue
+
+                        if not self.check_date(self.datecheckdata.search(strdata), scan_date):
+                            #~ log("Skip group=%s on teveblad.be, day=%d. Wrong date!\n" % (group_page, offset))
+                            failure_count += 1
+                            continue
+
+                        # and extract the ElementTree
+                        try:
+                            strdata = self.clean_html(strdata)
+                            strdata = re.sub('<div class="r" class="toowide">', '<div class="r">', strdata)
+                            strdata =self.groupdata.search(strdata)
+                            strdata = (u'<root><div>' + strdata.group(1) + u'\n<div>\n' + strdata.group(2)) + u'</root>'
+                            htmldata = ET.fromstring(strdata.encode('utf-8'))
+
+                        except Exception as e:
+                            log('Error extracting ElementTree for zendergroup:%s day:%s\n' % (group_page, offset))
+                            err_obj = sys.exc_info()[2]
+                            log('Error: %s at line %s\n' %  (sys.exc_info()[1], err_obj.tb_lineno), 0)
+                            if config.write_info_files:
+                                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                                infofiles.write_raw_string(strdata + u'\n')
+
+                            self.day_loaded[group_page][offset] = None
+                            continue
+
+                        channel_cnt = 0
+                        chan_list = {}
+                        # Retrieve the available channels and add the wanted channels to the channel list
+                        for c in  htmldata.findall('div/div[@id="epg_channel_headers_content"]/div[@class="channel"]'):
+                            url = c.find('div/a').get('href')
+                            if url != None:
+                                channel_cnt += 1
+                                c = re.split('/', url)[-1]
+                                if c in group_values['fetch_list']:
+                                    chan_list[unicode(channel_cnt)] = c
+
+                        for c in  htmldata.findall('div/div[@id="epg_channels_content"]/div[@class="channel"]'):
+                            if not c.get('number') in chan_list.keys():
                                 continue
 
-                            if d.get('title').lower() == 'herhaling':
-                                tdict['rerun'] = True
+                            last_program = datetime.datetime.combine(scan_date, datetime.time(1, 0, 0 ,0 ,CET_CEST))
+                            channel = chan_list[c.get('number')]
+                            for k, v in self.channels.items():
+                                if channel == v:
+                                    chanid = k
 
-                            elif d.get('title').lower() == 'hd':
-                                tdict['video']['HD'] = True
-                                tdict['video']['present']  = True
+                            for p in c.findall('div'):
+                                if not( p.get('class') == 'programme even' or p.get('class') == 'programme odd'):
+                                    continue
 
-                            elif d.get('title').lower() == 'dolby':
-                                tdict['audio']  = 'dolby'
+                                p_duur = int(p.get('duration'))
+                                tdict = self.checkout_program_dict()
+                                p = p.find('div[@class="c"]')
+                                tdict['source'] = 'teveblad'
+                                tdict['channelid'] = chanid
+                                tdict['channel'] = config.channels[chanid].chan_name
 
-                            else:
-                                infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
+                                # The Title
+                                title = p.find('p/span[@class="title"]')
+                                if title == None:
+                                    log('Can not determine program title"\n')
+                                    continue
 
-                        elif 'genre' in d.get('class').lower():
-                            genre = self.empersant(d.findtext('a'))
-                            if genre == '' or genre == None:
+                                href = title.find('a').get('href')
+                                if href != '' and href != None:
+                                    tdict[self.detail_url] = title.find('a').get('href')
+                                    tdict[self.detail_id] = u'be-%s' % tdict[self.detail_url].split('/')[5]
+                                tdict['name'] = self.empersant(title.findtext('a'))
+                                if tdict['name'] == None or  tdict['name'] == '':
+                                    log('Can not determine program title for "%s"\n' % tdict['be-url'])
+                                    continue
+
+                                # Starttime
+                                start = p.findtext('p/span[@class="starttime"]')
+                                if start == None or start == '':
+                                    log('Can not determine starttime for "%s"\n' % tdict['name'])
+                                    continue
+
+                                prog_time = datetime.time(int(start.split('u')[0]), int(start.split('u')[1]), 0 ,0 ,CET_CEST)
+
+                                # Make sure the midnight date change is properly crossed
+                                if datetime.datetime.combine(scan_date, prog_time) < last_program:
+                                    date_offset = offset +1
+                                    scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                                tdict['offset'] = date_offset
+                                tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
+                                last_program = tdict['start-time']
+                                tdict['stop-time'] = tdict['start-time'] + datetime.timedelta(0, 0, 0, 0, p_duur)
+
+                                # Subtitle
+                                subtitle = self.empersant(p.findtext('p/span[@class="title_episode"]'))
+                                tdict['titel aflevering'] = subtitle if (subtitle != None) else ''
+
+                                # Description. There is a possible long and short version. We try to take the long one
+                                descshort = self.empersant(p.findtext('p/span[@class="desc_short"]'))
+                                descshort = '' if (descshort == None) else descshort
+
+                                desc = self.empersant(p.findtext('div[@class="desc h"]/p'))
+                                tdict['description'] = desc if (desc != None) else descshort
+
+                                # The basicinfo section
+                                for d in p.iterfind('div[@class="basicinfo"]/span'):
+
+                                    if d.get('class').lower() == 'year':
+                                        tdict['jaar van premiere'] = d.text
+
+                                    elif d.get('class').lower() == 'episode':
+                                        tdict['episode'] = (re.sub('Episode', '', d.text)).strip()
+                                        tdict['episode'] = (re.sub('Aflevering', '', d.text)).strip()
+
+                                    elif d.get('class').lower() == 'season':
+                                        try:
+                                            season = self.seasondata.search(d.text)
+                                            if season != None:
+                                                tdict['season'] = unicode(season.group(1))
+                                                tdict['episode'] = unicode(season.group(2))
+                                                #stotal = season.group(3)
+
+                                        except:
+                                            if config.write_info_files:
+                                                infofiles.addto_detail_list('error processing seasonstring: %s\n\n' % season)
+
+                                    elif d.get('class').lower() == 'desc_short' and tdict['description'] == '':
+                                        tdict['description'] = self.empersant(d.text)
+
+                                    elif d.get('class').lower() == 'originaltitle':
+                                        tdict['originaltitle'] = self.empersant(d.text)
+
+                                    # We don't use it (yet)
+                                    elif d.get('class').lower() == 'country':
+                                        continue
+
+                                    elif config.write_info_files:
+                                        infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
+
+                                # The picons section
+                                for d in p.iterfind('p[@class="picons"]/span'):
+
+                                    if d.get('class').lower() == 'picon' or d.get('class').lower() == 'curvyignore picon' :
+
+                                        # We don't use these (yet)
+                                        if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering', 'premiere'):
+                                            continue
+
+                                        if d.get('title').lower() == 'herhaling':
+                                            tdict['rerun'] = True
+
+                                        elif d.get('title').lower() == 'hd':
+                                            tdict['video']['HD'] = True
+
+                                        elif d.get('title').lower() == 'dolby':
+                                            tdict['audio']  = 'dolby'
+
+                                        elif d.get('title').lower() == '16:9':
+                                            tdict['breedbeeld']  = True
+
+                                        elif d.get('title').lower() == 'ondertiteld':
+                                            tdict['teletekst']  = True
+
+                                        elif config.write_info_files:
+                                            infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
+
+                                    elif 'genre' in d.get('class').lower():
+                                        genre = self.empersant(d.findtext('a'))
+                                        if genre == '' or genre == None:
+                                            continue
+
+                                        if genre.lower() in config.tevecattrans.keys():
+                                            tdict['genre'] = config.tevecattrans[genre.lower()][0].capitalize()
+                                            tdict['subgenre'] = config.tevecattrans[genre.lower()][1].capitalize()
+
+                                        else:
+                                            config.tevecat[genre] = (u'Overige', u'')
+
+                                for d in p.iterfind('span[@class]'):
+                                    if 'genre' in d.get('class').lower():
+                                        genre = self.empersant(p.findtext('a'))
+                                        if genre == '' or genre == None:
+                                            continue
+
+                                        if genre.lower() in config.tevecattrans.keys():
+                                            tdict['genre'] = config.tevecattrans[genre.lower()][0].capitalize()
+                                            tdict['subgenre'] = config.tevecattrans[genre.lower()][1].capitalize()
+
+                                        else:
+                                            config.tevecat[genre] = (u'Overige', u'')
+
+                                # and append the program to the list of programs
+                                tdict = self.check_title_name(tdict)
+                                self.program_data[chanid].append(tdict)
+
+                            self.day_loaded[chanid][offset] = True
+
+                        self.day_loaded[group_page][offset] = True
+                        # be nice to teveblad.be
+                        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+                    # If all went well we set them loaded. Else we give the solopages atry
+                    if failure_count == 0:
+                        for chanid, channel in self.channels.items():
+                            if channel in group_values['fetch_list']:
+                                for tdict in self.program_data[chanid]:
+                                    self.program_by_id[tdict[self.detail_id]] = tdict
+
+                                self.channel_loaded[chanid] = True
+                                self.parse_programs(chanid, 0, 'None')
+                                config.channels[chanid].source_data[3] = True
+
+                                try:
+                                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+                                except:
+                                    pass
+
+        except:
+            err_obj = sys.exc_info()[2]
+            log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
+            log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+
+            while True:
+                err_obj = err_obj.tb_next
+                if err_obj == None:
+                    break
+
+                log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id] = True
+            return None
+
+    def load_solopages(self):
+
+        for retry in (0, 1):
+            channel_cnt = 0
+            for chanid in self.channels.keys():
+                channel_cnt += 1
+                failure_count = 0
+                if self.quit:
+                    return
+
+                channel = self.channels[chanid]
+
+                # teeveeblad.be shows programs per day, so we loop over the number of days
+                # we are required to grab
+                for offset in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
+                    if self.day_loaded[chanid][offset] != False:
+                        continue
+
+                    log('\n', 2)
+                    log('Now fetching %s(xmltvid=%s%s) from teveblad.be\n    (channel %s of %s) for day %s of %s days.\n' % \
+                        (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and \
+                        '.tvgids.nl' or ''), channel_cnt, len(self.channels), offset, config.opt_dict['tevedays']), 2)
+
+                    date_offset = offset
+                    scan_date = datetime.date.fromordinal(self.current_date + offset)
+                    last_program = datetime.datetime.combine(scan_date, datetime.time(1, 0, 0 ,0 ,CET_CEST))
+                    channel_url =self.get_url(scan_date.strftime('%Y-%m-%d'), channel)
+
+                    # get the raw programming for the day
+                    strdata = self.get_page(channel_url)
+
+                    if strdata == None:
+                        log("Skip channel=%s on teveblad.be, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
+                        failure_count += 1
+                        continue
+
+                    if not self.check_date(self.datecheckdata.search(strdata), scan_date):
+                        #~ log("Skip channel=%s on teveblad.be, day=%d. Wrong date!\n" % (config.channels[chanid].chan_name, offset))
+                        failure_count += 1
+                        continue
+
+                    # and extract the ElementTree
+                    try:
+                        strdata = self.clean_html(strdata)
+                        strdata = re.sub('<div class="r" class="toowide">', '<div class="r">', strdata)
+                        strdata = ('<div><div>' + self.progdata.search(strdata).group(1)).encode('utf-8')
+                        htmldata = ET.fromstring(strdata)
+                        if htmldata.findtext('div/p') == "We don't have any events for this broadcaster":
+                            log('No data for channel:%s on teveblad.be\n' % (config.channels[chanid].chan_name))
+                            config.channels[chanid].source_data[3] = None
+                            for i in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
+                                self.day_loaded[chanid][i] = None
+                            break
+
+                    except Exception as e:
+                        log('Error extracting ElementTree for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
+                        if config.write_info_files:
+                            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                            infofiles.write_raw_string(strdata + u'\n')
+
+                        self.day_loaded[chanid][offset] = None
+                        continue
+
+                    for p in htmldata.findall('div/div[@class="programme"]'):
+                        tdict = self.checkout_program_dict()
+                        p = p.find('div[@class="c"]')
+                        tdict['source'] = 'teveblad'
+                        tdict['channelid'] = chanid
+                        tdict['channel'] = config.channels[chanid].chan_name
+
+                        # The Title
+                        title = p.find('div[@class="r"]/p/span[@class="title"]')
+                        if title == None:
+                            log('Can not determine program title"\n')
+                            continue
+
+                        href = title.find('a').get('href')
+                        if href != '' and href != None:
+                            tdict[self.detail_url] = title.find('a').get('href')
+                            tdict[self.detail_id] = u'be-%s' % tdict[self.detail_url].split('/')[5]
+                        tdict['name'] = self.empersant(title.findtext('a'))
+                        if tdict['name'] == None or  tdict['name'] == '':
+                            log('Can not determine program title for "%s"\n' % tdict['be-url'])
+                            continue
+
+                        # Starttime
+                        start = p.findtext('div[@class="l"]/span[@class="starttime"]')
+                        if start == None or start == '':
+                            log('Can not determine starttime for "%s"\n' % tdict['name'])
+                            continue
+
+                        prog_time = datetime.time(int(start.split('u')[0]), int(start.split('u')[1]), 0 ,0 ,CET_CEST)
+
+                        # Make sure the midnight date change is properly crossed
+                        if datetime.datetime.combine(scan_date, prog_time) < last_program:
+                            date_offset = offset +1
+                            scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                        tdict['offset'] = date_offset
+                        tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
+                        last_program = tdict['start-time']
+
+                        # Subtitle
+                        subtitle = self.empersant(p.findtext('div[@class="r"]/p/span[@class="title_episode"]'))
+                        tdict['titel aflevering'] = subtitle if (subtitle != None) else ''
+
+                        # Description. There is a possible long and short version. We try to take the long one
+                        descshort = self.empersant(p.findtext('div[@class="r"]/p[@class="desc_short"]'))
+                        descshort = '' if (descshort == None) else descshort
+
+                        desc = self.empersant(p.findtext('div[@class="r"]/div[@class="desc h"]/p'))
+                        tdict['description'] = desc if (desc != None) else descshort
+
+                        # The basicinfo section
+                        for d in p.iterfind('div[@class="r"]/p[@class="basicinfo"]/span'):
+
+                            if d.get('class').lower() == 'year':
+                                tdict['jaar van premiere'] = d.text
+
+                            elif d.get('class').lower() == 'episode':
+                                tdict['episode'] = (re.sub('Episode', '', d.text)).strip()
+
+                            elif d.get('class').lower() == 'season':
+                                season = self.seasondata.search(d.text)
+                                tdict['season'] = unicode(season.group(1))
+                                tdict['episode'] = unicode(season.group(2))
+                                #stotal = season.group(3)
+
+                            elif d.get('class').lower() == 'originaltitle':
+                                tdict['originaltitle'] = self.empersant(d.text)
+
+                            # We don't use it (yet)
+                            elif d.get('class').lower() == 'country':
                                 continue
 
-                            if genre.lower() in config.tevecattrans.keys():
-                                tdict['genre'] = config.tevecattrans[genre.lower()][0].capitalize()
-                                tdict['subgenre'] = config.tevecattrans[genre.lower()][1].capitalize()
+                            elif config.write_info_files:
+                                infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
 
-                            else:
-                                config.tevecat[genre] = (u'Overige', u'')
+                        # The picons section
+                        for d in p.iterfind('div[@class="r"]/p[@class="picons"]/span'):
 
-                    # and append the program to the list of programs
-                    tdict = self.check_title_name(tdict)
-                    self.program_data[id].append(tdict)
+                            if d.get('class').lower() == 'picon':
 
-                self.day_loaded[id][offset] = True
-                # be nice to teveblad.be
-                time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                                # We don't use these (yet)
+                                if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering', 'premiere'):
+                                    continue
 
-            # Add starttime of the next program as the endtime
-            self.program_data[id].sort(key=lambda program: (program['start-time']))
-            self.add_endtimes(id, 7)
+                                if d.get('title').lower() == 'herhaling':
+                                    tdict['rerun'] = True
 
-            for tdict in self.program_data[id]:
-                self.program_by_id[tdict[self.detail_id]] = tdict
+                                elif d.get('title').lower() == 'hd':
+                                    tdict['video']['HD'] = True
 
-            self.channel_loaded[id] = True
-            self.parse_programs(id, 0, 'None')
-            infofiles.write_fetch_list(self.program_data[id], id, self.source)
+                                elif d.get('title').lower() == 'dolby':
+                                    tdict['audio']  = 'dolby'
+
+                                elif d.get('title').lower() == 'ondertiteld':
+                                    tdict['teletekst']  = True
+
+                                elif config.write_info_files:
+                                    infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
+
+                            elif 'genre' in d.get('class').lower():
+                                genre = self.empersant(d.findtext('a'))
+                                if genre == '' or genre == None:
+                                    continue
+
+                                if genre.lower() in config.tevecattrans.keys():
+                                    tdict['genre'] = config.tevecattrans[genre.lower()][0].capitalize()
+                                    tdict['subgenre'] = config.tevecattrans[genre.lower()][1].capitalize()
+
+                                else:
+                                    config.tevecat[genre] = (u'Overige', u'')
+
+                        # and append the program to the list of programs
+                        tdict = self.check_title_name(tdict)
+                        self.program_data[chanid].append(tdict)
+
+                    self.day_loaded[chanid][offset] = True
+                    # be nice to teveblad.be
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+                # Add starttime of the next program as the endtime
+                self.program_data[chanid].sort(key=lambda program: (program['start-time']))
+                self.add_endtimes(chanid, 7)
+
+                for tdict in self.program_data[chanid]:
+                    self.program_by_id[tdict[self.detail_id]] = tdict
+
+                # If all went well or it's the last try we set them loaded
+                if failure_count == 0 or retry == 1:
+                    self.channel_loaded[chanid] = True
+                    self.parse_programs(chanid, 0, 'None')
+                    config.channels[chanid].source_data[3] = True
+
+                try:
+                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+                except:
+                    pass
 
 # end teveblad_HTML
-teveblad = teveblad_HTML()
+
+class Channel_Config(Thread):
+    """
+    Class that holds the Channel definitions and manages the data retrieval and processing
+    """
+    def __init__(self, chanid = 0, name = '', group = 10):
+        Thread.__init__(self)
+        # Flag to stop the thread
+        self.quit = False
+
+        # Flags to indicate the data is in
+        self.source_data = {}
+
+        # Flag to indicate all data is processed
+        self.ready = False
+
+        self.active = False
+        self.counter = 0
+        self.chanid = chanid
+        self.chan_name = name
+        self.group = group
+        self.source_id = {}
+        self.icon_source = -1
+        self.icon = ''
+
+        for index in range(xml_output.source_count):
+            self.source_id[index] = ''
+            self.source_data[index] = False
+
+        self.none_count = 0
+        self.cache_count = 0
+        self.fail_count = 0
+        self.fetch_count = {}
+        self.fetch_count[0] = 0
+        self.fetch_count[1] = 0
+        self.fetched_count = {}
+        self.fetched_count[0] = 0
+        self.fetched_count[1] = 0
+        # This will contain the final fetcheddata
+        self.all_programs = []
+
+        self.opt_dict = {}
+        self.opt_dict['fast'] = config.opt_dict['fast']
+        self.opt_dict['slowdays'] = config.opt_dict['slowdays']
+        self.opt_dict['compat'] = config.opt_dict['compat']
+        self.opt_dict['max_overlap'] = config.opt_dict['max_overlap']
+        self.opt_dict['overlap_strategy'] = config.opt_dict['overlap_strategy']
+        self.opt_dict['logos'] = config.opt_dict['logos']
+        self.opt_dict['desc_length'] = config.opt_dict['desc_length']
+        self.opt_dict['cattrans'] = config.opt_dict['cattrans']
+        self.opt_dict['mark_hd'] = config.opt_dict['mark_hd']
+        self.opt_dict['add_hd_id'] = False
+        self.opt_dict['prime_source'] = -1
+        self.opt_dict['prefered_description'] = -1
+        self.opt_dict['append_tvgidstv'] = True
+
+    def validate_settings(self):
+
+        if not self.active:
+            return
+
+        config.validate_option('overlap_strategy', self)
+        config.validate_option('max_overlap', self)
+        config.validate_option('desc_length', self)
+        config.validate_option('slowdays', self)
+
+    def run(self):
+
+        if not self.active:
+            self.ready = True
+            return
+
+        try:
+            xml_data = False
+            # Retrieve and merge the data from the available sources.
+            for index in range(xml_output.source_count):
+                if self.source_id[index] != '':
+                    while self.source_data[index] == False:
+                        if self.quit:
+                            self.ready = True
+                            return
+
+                if xml_data == False and self.source_data[index] == True:
+                    xml_data = True
+                    self.all_programs = xml_output.channelsource[index].program_data[self.chanid]
+
+                elif self.source_data[index] == True:
+                    xml_data = True
+                    xml_output.channelsource[index].merge_sources(self.chanid, (self.opt_dict['prime_source'] == index), self.counter)
+                    xml_output.channelsource[index].parse_programs(self.chanid, 1, 'None')
+                    for i in range(0, len(self.all_programs)):
+                        self.all_programs[i] = xml_output.channelsource[index].checkout_program_dict(self.all_programs[i])
+
+            # And get the detailpages
+            self.get_details()
+
+            # Wait for all details being processed
+            while True:
+                if self.fetch_count[0] == 0 and self.fetch_count[1] == 0:
+                    break
+
+            # And log the results
+            config.log_lock.acquire()
+            xml_output.progress_counter+= 1
+            counter = xml_output.progress_counter
+            log('\n', 4, 3, True)
+            log('%6.0f cache hits for %s (channel %s of %s)\n' % (self.cache_count, self.chan_name, counter, config.chan_count),4, 3, True)
+            if self.opt_dict['fast']:
+                log('%6.0f without details in cache\n' % self.none_count,4, 3, True)
+
+            else:
+                log('%6.0f detail fetches from tvgids.nl\n' % self.fetched_count[0], 4, 3, True)
+                log('%6.0f detail fetches from tvgids.tv\n' % self.fetched_count[1], 4, 3, True)
+                log('%6.0f failures\n' % self.fail_count,4, 3, True)
+                log('%6.0f without detail info\n' % self.none_count, 4, 3, True)
+                log('\n', 4, 3, True)
+                log('%6.0f left in the tvgids.nl queue to process\n' % (len(xml_output.channelsource[0].detail_queue)), 4, 3, True)
+                log('%6.0f left in the tvgids.tv queue to process\n' % (len(xml_output.channelsource[1].detail_queue)), 4, 3, True)
+
+            log('\n', 4, 3, True)
+            config.log_lock.release()
+
+            # a final check on the sanity of the data
+            xml_output.channelsource[0].parse_programs(self.chanid, 1)
+
+            # Split titles with colon in it
+            # Note: this only takes place if all days retrieved are also grabbed with details (slowdays=days)
+            # otherwise this function might change some titles after a few grabs and thus may result in
+            # loss of programmed recordings for these programs.
+            for i, v in enumerate(self.all_programs):
+                self.all_programs[i] = self.title_split(v)
+
+            if self.opt_dict['add_hd_id']:
+                self.opt_dict['mark_hd'] = False
+                xml_output.create_channel_strings(self.chanid, False)
+                xml_output.create_program_string(self.chanid, False)
+                xml_output.create_channel_strings(self.chanid, True)
+                xml_output.create_program_string(self.chanid, True)
+
+            else:
+                xml_output.create_channel_strings(self.chanid)
+                xml_output.create_program_string(self.chanid)
+
+            if config.write_info_files:
+                infofiles.write_raw_list()
+
+            self.ready = True
+
+        except:
+            err_obj = sys.exc_info()[2]
+            log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.chan_name, sys.exc_info()[1]), 0)
+            log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+
+            while True:
+                err_obj = err_obj.tb_next
+                if err_obj == None:
+                    break
+
+                log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+
+            log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+
+            self.ready = True
+            for source in xml_output.channelsource.values():
+                source.quit = True
+
+            for channel in config.channels.values():
+                channel.quit = True
+
+            xml_output.program_cache.quit = True
+            return(97)
+
+    def use_cache(self, tdict, cached):
+        # copy the cached information, except the start/end times, rating and clumping,
+        # these may have changed.
+        try:
+            clump  = tdict['clumpidx']
+
+        except LookupError:
+            clump = False
+
+        cached['start-time'] = tdict['start-time']
+        cached['stop-time']  = tdict['stop-time']
+        if clump:
+            cached['clumpidx'] = clump
+
+        # Make sure we do not overwrite fresh info with cashed info
+        if tdict['description'] > cached['description']:
+            cached['description'] = tdict['description']
+
+        if not 'prefered description' in cached.keys():
+            cached['prefered description'] = tdict['prefered description']
+
+        if tdict['prefered description'] > cached['prefered description']:
+            cached['prefered description'] = tdict['prefered description']
+
+        if tdict['titel aflevering'] != '':
+            cached['titel aflevering'] = tdict['titel aflevering']
+
+        if tdict['season'] != '0':
+            cached['season'] = tdict['season']
+
+        if tdict['episode'] != '0':
+            cached['episode'] = tdict['episode']
+
+        if tdict['jaar van premiere'] != '':
+            cached['jaar van premiere'] = tdict['jaar van premiere']
+
+        if tdict['rerun'] == True:
+            cached['rerun'] = True
+
+        return cached
+
+    def get_counter(self):
+        self.fetch_counter += 1
+        return 100*float(self.fetch_counter)/float(self.nprograms)
+    def get_details(self, ):
+        """
+        Given a list of programs, from the several sources, retrieve program details
+        """
+        # Check if there is data
+        if len(self.all_programs) == 0:
+            return
+
+        programs = self.all_programs
+        self.all_programs = []
+
+        if self.opt_dict['fast']:
+            log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
+                (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or ''), \
+                self.counter, config.chan_count, config.opt_dict['days']), 2)
+
+        else:
+            log('\nNow fetching details for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
+                (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or ''), \
+                self.counter, config.chan_count, config.opt_dict['days']), 2)
+
+        # randomize detail requests
+        self.fetch_counter = 0
+        self.nprograms = len(programs)
+        fetch_order = list(range(0,self.nprograms))
+        random.shuffle(fetch_order)
+
+        #~ counter = 0
+        for i in fetch_order:
+            if self.quit:
+                self.ready = True
+                return
+
+            if programs[i] == None:
+                continue
+
+            logstring = u'%s-%s: %s \n' % \
+                                (programs[i]['start-time'].strftime('%d %b %H:%M'), \
+                                programs[i]['stop-time'].strftime('%H:%M'), \
+                                programs[i]['name'])
+
+            # We only fetch when we are in slow mode and slowdays is not set to tight
+            no_fetch = (self.opt_dict['fast'] or programs[i]['offset'] >= (config.opt_dict['offset'] + self.opt_dict['slowdays']))
+
+            # check the cache for this program's ID
+            # If not found, check the various ID's and (if found) make it the prime one
+            cache_id = xml_output.program_cache.query_id(programs[i])
+            if cache_id != None:
+                cached_program = xml_output.program_cache.query(programs[i][cache_id])
+
+                # check if it contains detail info from tvgids.nl or (if no nl-url known, or in no_fetch mode) tvgids.tv
+                if cached_program[xml_output.channelsource[0].detail_check] \
+                  or ((programs[i][xml_output.channelsource[0].detail_url] == '') and cached_program[xml_output.channelsource[1].detail_check]) \
+                  or (no_fetch and cached_program[xml_output.channelsource[1].detail_check]):
+                    log(u'      [cached] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
+                    self.cache_count += 1
+                    self.all_programs.append(self.use_cache(programs[i], cached_program))
+                    continue
+
+            # Either we are fast-mode, outsite slowdays or there is no url. So we continue
+            if no_fetch or ((programs[i][xml_output.channelsource[0].detail_url] == '') and (programs[i][xml_output.channelsource[1].detail_url] == '')):
+                log(u'    [no fetch] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
+                self.none_count += 1
+                self.all_programs.append(programs[i])
+                continue
+
+            detailed_program = None
+            if programs[i][xml_output.channelsource[0].detail_url] != '':
+                self.fetch_count[0]  += 1
+                xml_output.channelsource[0].detail_queue.append({'tdict':programs[i], 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
+                continue
+
+            if detailed_program == None and programs[i][xml_output.channelsource[1].detail_url] != '':
+                self.fetch_count[1]  += 1
+                xml_output.channelsource[1].detail_queue.append({'tdict':programs[i], 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
+                continue
+
+    def title_split(self,program):
+        """
+        Some channels have the annoying habit of adding the subtitle to the title of a program.
+        This function attempts to fix this, by splitting the name at a ': '.
+        """
+        # Some programs (BBC3 when this happened) have no genre. If none, then set to a default
+        if program['genre'] is None:
+            program['genre'] = 'overige';
+
+        ptitle = program['name']
+        psubtitle = program['titel aflevering']
+        if  ptitle == None or ptitle == '':
+            return program
+
+        # exclude certain programs
+        if  ('titel aflevering' in program and psubtitle != '')  \
+          or ('genre' in program and program['genre'].lower() in ['movies','film']) \
+          or (ptitle.lower() in config.notitlesplit):
+            return program
+
+        # and do the title split test
+        p = ptitle.split(':')
+        if len(p) >1:
+            log('Splitting title \"%s\"\n' %  ptitle, 64)
+            program['name'] = p[0].strip()
+            program['titel aflevering'] = "".join(p[1:]).strip()
+            if config.write_info_files:
+                infofiles.addto_detail_list(unicode('Name split = %s + %s' % (program['name'] , program['titel aflevering'])))
+
+        return program
+
+# end Channel_Config()
 
 class XMLoutput:
     '''
@@ -5294,36 +7510,78 @@ class XMLoutput:
         xmlencoding = 'UTF-8'
         # This will contain the cache
         self.program_cache = None
-        # This will contain the final fetcheddata
-        self.all_programs = {}
         # Thes will contain the seperate XML strings
         self.startstring = []
         self.xml_channels = {}
         self.xml_programs = {}
+        self.progress_counter = 0
 
         self.startstring.append(u'<?xml version="1.0" encoding="%s"?>\n' % xmlencoding)
         self.startstring.append(u'<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
-        self.startstring.append(u'<tv generator-info-name="tv_grab_nl_py (version %s)">\n' % __VERSION__)
+        self.startstring.append(u'<tv generator-info-name="%s" generator-info-url="https://github.com/tvgrabbers/tvgrabnlpy">\n' % config.version(True))
         self.closestring = u'</tv>\n'
 
-        # We have two sources of logos, the first provides the nice ones, but is not
+        # We have several sources of logos, the first provides the nice ones, but is not
         # complete. We use the tvgids logos to fill the missing bits.
-        self.logo_provider = [ 'http://graphics.tudelft.nl/~paul/logos/gif/64x64/',
-                                     'http://static.tvgids.nl/gfx/zenders/' ]
+        self.logo_provider = ['http://graphics.tudelft.nl/~paul/logos/gif/64x64/',
+                                        'http://static.tvgids.nl/gfx/zenders/',
+                                        'http://s4.cdn.sanomamedia.be/a/epg/q100/w60/h/',
+                                        'http://staticfiles.rtl.nl/styles/img/logos/',
+                                        'http://212.142.41.211/ChannelLogos/02/']
 
-        self.logo_names = { 1 : [0, 'ned1'],
-                                    2 : [0, 'ned2'],
-                                    3 : [0, 'ned3'],
-                                    4 : [0, 'rtl4'],
-                                    5 : [0, 'een'],
-                                    6 : [0, 'canvas_color'],
-                                    7 : [0, 'bbc1'],
-                                    8 : [0, 'bbc2'],
-                                    9 : [0,'ard'],
-                                    10 : [0,'zdf'],
+                                    #~ 1 : [0, 'ned1'],
+                                    #~ 2 : [0, 'ned2'],
+                                    #~ 3 : [0, 'ned3'],
+                                    #~ 4 : [0, 'rtl4'],
+                                    #~ 5 : [0, 'een'],
+                                    #~ 6 : [0, 'canvas_color'],
+                                    #~ 7 : [0, 'bbc1'],
+                                    #~ 8 : [0, 'bbc2'],
+                                    #~ 9 : [0,'ard'],
+                                    #~ 10 : [0,'zdf'],
+                                    #~ 12 : [0, 'wdr'],
+                                    #~ 24 : [0, 'canal+red'],
+                                    #~ 26 : [0, 'cnn'],
+                                    #~ 31 : [0, 'rtl5'],
+                                    #~ 34 : [0, 'veronica'],
+                                    #~ 36 : [0, 'sbs6'],
+                                    #~ 37 : [0, 'net5'],
+                                    #~ 39 : [0, 'canal+blue'],
+                                    #~ 40 : [0, 'at5'],
+                                    #~ 46 : [0, 'rtl7'],
+                                    #~ 86 : [0, 'bbc-world'],
+                                    #~ 92 : [0, 'rtl8'],
+                                    #~ 100 : [0, 'rtvu'],
+                                    #~ 101 : [0, 'tvwest'],
+                                    #~ 102 : [0, 'tvrijnmond'],
+                                    #~ 103 : [0, 'rtvnh'],
+                                    #~ 107 : [0, 'canal+yellow'],
+                                    #~ 108 : [0, 'tvnoord'],
+                                    #~ 109 : [0, 'omropfryslan'],
+                                    #~ 114 : [0, 'omroepbrabant'],
+                                    #~ 300 : [0, 'bbc3'],
+                                    #~ 301 : [0, 'bbc4'],
+                                    #~ 13 : [1, 'ndr'],
+                                    #~ 28 : [1, 'sat1'],
+                                    #~ 38 : [1, 'arte'],
+                                    #~ 99 : [1, 'sport1_1'],
+                                    #~ 104 : [1, 'bbcprime'],
+                                    #~ 105 : [1, 'spiceplatinum'],
+
+        self.logo_names = {
+                                    1 : [4, 'npo1'],
+                                    2 : [4, 'npo2'],
+                                    3 : [4, 'npo3'],
+                                    4 : [4, 'rtl4_1'],
+                                    5 : [4, 'een'],
+                                    6 : [4, 'canvas'],
+                                    7 : [4, 'bbc1'],
+                                    8 : [4, 'bbc_two'],
+                                    9 : [4, 'ard'],
+                                    10 : [4, 'zdf'],
                                     11 : [1, 'rtl'],
-                                    12 : [0, 'wdr'],
-                                    13 : [1, 'ndr'],
+                                    12 : [4, 'wdr'],
+                                    13 : [4, 'ndr'],
                                     14 : [1, 'srsudwest'],
                                     15 : [1, 'rtbf1'],
                                     16 : [1, 'rtbf2'],
@@ -5331,47 +7589,129 @@ class XMLoutput:
                                     18 : [0, 'ngc'],
                                     19 : [1, 'eurosport'],
                                     20 : [1, 'tcm'],
-                                    21 : [1, 'cartoonnetwork'],
-                                    24 : [0, 'canal+red'],
+                                    21 : [0, 'cartoonnetwork'],
+                                    24 : [4, 'film1_premiere'],
                                     25 : [0, 'mtv-color'],
-                                    26 : [0, 'cnn'],
+                                    26 : [4, 'cnn'],
                                     27 : [0, 'rai'],
-                                    28 : [1, 'sat1'],
+                                    28 : [4, 'sat_1'],
                                     29 : [0, 'discover-spacey'],
-                                    31 : [0, 'rtl5'],
-                                    32 : [1, 'trt'],
-                                    34 : [0, 'veronica'],
+                                    31 : [4, 'rtl_5_1'],
+                                    32 : [0, 'trt'],
+                                    34 : [4, 'veronica_disney_xd'],
                                     35 : [0, 'tmf'],
-                                    36 : [0, 'sbs6'],
-                                    37 : [0, 'net5'],
-                                    38 : [1, 'arte'],
-                                    39 : [0, 'canal+blue'],
-                                    40 : [0, 'at5'],
-                                    46 : [0, 'rtl7'],
+                                    36 : [4, 'sbs6_1'],
+                                    37 : [4, 'net5'],
+                                    38 : [4, 'arte'],
+                                    39 : [4, 'film1_comedykids_sd'],
+                                    40 : [4, 'at5'],
+                                    46 : [4, 'rtl7'],
                                     49 : [1, 'vtm'],
                                     50 : [1, '3sat'],
                                     58 : [1, 'pro7'],
                                     59 : [1, 'kanaal2'],
                                     60 : [1, 'vt4'],
                                     65 : [0, 'animal-planet'],
+                                    66 : [4, 'npo_humor'],
+                                    70 : [4, 'npo_cultura'],
                                     73 : [1, 'mezzo'],
-                                    86 : [0, 'bbc-world'],
+                                    81 : [4, 'npo_doc'],
+                                    86 : [4, 'bbc_world_news'],
                                     87 : [1, 'tve'],
                                     89 : [1, 'nick'],
-                                    90 : [1, 'bvn'],
+                                    90 : [0, 'bvn'],
                                     91 : [0, 'comedy_central'],
-                                    92 : [0, 'rtl8'],
-                                    99 : [1, 'sport1_1'],
-                                    100 : [0, 'rtvu'],
-                                    101 : [0, 'tvwest'],
-                                    102 : [0, 'tvrijnmond'],
-                                    103 : [1, 'tvnoordholland'],
-                                    104 : [1, 'bbcprime'],
-                                    105 : [1, 'spiceplatinum'],
-                                    107 : [0, 'canal+yellow'],
-                                    108 : [0, 'tvnoord'],
-                                    109 : [0, 'omropfryslan'],
-                                    114 : [0, 'omroepbrabant']}
+                                    92 : [4, 'rtl_8_1'],
+                                    99 : [4, 'sport1'],
+                                    100 : [4, 'rtvutrecht'],
+                                    101 : [4, 'tv_west'],
+                                    102 : [4, 'tv_rijnmond'],
+                                    103 : [4, 'rtv_nh'],
+                                    104 : [4, 'bbc_entertainment'],
+                                    105 : [4, 'private_spice'],
+                                    107 : [4, 'film1_sundance'],
+                                    108 : [4, 'rtv_noord'],
+                                    109 : [4, 'omroep_friesland'],
+                                    110 : [4, 'rtv_drenthe'],
+                                    111 : [4, 'rtv_oost'],
+                                    112 : [4, 'omroep_gelderland'],
+                                    113 : [4, 'omroep_flevoland'],
+                                    114 : [4, 'omroep_brabant'],
+                                    115 : [4, 'omroep_limburg'],
+                                    116 : [4, 'omroep_zeeland'],
+                                    148 : [4, 'fox_sports_ere_1_sd'],
+                                    300 : [4, 'bbc_three'],
+                                    301 : [4, 'bbc_four'],
+                                    311 : [4, 'disney_xd'],
+                                    312 : [4, 'nick_jr'],
+                                    313 : [4, 'boomerang_1'],
+                                    315 : [4, 'cbs_reality'],
+                                    316 : [4, 'npo_best'],
+                                    317 : [4, 'comedy_central_family1'],
+                                    406 : [4, 'nostalgienet'],
+                                    407 : [4, 'outtv_v2'],
+                                    408 : [4, 'rtl_lounge1'],
+                                    409 : [4, 'rtlcrime'],
+                                    410 : [4, 'npo_101'],
+                                    411 : [4, 'film1_action'],
+                                    413 : [4, 'history'],
+                                    414 : [4, 'investigation_discovery_2'],
+                                    415 : [4, 'travel_channel_new'],
+                                    416 : [4, 'nat_geo_wild'],
+                                    419 : [4, 'sport1_golf'],
+                                    420 : [4, 'sport1_tennis'],
+                                    422 : [4, 'euronews'],
+                                    423 : [4, 'al_jazeera_english1'],
+                                    427 : [4, 'mtv_brand_new'],
+                                    428 : [4, 'bravanl'],
+                                    429 : [4, 'tv_oranje'],
+                                    430 : [4, 'film1_spotlight_sd'],
+                                    431 : [4, 'hbo_sd'],
+                                    432 : [4, 'hbo_2sd'],
+                                    433 : [4, 'hbo_3sd'],
+                                    434 : [4, 'dusk_24'],
+                                    435 : [4, '24_kitchen'],
+                                    437 : [4, 'comedy_central_extra1'],
+                                    440 : [4, 'fox'],
+                                    460 : [4, 'sbs9'],
+                                    462 : [4, 'shortstv'],
+                                    'zone-realty' : [4, 'zone_reality'],
+                                    'animal-planet-hd' : [4, 'animal_planet_hd'],
+                                    'cbeebies' : [4, 'cbbc'],
+                                    'discovery-hd' : [4, 'discovery_hd'],
+                                    'ketnet-canvas-2' : [4, 'ketnet_canvas'],
+                                    'sport-1-extra-1' : [4, 'sport1_extra1'],
+                                    'sport1-extra-2' : [4, 'sport1_extra2'],
+                                    'sport-1-2' : [4, 'sport1_voetbal'],
+                                    'zone_reality' : [4, 'zone_reality'],
+                                    'rtl_telekids' : [4, 'rtl_telekids'],
+                                    'jimjam' : [4, 'jimjam'],
+                                    'zappelin' : [4, 'npo_zapp_xtra'],
+                                    'politiek-24' : [4, 'npo_politiek'],
+                                    'journaal-24' : [4, 'npo_nieuws'],
+                                    'history-hd' : [4, 'history_hd'],
+                                    'goed-tv' : [4, 'goedtv'],
+                                    'eredivisie-live-2' : [4, 'fox_sports2'],
+                                    'eredivisie-live-3' : [4, 'fox_sports_ere_3_sd'],
+                                    'eredivisie-live-4' : [4, 'fox_sports4'],
+                                    'fox-sports-5-eredivisie' : [4, 'fox_sports_ere_5_sd'],
+                                    'e-entertainment' : [4, 'e_entertainment'],
+                                    'sky-1' : [4, 'sky_news'],
+                                    'sky-2' : [4, 'sky_news'],
+                                    'sky-sports-1' : [4, 'sky_news'],
+                                    'sky-sports-2' : [4, 'sky_news'],
+                                    'sky-sports-3' : [4, 'sky_news'],
+                                    'sky-sports-4' : [4, 'sky_news'],
+                                    'sky-sports-news' : [4, 'sky_news'],
+                                    'bbc-hd' : [4, 'bbc_hd']}
+
+        self.source_count = 4
+        self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be'}
+        self.channelsource = {}
+        self.channelsource[0] = tvgids_JSON(0, 'tvgidsnl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
+        self.channelsource[1] = tvgidstv_HTML(1, 'tvgidstv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
+        self.channelsource[2] = rtl_JSON(2, 'rtl', 'rtl-ID', '', True)
+        self.channelsource[3] = teveblad_HTML(3, 'teveblad', 'be-ID', 'be-url')
 
     def xmlescape(self, s):
         """Escape <, > and & characters for use in XML"""
@@ -5409,41 +7749,51 @@ class XMLoutput:
         '''
         return u'%s</%s>\n' % (''.rjust(ident), self.xmlescape(tag))
 
-    def create_channel_strings(self):
+    def create_channel_strings(self, chanid, add_HD = None):
         '''
         Create the strings for the channels we fetched info about
         '''
-        self.xml_channels = {}
-        for key in config.channels.keys():
-            self.xml_channels[key] = []
-            self.xml_channels[key].append(self.add_starttag('channel', 2, 'id="%s%s"' % (key, config.args.compat and '.tvgids.nl' or '')))
-            self.xml_channels[key].append(self.add_starttag('display-name', 4, 'lang="nl"', config.channels[key], True))
-            if (config.args.logos):
-                try:
-                    ikey = int(key)
-                    if ikey in self.logo_names:
-                        full_logo_url = self.logo_provider[self.logo_names[ikey][0]] + self.logo_names[ikey][1]+'.gif'
-                        self.xml_channels[key].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
+        if add_HD == True:
+            chanidhd = '%s-hd' % chanid
 
-                except Exception:
-                    pass
+        else:
+            chanidhd = chanid
 
-            self.xml_channels[key].append(self.add_endtag('channel', 2))
+        self.xml_channels[chanidhd] = []
+        self.xml_channels[chanidhd].append(self.add_starttag('channel', 2, 'id="%s%s"' % \
+            (chanidhd, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
+        self.xml_channels[chanidhd].append(self.add_starttag('display-name', 4, 'lang="nl"', \
+            config.channels[chanid].chan_name, True))
+        if (config.channels[chanid].opt_dict['logos']):
+            if -1 < config.channels[chanid].icon_source < 5:
+                full_logo_url = self.logo_provider[config.channels[chanid].icon_source] + config.channels[chanid].icon
+                self.xml_channels[chanidhd].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
 
-    def create_program_string(self, channel):
+            elif config.channels[chanid].icon_source == 99:
+                self.xml_channels[chanidhd].append(self.add_starttag('icon', 4, 'src="%s"' % config.channels[chanid].icon, '', True))
+
+        self.xml_channels[chanidhd].append(self.add_endtag('channel', 2))
+
+    def create_program_string(self, chanid, add_HD = None):
         '''
         Create all the program strings
         '''
-        self.xml_programs[channel] = []
-        self.all_programs[channel].sort(key=lambda program: (program['start-time'],program['stop-time']))
-        for program in self.all_programs[channel]:
+        if add_HD == True:
+            chanidhd = '%s-hd' % chanid
+
+        else:
+            chanidhd = chanid
+
+        self.xml_programs[chanidhd] = []
+        config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
+        for program in config.channels[chanid].all_programs:
             xml = []
 
             # Start/Stop
             attribs = 'start="%s" stop="%s" channel="%s%s"' % \
-                (self.format_timezone(program['start-time'], config.args.use_utc), \
-                self.format_timezone(program['stop-time'], config.args.use_utc), \
-                channel, config.args.compat and '.tvgids.nl' or '')
+                (self.format_timezone(program['start-time'], config.opt_dict['use_utc']), \
+                self.format_timezone(program['stop-time'], config.opt_dict['use_utc']), \
+                chanidhd, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')
 
             if 'clumpidx' in program and program['clumpidx'] != '':
                 attribs += 'clumpidx="%s"' % program['clumpidx']
@@ -5457,15 +7807,12 @@ class XMLoutput:
             if 'titel aflevering' in program and program['titel aflevering'] != '':
                 xml.append(self.add_starttag('sub-title', 4, 'lang="nl"', program['titel aflevering'] ,True))
 
-            # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
-            if program['season'] != '' and program['episode'] != '' and program['episode'] != '0':
-                text = '%d . %d'  % (int(program['season']) - 1, int(program['episode']) - 1)
-                xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
-                # A Film with episode info makes it a series. They often do this if they are longer or independent.
-                if program['genre'].lower() == 'film':
-                    program['genre'] = 'serie/soap'
-
             # Add an available subgenre in front off the description or give it as description
+
+            # A prefered description was set and found
+            if program['prefered description'] != '':
+                program['description'] = program['prefered description']
+
             if (program['description'] != '') and (program['subgenre'] != ''):
                 desc_line = u'%s: %s' % (program['subgenre'],program['description'] )
 
@@ -5477,8 +7824,8 @@ class XMLoutput:
 
             # Limit the length of the description
             if desc_line != '':
-                if len(desc_line) > config.args.desc_length:
-                    spacepos = desc_line[0:config.args.desc_length-3].rfind(' ')
+                if len(desc_line) > config.channels[chanid].opt_dict['desc_length']:
+                    spacepos = desc_line[0:config.channels[chanid].opt_dict['desc_length']-3].rfind(' ')
                     desc_line = desc_line[0:spacepos] + '...'
 
                 xml.append(self.add_starttag('desc', 4, 'lang="nl"', desc_line,True))
@@ -5494,8 +7841,12 @@ class XMLoutput:
 
                 xml.append(self.add_endtag('credits', 4))
 
+            # Original Air-Date
+            if program['jaar van premiere'] != '':
+                xml.append(self.add_starttag('date', 4, '', program['jaar van premiere'],True))
+
             # Genre
-            if not config.args.cattrans:
+            if not config.channels[chanid].opt_dict['cattrans']:
                 xml.append(self.add_starttag('category', 4, 'lang="nl', program['genre'], True))
 
             else:
@@ -5530,24 +7881,22 @@ class XMLoutput:
                 else:
                     xml.append(self.add_starttag('category', 4 , '', 'Unknown', True))
 
-            # It's been shown before
-            if program['rerun']:
-                if program['jaar van premiere'] != '' and (program['jaar van premiere'] != datetime.date.today().strftime('%Y')):
-                    xml.append(self.add_starttag('previously-shown', 4, 'start="%s"' % program['jaar van premiere'],'yes' ,True))
-
-                else:
-                    xml.append(self.add_starttag('previously-shown', 4, '', '',True))
-
-            # Original Air-Date
-            elif program['jaar van premiere'] != '':
-                xml.append(self.add_starttag('date', 4, '', program['jaar van premiere'],True))
-
             # An available url
             if program['infourl'] != '':
                 xml.append(self.add_starttag('url', 4, '', program['infourl'],True))
 
+            # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
+            if program['season'] != '' and program['episode'] != '' and program['episode'] != '0':
+                text = '%d . %d'  % (int(program['season']) - 1, int(program['episode']) - 1)
+                xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
+                # A Film with episode info makes it a series. They often do this if they are longer or independent.
+                if program['genre'].lower() == 'film':
+                    program['genre'] = 'serie/soap'
+
             # Process video/audio/teletext sections if present
-            if program['video']['present']:
+            if (program['video']['breedbeeld'] or program['video']['blackwhite'] \
+              or (config.channels[chanid].opt_dict['mark_hd'] \
+              or add_HD == True) and (program['video']['HD'])):
                 xml.append(self.add_starttag('video', 4))
 
                 if program['video']['breedbeeld']:
@@ -5556,7 +7905,8 @@ class XMLoutput:
                 if program['video']['blackwhite']:
                     xml.append(self.add_starttag('colour', 6, '', 'no',True))
 
-                if config.args.mark_HD and (program['video']['HD']):
+                if (config.channels[chanid].opt_dict['mark_hd'] \
+                  or add_HD == True) and (program['video']['HD']):
                     xml.append(self.add_starttag('quality', 6, '', 'HDTV',True))
 
                 xml.append(self.add_endtag('video', 4))
@@ -5565,6 +7915,10 @@ class XMLoutput:
                 xml.append(self.add_starttag('audio', 4))
                 xml.append(self.add_starttag('stereo', 6, '',program['audio'] ,True))
                 xml.append(self.add_endtag('audio', 4))
+
+            # It's been shown before
+            if program['rerun']:
+                xml.append(self.add_starttag('previously-shown', 4, '', '',True))
 
             if program['teletekst']:
                 xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
@@ -5576,33 +7930,38 @@ class XMLoutput:
                 #~ xml.append(self.add_endtag('star-rating', 4))
 
             xml.append(self.add_endtag('programme', 2))
-            id = program['start-time'].strftime('%Y%m%d%H%M%S')
-            self.xml_programs[channel].append(xml)
+            self.xml_programs[chanidhd].append(xml)
 
     def get_xmlstring(self):
         '''
         Compound the compleet XML output and return it
         '''
         xml = []
-        xml.append("".join(self.startstring))
+        xml.append(u"".join(self.startstring))
 
-        for channel in config.channels.keys():
-            xml.append("".join(self.xml_channels[channel]))
-            for program in self.xml_programs[channel]:
-                xml.append("".join(program))
+        for chanid in config.channels.keys():
+            if config.channels[chanid].active:
+                xml.append(u"".join(self.xml_channels[chanid]))
+                if config.channels[chanid].opt_dict['add_hd_id']:
+                    xml.append(u"".join(self.xml_channels['%s-hd' % chanid]))
+
+        for chanid in config.channels.keys():
+            if config.channels[chanid].active:
+                for program in self.xml_programs[chanid]:
+                    xml.append(u"".join(program))
+
+                if config.channels[chanid].opt_dict['add_hd_id']:
+                    for program in self.xml_programs['%s-hd' % chanid]:
+                        xml.append(u"".join(program))
 
         xml.append(self.closestring)
 
-        return "".join(xml)
+        return u"".join(xml)
 
     def print_string(self):
         '''
         Print the compleet XML string to stdout or selected file
         '''
-        self.create_channel_strings()
-        for id in config.channels.keys():
-            self.create_program_string(id)
-
         xml = xml_output.get_xmlstring()
 
         if xml != None:
@@ -5610,9 +7969,10 @@ class XMLoutput:
                 print(xml.encode(config.file_encoding))
 
             else:
-                config.output.write(xml.encode(config.file_encoding))
+                config.output.write(xml)
 
-            infofiles.write_xmloutput(xml)
+            if config.write_info_files:
+                infofiles.write_xmloutput(xml)
 
 # end XMLoutput
 xml_output = XMLoutput()
@@ -5632,7 +7992,7 @@ def get_brt1_channel(days):
 
     # een.be shows programs per day, so we loop over the number of days
     # we are required to grab
-    for offset in range( config.args.offset, (config.args.offset + config.args.days)):
+    for offset in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
 
         channel_url = brt1_zoeken +  unicode(offset + 1)
 
@@ -5640,7 +8000,7 @@ def get_brt1_channel(days):
             time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
         # get the raw programming for the day
-        strdata = get_page(channel_url)
+        strdata = xml_output.channelsource[0].get_page(channel_url)
         prog_list = onedata.finditer(strdata)
         for v in prog_list:
             id = v.group(1)
@@ -5682,200 +8042,6 @@ def get_brt1_channel(days):
 
 #end get_brt1_channel()
 
-def get_details():
-    """
-    Given a list of programs, from the several sources, retrieve program details
-    """
-
-    def use_cache(tdict, cached):
-        # copy the cached information, except the start/end times, rating and clumping,
-        # these may have changed.
-        try:
-            clump  = tdict['clumpidx']
-
-        except LookupError:
-            clump = False
-
-        cached['start-time'] = tdict['start-time']
-        cached['stop-time']  = tdict['stop-time']
-        if clump:
-            cached['clumpidx'] = clump
-
-        # Make sure we do not overwrite fresh info with cashed info
-        if tdict['description'] > cached['description']:
-            cached['description'] = tdict['description']
-
-        if tdict['titel aflevering'] != '':
-            cached['titel aflevering'] = tdict['titel aflevering']
-
-        if tdict['season'] != '0':
-            cached['season'] = tdict['season']
-
-        if tdict['episode'] != '0':
-            cached['episode'] = tdict['episode']
-
-        if tdict['jaar van premiere'] != '':
-            cached['jaar van premiere'] = tdict['jaar van premiere']
-
-        if tdict['rerun'] == True:
-            cached['rerun'] = True
-
-        return cached
-
-    channel_cnt = 0
-    num_chans = len(config.channels)
-
-    for id in config.channels.keys():
-        channel_cnt += 1
-
-        # Check if there is data
-        if (not id in xml_output.all_programs) or (len(xml_output.all_programs[id]) == 0):
-            xml_output.all_programs[id] = []
-            return
-
-        programs = xml_output.all_programs[id]
-
-        if config.args.fast:
-            log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s) (channel %s of %s) for %s days.\n' % \
-                (len(programs), config.channels[id], id, (config.args.compat and '.tvgids.nl' or ''), \
-                channel_cnt, num_chans, config.args.slowdays), 2)
-
-        else:
-            log('\nNow Fetching details for %s programs on %s(xmltvid=%s%s) (channel %s of %s) for %s days.\n' % \
-                (len(programs), config.channels[id], id, (config.args.compat and '.tvgids.nl' or ''), \
-                channel_cnt, num_chans, config.args.slowdays), 2)
-
-        # randomize detail requests
-        nprograms = len(programs)
-        fetch_order = list(range(0,nprograms))
-        random.shuffle(fetch_order)
-
-        counter = 0
-        last_fetch_is_nl = True
-        last_fetch_is_tv = True
-        none_count = 0
-        cache_count = 0
-        fail_count = 0
-        nl_count = 0
-        tv_count = 0
-
-        for i in fetch_order:
-            if programs[i] == None:
-                continue
-
-            counter += 1
-            logstring = '(%3.0f%%) %s-%s: %s ' % \
-                                (100*float(counter)/float(nprograms), \
-                                programs[i]['start-time'].strftime('%d %b %H:%M'), \
-                                programs[i]['stop-time'].strftime('%H:%M'), \
-                                programs[i]['name']) + u'\n'
-
-            # We only fetch when we are in slow mode and slowdays is not set to tight
-            no_fetch = (config.args.fast or programs[i]['offset'] >= (config.args.offset + config.args.slowdays))
-
-            # check the cache for this program's ID
-            # If not found, check the various ID's and (if found) make it the prime one
-            cache_id = xml_output.program_cache.query_id(programs[i])
-            if cache_id != None:
-                cached_program = xml_output.program_cache.query(programs[i][cache_id])
-
-                # check if it contains detail info from tvgids.nl or (if no nl-url known, or in no_fetch mode) tvgids.tv
-                if cached_program[tvgids_json.detail_check] \
-                  or ((programs[i][tvgids_json.detail_url] == '') and cached_program[tvgidstv.detail_check]) \
-                  or (no_fetch and cached_program[tvgidstv.detail_check]):
-                    log('      [cached] ' + logstring, 8, 1)
-                    cache_count += 1
-                    programs[i] = use_cache(programs[i], cached_program)
-                    continue
-
-            # Either we are fast-mode, outsite slowdays or there is no url. So we continue
-            if no_fetch or ((programs[i][tvgids_json.detail_url] == '') and (programs[i][tvgidstv.detail_url] == '')):
-                log('    [no fetch] ' + logstring, 8, 1)
-                none_count += 1
-                continue
-
-            detailed_program = None
-            if programs[i][tvgids_json.detail_url] != '':
-                if last_fetch_is_nl:
-                    # be nice to tvgids.nl
-                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-                    last_fetch_is_tv = False
-
-                # If there is an url, try to get details from tvgids.nl
-                detailed_program = tvgids_json.load_detailpage(programs[i])
-
-                # It failed! If there is an url we'll try tvgids.tv, but first check the cache again
-                if detailed_program == None:
-                    if (cache_id != None) and cached_program[tvgidstv.detail_check]:
-                        log('      [cached] ' + logstring, 8, 1)
-                        cache_count += 1
-                        programs[i] = use_cache(programs[i], cached_program)
-                        continue
-
-                    if programs[i][tvgidstv.detail_url] == '':
-                        log('[fetch failed or timed out] ' + logstring, 8, 1)
-                        fail_count += 1
-                        continue
-
-                else:
-                    programs[i] = detailed_program
-                    programs[i][tvgids_json.detail_check] = True
-                    programs[i]['ID'] = programs[i][tvgids_json.detail_id]
-                    log('[normal fetch] ' + logstring, 8, 1)
-                    nl_count += 1
-                    last_fetch_is_nl = True
-
-            if detailed_program == None and programs[i][tvgidstv.detail_url] != '':
-                if last_fetch_is_tv:
-                    # be nice to tvgids.tv
-                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-                    last_fetch_is_nl = False
-
-                # If tvgids.nl failed and there is an url, try to get details from tvgids.tv
-                detailed_program = tvgidstv.load_detailpage(programs[i])
-
-                # It Failed!
-                if detailed_program == None:
-                    log('[fetch failed or timed out] ' + logstring, 8, 1)
-                    fail_count += 1
-                    continue
-
-                else:
-                    programs[i] = detailed_program
-                    programs[i][tvgidstv.detail_check] = True
-                    programs[i]['ID'] = programs[i][tvgidstv.detail_id]
-                    log('   [.tv fetch] ' + logstring, 8, 1)
-                    tv_count += 1
-                    last_fetch_is_tv = True
-
-            # do not cache programming that is unknown at the time of fetching.
-            if programs[i]['name'].lower() != 'onbekend':
-                xml_output.program_cache.add(tvgids_json.checkout_program_dict(programs[i]))
-
-        if config.args.fast:
-            log('\n', 4)
-            log('%4.0f cache hits for %s\n' % (cache_count, config.channels[id]),4)
-            log('%4.0f without details in cache\n' % none_count,4)
-
-        else:
-            log('\ndone...\n\n', 8)
-            log('\n', 4)
-            log('%4.0f cache hits for %s\n' % (cache_count, config.channels[id]),4)
-            log('%4.0f fetches from tvgids.nl\n' % nl_count,4)
-            log('%4.0f fetches from tvgids.tv\n' % tv_count,4)
-            log('%4.0f failures\n' % fail_count,4)
-            log('%4.0f without detail info\n' % none_count,4)
-
-        xml_output.all_programs[id] = programs
-
-        # save the cache after each channel fetch
-        if not config.args.fast and xml_output.program_cache != None:
-            xml_output.program_cache.dump(config.args.program_cache_file)
-
-        infofiles.write_raw_list()
-
-# end get_details()
-
 def main():
     # We want to handle unexpected errors nicely. With a message to the log
     try:
@@ -5884,36 +8050,36 @@ def main():
         if x != None:
             return(x)
 
-        if xml_output.program_cache != None:
-            xml_output.program_cache.clean()
+        log("The Netherlands: %s\n" % config.version(True), 1, 1)
 
-        # fetch all the primairy data
         # Start the seperate fetching threads
-        tvgids_json.start()
-        teveblad.start()
-        tvgidstv.start()
-        rtl_json.start()
+        for source in xml_output.channelsource.values():
+            x = source.start()
+            if x != None:
+                return(x)
 
-        # Merging extra tvgids.tv info. This is only fetched for the remaining days.
-        # Consecutive details are fetched
-        tvgids_json.join()
-        tvgidstv.join()
-        tvgidstv.merge_data()
+        # Start the Channel threads
+        counter = 0
+        for channel in config.channels.values():
+            if not channel.active:
+                continue
 
-        # Merging extra RTL info. Timing is made dominant and season/episode is added.
-        rtl_json.join()
-        rtl_json.merge_data()
+            counter += 1
+            channel.counter = counter
+            x = channel.start()
+            if x != None:
+                return(x)
 
-        #Merging extra (mainly season/episode) info from teveblad.be
-        teveblad.join()
-        teveblad.merge_data()
+        # This thread monitors the cache and saves it at an interval
+        xml_output.program_cache.start()
 
-        # And finally look-up the detail pages
-        # If in fast mode or not within slowreach we only search the cache
-        get_details()
+        xml_output.channelsource[0].join()
+        xml_output.channelsource[1].join()
+
+        # Make sure the cache is saved
+        xml_output.program_cache.quit = True
 
         # produce the results and wrap-up
-        tvgids_json.prepare_output()
         config.write_defaults_list()
         xml_output.print_string()
 
