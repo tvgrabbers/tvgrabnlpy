@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 7
-        self.patchdate = u'20150513'
+        self.patchdate = u'20150521'
         self.alfa = False
         self.beta = True
 
@@ -5546,12 +5546,15 @@ class tvgids_JSON(FetchData):
             return None
 
         for ctype, content in detail_data.items():
-            if ctype in ('db_id', 'titel', 'datum', 'btijd', 'etijd', 'kijkwijzer', 'zender_id', 'genre'):
+            if ctype in ('db_id', 'titel', 'datum', 'btijd', 'etijd', 'kijkwijzer', 'zender_id'):
                 # We allready have these or we don use them
                 continue
 
             if content == '':
                 continue
+
+            if ctype == 'genre':
+                tdict['genre'] = content
 
             elif ctype == 'synop':
                 content = re.sub('<p>', '', content)
@@ -6165,13 +6168,13 @@ class tvgidstv_HTML(FetchData):
 
                         else:
                             tdict['genre'] = u'overige'
-                            if config.write_info_files:
+                            if config.write_info_files and not tdict['channelid'] in ('29', '438',):
                                 infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
 
                         tdict['subgenre'] = dtext
                         # And add them to tvtvcattrans (and tv_grab_nl_py.set for later reference
-                        # But not for Discovery Channel as that is garbage
-                        if not (tdict['genre'] == u'overige' and tdict['channelid'] == '29'):
+                        # But not for Discovery Channel or TLC as that is garbage
+                        if not (tdict['genre'] == u'overige' and tdict['channelid'] in ('29', '438',)):
                             config.tvtvcat.append((dtext.lower().strip(), tdict['genre']))
 
                 elif datatype == 'jaar':
@@ -6884,7 +6887,7 @@ class teveblad_HTML(FetchData):
                                     if d.get('class').lower() == 'picon' or d.get('class').lower() == 'curvyignore picon' :
 
                                         # We don't use these (yet)
-                                        if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering', 'premiere'):
+                                        if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering', 'premiere', 'ingekleurd'):
                                             continue
 
                                         if d.get('title').lower() == 'herhaling':
@@ -7810,7 +7813,7 @@ class XMLoutput:
             # Add an available subgenre in front off the description or give it as description
 
             # A prefered description was set and found
-            if program['prefered description'] != '':
+            if len(program['prefered description']) > 30:
                 program['description'] = program['prefered description']
 
             if (program['description'] != '') and (program['subgenre'] != ''):
