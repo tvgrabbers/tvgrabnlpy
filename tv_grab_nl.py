@@ -3349,7 +3349,7 @@ class FetchData(Thread):
         text_values = ('source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
-              'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio', 'star-rating')
+              'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio', 'star-rating', 'country')
         date_values = ('start-time', 'stop-time')
         bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst')
         num_values = ('channelid', 'season', 'episode', 'offset')
@@ -4354,6 +4354,9 @@ class FetchData(Thread):
                 if tvdict['jaar van premiere'] != '':
                     tdict['jaar van premiere'] = tvdict['jaar van premiere']
 
+                if tvdict['country'] != '':
+                    tdict['country'] = tvdict['country']
+
                 if tvdict['rerun']:
                     tdict['rerun']  = True
 
@@ -4456,6 +4459,9 @@ class FetchData(Thread):
 
                 if tvdict['jaar van premiere'] != '':
                     tdict['jaar van premiere']  = tvdict['jaar van premiere']
+
+                if tvdict['country'] != '':
+                    tdict['country']  = tvdict['country']
 
             if len(tvdict['description']) > len(tdict['description']):
                 tdict['description']  = tvdict['description']
@@ -7126,9 +7132,8 @@ class teveblad_HTML(FetchData):
                             elif d.get('class').lower() == 'originaltitle':
                                 tdict['originaltitle'] = self.empersant(d.text)
 
-                            # We don't use it (yet)
                             elif d.get('class').lower() == 'country':
-                                continue
+                                tdict['country'] = self.empersant(d.text)[0:2]
 
                             elif config.write_info_files:
                                 infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
@@ -7373,6 +7378,8 @@ class Channel_Config(Thread):
     def use_cache(self, tdict, cached):
         # copy the cached information, except the start/end times, rating and clumping,
         # these may have changed.
+        # But first checkout the dict
+        cached = xml_output.channelsource[0].checkout_program_dict(cached)
         try:
             clump  = tdict['clumpidx']
 
@@ -7385,12 +7392,6 @@ class Channel_Config(Thread):
             cached['clumpidx'] = clump
 
         # Make sure we do not overwrite fresh info with cashed info
-        if not 'star-rating' in cached:
-            cached['star-rating'] = ''
-
-        if not 'kijkwijzer' in cached:
-            cached['kijkwijzer'] = []
-
         if tdict['description'] > cached['description']:
             cached['description'] = tdict['description']
 
@@ -7411,6 +7412,9 @@ class Channel_Config(Thread):
 
         if tdict['jaar van premiere'] != '':
             cached['jaar van premiere'] = tdict['jaar van premiere']
+
+        if tdict['country'] != '':
+            cached['country'] = tdict['country']
 
         if tdict['rerun'] == True:
             cached['rerun'] = True
@@ -7921,6 +7925,9 @@ class XMLoutput:
             # An available url
             if program['infourl'] != '':
                 xml.append(self.add_starttag('url', 4, '', program['infourl'],True))
+
+            if program['country'] != '':
+                xml.append(self.add_starttag('country', 4, '', program['country'],True))
 
             # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
             if program['season'] != '' and program['episode'] != '' and program['episode'] != '0':
