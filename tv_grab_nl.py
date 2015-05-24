@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 7
-        self.patchdate = u'20150521'
+        self.patchdate = u'20150523'
         self.alfa = False
         self.beta = True
 
@@ -6690,15 +6690,16 @@ class teveblad_HTML(FetchData):
 
 
     def load_pages(self):
-        # We first try to get the grouppages
-        self.load_grouppages()
-        # And for the failed pages we try the solo ones
+        # We first try to get the solopages
         self.load_solopages()
+        # And for the failed pages we try the grouppages
+        self.load_grouppages()
 
     def load_grouppages(self):
         # First determin which pages need to be loaded
         try:
             self.get_channels()
+            # Init loaded markings for the grouppages
             for n, v in self.page_strings.items():
                 v['fetch_list'] = []
                 self.day_loaded[n] = {}
@@ -6713,7 +6714,7 @@ class teveblad_HTML(FetchData):
                     continue
 
                 # Check wich grouppage to load
-                if len(self.all_channels[channel]['group_list']) > 0:
+                if not self.channel_loaded[chanid] and len(self.all_channels[channel]['group_list']) > 0:
                     self.page_strings[self.all_channels[channel]['group_list'][0]]['fetch_list'].append(channel)
 
             for retry in (0, 1):
@@ -6731,6 +6732,25 @@ class teveblad_HTML(FetchData):
                     for offset in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
                         if self.day_loaded[group_page][offset] != False:
                             continue
+
+                        day_list = []
+                        for channel in group_values['fetch_list']:
+                            chanid = ''
+                            for k, v in self.channels.items():
+                                if channel == v:
+                                    chanid = k
+                                    if not self.day_loaded[chanid][offset]:
+                                        day_list.append(chanid)
+
+                                    break
+
+                            if len(day_list) > 0:
+                                break
+
+                        else:
+                            if len(day_list) == 0:
+                                # All channels processed for this day
+                                continue
 
                         log('\n', 2)
                         log('Now fetching GroupPage: %s from teveblad.be for day %s of %s.\n' % (group_page, offset, config.opt_dict['tevedays']), 2)
@@ -6943,8 +6963,8 @@ class teveblad_HTML(FetchData):
                         # be nice to teveblad.be
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
-                    # If all went well we set them loaded. Else we give the solopages atry
-                    if failure_count == 0:
+                    # If all went well or it's the last try we set them loaded
+                    if failure_count == 0 or retry == 1:
                         for chanid, channel in self.channels.items():
                             if channel in group_values['fetch_list']:
                                 for tdict in self.program_data[chanid]:
@@ -7117,7 +7137,7 @@ class teveblad_HTML(FetchData):
                         # The picons section
                         for d in p.iterfind('div[@class="r"]/p[@class="picons"]/span'):
 
-                            if d.get('class').lower() == 'picon':
+                            if d.get('class').lower() == 'picon' or d.get('class').lower() == 'curvyignore picon' :
 
                                 # We don't use these (yet)
                                 if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering', 'premiere'):
@@ -7165,8 +7185,8 @@ class teveblad_HTML(FetchData):
                 for tdict in self.program_data[chanid]:
                     self.program_by_id[tdict[self.detail_id]] = tdict
 
-                # If all went well or it's the last try we set them loaded
-                if failure_count == 0 or retry == 1:
+                # If all went well we set them loaded. Else we give the grouppages a try
+                if failure_count == 0:
                     self.channel_loaded[chanid] = True
                     self.parse_programs(chanid, 0, 'None')
                     config.channels[chanid].source_data[3] = True
