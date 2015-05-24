@@ -3349,7 +3349,7 @@ class FetchData(Thread):
         text_values = ('source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
-              'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio')
+              'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio', 'star-rating')
         date_values = ('start-time', 'stop-time')
         bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst')
         num_values = ('channelid', 'season', 'episode', 'offset')
@@ -4386,6 +4386,13 @@ class FetchData(Thread):
             if tvdict['prefered description'] != '':
                 tdict['prefered description']  = tvdict['prefered description']
 
+            if tvdict['star-rating'] != '':
+                tdict['star-rating']  = tvdict['star-rating']
+
+            if len(tvdict['kijkwijzer']) > 0:
+                for item in tvdict['kijkwijzer']:
+                    tdict['kijkwijzer'].append(item)
+
             if tvdict['video']['HD']:
                 tdict['video']['HD']  = True
 
@@ -4455,6 +4462,13 @@ class FetchData(Thread):
 
             if tvdict['prefered description'] != '':
                 tdict['prefered description']  = tvdict['prefered description']
+
+            if tvdict['star-rating'] != '':
+                tdict['star-rating']  = tvdict['star-rating']
+
+            if len(tvdict['kijkwijzer']) > 0:
+                for item in tvdict['kijkwijzer']:
+                    tdict['kijkwijzer'].append(item)
 
             if tvdict['rerun']:
                 tdict['rerun']  = True
@@ -5257,6 +5271,10 @@ class tvgids_JSON(FetchData):
     def load_pages(self):
 
         if config.opt_dict['offset'] > 4:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[0] = True
+
             return
 
         if len(self.channels) == 0 :
@@ -5495,8 +5513,6 @@ class tvgids_JSON(FetchData):
 
                             else:
                                 tdict['kijkwijzer'].append(item)
-                    if config.write_info_files:
-                        infofiles.addto_detail_list(unicode('new kijkwijzer detail for %s => %s:%s' % (tdict['nl-ID'], item['text'], item['icon'])))
 
                 else:
                     content = self.empersant(d.find('span[@class="col-lg-9 programma_detail_info"]').text).strip()
@@ -5648,132 +5664,6 @@ class tvgids_JSON(FetchData):
                 else:
                     if config.write_info_files:
                         infofiles.addto_detail_list(unicode('new tvgids.nl json detail => ' + ctype + ': ' + content))
-
-        tdict['ID'] = tdict[self.detail_id]
-        tdict[self.detail_check] = True
-        return tdict
-
-    def load_detailpage_oud(self, tdict):
-
-        try:
-            strdata = self.get_page(tdict[self.detail_url])
-            if strdata == None:
-                return
-
-            # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
-            tvgidsnldesc = re.compile('<div id="prog-content">(.*?)</div>',re.DOTALL)
-            strdesc = tvgidsnldesc.search(strdata)
-            # Just in case there are inbetween <div> tags. Like for a movie
-            div_count = len(re.findall('<div', strdesc.group(1)))
-            if div_count > 0:
-                while True:
-                    re_string = '<div id="prog-content">(.*?)</div>'
-                    for i in range(div_count):
-                        re_string += '(.*?)</div>'
-
-                    tvgidsnldesc = re.compile(re_string,re.DOTALL)
-                    strdesc = tvgidsnldesc.search(strdata)
-                    if len(re.findall('<div', strdesc.group(0))) == len(re.findall('</div>', strdesc.group(0))):
-                        break
-
-                    div_count += (len(re.findall('<div', strdesc.group(0))) - len(re.findall('</div>', strdesc.group(0))))
-
-            tvgidsnldetails = re.compile('<div id="prog-info-content">(.*?)</div>',re.DOTALL)
-            strdetails = tvgidsnldetails.search(strdata)
-            # Just in case there are inbetween <div> tags. Like for a movie
-            div_count = len(re.findall('<div', strdetails.group(1)))
-            if div_count > 0:
-                re_string = '<div id="prog-info-content">(.*?)</div>'
-                for i in range(div_count):
-                    re_string += '(.*?)</div>'
-
-                tvgidsnldetails = re.compile(re_string,re.DOTALL)
-                strdetails = tvgidsnldetails.search(strdata)
-
-            # Remove any movie reference for we don't need them and they can interfere with ET
-            strdesc = re.sub('<div id="prog-video">.*?</div>', '', strdesc.group(0), flags = re.DOTALL)
-            # There are titles containing '<' (eg. MTV<3) which interfere. Since whe don't need it we remove the title
-            strdetails = re.sub('<li><strong>Titel:</strong>.*?</li>', '', strdetails.group(0), flags = re.DOTALL)
-            strdata = (self.clean_html('<root>\n' + strdesc + '\n' + strdetails + '\n</root>\n')).strip().encode('utf-8')
-            htmldata = ET.fromstring(strdata)
-
-        except Exception as e:
-            if config.write_info_files:
-                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
-                infofiles.write_raw_string('<root>\n' + strdesc + '\n' + strdetails + '\n</root>\n')
-
-            # if we cannot find the description page,
-            # go to next in the loop
-            return None
-
-        # We scan every alinea of the description
-        try:
-            tdict = self.filter_description(htmldata, 'div/p', tdict)
-
-        except:
-            log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
-
-        # We scan all the details
-        for d in htmldata.findall('div/ul/li'):
-            try:
-                ctype = self.empersant(d.find('strong').text).strip().lower()
-                content = self.empersant(d.find('strong').tail).strip()
-
-            except Exception as e:
-                continue
-
-            if content == '':
-                continue
-
-            if ctype == 'genre':
-                tdict['genre'] = content.title()
-
-            # Parse persons and their roles for credit info
-            elif ctype in config.roletrans:
-                if not config.roletrans[ctype] in tdict['credits']:
-                    tdict['credits'][config.roletrans[ctype]] = []
-                persons = content.split(',');
-                for name in persons:
-                    if name.find(':') != -1:
-                        name = name.split(':')[1]
-
-                    if name.find('-') != -1:
-                        name = name.split('-')[0]
-
-                    if name.find('e.a') != -1:
-                        name = name.split('e.a')[0]
-
-                    if not self.unescape(name.lower()) in tdict['credits'][config.roletrans[ctype]].lower():
-                        tdict['credits'][config.roletrans[ctype]].append(self.unescape(name.strip()))
-
-            # Add extra properties, while at the same time checking if we do not uncheck already set properties
-            elif ctype == 'bijzonderheden':
-                if config.write_info_files:
-                    infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
-
-                content = content.lower()
-                if tdict['video']['breedbeeld'] == False:
-                    tdict['video']['breedbeeld'] = (content.find('breedbeeld') != -1)
-                if tdict['video']['HD'] == False:
-                    tdict['video']['HD'] = (content.find('hd 1080i') != -1)
-                if tdict['video']['blackwhite'] == False:
-                    tdict['video']['blackwhite'] = (content.find('zwart/wit') != -1)
-                if tdict['teletekst'] == False:
-                    tdict['teletekst'] = (content.find('teletekst') != -1)
-                if content.find('stereo') != -1: tdict['audio'] = 'stereo'
-                if tdict['rerun'] == False:
-                    tdict['rerun'] = (content.find('herhaling') != -1)
-
-            elif ctype == 'nl-url':
-                tdict['infourl'] = content
-
-            elif (ctype not in tdict) and (ctype.lower() not in ('zender', 'datum', 'uitzendtijd', 'titel')):
-                # In unmatched cases, we still add the parsed type and content to the program details.
-                # Some of these will lead to xmltv output during the xmlefy_programs step
-                if config.write_info_files:
-                    infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
-
-                tdict[ctype] = content
 
         tdict['ID'] = tdict[self.detail_id]
         tdict[self.detail_check] = True
@@ -5957,6 +5847,92 @@ class tvgidstv_HTML(FetchData):
                         self.all_channels[chanid]['group'] = id
                         break
 
+    def match_genre(self, dtext, tdict):
+        if dtext.lower() in config.tvtvcattrans:
+            tdict['genre'] = config.tvtvcattrans[dtext.lower()].capitalize()
+            tdict['subgenre'] = dtext
+
+        # Now we try to match the genres not found in tvtvcattrans
+        else:
+            if 'jeugd' in dtext.lower():
+                tdict['genre'] = u'Jeugd'
+
+            elif 'muziek' in dtext.lower():
+                tdict['genre'] = u'Muziek'
+
+            elif 'sport' in dtext.lower():
+                tdict['genre'] = u'Sport'
+
+            elif 'nieuws' in dtext.lower():
+                tdict['genre'] = u'Nieuws/Actualiteiten'
+
+            elif 'natuur' in dtext.lower():
+                tdict['genre'] = u'Natuur'
+
+            elif 'cultuur' in dtext.lower():
+                tdict['genre'] = u'Kunst en Cultuur'
+
+            elif 'kunst' in dtext.lower():
+                tdict['genre'] = u'Kunst en Cultuur'
+
+            elif 'wetenschap' in dtext.lower():
+                tdict['genre'] = u'Wetenschap'
+
+            elif 'medisch' in dtext.lower():
+                tdict['genre'] = u'Wetenschap'
+
+            elif 'film' in dtext.lower():
+                tdict['genre'] = u'Film'
+
+            elif 'spel' in dtext.lower():
+                tdict['genre'] = u'Amusement'
+
+            elif 'show' in dtext.lower():
+                tdict['genre'] = u'Amusement'
+
+            elif 'quiz' in dtext.lower():
+                tdict['genre'] = u'Amusement'
+
+            elif 'praatprogramma' in dtext.lower():
+                tdict['genre'] = u'Magazine'
+
+            elif 'magazine' in dtext.lower():
+                tdict['genre'] = u'Magazine'
+
+            elif 'documentair' in dtext.lower():
+                tdict['genre'] = u'Informatief'
+
+            elif 'serie' in dtext.lower():
+                tdict['genre'] = u'Serie/Soap'
+
+            elif 'soap' in dtext.lower():
+                tdict['genre'] = u'Serie/Soap'
+
+            elif 'drama' in dtext.lower():
+                tdict['genre'] = u'Serie/Soap'
+
+            elif 'thriller' in dtext.lower():
+                tdict['genre'] = u'Serie/Soap'
+
+            elif 'komedie' in dtext.lower():
+                tdict['genre'] = u'Serie/Soap'
+
+            elif 'western' in dtext.lower():
+                tdict['genre'] = u'Serie/Soap'
+
+            else:
+                tdict['genre'] = u'overige'
+                if config.write_info_files and not tdict['channelid'] in ('29', '438',):
+                    infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
+
+            tdict['subgenre'] = dtext
+            # And add them to tvtvcattrans (and tv_grab_nl_py.set for later reference
+            # But not for Discovery Channel or TLC as that is garbage
+            if not (tdict['genre'] == u'overige' and tdict['channelid'] in ('29', '438',)):
+                config.tvtvcat.append((dtext.lower().strip(), tdict['genre']))
+
+        return tdict
+
     def load_pages(self):
 
         for retry in (0, 1):
@@ -6061,21 +6037,35 @@ class tvgidstv_HTML(FetchData):
                             tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
                             last_program = tdict['start-time']
 
-                            d = p.find('div[@class="content"]/span[@class="label"]/p')
+                            m = p.findtext('div[@class="content"]/span[@class="label"]')
                             # span = "IMDB * n.n"
-                            # p      = "dd/mm/yy - IMDB * n.n - <genre>, beschrijving"
-                            if d != None:
-                                dd = unicode(d.split('-')[2])
+                            if m != None:
+                                dd = unicode(m.split(':')[1])
                                 if dd != '':
-                                    tdict['description'] = self.empersant(dd.split(',')[1])
-                                    tdict['genre'] = self.empersant(dd.split(',')[0])
-                                    config.tvtvcat.append(tdict['genre'])
+                                    tdict['star-rating'] = dd
+
+                            d = p.findtext('div[@class="content"]/p')
+                            # p      = "dd/mm - IMDB * n.n - <genre>, beschrijving"
+                            if d != None:
+                                dd = d.split(',')
+                                tdict['description'] = self.empersant(d[len(dd[0])+1:]).strip()
+                                dd = self.empersant(dd[0]).split('-')
+                                tdict = self.match_genre(self.empersant(unicode(dd[-1])), tdict)
+
+                                if tdict['star-rating'] == '' and len(dd) > 1:
+                                    if self.write_info_files:
+                                        infofiles.addto_detail_list(unicode('new tvgids.tv IMDB detail => ' + d.split(',')[0]))
+
+                                    ddd = dd[-2].split('*')
+                                    if ddd[0].strip() == 'IMDB':
+                                        tdict['star-rating'] = unicode(ddd[1].strip())
 
                             # and append the program to the list of programs
                             self.program_data[chanid].append(tdict)
 
                     except:
-                        log('Error processing data for channel:%s day:%s/n' % (config.channels[chanid].chan_name, offset))
+                        log('Error processing tvgids.tv data for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
+                        log('Error: %s, line:%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                         continue
 
                     self.day_loaded[chanid][offset] = True
@@ -6133,160 +6123,102 @@ class tvgidstv_HTML(FetchData):
 
         data = htmldata.find('div[@class="section-content"]')
         datatype = u''
-        for d in data.find('div/dl'):
-            if d.tag == 'dt':
-                datatype = self.empersant(d.text.lower())
+        try:
+            for d in data.find('div/dl'):
+                if d.tag == 'dt':
+                    datatype = self.empersant(d.text.lower())
 
-            elif d.tag == 'dd':
-                dtext = self.empersant(d.text) if (d.text != None) else ''
-                if datatype == 'datum':
-                    pass
-                    # ww dd mmm yyyy
+                elif d.tag == 'dd':
+                    dtext = self.empersant(d.text) if (d.text != None) else ''
+                    if datatype == 'datum':
+                        pass
+                        # ww dd mmm yyyy
 
-                elif datatype == 'tijd':
-                    pass
-                    # uu:mm tot uu:mm
+                    elif datatype == 'tijd':
+                        pass
+                        # uu:mm tot uu:mm
 
-                elif datatype == 'genre':
-                    if dtext == '':
-                        continue
+                    elif datatype == 'genre':
+                        if dtext == '':
+                            continue
 
-                    if dtext.lower() in config.tvtvcattrans:
-                        tdict['genre'] = config.tvtvcattrans[dtext.lower()].capitalize()
-                        tdict['subgenre'] = dtext
+                        tdict = self.match_genre(dtext, tdict)
 
-                    # Now we try to match the genres not found in tvtvcattrans
+                    elif datatype == 'jaar':
+                        tdict['jaar van premiere'] = dtext
+
+                    elif datatype in config.roletrans:
+                        tdict['credits'][config.roletrans[datatype]] = []
+                        persons = dtext.split(',');
+                        for name in persons:
+                            if name.find(':') != -1:
+                                name = name.split(':')[1]
+
+                            if name.find('-') != -1:
+                                name = name.split('-')[0]
+
+                            if name.find('e.a') != -1:
+                                name = name.split('e.a')[0]
+
+                            tdict['credits'][config.roletrans[datatype]].append(name.strip())
+
+                    elif datatype == 'imdb':
+                        dd = d.find('a')
+                        if dd == None:
+                            continue
+
+                        durl = self.empersant(dd.get('href', ''))
+                        if durl != '':
+                            tdict['infourl'] = durl
+
+                        stars = unicode(dd.text.strip())
+                        if stars != '' and tdict['star-rating'] == '':
+                            tdict['star-rating'] = stars
+                            #~ stars = unicode(stars.split(':')[1].strip())
+                            #~ stars = re.sub('%', '', stars)
+                            #~ stars = re.sub(';', '', stars)
+                            #~ tdict['star-rating'] = unicode(int(stars)/10)
+
+                    elif datatype== 'officiële website':
+                        if d.find('a') == None:
+                            continue
+
+                        durl = self.empersant(d.find('a').get('href', ''))
+                        if durl != '':
+                            tdict['infourl'] = durl
+
+                    elif datatype in ('uitzending gemist', 'officiële twitter', 'twitter hashtag', 'deel-url'):
+                        pass
+
                     else:
-                        if 'jeugd' in dtext.lower():
-                            tdict['genre'] = u'Jeugd'
+                        if dtext != '':
+                            if config.write_info_files:
+                                infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + dtext))
 
-                        elif 'muziek' in dtext.lower():
-                            tdict['genre'] = u'Muziek'
+                            tdict[datatype] = dtext
 
-                        elif 'sport' in dtext.lower():
-                            tdict['genre'] = u'Sport'
+                        elif d.find('div') != None and d.find('div').get('class') != None:
+                            if config.write_info_files:
+                                infofiles.addto_detail_list(unicode('new tvgids.tv div-class detail => ' + datatype + '=' + d.find('div').get('class')))
 
-                        elif 'nieuws' in dtext.lower():
-                            tdict['genre'] = u'Nieuws/Actualiteiten'
+                            tdict[datatype] = unicode(d.find('div').get('class'))
 
-                        elif 'natuur' in dtext.lower():
-                            tdict['genre'] = u'Natuur'
+                        elif d.find('a') != None and d.find('a').get('href') != None:
+                            if config.write_info_files:
+                                infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
 
-                        elif 'cultuur' in dtext.lower():
-                            tdict['genre'] = u'Kunst en Cultuur'
+                            tdict[datatype] = unicode(d.find('a').get('href'))
 
-                        elif 'kunst' in dtext.lower():
-                            tdict['genre'] = u'Kunst en Cultuur'
+                        elif config.write_info_files:
+                            infofiles.addto_detail_list(unicode('new tvgids.tv empty detail => ' + datatype))
 
-                        elif 'wetenschap' in dtext.lower():
-                            tdict['genre'] = u'Wetenschap'
+                elif config.write_info_files:
+                    infofiles.addto_detail_list(unicode('new tvgids.d-tag => ' + d.tag))
 
-                        elif 'medisch' in dtext.lower():
-                            tdict['genre'] = u'Wetenschap'
-
-                        elif 'film' in dtext.lower():
-                            tdict['genre'] = u'Film'
-
-                        elif 'spel' in dtext.lower():
-                            tdict['genre'] = u'Amusement'
-
-                        elif 'show' in dtext.lower():
-                            tdict['genre'] = u'Amusement'
-
-                        elif 'quiz' in dtext.lower():
-                            tdict['genre'] = u'Amusement'
-
-                        elif 'praatprogramma' in dtext.lower():
-                            tdict['genre'] = u'Magazine'
-
-                        elif 'magazine' in dtext.lower():
-                            tdict['genre'] = u'Magazine'
-
-                        elif 'documentair' in dtext.lower():
-                            tdict['genre'] = u'Informatief'
-
-                        elif 'serie' in dtext.lower():
-                            tdict['genre'] = u'Serie/Soap'
-
-                        elif 'soap' in dtext.lower():
-                            tdict['genre'] = u'Serie/Soap'
-
-                        elif 'drama' in dtext.lower():
-                            tdict['genre'] = u'Serie/Soap'
-
-                        elif 'thriller' in dtext.lower():
-                            tdict['genre'] = u'Serie/Soap'
-
-                        elif 'komedie' in dtext.lower():
-                            tdict['genre'] = u'Serie/Soap'
-
-                        elif 'western' in dtext.lower():
-                            tdict['genre'] = u'Serie/Soap'
-
-                        else:
-                            tdict['genre'] = u'overige'
-                            if config.write_info_files and not tdict['channelid'] in ('29', '438',):
-                                infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
-
-                        tdict['subgenre'] = dtext
-                        # And add them to tvtvcattrans (and tv_grab_nl_py.set for later reference
-                        # But not for Discovery Channel or TLC as that is garbage
-                        if not (tdict['genre'] == u'overige' and tdict['channelid'] in ('29', '438',)):
-                            config.tvtvcat.append((dtext.lower().strip(), tdict['genre']))
-
-                elif datatype == 'jaar':
-                    tdict['jaar van premiere'] = dtext
-
-                elif datatype in config.roletrans:
-                    tdict['credits'][config.roletrans[datatype]] = []
-                    persons = dtext.split(',');
-                    for name in persons:
-                        if name.find(':') != -1:
-                            name = name.split(':')[1]
-
-                        if name.find('-') != -1:
-                            name = name.split('-')[0]
-
-                        if name.find('e.a') != -1:
-                            name = name.split('e.a')[0]
-
-                        tdict['credits'][config.roletrans[datatype]].append(name.strip())
-
-                elif datatype in ('officiële website','imdb'):
-                    if d.find('a') == None:
-                        continue
-
-                    durl = self.empersant(d.find('a').get('href', ''))
-                    if durl != '':
-                        tdict['infourl'] = durl
-
-                elif datatype in ('uitzending gemist', 'officiële twitter', 'kijkwijzer', 'twitter hashtag', 'deel-url'):
-                    pass
-
-                else:
-                    if dtext != '':
-                        if config.write_info_files:
-                            infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + dtext))
-
-                        tdict[datatype] = dtext
-
-                    elif d.find('div') != None and d.find('div').get('class') != None:
-                        if config.write_info_files:
-                            infofiles.addto_detail_list(unicode('new tvgids.tv div-class detail => ' + datatype + '=' + d.find('div').get('class')))
-
-                        tdict[datatype] = unicode(d.find('div').get('class'))
-
-                    elif d.find('a') != None and d.find('a').get('href') != None:
-                        if config.write_info_files:
-                            infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
-
-                        tdict[datatype] = unicode(d.find('a').get('href'))
-
-                    elif config.write_info_files:
-                        infofiles.addto_detail_list(unicode('new tvgids.tv empty detail => ' + datatype))
-
-            elif config.write_info_files:
-                infofiles.addto_detail_list(unicode('new tvgids.d-tag => ' + d.tag))
+        except:
+            log('Error processing tvgids.tv detailpage:%s\n' % (tdict[self.detail_url]))
+            log('Error: %s, line:%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+            return
 
         tdict['ID'] = tdict[self.detail_id]
         tdict[self.detail_check] = True
@@ -8018,10 +7950,10 @@ class XMLoutput:
                     xml.append(self.add_endtag('rating', 4))
 
             # Set star-rating if applicable
-            #~ if program['star-rating'] != '':
-                #~ xml.append(self.add_starttag('star-rating', 4))
-                #~ xml.append(self.add_starttag('value', 4, '', program['star-rating'],True))
-                #~ xml.append(self.add_endtag('star-rating', 4))
+            if program['star-rating'] != '':
+                xml.append(self.add_starttag('star-rating', 4))
+                xml.append(self.add_starttag('value', 6, '', program['star-rating'],True))
+                xml.append(self.add_endtag('star-rating', 4))
 
             xml.append(self.add_endtag('programme', 2))
             self.xml_programs[chanidhd].append(xml)
