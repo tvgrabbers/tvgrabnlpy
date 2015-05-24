@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 7
-        self.patchdate = u'20150523'
+        self.patchdate = u'20150524'
         self.alfa = False
         self.beta = True
 
@@ -3354,6 +3354,7 @@ class FetchData(Thread):
         bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst')
         num_values = ('channelid', 'season', 'episode', 'offset')
         dict_values = ('credits', 'video')
+        list_values = ('kijkwijzer', )
         video_values = ('HD', 'breedbeeld', 'blackwhite')
 
         if tdict == None:
@@ -3386,8 +3387,12 @@ class FetchData(Thread):
                 tdict[key] = u'0'
 
         for key in dict_values:
-            if not key in tdict.keys() or tdict[key] == None or tdict[key] == '':
+            if not key in tdict.keys() or not isinstance(tdict[key], dict):
                 tdict[key] = {}
+
+        for key in list_values:
+            if not key in tdict.keys() or not isinstance(tdict[key], list):
+                tdict[key] = []
 
         for subkey in tdict['credits'].keys():
             if  tdict['credits'][subkey] == None:
@@ -5162,6 +5167,26 @@ class tvgids_JSON(FetchData):
         self.tvgidsnldesc = re.compile('<p(.*?)</p>',re.DOTALL)
         self.tvgidsnldesc2 = re.compile('<div class="tekst col-sm-12">(.*?)</div>',re.DOTALL)
         self.tvgidsnldetails = re.compile('<div class="programmering_info_detail">(.*?)</div>',re.DOTALL)
+        self.kijkwijzer = {'1': {'text': 'Voor alle leeftijden',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/al_transp.png'},
+                        '2': {'text': 'Afgeraden voor kinderen jonger dan 6 jaar',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/6_transp.png'},
+                        '9': {'text': 'Afgeraden voor kinderen jonger dan 9 jaar',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/9_transp.png'},
+                        '3': {'text': 'Afgeraden voor kinderen jonger dan 12 jaar',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/12_transp.png'},
+                        '4': {'text': 'Niet voor personen tot 16 jaar',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/16_transp.png'},
+                        'a': {'text': 'Angst',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/angst_transp.png'},
+                        'g': {'text': 'Geweld',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/geweld_transp.png'},
+                        'h': {'text': 'drugs- en/of alcoholmisbruik',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/drugs_transp.png'},
+                        's': {'text': 'Seks',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/seks_transp.png'},
+                        't': {'text': 'Grof taalgebruik',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/grof_transp.png'}}
 
         self.channels = {}
         self.url_channels = ''
@@ -5349,6 +5374,14 @@ class tvgids_JSON(FetchData):
 
                 tdict['genre'] = self.unescape(item['genre']) if ('genre' in item and item['genre'] != None) else ''
                 tdict['subgenre'] = self.unescape(item['soort']) if ('soort' in item and item['soort'] != None) else ''
+                if  ('kijkwijzer' in item and not (item['kijkwijzer'] == None or item['kijkwijzer'] == '')):
+                    for k in item['kijkwijzer']:
+                        if k in self.kijkwijzer.keys():
+                            tdict['kijkwijzer'].append(self.kijkwijzer[k])
+
+                        elif config.write_info_files:
+                            infofiles.addto_detail_list(unicode('new kijkwijzer detail for %s => json:%s' % (tdict['nl-ID'], item['kijkwijzer'])))
+
                 self.program_by_id[tdict[self.detail_id]] = tdict
                 self.program_data[chanid].append(tdict)
                 config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
@@ -5453,6 +5486,17 @@ class tvgids_JSON(FetchData):
 
                 if ctype == 'kijkwijzer':
                     content = ''
+                    for k in d.find('span[@class="col-lg-9 programma_detail_info kijkwijzer_img"]'):
+                        item = {'text':k.get('alt', '') ,'icon':k.get('src', '')}
+                        if item['text'] != '' or item['icon'] != '':
+                            for k in tdict['kijkwijzer']:
+                                if k['text'] == item['text'] or k['icon'] == item['icon']:
+                                    break
+
+                            else:
+                                tdict['kijkwijzer'].append(item)
+                    if config.write_info_files:
+                        infofiles.addto_detail_list(unicode('new kijkwijzer detail for %s => %s:%s' % (tdict['nl-ID'], item['text'], item['icon'])))
 
                 else:
                     content = self.empersant(d.find('span[@class="col-lg-9 programma_detail_info"]').text).strip()
@@ -5555,6 +5599,19 @@ class tvgids_JSON(FetchData):
 
             if ctype == 'genre':
                 tdict['genre'] = content
+
+            if  ctype == 'kijkwijzer':
+                for k in content:
+                    if k in self.kijkwijzer.keys():
+                        for k2 in tdict['kijkwijzer']:
+                            if k2['text'] == self.kijkwijzer[k]['text'] or k2['icon'] == self.kijkwijzer[k]['icon']:
+                                break
+
+                        else:
+                            tdict['kijkwijzer'].append(self.kijkwijzer[k])
+
+                    elif config.write_info_files:
+                        infofiles.addto_detail_list(unicode('new kijkwijzer detail for %s => json:%s' % (tdict['nl-ID'], content)))
 
             elif ctype == 'synop':
                 content = re.sub('<p>', '', content)
@@ -6199,7 +6256,7 @@ class tvgidstv_HTML(FetchData):
                     if d.find('a') == None:
                         continue
 
-                    durl = self.empersant(d.find('a').get('href')) if (d.find('a').get('href') != None) else ''
+                    durl = self.empersant(d.find('a').get('href', ''))
                     if durl != '':
                         tdict['infourl'] = durl
 
@@ -7945,6 +8002,20 @@ class XMLoutput:
 
             if program['teletekst']:
                 xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
+
+            if len(program['kijkwijzer']) > 0:
+                for k in program['kijkwijzer']:
+                    if 'json' in k:
+                        continue
+
+                    xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
+                    if 'text' in k:
+                        xml.append(self.add_starttag('value', 6, '', k['text'], True))
+
+                    if 'icon' in k:
+                        xml.append(self.add_starttag('icon', 6, 'src="%s"' % k['icon'], '', True))
+
+                    xml.append(self.add_endtag('rating', 4))
 
             # Set star-rating if applicable
             #~ if program['star-rating'] != '':
