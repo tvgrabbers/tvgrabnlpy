@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 7
-        self.patchdate = u'20150524'
+        self.patchdate = u'20150525'
         self.alfa = False
         self.beta = True
 
@@ -422,17 +422,43 @@ class Configure:
         # (TimeOffset in Settings table)
         self.opt_dict['use_utc'] = False
 
+        # The values for the Kijkwijzer
+        self.kijkwijzer = {'1': {'code': 'AL','text': 'Voor alle leeftijden',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/al_transp.png'},
+                        '2': {'code': '6','text': 'Afgeraden voor kinderen jonger dan 6 jaar',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/6_transp.png'},
+                        '9': {'code': '9','text': 'Afgeraden voor kinderen jonger dan 9 jaar',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/9_transp.png'},
+                        '3': {'code': '12','text': 'Afgeraden voor kinderen jonger dan 12 jaar',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/12_transp.png'},
+                        '4': {'code': '16','text': 'Niet voor personen tot 16 jaar',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/16_transp.png'},
+                        'g': {'code': 'Geweld','text': 'Geweld',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/geweld_transp.png'},
+                        'a': {'code': 'Angst','text': 'Angst',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/angst_transp.png'},
+                        's': {'code': 'Seks','text': 'Seks',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/seks_transp.png'},
+                        't': {'code': 'Grof','text': 'Grof taalgebruik',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/grof_transp.png'},
+                        'h': {'code': 'Drugs','text': 'drugs- en/of alcoholmisbruik',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/drugs_transp.png'},
+                        'd': {'code': 'Discriminatie','text': 'Discriminatie',
+                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/discriminatie_transp.png'}}
+        # Mystery values: o.A. 5 7 8 G A
+        # RTL: AL,6,9,12,16 gasthd
+
         # Create a role translation dictionary for the xmltv credits part
         # The keys are the roles used by tvgids.nl (lowercase please)
         self.roletrans = {'regisseur'                         : 'director',
                              'regie'                                        : 'director',
                              'acteurs'                                    : 'actor',
                              'acteursnamen_rolverdeling': 'actor',
-                             'presentatie'                            : 'presenter',
-                             'commentaar'                              : 'commentator',
-                             'componist'                                : 'composer',
                              'scenario'                                  : 'writer',
-                             'scenario schrijver'              : 'writer'}
+                             'scenario schrijver'              : 'writer',
+                             'componist'                                : 'composer',
+                             'presentatie'                            : 'presenter',
+                             'commentaar'                              : 'commentator'}
 
         # List of titles not to split with title_split().
         # these are mainly spin-off series like NCIS: Los Angeles
@@ -5187,28 +5213,6 @@ class tvgids_JSON(FetchData):
         self.tvgidsnldesc = re.compile('<p(.*?)</p>',re.DOTALL)
         self.tvgidsnldesc2 = re.compile('<div class="tekst col-sm-12">(.*?)</div>',re.DOTALL)
         self.tvgidsnldetails = re.compile('<div class="programmering_info_detail">(.*?)</div>',re.DOTALL)
-        self.kijkwijzer = {'1': {'code': 'AL','text': 'Voor alle leeftijden',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/al_transp.png'},
-                        '2': {'code': '6','text': 'Afgeraden voor kinderen jonger dan 6 jaar',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/6_transp.png'},
-                        '9': {'code': '9','text': 'Afgeraden voor kinderen jonger dan 9 jaar',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/9_transp.png'},
-                        '3': {'code': '12','text': 'Afgeraden voor kinderen jonger dan 12 jaar',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/12_transp.png'},
-                        '4': {'code': '16','text': 'Niet voor personen tot 16 jaar',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/16_transp.png'},
-                        'g': {'code': 'Geweld','text': 'Geweld',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/geweld_transp.png'},
-                        'a': {'code': 'Angst','text': 'Angst',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/angst_transp.png'},
-                        's': {'code': 'Seks','text': 'Seks',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/seks_transp.png'},
-                        't': {'code': 'Grof','text': 'Grof taalgebruik',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/grof_transp.png'},
-                        'h': {'code': 'Drugs','text': 'drugs- en/of alcoholmisbruik',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/drugs_transp.png'},
-                        'd': {'code': 'Discriminatie','text': 'Discriminatie',
-                        'icon':'http://tvgidsassets.nl/img/kijkwijzer/discriminatie_transp.png'}}
 
         self.channels = {}
         self.url_channels = ''
@@ -5402,8 +5406,8 @@ class tvgids_JSON(FetchData):
                 tdict['subgenre'] = self.unescape(item['soort']) if ('soort' in item and item['soort'] != None) else ''
                 if  ('kijkwijzer' in item and not (item['kijkwijzer'] == None or item['kijkwijzer'] == '')):
                     for k in item['kijkwijzer']:
-                        if k in self.kijkwijzer.keys():
-                            tdict['kijkwijzer'].append(self.kijkwijzer[k])
+                        if k in config.kijkwijzer.keys() and config.kijkwijzer[k] not in tdict['kijkwijzer']:
+                            tdict['kijkwijzer'].append(config.kijkwijzer[k])
 
                         elif config.write_info_files:
                             infofiles.addto_detail_list(unicode('new kijkwijzer detail for %s => json:%s' % (tdict['nl-ID'], item['kijkwijzer'])))
@@ -5515,15 +5519,10 @@ class tvgids_JSON(FetchData):
                     for k in d.find('span[@class="col-lg-9 programma_detail_info kijkwijzer_img"]'):
                         item = {'text':k.get('alt', '') ,'icon':k.get('src', '')}
                         if item['text'] != '' or item['icon'] != '':
-                            for kw in tdict['kijkwijzer']:
-                                if kw['text'] == item['text'] or kw['icon'] == item['icon']:
+                            for kw in config.kijkwijzer.values():
+                                if (kw['text'] == item['text'] or kw['icon'] == item['icon']) and kw not in tdict['kijkwijzer']:
+                                    tdict['kijkwijzer'].append(kw)
                                     break
-
-                            else:
-                                for kw in self.kijkwijzer.values():
-                                    if kw['text'] == item['text'] or kw['icon'] == item['icon']:
-                                        tdict['kijkwijzer'].append(kw)
-                                        break
 
                 else:
                     content = self.empersant(d.find('span[@class="col-lg-9 programma_detail_info"]').text).strip()
@@ -5629,13 +5628,8 @@ class tvgids_JSON(FetchData):
 
             if  ctype == 'kijkwijzer':
                 for k in content:
-                    if k in self.kijkwijzer.keys():
-                        for k2 in tdict['kijkwijzer']:
-                            if k2['text'] == self.kijkwijzer[k]['text'] or k2['icon'] == self.kijkwijzer[k]['icon']:
-                                break
-
-                        else:
-                            tdict['kijkwijzer'].append(self.kijkwijzer[k])
+                    if k in config.kijkwijzer.keys() and config.kijkwijzer[k] not in tdict['kijkwijzer']:
+                        tdict['kijkwijzer'].append(config.kijkwijzer[k])
 
                     elif config.write_info_files:
                         infofiles.addto_detail_list(unicode('new kijkwijzer detail for %s => json:%s' % (tdict['nl-ID'], content)))
@@ -6145,14 +6139,9 @@ class tvgidstv_HTML(FetchData):
                     datatype = self.empersant(d.text.lower())
 
                 elif d.tag == 'dd':
-                    dtext = self.empersant(d.text) if (d.text != None) else ''
-                    if datatype == 'datum':
-                        pass
-                        # ww dd mmm yyyy
-
-                    elif datatype == 'tijd':
-                        pass
-                        # uu:mm tot uu:mm
+                    dtext = self.empersant(d.text).strip() if (d.text != None) else ''
+                    if datatype in ('datum', 'tijd', 'uitzending gemist', 'officiële twitter', 'twitter hashtag', 'deel-url'):
+                        continue
 
                     elif datatype == 'genre':
                         if dtext == '':
@@ -6190,10 +6179,6 @@ class tvgidstv_HTML(FetchData):
                         stars = unicode(dd.text.strip())
                         if stars != '' and tdict['star-rating'] == '':
                             tdict['star-rating'] = stars
-                            #~ stars = unicode(stars.split(':')[1].strip())
-                            #~ stars = re.sub('%', '', stars)
-                            #~ stars = re.sub(';', '', stars)
-                            #~ tdict['star-rating'] = unicode(int(stars)/10)
 
                     elif datatype== 'officiële website':
                         if d.find('a') == None:
@@ -6202,9 +6187,6 @@ class tvgidstv_HTML(FetchData):
                         durl = self.empersant(d.find('a').get('href', ''))
                         if durl != '':
                             tdict['infourl'] = durl
-
-                    elif datatype in ('uitzending gemist', 'officiële twitter', 'twitter hashtag', 'deel-url'):
-                        pass
 
                     else:
                         if dtext != '':
@@ -6402,6 +6384,26 @@ class rtl_JSON(FetchData):
 
                 description = self.get_json_data(tdict[self.detail_id],'description')
                 tdict['description'] = description if (description != None) else ''
+
+                nicam = self.get_json_data(tdict[self.detail_id],'nicam')
+                if '16' in nicam:
+                    tdict['kijkwijzer'].append(config.kijkwijzer[4])
+
+                elif '12' in nicam:
+                    tdict['kijkwijzer'].append(config.kijkwijzer[3])
+
+                elif '9' in nicam:
+                    tdict['kijkwijzer'].append(config.kijkwijzer[9])
+
+                elif '6' in nicam:
+                    tdict['kijkwijzer'].append(config.kijkwijzer[2])
+
+                elif 'AL' in nicam:
+                    tdict['kijkwijzer'].append(config.kijkwijzer[1])
+
+                for k in 'gasthd':
+                    if 'k' in nicam:
+                        tdict['kijkwijzer'].append(config.kijkwijzer[k])
 
                 self.program_data[chanid].append(tdict)
 
@@ -7875,10 +7877,11 @@ class XMLoutput:
             # This will generate director/actor/presenter info.
             if program['credits'] != {}:
                 xml.append(self.add_starttag('credits', 4))
-                for role in program['credits']:
-                    for name in program['credits'][role]:
-                        if name != '':
-                            xml.append(self.add_starttag((role), 6, '', self.xmlescape(name),True))
+                for role in ('director', 'actor', 'writer', 'adapter', 'producer', 'composer', 'editor', 'presenter', 'commentator', 'guest'):
+                    if role in program['credits']:
+                        for name in program['credits'][role]:
+                            if name != '':
+                                xml.append(self.add_starttag((role), 6, '', self.xmlescape(name),True))
 
                 xml.append(self.add_endtag('credits', 4))
 
@@ -7931,7 +7934,12 @@ class XMLoutput:
 
             # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
             if program['season'] != '' and program['episode'] != '' and program['episode'] != '0':
-                text = '%d . %d'  % (int(program['season']) - 1, int(program['episode']) - 1)
+                if program['season'] == '0':
+                    text = ' . %d . '  % (int(program['episode']) - 1)
+
+                else:
+                    text = '%d . %d . '  % (int(program['season']) - 1, int(program['episode']) - 1)
+
                 xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
                 # A Film with episode info makes it a series. They often do this if they are longer or independent.
                 if program['genre'].lower() == 'film':
@@ -7967,18 +7975,22 @@ class XMLoutput:
             if program['teletekst']:
                 xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
 
-            if len(program['kijkwijzer']) > 0:
-                for k in program['kijkwijzer']:
-                    if 'json' in k:
-                        continue
-
+            # Add any Kijkwijzer items
+            # First only one age limit from high to low
+            for k in '43921':
+                if config.kijkwijzer[k] in program['kijkwijzer']:
                     xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
-                    if 'text' in k:
-                        xml.append(self.add_starttag('value', 6, '', k['code'], True))
+                    xml.append(self.add_starttag('value', 6, '', config.kijkwijzer[k]['code'], True))
+                    xml.append(self.add_starttag('icon', 6, 'src="%s"' % config.kijkwijzer[k]['icon'], '', True))
+                    xml.append(self.add_endtag('rating', 4))
+                    break
 
-                    if 'icon' in k:
-                        xml.append(self.add_starttag('icon', 6, 'src="%s"' % k['icon'], '', True))
-
+            # And only one of any of the others
+            for k in 'gasthd':
+                if config.kijkwijzer[k] in program['kijkwijzer']:
+                    xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
+                    xml.append(self.add_starttag('value', 6, '', config.kijkwijzer[k]['code'], True))
+                    xml.append(self.add_starttag('icon', 6, 'src="%s"' % config.kijkwijzer[k]['icon'], '', True))
                     xml.append(self.add_endtag('rating', 4))
 
             # Set star-rating if applicable
