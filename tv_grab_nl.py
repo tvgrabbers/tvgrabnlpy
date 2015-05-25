@@ -3377,7 +3377,8 @@ class FetchData(Thread):
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
               'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio', 'star-rating', 'country')
         date_values = ('start-time', 'stop-time')
-        bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst')
+        bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst', \
+              'new', 'last-chance', 'premiere')
         num_values = ('channelid', 'season', 'episode', 'offset')
         dict_values = ('credits', 'video')
         list_values = ('kijkwijzer', )
@@ -5409,9 +5410,6 @@ class tvgids_JSON(FetchData):
                         if k in config.kijkwijzer.keys() and config.kijkwijzer[k] not in tdict['kijkwijzer']:
                             tdict['kijkwijzer'].append(config.kijkwijzer[k])
 
-                        elif config.write_info_files:
-                            infofiles.addto_detail_list(unicode('new kijkwijzer detail for %s => json:%s' % (tdict['nl-ID'], item['kijkwijzer'])))
-
                 self.program_by_id[tdict[self.detail_id]] = tdict
                 self.program_data[chanid].append(tdict)
                 config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
@@ -5616,7 +5614,7 @@ class tvgids_JSON(FetchData):
             return None
 
         for ctype, content in detail_data.items():
-            if ctype in ('db_id', 'titel', 'datum', 'btijd', 'etijd', 'kijkwijzer', 'zender_id'):
+            if ctype in ('db_id', 'titel', 'datum', 'btijd', 'etijd', 'zender_id'):
                 # We allready have these or we don use them
                 continue
 
@@ -5630,9 +5628,6 @@ class tvgids_JSON(FetchData):
                 for k in content:
                     if k in config.kijkwijzer.keys() and config.kijkwijzer[k] not in tdict['kijkwijzer']:
                         tdict['kijkwijzer'].append(config.kijkwijzer[k])
-
-                    elif config.write_info_files:
-                        infofiles.addto_detail_list(unicode('new kijkwijzer detail for %s => json:%s' % (tdict['nl-ID'], content)))
 
             elif ctype == 'synop':
                 content = re.sub('<p>', '', content)
@@ -6058,9 +6053,6 @@ class tvgidstv_HTML(FetchData):
                                     tdict = self.match_genre(self.empersant(unicode(dd[-1])), tdict)
 
                                     if tdict['star-rating'] == '' and len(dd) > 1:
-                                        if config.write_info_files:
-                                            infofiles.addto_detail_list(unicode('new tvgids.tv IMDB detail => ' + d.split(',')[0]))
-
                                         ddd = dd[-2].split('*')
                                         if ddd[0].strip() == 'IMDB':
                                             tdict['star-rating'] = unicode(ddd[1].strip())
@@ -6914,11 +6906,20 @@ class teveblad_HTML(FetchData):
                                     if d.get('class').lower() == 'picon' or d.get('class').lower() == 'curvyignore picon' :
 
                                         # We don't use these (yet)
-                                        if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering', 'premiere', 'ingekleurd'):
+                                        if d.get('title').lower() in ('gedubd', 'live', 'ingekleurd'):
                                             continue
 
                                         if d.get('title').lower() == 'herhaling':
                                             tdict['rerun'] = True
+
+                                        elif d.get('title').lower() == 'nieuw':
+                                            tdict['new'] = True
+
+                                        elif d.get('title').lower() == 'laatste aflevering':
+                                            tdict['last-chance'] = True
+
+                                        elif d.get('title').lower() == 'premiere':
+                                            tdict['premiere'] = True
 
                                         elif d.get('title').lower() == 'hd':
                                             tdict['video']['HD'] = True
@@ -7136,6 +7137,9 @@ class teveblad_HTML(FetchData):
 
                             elif d.get('class').lower() == 'country':
                                 tdict['country'] = self.empersant(d.text)[0:2]
+                                if config.write_info_files:
+                                    infofiles.addto_detail_list(unicode('new teveblad county => ' + d.text))
+
 
                             elif config.write_info_files:
                                 infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
@@ -7146,11 +7150,20 @@ class teveblad_HTML(FetchData):
                             if d.get('class').lower() == 'picon' or d.get('class').lower() == 'curvyignore picon' :
 
                                 # We don't use these (yet)
-                                if d.get('title').lower() in ('gedubd', 'live', 'nieuw', 'laatste aflevering', 'premiere'):
+                                if d.get('title').lower() in ('gedubd', 'live', 'ingekleurd'):
                                     continue
 
-                                if d.get('title').lower() == 'herhaling':
+                                elif d.get('title').lower() == 'herhaling':
                                     tdict['rerun'] = True
+
+                                elif d.get('title').lower() == 'nieuw':
+                                    tdict['new'] = True
+
+                                elif d.get('title').lower() == 'laatste aflevering':
+                                    tdict['last-chance'] = True
+
+                                elif d.get('title').lower() == 'premiere':
+                                    tdict['premiere'] = True
 
                                 elif d.get('title').lower() == 'hd':
                                     tdict['video']['HD'] = True
@@ -7845,6 +7858,8 @@ class XMLoutput:
 
             # Title
             xml.append(self.add_starttag('title', 4, 'lang="nl"', program['name'], True))
+            if program['originaltitle'] != '' and program['country'] != '' and program['country'].lower() != 'nl' and program['country'].lower() != 'be':
+                xml.append(self.add_starttag('title', 4, 'lang="%s"' % (program['country'].lower()), program['originaltitle'], True))
 
             # Subtitle
             if 'titel aflevering' in program and program['titel aflevering'] != '':
@@ -7972,6 +7987,19 @@ class XMLoutput:
             if program['rerun']:
                 xml.append(self.add_starttag('previously-shown', 4, '', '',True))
 
+            # It's a first
+            if program['premiere']:
+                xml.append(self.add_starttag('premiere', 4, '', '',True))
+
+            # It's the last showing
+            if program['last-chance']:
+                xml.append(self.add_starttag('last-chance', 4, '', '',True))
+
+            # It's new
+            if program['new']:
+                xml.append(self.add_starttag('new', 4, '', '',True))
+
+            # There are teletext subtitles
             if program['teletekst']:
                 xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
 
