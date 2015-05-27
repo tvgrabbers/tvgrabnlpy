@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 7
-        self.patchdate = u'20150525'
+        self.patchdate = u'20150527'
         self.alfa = False
         self.beta = True
 
@@ -425,13 +425,13 @@ class Configure:
         # The values for the Kijkwijzer
         self.kijkwijzer = {'1': {'code': 'AL','text': 'Voor alle leeftijden',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/al_transp.png'},
-                        '2': {'code': '6','text': 'Afgeraden voor kinderen jonger dan 6 jaar',
+                        '2': {'code': '6+','text': 'Afgeraden voor kinderen jonger dan 6 jaar',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/6_transp.png'},
-                        '9': {'code': '9','text': 'Afgeraden voor kinderen jonger dan 9 jaar',
+                        '9': {'code': '9+','text': 'Afgeraden voor kinderen jonger dan 9 jaar',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/9_transp.png'},
-                        '3': {'code': '12','text': 'Afgeraden voor kinderen jonger dan 12 jaar',
+                        '3': {'code': '12+','text': 'Afgeraden voor kinderen jonger dan 12 jaar',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/12_transp.png'},
-                        '4': {'code': '16','text': 'Niet voor personen tot 16 jaar',
+                        '4': {'code': '16+','text': 'Niet voor personen tot 16 jaar',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/16_transp.png'},
                         'g': {'code': 'Geweld','text': 'Geweld',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/geweld_transp.png'},
@@ -446,8 +446,8 @@ class Configure:
                         'd': {'code': 'Discriminatie','text': 'Discriminatie',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/discriminatie_transp.png'}}
         # Mystery values: o.A. 5 7 8 G A
-        # RTL: AL,6,9,12,16 gasthd
-
+        # RTL: AL,6,9,12,16 gasthd, tv: AL, 9, 12, 16, geweld
+        # DEU, ARG, AUS, FRA, USA, AUT, GBR, BEL, CAN, CHE, SWE, DNK, ESP, HKG, IRL, HUN, ITA, KOR, NLD, NOR, ZAF
         # Create a role translation dictionary for the xmltv credits part
         # The keys are the roles used by tvgids.nl (lowercase please)
         self.roletrans = {'regisseur'                         : 'director',
@@ -696,6 +696,16 @@ class Configure:
 
         self.tvtvcat = []
 
+        # channels for which to look on rtl.nl
+        # RTLL = RTL Lounge, RTLT = RTL Telekids, RTCR = RTL Crime
+        self.source_channels[2] = {4: 'RTL4',
+                                    31: 'RTL5',
+                                    46: 'RTL7',
+                                    92: 'RTL8',
+                                    408: 'RTLL',
+                                    409: 'RTCR',
+                                    'rtl-telekids': 'RTLT'}
+
         # channels for which to look on teveblad.be
         self.source_channels[3] = {5: 'een',
                                             6: 'canvas',
@@ -790,15 +800,68 @@ class Configure:
 
         self.tevecat = {}
 
-        # channels for which to look on rtl.nl
-        # RTLL = RTL Lounge, RTLT = RTL Telekids, RTCR = RTL Crime
-        self.source_channels[2] = {4: 'RTL4',
-                                    31: 'RTL5',
-                                    46: 'RTL7',
-                                    92: 'RTL8',
-                                    408: 'RTLL',
-                                    409: 'RTCR',
-                                    'rtl-telekids': 'RTLT'}
+        # channels for which to look on npo.nl
+        self.source_channels[4] = {'1': u'1',
+                                           '2': u'2',
+                                           '3': u'3',
+                                           'journaal-24': u'4',
+                                           '70': u'5',
+                                           '410': u'6',
+                                           'politiek-24': u'7',
+                                           '316': u'8',
+                                           '81': u'9',
+                                           'zappelin': u'10',
+                                           '66': u'11',
+                                           '109': u'12',
+                                           '108': u'13',
+                                           '110': u'14',
+                                           '111': u'15',
+                                           '112': u'16',
+                                           '113': u'17',
+                                           '114': u'18',
+                                           '100': u'19',
+                                           '103': u'20',
+                                           '101': u'21',
+                                           '102': u'22',
+                                           '115': u'23',
+                                           '116': u'24'}
+
+        self.npocattrans = {'10': (u'amusement', u''),
+                                 '11': (u'informatief', u''),
+                                 '11,9': (u'nieuws/actualiteiten', u''),
+                                 '11,12': (u'informatief', u'religieus'),
+                                 '11,22': (u'informatief', u'natuur'),
+                                 '11,28': (u'informatief', u'wetenschap'),
+                                 '11,84': (u'informatief', u'quiz'),
+                                 '12': (u'religieus', u''),
+                                 '13': (u'jeugd', u''),
+                                 '13,21': (u'jeugd', u'animatieserie'),
+                                 '13,22': (u'jeugd', u'natuur'),
+                                 '13,84': (u'jeugd', u'quiz'),
+                                 '14': (u'serie/soap', u''),
+                                 '15': (u'overige', u''),
+                                 '16': (u'documentaire', u''),
+                                 '16,12': (u'documentaire', u'religieus'),
+                                 '16,19': (u'documentaire', u'kunst/cultuur'),
+                                 '16,22': (u'documentaire', u'natuur'),
+                                 '17': (u'sport', u''),
+                                 '17,86': (u'sport', u'journaal'),
+                                 '18': (u'serie/soap', u'misdaadserie'),
+                                 '19': (u'kunst/cultuur', u''),
+                                 '20': (u'amusement', u'erotisch programma'),
+                                 '21': (u'serie/soap', u'animatieserie'),
+                                 '22': (u'natuur', u''),
+                                 '23': (u'amusement', u'komedie'),
+                                 '24': (u'muziek', u''),
+                                 '25': (u'film', u''),
+                                 '26': (u'educatief', u''),
+                                 '27': (u'informatief', u'fitnessprogramma'),
+                                 '28': (u'wetenschap', u''),
+                                 '30': (u'jeugd', u'6-12'),
+                                 '31': (u'serie/soap', u'drama'),
+                                 '32': (u'jeugd', u'2-5'),
+                                 '33': (u'muziek', u'klassiek')}
+                                 #~ '29': (u'', u''),
 
         #Channel group names as used in tvgids.tv
         self.chan_groups = {1: 'Nederlands',
@@ -3375,7 +3438,8 @@ class FetchData(Thread):
         text_values = ('source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
-              'rtl-ID', 'nl-url', 'tv-url', 'be-url', 'infourl', 'audio', 'star-rating', 'country')
+              'rtl-ID', 'npo-ID', 'nl-url', 'tv-url', 'be-url', 'npo-url',  \
+              'infourl', 'audio', 'star-rating', 'country')
         date_values = ('start-time', 'stop-time')
         bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst', \
               'new', 'last-chance', 'premiere')
@@ -5220,13 +5284,13 @@ class tvgids_JSON(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[0] != '':
-                self.channels[chanid] = channel.source_id[0]
+            if channel.active and channel.source_id[self.proc_id] != '':
+                self.channels[chanid] = channel.source_id[self.proc_id]
                 if self.url_channels == '':
-                    self.url_channels = channel.source_id[0]
+                    self.url_channels = channel.source_id[self.proc_id]
 
                 else:
-                    self.url_channels  = '%s,%s' % (self.url_channels, channel.source_id[0])
+                    self.url_channels  = '%s,%s' % (self.url_channels, channel.source_id[self.proc_id])
 
     def get_url(self, type = 'channels', offset = 0, id = None):
 
@@ -5286,7 +5350,7 @@ class tvgids_JSON(FetchData):
         if config.opt_dict['offset'] > 4:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
-                config.channels[chanid].source_data[0] = True
+                config.channels[chanid].source_data[self.proc_id] = True
 
             return
 
@@ -5407,17 +5471,30 @@ class tvgids_JSON(FetchData):
                 tdict['subgenre'] = self.unescape(item['soort']) if ('soort' in item and item['soort'] != None) else ''
                 if  ('kijkwijzer' in item and not (item['kijkwijzer'] == None or item['kijkwijzer'] == '')):
                     for k in item['kijkwijzer']:
-                        if k in config.kijkwijzer.keys() and config.kijkwijzer[k] not in tdict['kijkwijzer']:
-                            tdict['kijkwijzer'].append(config.kijkwijzer[k])
+                        if k in config.kijkwijzer.keys() and k not in tdict['kijkwijzer']:
+                            tdict['kijkwijzer'].append(k)
 
                 self.program_by_id[tdict[self.detail_id]] = tdict
                 self.program_data[chanid].append(tdict)
                 config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
+                #~ if config.write_info_files:
+                    #~ if 'artikel_id' in item and item['artikel_id'] != '':
+                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel id => %s' % (item['db_id'], item['artikel_id'])))
+
+                    #~ if 'artikel_titel' in item and item['artikel_titel'] != '':
+                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel titel => %s' % (item['db_id'], item['artikel_titel'])))
+
+                    #~ if 'artikel_tekst' in item and item['artikel_tekst'] != '':
+                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel tekst => %s' % (item['db_id'], item['artikel_tekst'])))
+
+                    #~ if 'artikel_foto' in item and item['artikel_foto'] != '':
+                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel foto => %s' % (item['db_id'], item['artikel_foto'])))
+
 
             self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
             self.parse_programs(chanid, 0, 'None')
             self.channel_loaded[chanid] = True
-            config.channels[chanid].source_data[0] = True
+            config.channels[chanid].source_data[self.proc_id] = True
             try:
                 infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
 
@@ -5517,9 +5594,9 @@ class tvgids_JSON(FetchData):
                     for k in d.find('span[@class="col-lg-9 programma_detail_info kijkwijzer_img"]'):
                         item = {'text':k.get('alt', '') ,'icon':k.get('src', '')}
                         if item['text'] != '' or item['icon'] != '':
-                            for kw in config.kijkwijzer.values():
-                                if (kw['text'] == item['text'] or kw['icon'] == item['icon']) and kw not in tdict['kijkwijzer']:
-                                    tdict['kijkwijzer'].append(kw)
+                            for kk, kw in config.kijkwijzer.items():
+                                if (kw['text'] == item['text'] or kw['icon'] == item['icon']) and kk not in tdict['kijkwijzer']:
+                                    tdict['kijkwijzer'].append(kk)
                                     break
 
                 else:
@@ -5626,8 +5703,8 @@ class tvgids_JSON(FetchData):
 
             if  ctype == 'kijkwijzer':
                 for k in content:
-                    if k in config.kijkwijzer.keys() and config.kijkwijzer[k] not in tdict['kijkwijzer']:
-                        tdict['kijkwijzer'].append(config.kijkwijzer[k])
+                    if k in config.kijkwijzer.keys() and k not in tdict['kijkwijzer']:
+                        tdict['kijkwijzer'].append(k)
 
             elif ctype == 'synop':
                 content = re.sub('<p>', '', content)
@@ -5747,8 +5824,8 @@ class tvgidstv_HTML(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[1] != '':
-                self.channels[chanid] = channel.source_id[1]
+            if channel.active and channel.source_id[self.proc_id] != '':
+                self.channels[chanid] = channel.source_id[self.proc_id]
 
     def get_url(self, channel = None, offset = 0, href = None):
 
@@ -5848,7 +5925,7 @@ class tvgidstv_HTML(FetchData):
                         break
 
     def match_genre(self, dtext, tdict):
-        if dtext.lower() in config.tvtvcattrans:
+        if dtext.lower() in config.tvtvcattrans.keys():
             tdict['genre'] = config.tvtvcattrans[dtext.lower()].capitalize()
             tdict['subgenre'] = dtext
 
@@ -5956,7 +6033,7 @@ class tvgidstv_HTML(FetchData):
                         fetch_range = range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days']))
 
                     if len(fetch_range) == 0:
-                        config.channels[chanid].source_data[1] = None
+                        config.channels[chanid].source_data[self.proc_id] = None
                         continue
 
                     # Tvgids.tv shows programs per channel per day, so we loop over the number of days
@@ -6084,7 +6161,7 @@ class tvgidstv_HTML(FetchData):
                     if failure_count == 0 or retry == 1:
                         self.channel_loaded[chanid] = True
                         self.parse_programs(chanid, 0, 'None')
-                        config.channels[chanid].source_data[1] = True
+                        config.channels[chanid].source_data[self.proc_id] = True
 
                     try:
                         infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
@@ -6246,9 +6323,9 @@ class rtl_JSON(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[2] != '':
-                self.channels[chanid] = channel.source_id[2]
-                self.schedule[channel.source_id[2]] =[]
+            if channel.active and channel.source_id[self.proc_id] != '':
+                self.channels[chanid] = channel.source_id[self.proc_id]
+                self.schedule[channel.source_id[self.proc_id]] =[]
 
     def init_json(self):
 
@@ -6339,7 +6416,7 @@ class rtl_JSON(FetchData):
 
         for chanid, channel in self.channels.iteritems():
             if len( self.schedule[channel]) == 0:
-                config.channels[chanid].source_id[2] = None
+                config.channels[chanid].source_id[self.proc_id] = None
                 continue
 
             for item in self.schedule[channel]:
@@ -6379,23 +6456,23 @@ class rtl_JSON(FetchData):
 
                 nicam = self.get_json_data(tdict[self.detail_id],'nicam')
                 if '16' in nicam:
-                    tdict['kijkwijzer'].append(config.kijkwijzer[4])
+                    tdict['kijkwijzer'].append('4')
 
                 elif '12' in nicam:
-                    tdict['kijkwijzer'].append(config.kijkwijzer[3])
+                    tdict['kijkwijzer'].append('3')
 
                 elif '9' in nicam:
-                    tdict['kijkwijzer'].append(config.kijkwijzer[9])
+                    tdict['kijkwijzer'].append('9')
 
                 elif '6' in nicam:
-                    tdict['kijkwijzer'].append(config.kijkwijzer[2])
+                    tdict['kijkwijzer'].append('2')
 
                 elif 'AL' in nicam:
-                    tdict['kijkwijzer'].append(config.kijkwijzer[1])
+                    tdict['kijkwijzer'].append('1')
 
-                for k in 'gasthd':
+                for k in ('g', 'a', 's', 't', 'h', 'd'):
                     if 'k' in nicam:
-                        tdict['kijkwijzer'].append(config.kijkwijzer[k])
+                        tdict['kijkwijzer'].append(k)
 
                 self.program_data[chanid].append(tdict)
 
@@ -6411,7 +6488,7 @@ class rtl_JSON(FetchData):
             for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['rtldays'])):
                 self.day_loaded[chanid][day] = True
 
-            config.channels[chanid].source_data[2] = True
+            config.channels[chanid].source_data[self.proc_id] = True
             try:
                 infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
 
@@ -6558,8 +6635,8 @@ class teveblad_HTML(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[3] != '':
-                self.channels[chanid] = channel.source_id[3]
+            if channel.active and channel.source_id[self.proc_id] != '':
+                self.channels[chanid] = channel.source_id[self.proc_id]
 
     def get_url(self, date = '', channel = '', get_group = False):
 
@@ -6689,6 +6766,16 @@ class teveblad_HTML(FetchData):
 
 
     def load_pages(self):
+        if config.opt_dict['offset'] > 8:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id] = True
+
+            return
+
+        if len(self.channels) == 0 :
+            return
+
         # We first try to get the solopages
         self.load_solopages()
         # And for the failed pages we try the grouppages
@@ -6980,7 +7067,7 @@ class teveblad_HTML(FetchData):
 
                                 self.channel_loaded[chanid] = True
                                 self.parse_programs(chanid, 0, 'None')
-                                config.channels[chanid].source_data[3] = True
+                                config.channels[chanid].source_data[self.proc_id] = True
 
                                 try:
                                     infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
@@ -7054,7 +7141,7 @@ class teveblad_HTML(FetchData):
                         htmldata = ET.fromstring(strdata)
                         if htmldata.findtext('div/p') == "We don't have any events for this broadcaster":
                             log('No data for channel:%s on teveblad.be\n' % (config.channels[chanid].chan_name))
-                            config.channels[chanid].source_data[3] = None
+                            config.channels[chanid].source_data[self.proc_id] = None
                             for i in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
                                 self.day_loaded[chanid][i] = None
                             break
@@ -7208,7 +7295,7 @@ class teveblad_HTML(FetchData):
                 if failure_count == 0:
                     self.channel_loaded[chanid] = True
                     self.parse_programs(chanid, 0, 'None')
-                    config.channels[chanid].source_data[3] = True
+                    config.channels[chanid].source_data[self.proc_id] = True
 
                 try:
                     infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
@@ -7217,6 +7304,336 @@ class teveblad_HTML(FetchData):
                     pass
 
 # end teveblad_HTML
+
+class npo_HTML(FetchData):
+    """
+    Get all available days of programming for the requested channels
+    from the npo.nl page. Based on FetchData Class
+    """
+    def init_channels(self):
+        """ General Site layout
+            <div class='guides-overlay overlay'></div>
+            <div class='row-fluid'>
+                <div class='span12'>
+                    <div         class='vertical-guide'
+                                    data-counter='?npo-nl.gids.verticaal.20150526'
+                                    data-end='Wed, 27 May 2015 05:59:59 +0200'
+                                    data-keyboard-input='true'
+                                    data-scorecard='{"prefix":"npo","name":"gids.verticaal.26-05-2015"}'
+                                    data-slide-increment='540'
+                                    data-start='Tue, 26 May 2015 06:00:00 +0200'
+                                    id='primary-guide'>
+                        <div class='guide-scroller'>
+                            <div class='vertical-guide-wrapper'>
+                                <ul class='scroll-header'>
+                                    <li>
+                                        <a href="/live/npo-1" title="Bekijk live!">
+                                            <div alt='Logo van NPO 1'
+                                                    class='channel-logo'
+                                                    style="background-image: url('//assets.www.npo.nl/uploads/tv_channel/263/logo/regular_logo-npo1.png')">
+                                            </div>
+                                                NPO 1
+                                        </a>
+                                    </li>
+                                        ...
+                                    <li class='ttv'>
+                                        <div alt='Logo van NPO Nieuws'
+                                                class='channel-logo'
+                                                style="background-image: url('//assets.www.npo.nl/uploads/tv_channel/279/guide_label/regular_nponieuws-klein.png')">
+                                        </div>
+                                            NPO Nieuws
+                                    </li>
+                                        ...
+                                    <li class='rtv'>
+                                        <div alt='Logo van Regio TV Utrecht'
+                                                class='channel-logo'
+                                                style="background-image: url('//assets.www.npo.nl/uploads/tv_channel/273/logo/regular_rtvutrecht.png')">
+                                        </div>
+                                            Regio TV Utrecht
+                                    </li>
+                                </ul>
+                                <table>
+                                    <tr class='odd' data-hour='6'>          ('6' - '5')
+                                        <td class='padder left'></td>
+                                        <td class='red'>                             ('red', 'blue', 'green', 'ttv'..., 'rtv'...)
+                                            <a           href="/nederland-in-beweging/25-05-2015/POW_00979881"
+                                                            class="time-block inactive"
+                                                            data-end-hour="06"
+                                                            data-end-minutes="07"
+                                                            data-genre="17"
+                                                            data-start-hour="05"
+                                                            data-start-minutes="53">
+                                                <div class='time'>05:53</div>
+                                                <div class='description'>
+                                                    <i class='np'></i>
+                                                    <div class='program-title'>Nederland in Beweging</div>
+                                                </div>
+                                            </a>
+                                                ...
+                                        </td>
+                                                ...
+
+                                        <td class='padder right'></td>
+                                    <tr class='odd active' data-hour='1'>
+                                        ...
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        """
+
+        self.get_channels()
+        for chanid, channel in config.channels.iteritems():
+            self.program_data[chanid] = []
+            if channel.active and chanid in config.source_channels[self.proc_id].keys():
+                self.channels[chanid] = config.source_channels[self.proc_id][chanid]
+                channel.source_id[self.proc_id] = self.channels[chanid]
+
+            else:
+                channel.source_id[self.proc_id] = ''
+
+    def get_url(self, offset = 0, href = None):
+
+        npo_zoeken = 'http://www.npo.nl'
+        if href == None:
+            scan_date = datetime.date.fromordinal(self.current_date + offset)
+            return u'%s/gids/verticaal/%s/content' % (npo_zoeken,  scan_date.strftime('%d-%m-%Y'))
+
+        elif href == '':
+            return ''
+
+        else:
+            return u'%s%s' % (npo_zoeken,  href)
+
+    def get_channels(self):
+
+        self.all_channels = {'1': {'name': 'NPO 1', 'icon': '', 'group': 1},
+                                         '2': {'name': 'NPO 2', 'icon': '', 'group': 1},
+                                         '3': {'name': 'NPO 3', 'icon': '', 'group': 1},
+                                         '4': {'name': 'NPO Nieuws', 'icon': '', 'group': 7},
+                                         '5': {'name': 'NPO Cultura', 'icon': '', 'group': 7},
+                                         '6': {'name': 'NPO 101', 'icon': '', 'group': 7},
+                                         '7': {'name': 'NPO Politiek', 'icon': '', 'group': 7},
+                                         '8': {'name': 'NPO Best', 'icon': '', 'group': 7},
+                                         '9': {'name': 'NPO Doc', 'icon': '', 'group': 7},
+                                         '10': {'name': 'NPO Zapp Xtra', 'icon': '', 'group': 7},
+                                         '11': {'name': 'NPO Humor TV', 'icon': '', 'group': 7},
+                                         '12': {'name': 'Omrop Fryslan', 'icon': '', 'group': 6},
+                                         '13': {'name': 'RTV Noord', 'icon': '', 'group': 6},
+                                         '14': {'name': 'RTV Drenthe', 'icon': '', 'group': 6},
+                                         '15': {'name': 'RTV Oost', 'icon': '', 'group': 6},
+                                         '16': {'name': 'Omroep Gelderland', 'icon': '', 'group': 6},
+                                         '17': {'name': 'Omroep Flevoland', 'icon': '', 'group': 6},
+                                         '18': {'name': 'Omroep Brabant', 'icon': '', 'group': 6},
+                                         '19': {'name': 'Regio TV Utrecht', 'icon': '', 'group': 6},
+                                         '20': {'name': 'RTV NH', 'icon': '', 'group': 6},
+                                         '21': {'name': 'Omroep West', 'icon': '', 'group': 6},
+                                         '22': {'name': 'RTV Rijnmond', 'icon': '', 'group': 6},
+                                         '23': {'name': 'L1 TV', 'icon': '', 'group': 6},
+                                         '24': {'name': 'Omroep Zeeland', 'icon': '', 'group': 6}}
+
+    def load_pages(self):
+
+        if config.opt_dict['offset'] > 4:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id] = True
+
+            return
+
+        if len(self.channels) == 0 :
+            return
+
+        for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 4)):
+            if self.quit:
+                return
+
+            log('\n', 2)
+            log('Now fetching %s channels from npo.nl\n    (day %s of %s).\n' % (len(self.channels), offset, config.opt_dict['days']), 2)
+
+            channel_url = self.get_url(offset)
+
+            # get the raw programming for the day
+            strdata = self.get_page(channel_url)
+            if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
+                log("No data on npo.nl for day=%d\n" % (offset))
+                continue
+
+            try:
+                strdata = self.clean_html(strdata)
+                htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
+
+            except Exception as e:
+                log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
+                if config.write_info_files:
+                    infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                    infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
+
+                self.day_loaded[chanid][offset] = None
+                continue
+
+            # First we check for a changed line-up
+            try:
+                startdate = htmldata.find('div/div/div').get('data-start')
+                nextdate = htmldata.find('div/div/div').get('data-end')
+                if startdate == None or nextdate == None:
+                    log('Error validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
+                    continue
+
+                d = (startdate.split(',')[-1].strip()).split(' ')
+                startdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+
+                d = (nextdate.split(',')[-1].strip()).split(' ')
+                nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+
+                invalid_channels = []
+                channel_cnt = 0
+                for c in htmldata.findall('div/div/div/div/div/ul/li'):
+                    channel_cnt += 1
+                    if c.get('class') == None:
+                        cname = c.find('a/div').tail.strip()
+
+                    elif c.get('class') == 'ttv':
+                        cname = c.find('div').tail.strip()
+
+                    elif c.get('class') == 'rtv':
+                        cname = c.find('div').tail.strip()
+
+                    if not str(channel_cnt) in self.all_channels or cname != self.all_channels[str(channel_cnt)]['name']:
+                        invalid_channels.append(str(channel_cnt))
+
+                fetch_list = {}
+                for chanid, channel in self.channels.items():
+                    fetch_list[channel] = chanid
+
+            except:
+                log('Error: %s, line:%s\n  Validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
+                self.day_loaded[chanid][offset] = None
+                continue
+
+            try:
+                day_offset = 0
+                for h in htmldata.findall('div/div/div/div/div/table/tr'):
+                    phour = int(h.get('data-hour'))
+                    channel_cnt = 0
+                    for c in h.findall('td'):
+                        cclass = c.get('class')
+                        if cclass == None or cclass == 'padder left' or cclass == 'padder right':
+                            continue
+
+                        elif cclass in ('red', 'blue', 'green', 'ttv', 'rtv',):
+                            channel_cnt += 1
+                            if not str(channel_cnt) in fetch_list.keys():
+                                continue
+
+                            #~ print self.all_channels[str(channel_cnt)]['name']
+                            chanid = fetch_list[str(channel_cnt)]
+                            for p in c.findall('a'):
+                                ptext = p.findtext('div[@class="description"]/div[@class="program-title"]','')
+                                pshour = p.get('data-start-hour','')
+                                psmin =p.get('data-start-minutes','')
+                                pehour = p.get('data-end-hour','')
+                                pemin = p.get('data-end-minutes','')
+                                for v in (ptext, pshour, psmin):
+                                    if v == '':
+                                        log('Unable to determin Title and/or Starttime')
+                                        continue
+
+                                # We skip any program starting before the regular day start at 6
+                                if day_offset == 0 and phour == 6 and int(pshour) < 6:
+                                    continue
+
+                                tdict = self.checkout_program_dict()
+                                tdict['source'] = u'npo'
+                                tdict['channelid'] = chanid
+                                tdict['channel'] = config.channels[chanid].chan_name
+                                tdict[self.detail_url] = self.get_url(href = p.get('href',''))
+                                if tdict[self.detail_url] != '':
+                                    pid = tdict[self.detail_url].split('/')[-1]
+                                    tdict[self.detail_id] = u'npo-%s' % pid.split('_')[-1]
+
+                                # The Title
+                                tdict['name'] = self.empersant(ptext)
+                                tdict = self.check_title_name(tdict)
+
+                                prog_time = datetime.time(int(pshour), int(psmin), 0 ,0 ,CET_CEST)
+                                if day_offset == 0 and phour < 6:
+                                    day_offset = 1
+
+                                tdict['offset'] = offset + day_offset
+
+                                if day_offset == 1:
+                                    tdict['start-time'] = datetime.datetime.combine(nextdate, prog_time)
+
+                                else:
+                                    tdict['start-time'] = datetime.datetime.combine(startdate, prog_time)
+
+                                # There seem to be regular gaps between the programs
+                                # I asume they are commersial and in between talk.
+                                prog_time = datetime.time(int(pehour), int(pemin), 0 ,0 ,CET_CEST)
+                                if day_offset == 1 or int(pehour) < 6:
+                                    tdict['stop-time'] = datetime.datetime.combine(nextdate, prog_time)
+
+                                else:
+                                    tdict['stop-time'] = datetime.datetime.combine(startdate, prog_time)
+
+                                pgenre = p.get('data-genre','')
+                                if pgenre in config.npocattrans.keys():
+                                    tdict['genre'] = config.npocattrans[pgenre][0].capitalize()
+                                    tdict['subgenre'] = config.npocattrans[pgenre][1].capitalize()
+
+                                else:
+                                    p = pgenre.split(',')
+                                    if len(p) > 1 and p[0] in config.npocattrans.keys():
+                                        tdict['genre'] = config.npocattrans[p[0]][0].capitalize()
+                                        tdict['subgenre'] = config.npocattrans[p[0]][1].capitalize()
+
+                                    else:
+                                        tdict['genre'] = u'overige'
+
+                                    if config.write_info_files and pgenre != '':
+                                        infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
+
+                                #~ print '%s-%s: %s' % (tdict['start-time'].strftime('%d-%m %H:%M'), tdict['stop-time'].strftime('%d-%m %H:%M'), tdict['name'] )
+
+                                # and append the program to the list of programs
+                                self.program_data[chanid].append(tdict)
+
+                        else:
+                            # Unknown Channel class
+                            pass
+
+            except:
+                log('Error: %s, line:%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+
+            for chanid in self.channels.keys():
+                self.day_loaded[chanid][offset] = True
+
+            # be nice to npo.nl
+            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+        for chanid in self.channels.keys():
+            for tdict in self.program_data[chanid]:
+                self.program_by_id[tdict[self.detail_id]] = tdict
+
+            self.channel_loaded[chanid] = True
+            self.parse_programs(chanid, 0, 'start')
+            config.channels[chanid].source_data[self.proc_id] = True
+            if len(self.program_data) == 0:
+                log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
+                config.channels[chanid].source_data[1] = None
+                continue
+
+            try:
+                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+            except:
+                pass
+
+# end npo_HTML()
 
 class Channel_Config(Thread):
     """
@@ -7292,7 +7709,7 @@ class Channel_Config(Thread):
         try:
             xml_data = False
             # Retrieve and merge the data from the available sources.
-            for index in range(xml_output.source_count):
+            for index in xml_output.source_order:
                 if self.source_id[index] != '':
                     while self.source_data[index] == False:
                         if self.quit:
@@ -7305,7 +7722,7 @@ class Channel_Config(Thread):
 
                 elif self.source_data[index] == True:
                     xml_data = True
-                    xml_output.channelsource[index].merge_sources(self.chanid, (self.opt_dict['prime_source'] == index), self.counter)
+                    xml_output.channelsource[index].merge_sources(self.chanid, ((self.opt_dict['prime_source'] == index) or (index == 4)), self.counter)
                     xml_output.channelsource[index].parse_programs(self.chanid, 1, 'None')
                     for i in range(0, len(self.all_programs)):
                         self.all_programs[i] = xml_output.channelsource[index].checkout_program_dict(self.all_programs[i])
@@ -7507,7 +7924,13 @@ class Channel_Config(Thread):
                     continue
 
             # Either we are fast-mode, outsite slowdays or there is no url. So we continue
-            if no_fetch or ((programs[i][xml_output.channelsource[0].detail_url] == '') and (programs[i][xml_output.channelsource[1].detail_url] == '')):
+            try:
+                no_detail_fetch = (no_fetch or ((programs[i][xml_output.channelsource[0].detail_url] == '') and (programs[i][xml_output.channelsource[1].detail_url] == '')))
+
+            except:
+                no_detail_fetch = True
+
+            if no_detail_fetch:
                 log(u'    [no fetch] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                 self.none_count += 1
                 self.all_programs.append(programs[i])
@@ -7761,13 +8184,15 @@ class XMLoutput:
                                     'sky-sports-news' : [4, 'sky_news'],
                                     'bbc-hd' : [4, 'bbc_hd']}
 
-        self.source_count = 4
-        self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be'}
+        self.source_count = 5
+        self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl'}
+        self.source_order = (0, 1, 2, 3, 4)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgidsnl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgidstv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
-        self.channelsource[2] = rtl_JSON(2, 'rtl', 'rtl-ID', '', True)
+        self.channelsource[2] = rtl_JSON(2, 'rtl.nl', 'rtl-ID', '', True)
         self.channelsource[3] = teveblad_HTML(3, 'teveblad', 'be-ID', 'be-url')
+        self.channelsource[4] = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
 
     def xmlescape(self, s):
         """Escape <, > and & characters for use in XML"""
@@ -8005,8 +8430,8 @@ class XMLoutput:
 
             # Add any Kijkwijzer items
             # First only one age limit from high to low
-            for k in '43921':
-                if config.kijkwijzer[k] in program['kijkwijzer']:
+            for k in ('4', '3', '9', '2', '1'):
+                if k in program['kijkwijzer']:
                     xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
                     xml.append(self.add_starttag('value', 6, '', config.kijkwijzer[k]['code'], True))
                     xml.append(self.add_starttag('icon', 6, 'src="%s"' % config.kijkwijzer[k]['icon'], '', True))
@@ -8014,8 +8439,8 @@ class XMLoutput:
                     break
 
             # And only one of any of the others
-            for k in 'gasthd':
-                if config.kijkwijzer[k] in program['kijkwijzer']:
+            for k in ('g', 'a', 's', 't', 'h', 'd'):
+                if k in program['kijkwijzer']:
                     xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
                     xml.append(self.add_starttag('value', 6, '', config.kijkwijzer[k]['code'], True))
                     xml.append(self.add_starttag('icon', 6, 'src="%s"' % config.kijkwijzer[k]['icon'], '', True))
@@ -8038,13 +8463,13 @@ class XMLoutput:
         xml.append(u"".join(self.startstring))
 
         for chanid in config.channels.keys():
-            if config.channels[chanid].active:
+            if config.channels[chanid].active and chanid in self.xml_channels:
                 xml.append(u"".join(self.xml_channels[chanid]))
                 if config.channels[chanid].opt_dict['add_hd_id']:
                     xml.append(u"".join(self.xml_channels['%s-hd' % chanid]))
 
         for chanid in config.channels.keys():
-            if config.channels[chanid].active:
+            if config.channels[chanid].active and chanid in self.xml_programs:
                 for program in self.xml_programs[chanid]:
                     xml.append(u"".join(program))
 
