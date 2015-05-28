@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 7
-        self.patchdate = u'20150527'
+        self.patchdate = u'20150528'
         self.alfa = False
         self.beta = True
 
@@ -385,6 +385,7 @@ class Configure:
         # the total number of days to fetch basic info through belgium teveblad.be
         self.opt_dict['tevedays'] = 8
 
+        self.opt_dict['use_npo'] = True
         # enable this option if you were using tv_grab_nl, it adjusts the generated
         # xmltvid's so that everything works.
         self.opt_dict['compat'] = False
@@ -509,11 +510,12 @@ class Configure:
                              (u'informatief, amusement', u'')            : u'Educational',
                              (u'informatief, amusement', u'kookprogramma'): u'Cooking',
                              (u'informatief, kunst en cultuur', u''): u'Arts/Culture',
-                             (u'informatief', u'')                                  : u'Educational',
                              (u'informatief, wetenschap', u'')          : u'Science/Nature',
+                             (u'informatief', u'')                                  : u'Educational',
                              (u'informatief', u'wetenschappelijk programma'): u'Science/Nature',
                              (u'informatief', u'techniek')                  : u'Science/Nature',
                              (u'informatief', u'documentaire')          : u'Documentary',
+                             (u'informatief', u'gezondheid')              : u'Health',
                              (u'informatief', u'fitnessprogramma')  : u'Health',
                              (u'informatief', u'gymnastiekprogramma'): u'Health',
                              (u'informatief', u'medisch programma'): u'Health',
@@ -826,42 +828,87 @@ class Configure:
                                            '115': u'23',
                                            '116': u'24'}
 
-        self.npocattrans = {'10': (u'amusement', u''),
-                                 '11': (u'informatief', u''),
-                                 '11,9': (u'nieuws/actualiteiten', u''),
-                                 '11,12': (u'informatief', u'religieus'),
-                                 '11,22': (u'informatief', u'natuur'),
-                                 '11,28': (u'informatief', u'wetenschap'),
-                                 '11,84': (u'informatief', u'quiz'),
-                                 '12': (u'religieus', u''),
-                                 '13': (u'jeugd', u''),
-                                 '13,21': (u'jeugd', u'animatieserie'),
-                                 '13,22': (u'jeugd', u'natuur'),
-                                 '13,84': (u'jeugd', u'quiz'),
-                                 '14': (u'serie/soap', u''),
-                                 '15': (u'overige', u''),
-                                 '16': (u'documentaire', u''),
-                                 '16,12': (u'documentaire', u'religieus'),
-                                 '16,19': (u'documentaire', u'kunst/cultuur'),
-                                 '16,22': (u'documentaire', u'natuur'),
-                                 '17': (u'sport', u''),
-                                 '17,86': (u'sport', u'journaal'),
-                                 '18': (u'serie/soap', u'misdaadserie'),
-                                 '19': (u'kunst/cultuur', u''),
-                                 '20': (u'amusement', u'erotisch programma'),
-                                 '21': (u'serie/soap', u'animatieserie'),
-                                 '22': (u'natuur', u''),
-                                 '23': (u'amusement', u'komedie'),
-                                 '24': (u'muziek', u''),
-                                 '25': (u'film', u''),
-                                 '26': (u'educatief', u''),
-                                 '27': (u'informatief', u'fitnessprogramma'),
-                                 '28': (u'wetenschap', u''),
-                                 '30': (u'jeugd', u'6-12'),
-                                 '31': (u'serie/soap', u'drama'),
-                                 '32': (u'jeugd', u'2-5'),
-                                 '33': (u'muziek', u'klassiek')}
-                                 #~ '29': (u'', u''),
+        self.npocattrans = {'9': (u'nieuws/actualiteiten', u''),
+                                     '10': (u'amusement', u''),
+                                     '10,79': (u'amusement', u'komedie'),
+                                     '10,85': (u'amusement', u'cabaret'),
+                                     '11': (u'informatief', u''),
+                                     '11,9': (u'nieuws/actualiteiten', u''),
+                                     '11,12': (u'informatief', u'religieus'),
+                                     '11,19': (u'informatief', u'kunst/cultuur'),
+                                     '11,22': (u'informatief', u'natuur'),
+                                     '11,28': (u'informatief', u'wetenschap'),
+                                     '11,77': (u'informatief', u'gezondheid'),
+                                     '11,81': (u'informatief', u'consument'),
+                                     '11,82': (u'informatief', u'wonen-tuin'),
+                                     '11,84': (u'informatief', u'quiz'),
+                                     '11,88': (u'informatief', u'kookprogramma'),
+                                     '11,89': (u'informatief', u'geschiedenis'),
+                                     '12': (u'religieus', u''),
+                                     '13': (u'jeugd', u''),
+                                     '13,10': (u'jeugd', u'amusement'),
+                                     '13,11': (u'jeugd', u'informatief'),
+                                     '13,16': (u'jeugd', u'documentaire'),
+                                     '13,17': (u'jeugd', u'sport'),
+                                     '13,21': (u'jeugd', u'animatieserie'),
+                                     '13,22': (u'jeugd', u'natuur'),
+                                     '13,24': (u'jeugd', u'muziek'),
+                                     '13,25': (u'jeugd', u'film'),
+                                     '13,78': (u'jeugd', u'serie'),
+                                     '13,84': (u'jeugd', u'quiz'),
+                                     '14': (u'serie/soap', u''),
+                                     '15': (u'overige', u''),
+                                     '16': (u'documentaire', u''),
+                                     '16,12': (u'documentaire', u'religieus'),
+                                     '16,19': (u'documentaire', u'kunst/cultuur'),
+                                     '16,22': (u'documentaire', u'natuur'),
+                                     '16,28': (u'documentaire', u'wetenschap'),
+                                     '16,76': (u'documentaire', u'reizen'),
+                                     '16,89': (u'documentaire', u'geschiedenis'),
+                                     '17': (u'sport', u''),
+                                     '17,86': (u'sport', u'journaal'),
+                                     '18': (u'serie/soap', u'misdaadserie'),
+                                     '19': (u'kunst/cultuur', u''),
+                                     '20': (u'amusement', u'erotisch programma'),
+                                     '21': (u'serie/soap', u'animatieserie'),
+                                     '22': (u'natuur', u''),
+                                     '23': (u'amusement', u'komedie'),
+                                     '24': (u'muziek', u''),
+                                     '24,83': (u'muziek', u'populair'),
+                                     '24,87': (u'muziek', u'klassiek'),
+                                     '25': (u'film', u''),
+                                     '25,21': (u'film', u'animatieserie'),
+                                     '25,31': (u'film', u'drama'),
+                                     '26': (u'educatief', u''),
+                                     '27': (u'informatief', u'fitnessprogramma'),
+                                     '28': (u'wetenschap', u''),
+                                     '29': (u'jeugd', u'6-12'),
+                                     '30': (u'maatschappij', u''),
+                                     '31': (u'serie/soap', u'drama'),
+                                     '32': (u'jeugd', u'2-5'),
+                                     '34': (u'muziek', u'klassiek'),
+                                     '76': (u'reizen', u''),
+                                     '77': (u'gezondheid-opvoeding', u''),
+                                     '78': (u'serie/soap', u''),
+                                     '78,31': (u'serie/soap', u'drama'),
+                                     '78,79': (u'serie/soap', u'komisch'),
+                                     '78,80': (u'serie/soap', u'spanning'),
+                                     '78,91': (u'serie/soap', u'soap'),
+                                     '79': (u'komisch', u''),
+                                     '80': (u'spanning', u''),
+                                     '81': (u'consumenten-informatie', u''),
+                                     '82': (u'wonen-tuin', u''),
+                                     '83': (u'muziek-populair', u''),
+                                     '84': (u'spel-quiz', u''),
+                                     '85': (u'cabaret', u''),
+                                     '86': (u'sport-informatie', u''),
+                                     '87': (u'muziek-klassiek', u''),
+                                     '88': (u'koken-eten', u''),
+                                     '89': (u'geschiedenis', u''),
+                                     '90': (u'sport-wedstrijd', u''),
+                                     '91': (u'soap-serie', u'')}
+
+        self.npo_fill = 'Programmainfo en Reclame'
 
         #Channel group names as used in tvgids.tv
         self.chan_groups = {1: 'Nederlands',
@@ -1152,19 +1199,22 @@ class Configure:
                         metavar = '<days>',
                         help = '# number of days to grab from teveblad.be\nstarting from offset. (max 7 = default)')
 
+        parser.add_argument('-N', '--nouse-NPO', action = 'store_false', default = None, dest = 'use_npo',
+                        help = 'do not use NPO.nl for more acurate timing,\nThis is for the NPO and dutch regional channels')
+
         parser.add_argument('--logos', action = 'store_true', default = None, dest = 'logos',
                         help = '<default> insert urls to channel icons\n(mythfilldatabase will then use these)')
 
         parser.add_argument('-n', '--nologos', action = 'store_false', default = None, dest = 'logos',
                         help = 'do not insert urls to channel icons')
 
-        parser.add_argument('-H', '--mark-HD', action = 'store_false', default = None, dest = 'mark_hd',
+        parser.add_argument('-H', '--mark-HD', action = 'store_true', default = None, dest = 'mark_hd',
                         help = 'mark HD programs,\ndo not set if you only record analog SD')
 
-        parser.add_argument('--cattrans', action = 'store_false', default = None, dest = 'cattrans',
+        parser.add_argument('--cattrans', action = 'store_true', default = None, dest = 'cattrans',
                         help = '<default> translate the grabbed genres into\nMythTV-genres. See the tv_grab_nl_py.set file')
 
-        parser.add_argument('-t', '--nocattrans', action = 'store_true', default = None, dest = 'cattrans',
+        parser.add_argument('-t', '--nocattrans', action = 'store_false', default = None, dest = 'cattrans',
                         help = 'do not translate the grabbed genres into MythTV-genres.\n' +
                                     'it then only uses the basic genres without possibility\n' +
                                      'to differentiate on subgenre.')
@@ -1250,7 +1300,7 @@ class Configure:
                         # Strip the name from the value
                         a = re.split('=',line)
                         # Boolean Values
-                        if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc'):
+                        if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc', 'use_npo'):
                             if len(a) == 1:
                                 self.opt_dict[a[0].lower().strip()] = True
 
@@ -1361,7 +1411,7 @@ class Configure:
                         # Strip the name from the value
                         a = re.split('=',line)
                         # Boolean Values
-                        if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv'):
+                        if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv', 'use_npo'):
                             if len(a) == 1:
                                 self.channels[chanid].opt_dict[a[0].lower().strip()] = True
 
@@ -1764,6 +1814,11 @@ class Configure:
         if self.args.output_file != None:
             self.opt_dict['output_file'] = self.args.output_file
 
+        if self.args.use_npo != None:
+            self.opt_dict['use_npo'] = self.args.use_npo
+            for chanid in self.channels.keys():
+                self.channels[chanid].opt_dict['use_npo'] = self.opt_dict['use_npo']
+
         # limit days to maximum supported by the several sites
         if self.args.offset != None:
             self.offset = self.opt_dict['offset']
@@ -2022,6 +2077,7 @@ class Configure:
         log(u'slowdays = %s' % (self.opt_dict['slowdays']), 1, 2)
         log(u'rtldays = %s' % (self.opt_dict['rtldays']), 1, 2)
         log(u'tevedays = %s' % (self.opt_dict['tevedays']), 1, 2)
+        log(u'use_npo = %s' % (self.opt_dict['use_npo']), 1, 2)
         log(u'compat = %s' % (self.opt_dict['compat']), 1, 2)
         log(u'max_overlap = %s' % (self.opt_dict['max_overlap']), 1, 2)
         log(u'overlap_strategy = %s' % (self.opt_dict['overlap_strategy']), 1, 2)
@@ -2072,7 +2128,7 @@ class Configure:
 
                 log(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']), 1, 2)
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd'):
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'use_npo'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
@@ -2144,8 +2200,9 @@ class Configure:
         f.write(u'slowdays = %s\n' % self.opt_dict['slowdays'])
         f.write(u'rtldays = %s\n' % self.opt_dict['rtldays'])
         f.write(u'tevedays = %s\n' % self.opt_dict['tevedays'])
-        f.write(u'mark_hd = %s\n' % self.opt_dict['mark_hd'])
+        f.write(u'use_npo = %s\n' % self.opt_dict['use_npo'])
         f.write(u'cattrans = %s\n' % self.opt_dict['cattrans'])
+        f.write(u'mark_hd = %s\n' % self.opt_dict['mark_hd'])
         f.write(u'overlap_strategy = %s\n' % self.opt_dict['overlap_strategy'] )
         f.write(u'max_overlap = %s\n' % self.opt_dict['max_overlap'])
         f.write(u'desc_length = %s\n' % self.opt_dict['desc_length'])
@@ -2166,13 +2223,15 @@ class Configure:
         f.write(u'# !!THEY MUST BE BELOW THE CONFIGURATION AND CHANNEL SECTIONS!!\n')
         f.write(u'# You can use the following tags:\n')
         f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
-        f.write(u'#   fast, compat, logos, cattrans, mark_hd, add_hd_id, append_tvgidstv\n')
+        f.write(u'#   fast, compat, logos, cattrans, mark_hd, add_hd_id, append_tvgidstv, use_npo\n')
         f.write(u'#     append_tvgidstv is True by default, which means: \'Don\'t get data\n')
         f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
         f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
         f.write(u'#     add_hd_id: if set to True will create two listings for the given channel.\n')
         f.write(u'#     One normal on without HD tagging and one with \'-hd\' added to the ID\n')
         f.write(u'#     and with the HD tags. This will overrule any setting of mark_hd\n')
+        f.write(u'#     use_npo is by default on and delivers superior timings for three days\n')
+        f.write(u'#     for the NPO channels and the dutch regional channels\n')
         f.write(u'# Integer values:\n')
         f.write(u'#   slowdays, max_overlap, desc_length, prime_source, prefered_description\n')
         f.write(u'#     prime_source (0-3) is the source whose timings are dominant\n')
@@ -2519,7 +2578,7 @@ class Configure:
 
                 f.write(u'slowdays = %s\n' % (chan_def.opt_dict['slowdays']))
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd'):
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'use_npo'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         f.write(u'\n')
@@ -3889,6 +3948,7 @@ class FetchData(Thread):
 
         # good programs
         good_programs = []
+        fill_programs = []
 
         # sort all programs by startdate, enddate
         programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
@@ -3933,7 +3993,7 @@ class FetchData(Thread):
                     del good_programs[i]
 
         # Fix overlaps/gaps
-        if overlap_strategy in ['average', 'stop', 'start']:
+        if overlap_strategy in ['average', 'stop', 'start', 'fill']:
             for i in range(len(good_programs)-1):
 
                 # PdB: Fix tvgids start-before-end x minute interval overlap.  An overlap (positive or
@@ -3983,9 +4043,42 @@ class FetchData(Thread):
                        good_programs[i]['stop-time']    = avg
                        good_programs[i+1]['start-time'] = avg
 
+                    # We fill it with a programinfo/commercial block
+                    elif overlap_strategy == 'fill' and overlap < 0:
+                        tdict = self.checkout_program_dict()
+                        tdict['source'] = good_programs[i]['source']
+                        tdict['channelid'] = good_programs[i]['channelid']
+                        tdict['channel'] = good_programs[i]['channel']
+                        tdict['name'] = config.npo_fill
+                        tdict['start-time'] = good_programs[i]['stop-time']
+                        tdict['stop-time'] = good_programs[i+1]['start-time']
+                        tdict['offset'] = good_programs[i+1]['offset']
+                        tdict['genre'] = u'overige'
+                        fill_programs.append(tdict)
+
                     # leave as is
                     else:
                        pass
+
+                # For NPO we fill the night gap
+                elif good_programs[i]['source'] == u'npo' and overlap_strategy == 'fill' and (0 < good_programs[i]['stop-time'].hour < 6):
+                    if good_programs[i]['name'] == 'Tekst-TV':
+                        good_programs[i]['stop-time'] = good_programs[i+1]['start-time']
+
+                    elif good_programs[i+1]['name'] == 'Tekst-TV':
+                        good_programs[i+1]['start-time'] = good_programs[i]['stop-time']
+
+                    else:
+                        tdict = self.checkout_program_dict()
+                        tdict['source'] = good_programs[i]['source']
+                        tdict['channelid'] = good_programs[i]['channelid']
+                        tdict['channel'] = good_programs[i]['channel']
+                        tdict['name'] = 'Tekst-TV'
+                        tdict['start-time'] = good_programs[i]['stop-time']
+                        tdict['stop-time'] = good_programs[i+1]['start-time']
+                        tdict['offset'] = good_programs[i+1]['offset']
+                        tdict['genre'] = u'nieuws/actualiteiten'
+                        fill_programs.append(tdict)
 
         # Experimental strategy to make sure programming does not disappear. All programs that overlap more
         # than the maximum overlap length, but less than the shortest length of the two programs are
@@ -4014,8 +4107,12 @@ class FetchData(Thread):
 
 
         # done, nothing to see here, please move on
+        if len(fill_programs) > 0:
+            good_programs.extend(fill_programs)
+
         if mode == 0:
             self.program_data[chanid] = good_programs
+
         elif mode == 1:
             config.channels[chanid].all_programs = good_programs
 
@@ -6163,11 +6260,12 @@ class tvgidstv_HTML(FetchData):
                         self.parse_programs(chanid, 0, 'None')
                         config.channels[chanid].source_data[self.proc_id] = True
 
-                    try:
-                        infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                        try:
+                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
 
-                    except:
-                        pass
+                        except:
+                            pass
+
         except:
             log('Error: "%s" at line \n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
             for chanid in self.channels.keys():
@@ -7437,7 +7535,7 @@ class npo_HTML(FetchData):
 
     def load_pages(self):
 
-        if config.opt_dict['offset'] > 4:
+        if config.opt_dict['offset'] > 3:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 config.channels[chanid].source_data[self.proc_id] = True
@@ -7447,7 +7545,7 @@ class npo_HTML(FetchData):
         if len(self.channels) == 0 :
             return
 
-        for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 4)):
+        for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 3)):
             if self.quit:
                 return
 
@@ -7489,7 +7587,6 @@ class npo_HTML(FetchData):
                 d = (nextdate.split(',')[-1].strip()).split(' ')
                 nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
 
-                invalid_channels = []
                 channel_cnt = 0
                 for c in htmldata.findall('div/div/div/div/div/ul/li'):
                     channel_cnt += 1
@@ -7503,7 +7600,8 @@ class npo_HTML(FetchData):
                         cname = c.find('div').tail.strip()
 
                     if not str(channel_cnt) in self.all_channels or cname != self.all_channels[str(channel_cnt)]['name']:
-                        invalid_channels.append(str(channel_cnt))
+                        if config.write_info_files:
+                            infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, cname, self.all_channels[str(channel_cnt)]['name']))
 
                 fetch_list = {}
                 for chanid, channel in self.channels.items():
@@ -7529,22 +7627,23 @@ class npo_HTML(FetchData):
                             if not str(channel_cnt) in fetch_list.keys():
                                 continue
 
-                            #~ print self.all_channels[str(channel_cnt)]['name']
                             chanid = fetch_list[str(channel_cnt)]
                             for p in c.findall('a'):
                                 ptext = p.findtext('div[@class="description"]/div[@class="program-title"]','')
                                 pshour = p.get('data-start-hour','')
                                 psmin =p.get('data-start-minutes','')
+                                pstart = p.findtext('div[@class="time"]','')
                                 pehour = p.get('data-end-hour','')
                                 pemin = p.get('data-end-minutes','')
+
                                 for v in (ptext, pshour, psmin):
                                     if v == '':
                                         log('Unable to determin Title and/or Starttime')
                                         continue
 
                                 # We skip any program starting before the regular day start at 6
-                                if day_offset == 0 and phour == 6 and int(pshour) < 6:
-                                    continue
+                                #~ if day_offset == 0 and phour == 6 and int(pshour) < 6:
+                                    #~ continue
 
                                 tdict = self.checkout_program_dict()
                                 tdict['source'] = u'npo'
@@ -7572,7 +7671,7 @@ class npo_HTML(FetchData):
                                     tdict['start-time'] = datetime.datetime.combine(startdate, prog_time)
 
                                 # There seem to be regular gaps between the programs
-                                # I asume they are commersial and in between talk.
+                                # I asume they are commercials and in between talk.
                                 prog_time = datetime.time(int(pehour), int(pemin), 0 ,0 ,CET_CEST)
                                 if day_offset == 1 or int(pehour) < 6:
                                     tdict['stop-time'] = datetime.datetime.combine(nextdate, prog_time)
@@ -7597,8 +7696,6 @@ class npo_HTML(FetchData):
                                     if config.write_info_files and pgenre != '':
                                         infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
 
-                                #~ print '%s-%s: %s' % (tdict['start-time'].strftime('%d-%m %H:%M'), tdict['stop-time'].strftime('%d-%m %H:%M'), tdict['name'] )
-
                                 # and append the program to the list of programs
                                 self.program_data[chanid].append(tdict)
 
@@ -7620,7 +7717,7 @@ class npo_HTML(FetchData):
                 self.program_by_id[tdict[self.detail_id]] = tdict
 
             self.channel_loaded[chanid] = True
-            self.parse_programs(chanid, 0, 'start')
+            self.parse_programs(chanid, 0, 'fill')
             config.channels[chanid].source_data[self.proc_id] = True
             if len(self.program_data) == 0:
                 log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
@@ -7678,6 +7775,7 @@ class Channel_Config(Thread):
         self.opt_dict = {}
         self.opt_dict['fast'] = config.opt_dict['fast']
         self.opt_dict['slowdays'] = config.opt_dict['slowdays']
+        self.opt_dict['use_npo'] = config.opt_dict['use_npo']
         self.opt_dict['compat'] = config.opt_dict['compat']
         self.opt_dict['max_overlap'] = config.opt_dict['max_overlap']
         self.opt_dict['overlap_strategy'] = config.opt_dict['overlap_strategy']
@@ -7710,7 +7808,7 @@ class Channel_Config(Thread):
             xml_data = False
             # Retrieve and merge the data from the available sources.
             for index in xml_output.source_order:
-                if self.source_id[index] != '':
+                if self.source_id[index] != '' or (index == 4 and not self.opt_dict['use_npo']):
                     while self.source_data[index] == False:
                         if self.quit:
                             self.ready = True
