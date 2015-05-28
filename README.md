@@ -31,6 +31,24 @@ Sinds versie 2:
 tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be) and [RTL.nl](http://www.rtl.nl) as a source.
 
 ###Release Notes Versie 2
+**p20150528**   version 2.1.7 beta  
+Optimized the new source, adding a new option `use_npo`, which is on by default and can be set both global and per channel. Real endtimes are used, separately programming the info/commercial breaks.
+
+**p20150527**   version 2.1.7 beta  
+Added a new source npo.nl, which only provides 'superior' timings for three days for the dutch public NPO and regional channels. It's use for now is implied.
+
+**p20150525**   version 2.1.7 beta  
+Added Kijkwijzer info from rtl.nl
+Added new, last-chance and premiere from teveblad.be
+
+**p20150524**   version 2.1.7 beta  
+Added Kijkwijzer info from tvgids.nl  
+Added imdb start-rating from tvgids.tv  
+Added country, original title from teveblad.be
+
+**p20150523**   version 2.1.7 beta  
+Switched teveblad to the old solopages, with the grouppages as backup.
+
 **p20150514**   version 2.1.7 beta  
             Some fine-tuning  
             Some further changes to conform with the xmltv standard  
