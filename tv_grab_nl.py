@@ -5651,7 +5651,7 @@ class tvgids_JSON(FetchData):
         except Exception as e:
             log('Fetching page %s returned an error: %s\n' % (tdict[self.detail_url], sys.exc_info()[1]), 1)
             if config.write_info_files:
-                infofiles.write_raw_string('%s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')
 
             # if we cannot find the description page,
@@ -5665,7 +5665,7 @@ class tvgids_JSON(FetchData):
         except:
             log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
             if config.write_info_files:
-                infofiles.write_raw_string('%s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strdesc + '\n</root>\n')
 
         try:
@@ -5676,7 +5676,7 @@ class tvgids_JSON(FetchData):
 
         except Exception as e:
             if config.write_info_files:
-                infofiles.write_raw_string('Error: %s\n' % (sys.exc_info()[1]))
+                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string(strdata)
 
         # We scan all the details
@@ -5701,7 +5701,7 @@ class tvgids_JSON(FetchData):
 
             except Exception as e:
                 if config.write_info_files:
-                    infofiles.write_raw_string('Error: %s\n%s\n' % (sys.exc_info()[1], d))
+                    infofiles.write_raw_string('Error: %s at line %s\n%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, d))
                     infofiles.write_raw_string(strdata)
 
                 continue
@@ -5765,7 +5765,7 @@ class tvgids_JSON(FetchData):
 
             except Exception as e:
                 if config.write_info_files:
-                    infofiles.write_raw_string('Error: %s\n' % (sys.exc_info()[1]))
+                    infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                     infofiles.write_raw_string(strdata)
 
         tdict['ID'] = tdict[self.detail_id]
@@ -6174,7 +6174,7 @@ class tvgidstv_HTML(FetchData):
                         except Exception as e:
                             log('Error extracting ElementTree for channel:%s day:%s on tvgids.tv\n' % (config.channels[chanid].chan_name, offset))
                             if config.write_info_files:
-                                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                                 infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
 
                             self.day_loaded[chanid][offset] = None
@@ -6284,7 +6284,7 @@ class tvgidstv_HTML(FetchData):
 
         except Exception as e:
             if config.write_info_files:
-                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string(strdata + '\n')
 
             # if we cannot find the description page,
@@ -6969,7 +6969,7 @@ class teveblad_HTML(FetchData):
                             err_obj = sys.exc_info()[2]
                             log('Error: %s at line %s\n' %  (sys.exc_info()[1], err_obj.tb_lineno), 0)
                             if config.write_info_files:
-                                infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                                 infofiles.write_raw_string(strdata + u'\n')
 
                             self.day_loaded[group_page][offset] = None
@@ -7247,7 +7247,7 @@ class teveblad_HTML(FetchData):
                     except Exception as e:
                         log('Error extracting ElementTree for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
                         if config.write_info_files:
-                            infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                            infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                             infofiles.write_raw_string(strdata + u'\n')
 
                         self.day_loaded[chanid][offset] = None
@@ -7510,7 +7510,7 @@ class npo_HTML(FetchData):
 
         self.all_channels = {'1': {'name': 'NPO 1', 'icon': '', 'group': 1},
                                          '2': {'name': 'NPO 2', 'icon': '', 'group': 1},
-                                         '3': {'name': 'NPO 3', 'icon': '', 'group': 1},
+                                         '3': {'name': 'NPO 3', 'alt_name': 'NPO Zapp', 'icon': '', 'group': 1},
                                          '4': {'name': 'NPO Nieuws', 'icon': '', 'group': 7},
                                          '5': {'name': 'NPO Cultura', 'icon': '', 'group': 7},
                                          '6': {'name': 'NPO 101', 'icon': '', 'group': 7},
@@ -7536,6 +7536,8 @@ class npo_HTML(FetchData):
         self.channel_names = {}
         for chanid, channel in self.all_channels.items():
             self.channel_names[channel['name']] = chanid
+            if 'alt_name' in channel:
+                self.channel_names[channel['alt_name']] = chanid
 
     def load_pages(self):
 
@@ -7573,7 +7575,7 @@ class npo_HTML(FetchData):
             except Exception as e:
                 log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
                 if config.write_info_files:
-                    infofiles.write_raw_string('%s\n\n' % sys.exc_info()[1])
+                    infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                     infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
 
                 self.day_loaded[chanid][offset] = None
