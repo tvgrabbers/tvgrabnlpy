@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 7
-        self.patchdate = u'20150528'
+        self.patchdate = u'20150529'
         self.alfa = False
         self.beta = True
 
@@ -7533,6 +7533,10 @@ class npo_HTML(FetchData):
                                          '23': {'name': 'L1 TV', 'icon': '', 'group': 6},
                                          '24': {'name': 'Omroep Zeeland', 'icon': '', 'group': 6}}
 
+        self.channel_names = {}
+        for chanid, channel in self.all_channels.items():
+            self.channel_names[channel['name']] = chanid
+
     def load_pages(self):
 
         if config.opt_dict['offset'] > 3:
@@ -7544,6 +7548,8 @@ class npo_HTML(FetchData):
 
         if len(self.channels) == 0 :
             return
+
+
 
         for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 3)):
             if self.quit:
@@ -7587,6 +7593,7 @@ class npo_HTML(FetchData):
                 d = (nextdate.split(',')[-1].strip()).split(' ')
                 nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
 
+                fetch_list = {}
                 channel_cnt = 0
                 for c in htmldata.findall('div/div/div/div/div/ul/li'):
                     channel_cnt += 1
@@ -7599,13 +7606,16 @@ class npo_HTML(FetchData):
                     elif c.get('class') == 'rtv':
                         cname = c.find('div').tail.strip()
 
-                    if not str(channel_cnt) in self.all_channels or cname != self.all_channels[str(channel_cnt)]['name']:
-                        if config.write_info_files:
-                            infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, cname, self.all_channels[str(channel_cnt)]['name']))
+                    # We add the appropriate channels to the fetch list. Comparing our list with their list
+                    if cname in self.channel_names.keys() and self.channel_names[cname] in self.channels.values():
+                        for chanid, channel in self.channels.items():
+                            if self.channel_names[cname] == channel:
+                                fetch_list[channel] = chanid
+                                break
 
-                fetch_list = {}
-                for chanid, channel in self.channels.items():
-                    fetch_list[channel] = chanid
+                    if config.write_info_files:
+                        if not str(channel_cnt) in self.all_channels or cname != self.all_channels[str(channel_cnt)]['name']:
+                            infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, cname, self.all_channels[str(channel_cnt)]['name']))
 
             except:
                 log('Error: %s, line:%s\n  Validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
