@@ -267,9 +267,9 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 7
-        self.patchdate = u'20150529'
+        self.patchdate = u'20150531'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.channels = {}
         self.chan_count = 0
@@ -831,6 +831,7 @@ class Configure:
         self.npocattrans = {'9': (u'nieuws/actualiteiten', u''),
                                      '10': (u'amusement', u''),
                                      '10,79': (u'amusement', u'komedie'),
+                                     '10,84': (u'amusement', u'quiz'),
                                      '10,85': (u'amusement', u'cabaret'),
                                      '11': (u'informatief', u''),
                                      '11,9': (u'nieuws/actualiteiten', u''),
@@ -838,6 +839,7 @@ class Configure:
                                      '11,19': (u'informatief', u'kunst/cultuur'),
                                      '11,22': (u'informatief', u'natuur'),
                                      '11,28': (u'informatief', u'wetenschap'),
+                                     '11,76': (u'informatief', u'reizen'),
                                      '11,77': (u'informatief', u'gezondheid'),
                                      '11,81': (u'informatief', u'consument'),
                                      '11,82': (u'informatief', u'wonen-tuin'),
@@ -8483,17 +8485,16 @@ class XMLoutput:
                 xml.append(self.add_starttag('country', 4, '', program['country'],True))
 
             # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
-            if program['season'] != '' and program['episode'] != '' and program['episode'] != '0':
-                if program['season'] == '0':
-                    text = ' . %d . '  % (int(program['episode']) - 1)
+            # Also exclude Sports for MythTV will make it into a Series
+            if not (cat in config.cattrans and config.cattrans[cat].lower() == 'sports'):
+                if program['season'] != '' and program['episode'] != '' and program['episode'] != '0':
+                    if program['season'] == '0':
+                        text = ' . %d . '  % (int(program['episode']) - 1)
 
-                else:
-                    text = '%d . %d . '  % (int(program['season']) - 1, int(program['episode']) - 1)
+                    else:
+                        text = '%d . %d . '  % (int(program['season']) - 1, int(program['episode']) - 1)
 
-                xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
-                # A Film with episode info makes it a series. They often do this if they are longer or independent.
-                if program['genre'].lower() == 'film':
-                    program['genre'] = 'serie/soap'
+                    xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
 
             # Process video/audio/teletext sections if present
             if (program['video']['breedbeeld'] or program['video']['blackwhite'] \
