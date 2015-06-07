@@ -7619,7 +7619,11 @@ class npo_HTML(FetchData):
 
                     if config.write_info_files:
                         if not str(channel_cnt) in self.all_channels or cname != self.all_channels[str(channel_cnt)]['name']:
-                            infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, cname, self.all_channels[str(channel_cnt)]['name']))
+                            if channel_cnt > 24:
+                                infofiles.addto_detail_list(u'Channel %s is named %s' % (channel_cnt, cname))
+
+                            else:
+                                infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, self.all_channels[str(channel_cnt)]['name'], cname))
 
             except:
                 log('Error: %s, line:%s\n  Validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
