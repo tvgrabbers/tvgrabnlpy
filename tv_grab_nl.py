@@ -5671,10 +5671,11 @@ class tvgids_JSON(FetchData):
                 infofiles.write_raw_string('<root>\n' + strdesc + '\n</root>\n')
 
         try:
-            tmp = htmldata.find('div/h1/span/sup').text
-            if tmp != None:
-                tmp = re.sub('\(', '', tmp)
-                tdict['jaar van premiere'] = re.sub('\)', '', tmp).strip()
+            if htmldata.find('div/h1/span/sup') != None:
+                tmp = htmldata.find('div/h1/span/sup').text
+                if tmp != None:
+                    tmp = re.sub('\(', '', tmp)
+                    tdict['jaar van premiere'] = re.sub('\)', '', tmp).strip()
 
         except Exception as e:
             if config.write_info_files:
@@ -7558,8 +7559,6 @@ class npo_HTML(FetchData):
         if len(self.channels) == 0 :
             return
 
-
-
         for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 3)):
             if self.quit:
                 return
@@ -7831,7 +7830,7 @@ class Channel_Config(Thread):
             xml_data = False
             # Retrieve and merge the data from the available sources.
             for index in xml_output.source_order:
-                if self.source_id[index] != '' or (index == 4 and not self.opt_dict['use_npo']):
+                if (self.source_id[index] != '') and ((index != 4) or (index == 4 and self.opt_dict['use_npo'])):
                     while self.source_data[index] == False:
                         if self.quit:
                             self.ready = True
