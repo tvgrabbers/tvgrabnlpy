@@ -7488,7 +7488,7 @@ class npo_HTML(FetchData):
         self.get_channels()
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and chanid in config.source_channels[self.proc_id].keys():
+            if channel.active and chanid in config.source_channels[self.proc_id].keys() and channel.opt_dict['use_npo']:
                 self.channels[chanid] = config.source_channels[self.proc_id][chanid]
                 channel.source_id[self.proc_id] = self.channels[chanid]
 
