@@ -266,10 +266,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 1
-        self.patch = 8
-        self.patchdate = u'20150615'
+        self.patch = 9
+        self.patchdate = u'20150616'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.channels = {}
         self.chan_count = 0
@@ -6149,13 +6149,20 @@ class tvgidstv_HTML(FetchData):
                             (config.channels[chanid].chan_name, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), \
                             chanid, channel_cnt, len(self.channels), offset, config.opt_dict['days']), 2)
                         # get the raw programming for the day
-                        channel_url = self.get_url(channel, offset)
-                        strdata = self.get_page(channel_url)
+                        try:
+                            channel_url = self.get_url(channel, offset)
+                            strdata = self.get_page(channel_url)
 
-                        if strdata == None:
-                            log("Skip channel=%s on tvgids,tv, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
+                            if strdata == None:
+                                log("Skip channel=%s on tvgids.tv, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
+                                failure_count += 1
+                                continue
+
+                        except:
+                            log('Error: "%s" reading the tvgids.tv basepage for channel=%s, day=%d.\n' % (sys.exc_info()[1]))
                             failure_count += 1
                             continue
+
 
                         # Check on the right offset for appending the date to the time. Their date switch is aroud 6:00
                         x = self.check_date(strdata, config.channels[chanid].chan_name, offset)
@@ -6282,7 +6289,7 @@ class tvgidstv_HTML(FetchData):
             if strdata == None:
                 return
 
-            strdata = self.clean_html('<div><div class="section-title">' + self.detaildata.search(strdata).group(1)).encode('utf-8')
+            strdata = self.clean_html('<root><div><div class="section-title">' + self.detaildata.search(strdata).group(1) + '</root>').encode('utf-8')
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
@@ -6296,12 +6303,12 @@ class tvgidstv_HTML(FetchData):
 
         # We scan every alinea of the description
         try:
-            tdict = self.filter_description(htmldata, 'div/div/p', tdict)
+            tdict = self.filter_description(htmldata, 'div/div/div/p', tdict)
 
         except:
             log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
 
-        data = htmldata.find('div[@class="section-content"]')
+        data = htmldata.find('div/div[@class="section-content"]')
         datatype = u''
         try:
             for d in data.find('div/dl'):
