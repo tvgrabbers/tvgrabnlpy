@@ -156,8 +156,8 @@ except ImportError:
     raise
 
 # check Python version
-if sys.version_info[:2] < (2,6):
-    sys.stderr.write("tv_grab_nl_py requires Pyton 2.6 or higher\n")
+if sys.version_info[:2] < (2,7):
+    sys.stderr.write("tv_grab_nl_py requires Pyton 2.7 or higher\n")
     sys.exit(2)
 
 elif sys.version_info[:2] >= (3,0):
