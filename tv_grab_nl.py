@@ -780,11 +780,11 @@ class Configure:
                                             'vtmkzoom': 'vtm-kzoom'}
 
         # Program group names to exclude from teveblad.be if the counterpart contains details
-        self.teveblad_genericnames = {"ochtend- en dagprogramma's", \
-                                                            "ochtend - en dagprogramma's", \
-                                                            "nachtprogramma's", \
-                                                            "kinder-tv", \
-                                                            "pause"}
+        self.teveblad_genericnames = ("ochtend- en dagprogramma's",
+                                                            "ochtend - en dagprogramma's",
+                                                            "nachtprogramma's",
+                                                            "kinder-tv",
+                                                            "pause")
 
         # teveblad.be genre translation table
         self.tevecattrans = {'amusement'           : (u'Amusement', u''),
@@ -938,18 +938,18 @@ class Configure:
 
         # DO NOT CHANGE THIS!
         self.configversion = None
-        self.__CONFIG_SECTIONS__ = { 1: u'Configuration', \
-                                                            2: u'tvgids.nl Channels', \
+        self.__CONFIG_SECTIONS__ = { 1: u'Configuration',
+                                                            2: u'tvgids.nl Channels',
                                                             3: u'Channels'}
 
         self.__CHANNEL_CONFIG_SECTIONS__ = {}
 
-        self.__DEFAULT_SECTIONS__ = {1: u'genre conversion table', \
-                                                             2: u'no title split list', \
-                                                             3: u'remove groupname list', \
-                                                             4: u'rename title list', \
-                                                             5: u'teveblad.be genres', \
-                                                             6: u'tvgids.tv genres', \
+        self.__DEFAULT_SECTIONS__ = {1: u'genre conversion table',
+                                                             2: u'no title split list',
+                                                             3: u'remove groupname list',
+                                                             4: u'rename title list',
+                                                             5: u'teveblad.be genres',
+                                                             6: u'tvgids.tv genres',
                                                              7: u'role translation'}
 
         self.sources = {}
@@ -998,9 +998,9 @@ class Configure:
 
         except IOError as e:
             if e.errno == 2:
-                log('File: \"%s\" not found.\n' % file_name)
+                log('File: "%s" not found.\n' % file_name)
             else:
-                log('File: \"%s\": %s.\n' % (file_name, e.strerror))
+                log('File: "%s": %s.\n' % (file_name, e.strerror))
             return None
 
         return file_handler
@@ -8060,7 +8060,12 @@ class Channel_Config(Thread):
             if no_detail_fetch:
                 log(u'    [no fetch] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                 self.none_count += 1
-                self.all_programs.append(programs[i])
+                try:
+                    self.all_programs.append(programs[i])
+
+                except:
+                    pass
+
                 continue
 
             detailed_program = None
