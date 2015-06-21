@@ -267,7 +267,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 9
-        self.patchdate = u'20150620'
+        self.patchdate = u'20150621'
         self.alfa = False
         self.beta = True
 
@@ -3500,7 +3500,7 @@ class FetchData(Thread):
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
               'rtl-ID', 'npo-ID', 'nl-url', 'tv-url', 'be-url', 'npo-url',  \
-              'infourl', 'audio', 'star-rating', 'country')
+              'infourl', 'audio', 'star-rating', 'country', 'omroep')
         date_values = ('start-time', 'stop-time')
         bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst', \
               'new', 'last-chance', 'premiere')
@@ -5520,7 +5520,7 @@ class tvgids_JSON(FetchData):
         for chanid in self.channels.keys():
             if len(dl[chanid]) == 0:
                 log('No data on tvgids.nl for channel:%s\n' % (config.channels[chanid].chan_name))
-                config.channels[chanid].source_data[0] = None
+                config.channels[chanid].source_data[self.proc_id] = None
                 continue
 
             # item is a dict, like:
@@ -6255,7 +6255,7 @@ class tvgidstv_HTML(FetchData):
 
                     if len(self.program_data) == 0:
                         log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
-                        config.channels[chanid].source_data[1] = None
+                        config.channels[chanid].source_data[self.proc_id] = None
                         continue
 
                     # Add starttime of the next program as the endtime
@@ -7508,12 +7508,16 @@ class npo_HTML(FetchData):
             else:
                 channel.source_id[self.proc_id] = ''
 
-    def get_url(self, offset = 0, href = None):
+    def get_url(self, offset = 0, href = None, vertical = True):
 
         npo_zoeken = 'http://www.npo.nl'
-        if href == None:
+        if href == None and vertical:
             scan_date = datetime.date.fromordinal(self.current_date + offset)
             return u'%s/gids/verticaal/%s/content' % (npo_zoeken,  scan_date.strftime('%d-%m-%Y'))
+
+        if href == None and not vertical:
+            scan_date = datetime.date.fromordinal(self.current_date + offset)
+            return u'%s/gids/horizontaal/%s/content' % (npo_zoeken,  scan_date.strftime('%d-%m-%Y'))
 
         elif href == '':
             return ''
@@ -7556,6 +7560,237 @@ class npo_HTML(FetchData):
 
     def load_pages(self):
 
+        def get_channel_name(xml):
+            tag = xml.find('a')
+            tag2 = xml.find('div')
+            if tag != None and tag.get("alt") != None:
+                cname = tag.get("alt")[9:]
+
+            elif tag != None and tag.get("href") != None:
+                cname = tag.get("href").split('/')[-1]
+
+            elif tag2 != None and tag2.get("title") != None:
+                cname = tag2.get("title")
+
+            else:
+                return
+
+            # We add the appropriate channels to the fetch list. Comparing our list with their list
+            if cname in self.channel_names.keys() and self.channel_names[cname] in self.channels.values():
+                for chanid, channel in self.channels.items():
+                    if self.channel_names[cname] == channel:
+                        self.fetch_list[channel] = chanid
+                        break
+
+            if config.write_info_files:
+                if not str(channel_cnt) in self.all_channels or cname != self.all_channels[str(channel_cnt)]['name']:
+                    if channel_cnt > 24:
+                        infofiles.addto_detail_list(u'Channel %s is named %s' % (channel_cnt, cname))
+
+                    else:
+                        infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, self.all_channels[str(channel_cnt)]['name'], cname))
+
+        def get_programs(xml, chanid, omroep = True):
+            try:
+                day_offset = 0
+                for p in xml.findall('a'):
+                    ptext = p.find('i[@class="np"]')
+                    if ptext == None:
+                        # No title Found
+                        continue
+
+                    ptime = p.get('data-time')
+                    if ptext == None:
+                        # No start-stop time Found
+                        continue
+
+                    tdict = self.checkout_program_dict()
+                    tdict['source'] = u'npo'
+                    tdict['channelid'] = chanid
+                    tdict['channel'] = config.channels[chanid].chan_name
+                    tdict[self.detail_url] = self.get_url(href = p.get('href',''))
+                    if tdict[self.detail_url] != '':
+                        pid = tdict[self.detail_url].split('/')[-1]
+                        tdict[self.detail_id] = u'npo-%s' % pid.split('_')[-1]
+
+                    # The Title
+                    tdict['name'] = self.empersant(ptext.tail.strip())
+                    tdict = self.check_title_name(tdict)
+
+                    ptime = ptime.split('-')
+                    pstart = ptime[0].split(':')
+                    prog_time = datetime.time(int(pstart[0]), int(pstart[1]), 0 ,0 ,CET_CEST)
+                    if day_offset == 0 and int(pstart[0]) < 6:
+                        day_offset = 1
+
+                    tdict['offset'] = offset + day_offset
+
+                    if day_offset == 1:
+                        tdict['start-time'] = datetime.datetime.combine(nextdate, prog_time)
+
+                    else:
+                        tdict['start-time'] = datetime.datetime.combine(startdate, prog_time)
+
+                    pstop = ptime[1].split(':')
+                    prog_time = datetime.time(int(pstop[0]), int(pstop[1]), 0 ,0 ,CET_CEST)
+                    if day_offset == 1 or int(pstop[0]) < 6:
+                        tdict['stop-time'] = datetime.datetime.combine(nextdate, prog_time)
+
+                    else:
+                        tdict['stop-time'] = datetime.datetime.combine(startdate, prog_time)
+
+                    if omroep:
+                        tdict['omroep'] = p.findtext('span', '')
+
+                    pgenre = p.get('data-genre','')
+                    if pgenre in config.npocattrans.keys():
+                        tdict['genre'] = config.npocattrans[pgenre][0].capitalize()
+                        tdict['subgenre'] = config.npocattrans[pgenre][1].capitalize()
+
+                    else:
+                        p = pgenre.split(',')
+                        if len(p) > 1 and p[0] in config.npocattrans.keys():
+                            tdict['genre'] = config.npocattrans[p[0]][0].capitalize()
+                            tdict['subgenre'] = config.npocattrans[p[0]][1].capitalize()
+
+                        else:
+                            tdict['genre'] = u'overige'
+
+                        if config.write_info_files and pgenre != '':
+                            infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
+
+                    # and append the program to the list of programs
+                    self.program_data[chanid].append(tdict)
+
+            except:
+                log('Error: %s, line:%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+
+        if config.opt_dict['offset'] > 7:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id] = True
+
+            return
+
+        if len(self.channels) == 0 :
+            return
+
+        for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 7)):
+            if self.quit:
+                return
+
+            log('\n', 2)
+            log('Now fetching %s channels from npo.nl\n    (day %s of %s).\n' % (len(self.channels), offset, config.opt_dict['days']), 2)
+
+            channel_url = self.get_url(offset, None, False)
+
+            # get the raw programming for the day
+            strdata = self.get_page(channel_url)
+            if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
+                log("No data on npo.nl for day=%d\n" % (offset))
+                continue
+
+            try:
+                strdata = self.clean_html(strdata)
+                htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
+
+            except Exception as e:
+                log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
+                if config.write_info_files:
+                    infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                    infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
+
+                #~ self.day_loaded[chanid][offset] = None
+                continue
+
+            # First we check for a changed line-up
+            try:
+                startdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-start')
+                nextdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-end')
+                if startdate == None or nextdate == None:
+                    log('Error validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
+                    continue
+
+                d = (startdate.split(',')[-1].strip()).split(' ')
+                startdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+
+                d = (nextdate.split(',')[-1].strip()).split(' ')
+                nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+
+                self.fetch_list = {}
+                channel_cnt = 0
+                # The NPO base channels
+                for c in htmldata.findall('div[@class="row-fluid"]/div[@class="span12"]/div/div/div[@class="channel-icon"]'):
+                    channel_cnt += 1
+                    get_channel_name(c)
+
+                # The NPO theme channels
+                for c in htmldata.findall('div[@id="themed-guide"]/div/div/div/div[@class="channel-icon"]'):
+                    channel_cnt += 1
+                    get_channel_name(c)
+
+                # The Regional channels
+                for c in htmldata.findall('div[@id="regional-guide"]/div/div/div/div[@class="channel-icon"]'):
+                    channel_cnt += 1
+                    get_channel_name(c)
+
+            except:
+                log('Error: %s, line:%s\n  Validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
+                #~ self.day_loaded[chanid][offset] = None
+                continue
+
+            try:
+                channel_cnt = 0
+                # The NPO base channels
+                for c in htmldata.findall('div[@class="row-fluid"]/div[@class="span12"]/div/div/div/div[@class="channels"]/div'):
+                    channel_cnt += 1
+                    if str(channel_cnt) in self.fetch_list.keys():
+                        chanid = self.fetch_list[str(channel_cnt)]
+                        get_programs(c, chanid)
+                        self.day_loaded[chanid][offset] = True
+
+                # The NPO theme channels
+                for c in htmldata.findall('div[@id="themed-guide"]/div/div/div/div/div[@class="channels"]/div'):
+                    channel_cnt += 1
+                    if str(channel_cnt) in self.fetch_list.keys():
+                        chanid = self.fetch_list[str(channel_cnt)]
+                        get_programs(c, chanid)
+                        self.day_loaded[chanid][offset] = True
+
+                # The Regional channels
+                for c in htmldata.findall('div[@id="regional-guide"]/div/div/div/div/div[@class="channels"]/div'):
+                    channel_cnt += 1
+                    if str(channel_cnt) in self.fetch_list.keys():
+                        chanid = self.fetch_list[str(channel_cnt)]
+                        get_programs(c, chanid, False)
+                        self.day_loaded[chanid][offset] = True
+
+            except:
+                log('Error: %s, line:%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+
+            # be nice to npo.nl
+            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+        for chanid in self.channels.keys():
+            for tdict in self.program_data[chanid]:
+                self.program_by_id[tdict[self.detail_id]] = tdict
+
+            self.channel_loaded[chanid] = True
+            self.parse_programs(chanid, 0, 'none')
+            config.channels[chanid].source_data[self.proc_id] = True
+            if len(self.program_data) == 0:
+                log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
+                config.channels[chanid].source_data[self.proc_id] = None
+                continue
+
+            try:
+                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+            except:
+                pass
+
+    def load_pages_vertical(self):
+
         if config.opt_dict['offset'] > 3:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -7591,7 +7826,7 @@ class npo_HTML(FetchData):
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                     infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
 
-                self.day_loaded[chanid][offset] = None
+                #~ self.day_loaded[chanid][offset] = None
                 continue
 
             # First we check for a changed line-up
@@ -7638,7 +7873,7 @@ class npo_HTML(FetchData):
 
             except:
                 log('Error: %s, line:%s\n  Validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
-                self.day_loaded[chanid][offset] = None
+                #~ self.day_loaded[chanid][offset] = None
                 continue
 
             try:
@@ -7750,7 +7985,7 @@ class npo_HTML(FetchData):
             config.channels[chanid].source_data[self.proc_id] = True
             if len(self.program_data) == 0:
                 log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
-                config.channels[chanid].source_data[1] = None
+                config.channels[chanid].source_data[self.proc_id] = None
                 continue
 
             try:
@@ -7960,26 +8195,16 @@ class Channel_Config(Thread):
         if tdict['prefered description'] > cached['prefered description']:
             cached['prefered description'] = tdict['prefered description']
 
-        if tdict['titel aflevering'] != '':
-            cached['titel aflevering'] = tdict['titel aflevering']
+        for fld in ('titel aflevering', 'jaar van premiere', 'country', 'star-rating', 'omroep'):
+            if tdict[fld] != '':
+                cached[fld] = tdict[fld]
 
-        if tdict['season'] != '0':
-            cached['season'] = tdict['season']
-
-        if tdict['episode'] != '0':
-            cached['episode'] = tdict['episode']
-
-        if tdict['jaar van premiere'] != '':
-            cached['jaar van premiere'] = tdict['jaar van premiere']
-
-        if tdict['country'] != '':
-            cached['country'] = tdict['country']
+        for fld in ('season', 'episode'):
+            if tdict[fld] != '0':
+                cached[fld] = tdict[fld]
 
         if tdict['rerun'] == True:
             cached['rerun'] = True
-
-        if tdict['star-rating'] != '':
-            cached['star-rating']  = tdict['star-rating']
 
         if len(tdict['kijkwijzer']) > 0:
             for item in tdict['kijkwijzer']:
@@ -8425,8 +8650,11 @@ class XMLoutput:
             # Add an available subgenre in front off the description or give it as description
 
             # A prefered description was set and found
-            if len(program['prefered description']) > 30:
+            if len(program['prefered description']) > 100:
                 program['description'] = program['prefered description']
+
+            if program['omroep'] != '':
+                 program['description'] = u'%s %s' % (program['omroep'], program['description'])
 
             if (program['description'] != '') and (program['subgenre'] != ''):
                 desc_line = u'%s: %s' % (program['subgenre'],program['description'] )
