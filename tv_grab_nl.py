@@ -881,6 +881,7 @@ class Configure:
                                      '25': (u'film', u''),
                                      '25,21': (u'film', u'animatieserie'),
                                      '25,31': (u'film', u'drama'),
+                                     '25,79': (u'film', u'komisch'),
                                      '26': (u'educatief', u''),
                                      '27': (u'informatief', u'fitnessprogramma'),
                                      '28': (u'wetenschap', u''),
@@ -2773,6 +2774,8 @@ class Configure:
 
         if xml_output.program_cache != None:
             xml_output.program_cache.quit = True
+            xml_output.program_cache.join()
+            xml_output.program_cache = None
 
         # close everything neatly
         try:
@@ -2969,6 +2972,31 @@ class ProgramCache(Thread):
             self.pdict = {}
 
         else:
+            if os.path.isfile(self.filename +'.tmp'):
+                # Trying to recover a backup cache file
+                if os.path.isfile(filename):
+                    if os.stat(self.filename +'.tmp').st_size > os.stat(self.filename).st_size:
+                        try:
+                            os.remove(self.filename)
+                            os.rename(self.filename + '.tmp', self.filename)
+
+                        except:
+                            pass
+
+                    else:
+                        try:
+                            os.remove(self.filename + '.tmp')
+
+                        except:
+                            pass
+
+                else:
+                    try:
+                        os.rename(self.filename + '.tmp', self.filename)
+
+                    except:
+                        pass
+
             if os.path.isfile(filename):
                 self.load()
 
@@ -2999,6 +3027,7 @@ class ProgramCache(Thread):
                 self.counter = 0
 
             if self.quit:
+                log('Please wait!! While I save the Cache!!\n', 0)
                 self.dump()
                 break
 
@@ -3283,6 +3312,7 @@ class FetchData(Thread):
 
             if self.detail_processor:
                 # We process detail requests, so we loop till we are finished
+                self.cookyblock = False
                 while True:
                     if self.quit:
                         self.ready = True
@@ -3315,12 +3345,16 @@ class FetchData(Thread):
                     parent = tdict['parent']
                     tdict = tdict['tdict']
                     chanid = tdict['channelid']
-                    try:
-                        detailed_program = self.load_detailpage(tdict)
+                    if not self.cookyblock:
+                        try:
+                            detailed_program = self.load_detailpage(tdict)
 
-                    except:
+                        except:
+                            detailed_program = None
+                            log('Error processing the detailpage: %s\n' % (tdict[self.detail_url]), 1)
+
+                    else:
                         detailed_program = None
-                        log('Error processing the detailpage: %s\n' % (tdict[self.detail_url]), 1)
 
                     # It failed! If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the json page and if that failes the cache again
                     if detailed_program == None and (self.proc_id == 0):
@@ -3336,23 +3370,23 @@ class FetchData(Thread):
                             cached_program = xml_output.program_cache.query(tdict[cache_id])
                             if cached_program[xml_output.channelsource[1].detail_check]:
                                 log(u'      [cached] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
-                                tdict= config.channels[chanid].use_cache(tdict, cached_program)
-                                config.channels[chanid].all_programs.append(tdict)
-                                config.channels[chanid].fetch_count[self.proc_id] -= 1
-                                config.channels[chanid].cache_count += 1
+                                tdict= parent.use_cache(tdict, cached_program)
+                                parent.detailed_programs.append(tdict)
+                                parent.fetch_count[self.proc_id] -= 1
+                                parent.cache_count += 1
                                 continue
 
                             elif programs[i][xml_output.channelsource[1].detail_url] != '':
                                 xml_output.channelsource[1].detail_queue.append({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent})
-                                config.channels[chanid].fetch_count[self.proc_id] -= 1
-                                config.channels[chanid].fetch_count[1] += 1
+                                parent.fetch_count[self.proc_id] -= 1
+                                parent.fetch_count[1] += 1
                                 continue
 
                         else:
                             log(u'[fetch failed or timed out] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
-                            config.channels[chanid].all_programs.append(tdict)
-                            config.channels[chanid].fetch_count[self.proc_id] -= 1
-                            config.channels[chanid].fail_count += 1
+                            parent.detailed_programs.append(tdict)
+                            parent.fetch_count[self.proc_id] -= 1
+                            parent.fail_count += 1
                             continue
 
                     else:
@@ -3362,15 +3396,15 @@ class FetchData(Thread):
 
                         detailed_program[xml_output.channelsource[self.proc_id].detail_check] = True
                         detailed_program['ID'] = detailed_program[xml_output.channelsource[self.proc_id].detail_id]
-                        parent.all_programs.append(detailed_program)
+                        parent.detailed_programs.append(detailed_program)
                         if self.proc_id == 0:
                             log(u'[normal fetch] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
 
                         elif self.proc_id == 1:
                             log(u'   [.tv fetch] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
 
-                        config.channels[chanid].fetch_count[self.proc_id] -= 1
-                        config.channels[chanid].fetched_count[self.proc_id] += 1
+                        parent.fetch_count[self.proc_id] -= 1
+                        parent.fetched_count[self.proc_id] += 1
 
                         # do not cache programming that is unknown at the time of fetching.
                         if tdict['name'].lower() != 'onbekend':
@@ -3644,8 +3678,8 @@ class FetchData(Thread):
         """
         if len(self.program_data[chanid]) > 0:
             for i, tdict in enumerate(self.program_data[chanid]):
-                if i > 0:
-                     self.program_data[chanid][i-1]['stop-time'] =  tdict['start-time']
+                if i > 0 and type(tdict['start-time']) == datetime.datetime:
+                    self.program_data[chanid][i-1]['stop-time'] =  tdict['start-time']
 
             # And one for the last program
             prog_date = datetime.date.fromordinal(self.current_date + self.program_data[chanid][-1]['offset'])
@@ -4714,20 +4748,24 @@ class FetchData(Thread):
                 return False
 
             if check_overlap:
-                mduur = (tdict['stop-time'] - tdict['start-time']).total_seconds()
-                pduur = (pi['stop-time'] - pi['start-time']).total_seconds()
-                if pduur * 1.1 > mduur:
-                    # We check for program merging in info
-                    merge_match.append({'type': 1, 'tdict': tdict, 'prog': pi, 'match': x})
-                    if tdict in info: info.remove(tdict)
+                try:
+                    mduur = (tdict['stop-time'] - tdict['start-time']).total_seconds()
+                    pduur = (pi['stop-time'] - pi['start-time']).total_seconds()
+                    if pduur * 1.1 > mduur:
+                        # We check for program merging in info
+                        merge_match.append({'type': 1, 'tdict': tdict, 'prog': pi, 'match': x})
+                        if tdict in info: info.remove(tdict)
 
-                elif mduur * 1.1 > pduur:
-                    # We check for program merging in programs
-                    merge_match.append({'type': 2, 'tdict': tdict, 'prog': pi, 'match': x})
-                    if tdict in info: info.remove(tdict)
+                    elif mduur * 1.1 > pduur:
+                        # We check for program merging in programs
+                        merge_match.append({'type': 2, 'tdict': tdict, 'prog': pi, 'match': x})
+                        if tdict in info: info.remove(tdict)
 
-                else:
-                    add_using_tvgids_timing(tdict, pi, x)
+                    else:
+                        add_using_tvgids_timing(tdict, pi, x)
+
+                except:
+                    pass
 
             if mstart in prog_starttimes: del prog_starttimes[mstart]
             return True
@@ -5608,6 +5646,11 @@ class tvgids_JSON(FetchData):
                 log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
                 return
 
+            if re.search('<div class="cookie-backdrop">', strdata):
+                self.cookyblock = True
+                log('Cooky block page encountered. Falling back to json\n', 1)
+                return
+
             strdata = '<div>\n' +  self.tvgidsnlprog.search(strdata).group(1)
             if strdata == None:
                 log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
@@ -5651,7 +5694,7 @@ class tvgids_JSON(FetchData):
             htmldata = ET.fromstring(strdata)
 
         except Exception as e:
-            log('Fetching page %s returned an error: %s\n' % (tdict[self.detail_url], sys.exc_info()[1]), 1)
+            log('Fetching page %s returned an error: %s at line: %s\n' % (tdict[self.detail_url], sys.exc_info()[1], sys.exc_info()[2].tb_lineno), 1)
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')
@@ -5838,9 +5881,9 @@ class tvgids_JSON(FetchData):
                     if not self.unescape(name.strip()) in tdict['credits'][config.roletrans[ctype]]:
                         tdict['credits'][config.roletrans[ctype]].append(self.unescape(name.strip()))
 
-                else:
-                    if config.write_info_files:
-                        infofiles.addto_detail_list(unicode('new tvgids.nl json detail => ' + ctype + ': ' + content))
+            else:
+                if config.write_info_files:
+                    infofiles.addto_detail_list(unicode('new tvgids.nl json detail => ' + ctype + ': ' + content))
 
         tdict['ID'] = tdict[self.detail_id]
         tdict[self.detail_check] = True
@@ -6971,7 +7014,7 @@ class teveblad_HTML(FetchData):
                             strdata = self.clean_html(strdata)
                             strdata = re.sub('<div class="r" class="toowide">', '<div class="r">', strdata)
                             strdata =self.groupdata.search(strdata)
-                            strdata = (u'<root><div>' + strdata.group(1) + u'\n<div>\n' + strdata.group(2)) + u'</root>'
+                            strdata = u'<root><div>' + strdata.group(1) + u'\n<div>\n' + strdata.group(2) + u'</root>'
                             htmldata = ET.fromstring(strdata.encode('utf-8'))
 
                         except Exception as e:
@@ -6980,7 +7023,7 @@ class teveblad_HTML(FetchData):
                             log('Error: %s at line %s\n' %  (sys.exc_info()[1], err_obj.tb_lineno), 0)
                             if config.write_info_files:
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                                infofiles.write_raw_string(strdata + u'\n')
+                                infofiles.write_raw_string(unicode(strdata + u'\n'))
 
                             self.day_loaded[group_page][offset] = None
                             continue
@@ -7245,8 +7288,8 @@ class teveblad_HTML(FetchData):
                     try:
                         strdata = self.clean_html(strdata)
                         strdata = re.sub('<div class="r" class="toowide">', '<div class="r">', strdata)
-                        strdata = ('<div><div>' + self.progdata.search(strdata).group(1)).encode('utf-8')
-                        htmldata = ET.fromstring(strdata)
+                        strdata = u'<div><div>' + self.progdata.search(strdata).group(1)
+                        htmldata = ET.fromstring(strdata.encode('utf-8'))
                         if htmldata.findtext('div/p') == "We don't have any events for this broadcaster":
                             log('No data for channel:%s on teveblad.be\n' % (config.channels[chanid].chan_name))
                             config.channels[chanid].source_data[self.proc_id] = None
@@ -7587,8 +7630,10 @@ class npo_HTML(FetchData):
                     if channel_cnt > 24:
                         infofiles.addto_detail_list(u'Channel %s is named %s' % (channel_cnt, cname))
 
-                    else:
-                        infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, self.all_channels[str(channel_cnt)]['name'], cname))
+                    elif not ('alt_name' in self.all_channels[str(channel_cnt)] \
+                      and cname != self.all_channels[str(channel_cnt)]['alt_name']):
+                        infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % \
+                            (channel_cnt, self.all_channels[str(channel_cnt)]['name'], cname))
 
         def get_programs(xml, chanid, omroep = True):
             try:
@@ -8095,6 +8140,7 @@ class Channel_Config(Thread):
             # Wait for all details being processed
             while True:
                 if self.fetch_count[0] == 0 and self.fetch_count[1] == 0:
+                    self.all_programs = self.detailed_programs
                     break
 
             # And log the results
@@ -8225,7 +8271,7 @@ class Channel_Config(Thread):
             return
 
         programs = self.all_programs
-        self.all_programs = []
+        self.detailed_programs = []
 
         if self.opt_dict['fast']:
             log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
@@ -8272,7 +8318,7 @@ class Channel_Config(Thread):
                   or (no_fetch and cached_program[xml_output.channelsource[1].detail_check]):
                     log(u'      [cached] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                     self.cache_count += 1
-                    self.all_programs.append(self.use_cache(programs[i], cached_program))
+                    self.detailed_programs.append(self.use_cache(programs[i], cached_program))
                     continue
 
             # Either we are fast-mode, outsite slowdays or there is no url. So we continue
@@ -8285,11 +8331,7 @@ class Channel_Config(Thread):
             if no_detail_fetch:
                 log(u'    [no fetch] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                 self.none_count += 1
-                try:
-                    self.all_programs.append(programs[i])
-
-                except:
-                    pass
+                self.detailed_programs.append(programs[i])
 
                 continue
 
@@ -8964,6 +9006,8 @@ def main():
         # produce the results and wrap-up
         config.write_defaults_list()
         xml_output.print_string()
+        xml_output.program_cache.join()
+        xml_output.program_cache = None
 
     except:
         err_obj = sys.exc_info()[2]
