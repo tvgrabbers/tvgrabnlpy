@@ -3376,7 +3376,7 @@ class FetchData(Thread):
                                 parent.cache_count += 1
                                 continue
 
-                            elif programs[i][xml_output.channelsource[1].detail_url] != '':
+                            elif tdict[xml_output.channelsource[1].detail_url] != '':
                                 xml_output.channelsource[1].detail_queue.append({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent})
                                 parent.fetch_count[self.proc_id] -= 1
                                 parent.fetch_count[1] += 1
@@ -8298,32 +8298,33 @@ class Channel_Config(Thread):
             if programs[i] == None:
                 continue
 
+            p = programs[i]
             logstring = u'%s-%s: %s \n' % \
-                                (programs[i]['start-time'].strftime('%d %b %H:%M'), \
-                                programs[i]['stop-time'].strftime('%H:%M'), \
-                                programs[i]['name'])
+                                (p['start-time'].strftime('%d %b %H:%M'), \
+                                p['stop-time'].strftime('%H:%M'), \
+                                p['name'])
 
             # We only fetch when we are in slow mode and slowdays is not set to tight
-            no_fetch = (self.opt_dict['fast'] or programs[i]['offset'] >= (config.opt_dict['offset'] + self.opt_dict['slowdays']))
+            no_fetch = (self.opt_dict['fast'] or p['offset'] >= (config.opt_dict['offset'] + self.opt_dict['slowdays']))
 
             # check the cache for this program's ID
             # If not found, check the various ID's and (if found) make it the prime one
-            cache_id = xml_output.program_cache.query_id(programs[i])
+            cache_id = xml_output.program_cache.query_id(p)
             if cache_id != None:
-                cached_program = xml_output.program_cache.query(programs[i][cache_id])
+                cached_program = xml_output.program_cache.query(p[cache_id])
 
                 # check if it contains detail info from tvgids.nl or (if no nl-url known, or in no_fetch mode) tvgids.tv
                 if cached_program[xml_output.channelsource[0].detail_check] \
-                  or ((programs[i][xml_output.channelsource[0].detail_url] == '') and cached_program[xml_output.channelsource[1].detail_check]) \
+                  or ((p[xml_output.channelsource[0].detail_url] == '') and cached_program[xml_output.channelsource[1].detail_check]) \
                   or (no_fetch and cached_program[xml_output.channelsource[1].detail_check]):
                     log(u'      [cached] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                     self.cache_count += 1
-                    self.detailed_programs.append(self.use_cache(programs[i], cached_program))
+                    self.detailed_programs.append(self.use_cache(p, cached_program))
                     continue
 
             # Either we are fast-mode, outsite slowdays or there is no url. So we continue
             try:
-                no_detail_fetch = (no_fetch or ((programs[i][xml_output.channelsource[0].detail_url] == '') and (programs[i][xml_output.channelsource[1].detail_url] == '')))
+                no_detail_fetch = (no_fetch or ((p[xml_output.channelsource[0].detail_url] == '') and (p[xml_output.channelsource[1].detail_url] == '')))
 
             except:
                 no_detail_fetch = True
@@ -8331,19 +8332,19 @@ class Channel_Config(Thread):
             if no_detail_fetch:
                 log(u'    [no fetch] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                 self.none_count += 1
-                self.detailed_programs.append(programs[i])
+                self.detailed_programs.append(p)
 
                 continue
 
             detailed_program = None
-            if programs[i][xml_output.channelsource[0].detail_url] != '':
+            if p[xml_output.channelsource[0].detail_url] != '':
                 self.fetch_count[0]  += 1
-                xml_output.channelsource[0].detail_queue.append({'tdict':programs[i], 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
+                xml_output.channelsource[0].detail_queue.append({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
                 continue
 
-            if detailed_program == None and programs[i][xml_output.channelsource[1].detail_url] != '':
+            if detailed_program == None and p[xml_output.channelsource[1].detail_url] != '':
                 self.fetch_count[1]  += 1
-                xml_output.channelsource[1].detail_queue.append({'tdict':programs[i], 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
+                xml_output.channelsource[1].detail_queue.append({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
                 continue
 
     def title_split(self,program):
