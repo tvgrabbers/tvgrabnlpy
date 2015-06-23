@@ -8696,17 +8696,15 @@ class XMLoutput:
             if len(program['prefered description']) > 100:
                 program['description'] = program['prefered description']
 
+            desc_line = u''
+            if program['subgenre'] != '':
+                 desc_line = u'%s: ' % (program['subgenre'])
+
             if program['omroep'] != '':
-                 program['description'] = u'%s %s' % (program['omroep'], program['description'])
+                 desc_line = u'%s%s ' % (desc_line, program['omroep'])
 
-            if (program['description'] != '') and (program['subgenre'] != ''):
-                desc_line = u'%s: %s' % (program['subgenre'],program['description'] )
-
-            elif (program['description'] == '') and (program['subgenre'] != ''):
-                desc_line = program['subgenre']
-
-            else:
-                desc_line = program['description']
+            if program['description'] != '':
+                 desc_line = u'%s%s ' % (desc_line, program['description'])
 
             # Limit the length of the description
             if desc_line != '':
@@ -8714,7 +8712,7 @@ class XMLoutput:
                     spacepos = desc_line[0:config.channels[chanid].opt_dict['desc_length']-3].rfind(' ')
                     desc_line = desc_line[0:spacepos] + '...'
 
-                xml.append(self.add_starttag('desc', 4, 'lang="nl"', desc_line,True))
+                xml.append(self.add_starttag('desc', 4, 'lang="nl"', desc_line.strip(),True))
 
             # Process credits section if present.
             # This will generate director/actor/presenter info.
@@ -8867,7 +8865,7 @@ class XMLoutput:
         for chanid in config.channels.keys():
             if config.channels[chanid].active and chanid in self.xml_channels:
                 xml.append(u"".join(self.xml_channels[chanid]))
-                if config.channels[chanid].opt_dict['add_hd_id']:
+                if config.channels[chanid].opt_dict['add_hd_id'] and '%s-hd' % (chanid) in self.xml_channels:
                     xml.append(u"".join(self.xml_channels['%s-hd' % chanid]))
 
         for chanid in config.channels.keys():
