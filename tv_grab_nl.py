@@ -6792,11 +6792,16 @@ class teveblad_HTML(FetchData):
     def get_url(self, date = '', channel = '', get_group = False):
 
         teveblad_zoeken = 'http://www.teveblad.be/tv-gids/'
+        if type(date) == datetime.datetime or type(date) == datetime.date:
+            date = date.strftime('%Y-%m-%d') + u'/'
+            if date == datetime.date.today().strftime('%Y-%m-%d') + u'/':
+                date = ''
+
         if get_group:
-            return u'%s%s/zendergroep/%s' % (teveblad_zoeken,  date, channel)
+            return u'%s%szendergroep/%s' % (teveblad_zoeken,  date, channel)
 
         else:
-            return u'%s%s/zenders/%s' % (teveblad_zoeken,  date, channel)
+            return u'%s%szenders/%s' % (teveblad_zoeken,  date, channel)
 
     def check_date(self, return_date, search_date):
         try:
@@ -6994,7 +6999,7 @@ class teveblad_HTML(FetchData):
 
                         date_offset = offset
                         scan_date = datetime.date.fromordinal(self.current_date + offset)
-                        channel_url =self.get_url(scan_date.strftime('%Y-%m-%d'), group_values['url'], True)
+                        channel_url =self.get_url(scan_date, group_values['url'], True)
 
                         # get the raw programming for the day
                         strdata = self.get_page(channel_url, encoding = 'utf-8')
@@ -7269,7 +7274,7 @@ class teveblad_HTML(FetchData):
                     date_offset = offset
                     scan_date = datetime.date.fromordinal(self.current_date + offset)
                     last_program = datetime.datetime.combine(scan_date, datetime.time(1, 0, 0 ,0 ,CET_CEST))
-                    channel_url =self.get_url(scan_date.strftime('%Y-%m-%d'), channel)
+                    channel_url =self.get_url(scan_date, channel)
 
                     # get the raw programming for the day
                     strdata = self.get_page(channel_url)
