@@ -8144,6 +8144,10 @@ class Channel_Config(Thread):
 
             # Wait for all details being processed
             while True:
+                if self.quit:
+                    self.ready = True
+                    return
+
                 if self.fetch_count[0] == 0 and self.fetch_count[1] == 0:
                     self.all_programs = self.detailed_programs
                     break
@@ -8272,11 +8276,11 @@ class Channel_Config(Thread):
         Given a list of programs, from the several sources, retrieve program details
         """
         # Check if there is data
+        self.detailed_programs = []
         if len(self.all_programs) == 0:
             return
 
         programs = self.all_programs
-        self.detailed_programs = []
 
         if self.opt_dict['fast']:
             log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
