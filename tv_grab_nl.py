@@ -8709,11 +8709,11 @@ class XMLoutput:
             if program['subgenre'] != '':
                  desc_line = u'%s: ' % (program['subgenre'])
 
-            if program['omroep'] != '':
-                 desc_line = u'%s%s ' % (desc_line, program['omroep'])
+            if program['omroep'] != ''and re.search('(\([A-Za-z \-]*?\))', program['omroep']):
+                desc_line = u'%s%s ' % (desc_line, re.search('(\([A-Za-z \-]*?\))', program['omroep']).group(1))
 
             if program['description'] != '':
-                 desc_line = u'%s%s ' % (desc_line, program['description'])
+                desc_line = u'%s%s ' % (desc_line, program['description'])
 
             # Limit the length of the description
             if desc_line != '':
