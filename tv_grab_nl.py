@@ -5864,7 +5864,7 @@ class tvgids_JSON(FetchData):
             if ctype == 'genre':
                 tdict['genre'] = content
 
-            if  ctype == 'kijkwijzer':
+            elif  ctype == 'kijkwijzer':
                 for k in content:
                     if k in config.kijkwijzer.keys() and k not in tdict['kijkwijzer']:
                         tdict['kijkwijzer'].append(k)
@@ -8267,7 +8267,7 @@ class Channel_Config(Thread):
         if tdict['prefered description'] > cached['prefered description']:
             cached['prefered description'] = tdict['prefered description']
 
-        for fld in ('titel aflevering', 'jaar van premiere', 'country', 'star-rating', 'omroep'):
+        for fld in ('name', 'titel aflevering', 'jaar van premiere', 'country', 'star-rating', 'omroep'):
             if tdict[fld] != '':
                 cached[fld] = tdict[fld]
 
@@ -8774,30 +8774,6 @@ class XMLoutput:
                     cat = 'Unknown'
 
                 xml.append(self.add_starttag('category', 4 , '', cat, True))
-                #~ try:
-                    #~ if config.cattrans[cat2] != '':
-                        #~ cat = cat2
-
-                    #~ else:
-                        #~ if config.cattrans[cat1] != '':
-                            #~ cat = cat1
-
-                        #~ else:
-                            #~ cat = cat0
-
-                #~ except:
-                    #~ try:
-                        #~ if config.cattrans[cat1] != '':
-                            #~ cat = cat1
-
-                        #~ else:
-                            #~ cat = cat0
-
-                    #~ except:
-                        #~ cat = cat0
-
-                #~ if cat in config.cattrans:
-                    #~ xml.append(self.add_starttag('category', 4 , '', config.cattrans[cat].capitalize(), True))
 
             else:
                 cat = program['genre']
