@@ -6246,7 +6246,6 @@ class tvgidstv_HTML(FetchData):
 
                         except:
                             log('Error extracting ElementTree for channel:%s day:%s on tvgids.tv\n' % (config.channels[chanid].chan_name, offset))
-                            log(traceback.format_exc())
                             if config.write_info_files:
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                                 infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
@@ -8763,17 +8762,18 @@ class XMLoutput:
                 cat1 = (program['genre'].lower(), '')
                 cat2 = (program['genre'].lower(), program['subgenre'].lower())
                 if cat2 in config.cattrans.keys() and config.cattrans[cat2] != '':
-                    xml.append(self.add_starttag('category', 4 , '', config.cattrans[cat2].capitalize(), True))
+                    cat = config.cattrans[cat2].capitalize()
 
                 elif cat1 in config.cattrans.keys() and config.cattrans[cat1] != '':
-                    xml.append(self.add_starttag('category', 4 , '', config.cattrans[cat1].capitalize(), True))
+                    cat = config.cattrans[cat1].capitalize()
 
                 elif cat0 in config.cattrans.keys() and config.cattrans[cat0] != '':
-                    xml.append(self.add_starttag('category', 4 , '', config.cattrans[cat0].capitalize(), True))
+                   cat = config.cattrans[cat0].capitalize()
 
                 else:
-                    xml.append(self.add_starttag('category', 4 , '', 'Unknown', True))
+                    cat = 'Unknown'
 
+                xml.append(self.add_starttag('category', 4 , '', cat, True))
                 #~ try:
                     #~ if config.cattrans[cat2] != '':
                         #~ cat = cat2
@@ -8800,6 +8800,7 @@ class XMLoutput:
                     #~ xml.append(self.add_starttag('category', 4 , '', config.cattrans[cat].capitalize(), True))
 
             else:
+                cat = program['genre']
                 if program['genre'] != '':
                     xml.append(self.add_starttag('category', 4, 'lang="nl', program['genre'], True))
 
@@ -8815,7 +8816,7 @@ class XMLoutput:
 
             # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
             # Also exclude Sports for MythTV will make it into a Series
-            if not (cat in config.cattrans and config.cattrans[cat].lower() == 'sports'):
+            if cat.lower() != 'sports' and cat.lower() != 'sport':
                 if program['season'] != '' and program['episode'] != '' and program['episode'] != '0':
                     if program['season'] == '0':
                         text = ' . %d . '  % (int(program['episode']) - 1)
