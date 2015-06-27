@@ -128,6 +128,7 @@ description_text = """
 import re, sys, codecs, locale, argparse
 import time, random, io, json, shutil
 import os, os.path, curses, pickle
+import traceback, socket
 try:
     import urllib.request as urllib
 except ImportError:
@@ -146,28 +147,21 @@ try:
 except NameError:
     unichr = chr    # Python 3
 
-# Extra check for the datetime module
-try:
-    import datetime
-except ImportError:
-    sys.stderr.write('This script needs the datetime module that was introduced in Python version 2.3.\n')
-    sys.stderr.write('You are running:\n')
-    sys.stderr.write('%s\n' % sys.version)
-    raise
-
 # check Python version
 if sys.version_info[:2] < (2,7):
     sys.stderr.write("tv_grab_nl_py requires Pyton 2.7 or higher\n")
     sys.exit(2)
 
-elif sys.version_info[:2] >= (3,0):
+import datetime
+
+if sys.version_info[:2] >= (3,0):
     sys.stderr.write("tv_grab_nl_py does not yet support Pyton 3 or higher.\nExpect errors while we proceed\n")
 
 # XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
 if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
     try:
         urllib.urlopen('http://localhost.localdomain')
-    except Exception:
+    except:
         pass
 
 class AmsterdamTimeZone(datetime.tzinfo):
@@ -242,7 +236,15 @@ def log(message, log_level = 1, log_target = 3, Locked = False):
 
         # Log to the log-file
         if (log_level == 0 or ((log_level & config.opt_dict['log_level']) and (log_target & 2))) and config.log_output != None:
-           sys.stderr.write(now() + message.replace('\n','') + '\n')
+            if '\n' in message:
+                message = re.split('\n', message)
+
+                for i in range(len(message)):
+                    if message[i] != '':
+                        sys.stderr.write(now() + message[i] + '\n')
+
+            else:
+                sys.stderr.write(now() + message + '\n')
 
         if not Locked:
             config.log_lock.release()
@@ -250,6 +252,7 @@ def log(message, log_level = 1, log_target = 3, Locked = False):
     except:
         print 'An error ocured while logging!'
         sys.stderr.write(now() + 'An error ocured while logging!\n')
+        traceback.print_exc()
         if not Locked:
             config.log_lock.release()
 
@@ -976,13 +979,10 @@ class Configure:
 
     # end version()
 
-    def save_oldfile(self, file):
+    def save_oldfile(self, fle):
         """ save the old file to .old if it exists """
-        try:
-            os.rename(file, file + '.old')
-
-        except Exception as e:
-            pass
+        if os.path.isfile(fle):
+            os.rename(fle, fle + '.old')
 
     # end save_old()
 
@@ -1008,7 +1008,7 @@ class Configure:
 
     # end open_file ()
 
-    def get_line(self, file, byteline, isremark = False, encoding = None):
+    def get_line(self, fle, byteline, isremark = False, encoding = None):
         """
         Check line encoding and if valid return the line
         If isremark is True or False only remarks or non-remarks are returned.
@@ -1034,13 +1034,13 @@ class Configure:
                 return line
 
         except UnicodeError:
-            log('%s is not encoded in %s.\n' % (file.name, encoding))
+            log('%s is not encoded in %s.\n' % (fle.name, encoding))
 
         return False
 
     # end get_line()
 
-    def check_encoding(self, file, encoding = None, check_version = False):
+    def check_encoding(self, fle, encoding = None, check_version = False):
         """
         Check file encoding. Return True or False
         Encoding is stored in self.encoding
@@ -1056,8 +1056,8 @@ class Configure:
         if encoding == None:
             encoding = self.file_encoding
 
-        for byteline in file.readlines():
-            line = self.get_line(file, byteline, True, self.encoding)
+        for byteline in fle.readlines():
+            line = self.get_line(fle, byteline, True, self.encoding)
             if not line:
                 continue
 
@@ -1071,7 +1071,7 @@ class Configure:
                         self.encoding = encoding
 
                     except LookupError:
-                        log('%s has invalid encoding %s.\n' % (file.name, encoding))
+                        log('%s has invalid encoding %s.\n' % (fle.name, encoding))
                         return False
 
                     if (not check_version) or self.configversion != None:
@@ -1087,9 +1087,9 @@ class Configure:
                 continue
 
         if check_version and self.configversion == None:
-            file.seek(0,0)
-            for byteline in file.readlines():
-                line = self.get_line(file, byteline, False, self.encoding)
+            fle.seek(0,0)
+            for byteline in fle.readlines():
+                line = self.get_line(fle, byteline, False, self.encoding)
                 if not line:
                     continue
 
@@ -1338,7 +1338,7 @@ class Configure:
                                 else:
                                     self.opt_dict[a[0].lower().strip()] = 'none'
 
-                    except Exception:
+                    except:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
                 # Read the channel stuff up to version 2.0
@@ -1352,7 +1352,7 @@ class Configure:
                         self.channels[unicode(channel[0]).strip()].active = True
                         self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[0].strip()] = unicode(channel[0]).strip()
 
-                    except Exception:
+                    except:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
                 # Changed Channel config since version 2.1
@@ -1405,7 +1405,7 @@ class Configure:
                         if active:
                             self.chan_count += 1
 
-                    except Exception:
+                    except:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
                 # Read the channel specific configuration
@@ -1450,11 +1450,12 @@ class Configure:
                                 else:
                                     self.channels[chanid].opt_dict[a[0].lower().strip()] = 'none'
 
-                    except Exception:
+                    except:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
-            except Exception as e:
+            except:
                 log(u'Error reading Config\n')
+                log(traceback.format_exc())
                 continue
 
         f.close()
@@ -1573,8 +1574,9 @@ class Configure:
                         continue
                     self.roletrans[a[0].lower().strip()] = a[1].strip()
 
-            except Exception as e:
+            except:
                 log('Error reading Defaults\n')
+                log(traceback.format_exc())
                 continue
 
         f.close()
@@ -1864,7 +1866,8 @@ class Configure:
             if not self.write_config(True):
                 log('Error writing new Config. Trying to restore an old one.\n')
                 try:
-                    os.rename(file + '.old', file)
+                    if os.path.exists(self.config_file + '.old'):
+                        os.rename(self.config_file + '.old', self.config_file)
 
                 except:
                     pass
@@ -1879,7 +1882,8 @@ class Configure:
             if not self.write_config(False):
                 log('Error writing new Config. Trying to restore an old one.\n')
                 try:
-                    os.rename(file + '.old', file)
+                    if os.path.exists(self.config_file + '.old'):
+                        os.rename(self.config_file + '.old', self.config_file)
 
                 except:
                     pass
@@ -1956,8 +1960,9 @@ class Configure:
                         log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
                         return(2)
 
-                except Exception:
+                except:
                     log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
+                    log(traceback.format_exc())
                     return(2)
 
             else: self.output = None
@@ -1977,9 +1982,10 @@ class Configure:
 
                 else:
                     log('Cannot write to logfile: %s\n' % self.log_file)
+                    log(traceback.format_exc())
                     return(2)
 
-            except Exception:
+            except:
                 log('Cannot write to logfile: %s\n' % self.log_file)
                 return(2)
 
@@ -2005,8 +2011,9 @@ class Configure:
                     log('Cannot write to cachefile: %s\n' % self.program_cache_file)
                     return(2)
 
-            except Exception:
+            except:
                 log('Cannot write to cachefile: %s\n' % self.program_cache_file)
+                log(traceback.format_exc())
                 return(2)
 
             xml_output.program_cache = ProgramCache(self.program_cache_file)
@@ -3039,8 +3046,9 @@ class ProgramCache(Thread):
         try:
             self.pdict = pickle.load(open(self.filename,'r'))
 
-        except Exception:
+        except:
             log('Error loading cache file: %s (possibly corrupt)\n' % self.filename)
+            log(traceback.format_exc())
             self.clear()
 
         self.lock.release()
@@ -3058,7 +3066,7 @@ class ProgramCache(Thread):
             try:
                 os.rename(self.filename, self.filename + '.tmp')
 
-            except Exception:
+            except:
                 log('Cannot rename %s, check permissions\n' % self.filename)
 
         tmpfile = open(self.filename, 'w')
@@ -3074,7 +3082,7 @@ class ProgramCache(Thread):
             try:
                 os.remove(self.filename +'.tmp')
 
-            except Exception:
+            except:
                 log('Cannot remove %s, check permissions\n' % self.filename +'.tmp')
 
 
@@ -3209,13 +3217,13 @@ class FetchURL(Thread):
             bytes = fp.read()
             page = None
 
+            encoding = self.find_html_encoding(fp, bytes)
             try:
-                encoding = self.find_html_encoding(fp, bytes)
                 # log ('parse %s as %s' % (url, encoding))
                 page = bytes.decode(encoding, 'replace')
 
-            except Exception:
-                log('Cannot decode url %s as %s\n' % (url, encoding))
+            except:
+                log('Cannot decode url %s as %s, trying Windows-1252\n' % (url, encoding))
                 # 'Windows-1252'
                 page = bytes.decode('Windows-1252', 'ignore') # At least gets it somewhat correct
 
@@ -3298,8 +3306,9 @@ class FetchData(Thread):
                 self.load_pages()
 
             except:
-                log('Fatal Error: "%s" processing the basepages from %s\n' % (sys.exc_info()[1], self.source), 0)
+                log('Fatal Error processing the basepages from %s\n' % (self.source), 0)
                 log('Setting them all to being loaded, to let the other sources finish the job\n', 0)
+                log(traceback.print_exc())
                 for chanid in self.channels.keys():
                     self.channel_loaded[chanid] = True
                     config.channels[chanid].source_data[self.proc_id] = True
@@ -3352,6 +3361,7 @@ class FetchData(Thread):
                         except:
                             detailed_program = None
                             log('Error processing the detailpage: %s\n' % (tdict[self.detail_url]), 1)
+                            log(traceback.print_exc())
 
                     else:
                         detailed_program = None
@@ -3364,6 +3374,7 @@ class FetchData(Thread):
                         except:
                             detailed_program = None
                             log('Error processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\n' % tdict[self.detail_id][3:], 1)
+                            log(traceback.print_exc())
 
                     if detailed_program == None:
                         if (self.proc_id == 0) and (cache_id != None):
@@ -3414,17 +3425,21 @@ class FetchData(Thread):
                 self.ready = True
 
         except:
-            err_obj = sys.exc_info()[2]
-            log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
+            log('\nAn unexpected error has occured in the %s thread\n' %  (self.source), 0)
             log('The current detail url is: %s\n' % (tdict[self.detail_url]), 0)
-            log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+            log(traceback.print_exc(), 0)
 
-            while True:
-                err_obj = err_obj.tb_next
-                if err_obj == None:
-                    break
+            #~ err_obj = sys.exc_info()[2]
+            #~ log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
+            #~ log('The current detail url is: %s\n' % (tdict[self.detail_url]), 0)
+            #~ log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
-                log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+            #~ while True:
+                #~ err_obj = err_obj.tb_next
+                #~ if err_obj == None:
+                    #~ break
+
+                #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
             log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
 
@@ -3554,7 +3569,7 @@ class FetchData(Thread):
                 if type(tdict[key]) != unicode:
                     tdict[key] = unicode(tdict[key])
 
-            except:
+            except UnicodeError:
                 tdict[key] = u''
 
         for key in date_values:
@@ -3589,7 +3604,7 @@ class FetchData(Thread):
                     if type(item) != unicode:
                         tdict['credits'][subkey][i] = unicode(item)
 
-                except:
+                except UnicodeError:
                     tdict['credits'][subkey][i] = u''
 
         for subkey in video_values:
@@ -3614,7 +3629,7 @@ class FetchData(Thread):
             else:
                 return page
 
-        except Exception:
+        except(urllib.URLError, socket.timeout):
             log('get_page timed out on (>%s s): %s\n' % (config.global_timeout, url), 1, 1)
             return None
 
@@ -4732,7 +4747,7 @@ class FetchData(Thread):
                 prog_names[pname][pstart]['genre'] = tvdict['genre']
                 prog_names[pname][pstart]['subgenre'] = tvdict['subgenre']
 
-            except Exception as e:
+            except:
                 pass
 
         # end add_using_other_timing()
@@ -5693,8 +5708,9 @@ class tvgids_JSON(FetchData):
             strdata = (self.clean_html('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')).strip().encode('utf-8')
             htmldata = ET.fromstring(strdata)
 
-        except Exception as e:
-            log('Fetching page %s returned an error: %s at line: %s\n' % (tdict[self.detail_url], sys.exc_info()[1], sys.exc_info()[2].tb_lineno), 1)
+        except:
+            log('Fetching page %s returned an error:\n' % (tdict[self.detail_url]), 1)
+            log(traceback.format_exc())
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')
@@ -5709,6 +5725,7 @@ class tvgids_JSON(FetchData):
 
         except:
             log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
+            log(traceback.format_exc())
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strdesc + '\n</root>\n')
@@ -5720,7 +5737,8 @@ class tvgids_JSON(FetchData):
                     tmp = re.sub('\(', '', tmp)
                     tdict['jaar van premiere'] = re.sub('\)', '', tmp).strip()
 
-        except Exception as e:
+        except:
+            log(traceback.format_exc())
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string(strdata)
@@ -5745,7 +5763,8 @@ class tvgids_JSON(FetchData):
                 else:
                     content = self.empersant(d.find('span[@class="col-lg-9 programma_detail_info"]').text).strip()
 
-            except Exception as e:
+            except:
+                log(traceback.format_exc())
                 if config.write_info_files:
                     infofiles.write_raw_string('Error: %s at line %s\n%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, d))
                     infofiles.write_raw_string(strdata)
@@ -5809,7 +5828,8 @@ class tvgids_JSON(FetchData):
 
                     tdict[ctype] = content
 
-            except Exception as e:
+            except:
+                log(traceback.format_exc())
                 if config.write_info_files:
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                     infofiles.write_raw_string(strdata)
@@ -5828,7 +5848,7 @@ class tvgids_JSON(FetchData):
 
             detail_data = json.loads(strdata)
 
-        except Exception as e:
+        except:
             # if we cannot find the description page,
             # go to next in the loop
             return None
@@ -6046,7 +6066,7 @@ class tvgidstv_HTML(FetchData):
             strdata = self.clean_html('<div>' + self.getcontent.search(strdata).group(1)).encode('utf-8')
             htmldata = ET.fromstring(strdata)
 
-        except Exception as e:
+        except:
             return None
 
         self.all_channels ={}
@@ -6224,8 +6244,9 @@ class tvgidstv_HTML(FetchData):
                             strdata = self.clean_html(strdata)
                             htmldata = ET.fromstring( ('<div><div>' + strdata).encode('utf-8'))
 
-                        except Exception as e:
+                        except:
                             log('Error extracting ElementTree for channel:%s day:%s on tvgids.tv\n' % (config.channels[chanid].chan_name, offset))
+                            log(traceback.format_exc())
                             if config.write_info_files:
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                                 infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
@@ -6289,7 +6310,7 @@ class tvgidstv_HTML(FetchData):
 
                         except:
                             log('Error processing tvgids.tv data for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
-                            log('Error: %s, line:%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                            log(traceback.format_exc())
                             continue
 
                         self.day_loaded[chanid][offset] = True
@@ -6320,7 +6341,7 @@ class tvgidstv_HTML(FetchData):
                             pass
 
         except:
-            log('Error: "%s" at line \n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+            log(traceback.format_exc())
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 config.channels[chanid].source_data[self.proc_id] = True
@@ -6335,7 +6356,8 @@ class tvgidstv_HTML(FetchData):
             strdata = self.clean_html('<root><div><div class="section-title">' + self.detaildata.search(strdata).group(1) + '</root>').encode('utf-8')
             htmldata = ET.fromstring(strdata)
 
-        except Exception as e:
+        except:
+            log(traceback.format_exc())
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string(strdata + '\n')
@@ -6350,6 +6372,7 @@ class tvgidstv_HTML(FetchData):
 
         except:
             log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
+            log(traceback.format_exc())
 
         data = htmldata.find('div/div[@class="section-content"]')
         datatype = u''
@@ -6435,7 +6458,7 @@ class tvgidstv_HTML(FetchData):
 
         except:
             log('Error processing tvgids.tv detailpage:%s\n' % (tdict[self.detail_url]))
-            log('Error: %s, line:%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+            log(traceback.format_exc())
             return
 
         tdict['ID'] = tdict[self.detail_id]
@@ -6810,7 +6833,7 @@ class teveblad_HTML(FetchData):
                     if return_date.group(3) == search_date.strftime('%d'):
                         return True
 
-        except Exception as e:
+        except:
             log('Invalid page returned by teveblad.be\n')
             log('return_date: %s search_date: %s\n' % (return_date, search_date))
             return False
@@ -6834,7 +6857,6 @@ class teveblad_HTML(FetchData):
             if f == None:
                 return None
 
-            #~ htmldata = ET.parse(f)
             strdata = u''
             for byteline in f.readlines():
                 line = config.get_line(f, byteline)
@@ -6845,6 +6867,7 @@ class teveblad_HTML(FetchData):
 
         except:
             log('error parsing %s/teveblad_channels.html\n' % (config.xmltv_dir))
+            log(traceback.format_exc())
             return None
 
     def get_channels(self):
@@ -6864,7 +6887,7 @@ class teveblad_HTML(FetchData):
                 strdata = self.clean_html('<div>' + self.channeldata.search(strdata).group(1)).encode('utf-8')
                 htmldata = ET.fromstring(strdata)
 
-        except Exception as e:
+        except:
             htmldata = self.read_channelfile()
             if htmldata == None:
                 return None
@@ -7022,10 +7045,9 @@ class teveblad_HTML(FetchData):
                             strdata = u'<root><div>' + strdata.group(1) + u'\n<div>\n' + strdata.group(2) + u'</root>'
                             htmldata = ET.fromstring(strdata.encode('utf-8'))
 
-                        except Exception as e:
+                        except:
                             log('Error extracting ElementTree for zendergroup:%s day:%s\n' % (group_page, offset))
-                            err_obj = sys.exc_info()[2]
-                            log('Error: %s at line %s\n' %  (sys.exc_info()[1], err_obj.tb_lineno), 0)
+                            log(traceback.format_exc())
                             if config.write_info_files:
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                                 infofiles.write_raw_string(unicode(strdata + u'\n'))
@@ -7233,15 +7255,8 @@ class teveblad_HTML(FetchData):
 
         except:
             err_obj = sys.exc_info()[2]
-            log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
-            log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
-            while True:
-                err_obj = err_obj.tb_next
-                if err_obj == None:
-                    break
-
-                log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+            log('\nAn unexpected error has occured in the %s thread:\n' %  (self.source, sys.exc_info()[1]), 0)
+            log(traceback.format_exc())
 
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -7302,7 +7317,7 @@ class teveblad_HTML(FetchData):
                                 self.day_loaded[chanid][i] = None
                             break
 
-                    except Exception as e:
+                    except:
                         log('Error extracting ElementTree for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
                         if config.write_info_files:
                             infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
@@ -7713,7 +7728,7 @@ class npo_HTML(FetchData):
                     self.program_data[chanid].append(tdict)
 
             except:
-                log('Error: %s, line:%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                log(traceback.format_exc())
 
         if config.opt_dict['offset'] > 7:
             for chanid in self.channels.keys():
@@ -7744,7 +7759,7 @@ class npo_HTML(FetchData):
                 strdata = self.clean_html(strdata)
                 htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
 
-            except Exception as e:
+            except:
                 log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
                 if config.write_info_files:
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
@@ -7785,7 +7800,7 @@ class npo_HTML(FetchData):
                     get_channel_name(c)
 
             except:
-                log('Error: %s, line:%s\n  Validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
+                log(traceback.format_exc())
                 #~ self.day_loaded[chanid][offset] = None
                 continue
 
@@ -7816,7 +7831,7 @@ class npo_HTML(FetchData):
                         self.day_loaded[chanid][offset] = True
 
             except:
-                log('Error: %s, line:%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                log(traceback.format_exc())
 
             # be nice to npo.nl
             time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
@@ -7870,7 +7885,7 @@ class npo_HTML(FetchData):
                 strdata = self.clean_html(strdata)
                 htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
 
-            except Exception as e:
+            except:
                 log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
                 if config.write_info_files:
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
@@ -7922,7 +7937,8 @@ class npo_HTML(FetchData):
                                 infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, self.all_channels[str(channel_cnt)]['name'], cname))
 
             except:
-                log('Error: %s, line:%s\n  Validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
+                log('Error validating page for day:%s on npo.nl\n' % (offset))
+                log(traceback.format_exc())
                 #~ self.day_loaded[chanid][offset] = None
                 continue
 
@@ -8018,7 +8034,7 @@ class npo_HTML(FetchData):
                             pass
 
             except:
-                log('Error: %s, line:%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                log(traceback.format_exc())
 
             for chanid in self.channels.keys():
                 self.day_loaded[chanid][offset] = True
@@ -8201,16 +8217,18 @@ class Channel_Config(Thread):
             self.ready = True
 
         except:
-            err_obj = sys.exc_info()[2]
-            log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.chan_name, sys.exc_info()[1]), 0)
-            log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+            log('\nAn unexpected error has occured in the %s thread:\n' %  (self.chan_name), 0)
+            log(traceback.format_exc())
+            #~ err_obj = sys.exc_info()[2]
+            #~ log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.chan_name, sys.exc_info()[1]), 0)
+            #~ log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
-            while True:
-                err_obj = err_obj.tb_next
-                if err_obj == None:
-                    break
+            #~ while True:
+                #~ err_obj = err_obj.tb_next
+                #~ if err_obj == None:
+                    #~ break
 
-                log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+                #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
             log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
 
@@ -8740,40 +8758,53 @@ class XMLoutput:
                 xml.append(self.add_starttag('date', 4, '', program['jaar van premiere'],True))
 
             # Genre
-            if not config.channels[chanid].opt_dict['cattrans']:
-                xml.append(self.add_starttag('category', 4, 'lang="nl', program['genre'], True))
-
-            else:
+            if config.channels[chanid].opt_dict['cattrans']:
                 cat0 = ('', '')
                 cat1 = (program['genre'].lower(), '')
                 cat2 = (program['genre'].lower(), program['subgenre'].lower())
-                try:
-                    if config.cattrans[cat2] != '':
-                        cat = cat2
+                if cat2 in config.cattrans.keys() and config.cattrans[cat2] != '':
+                    xml.append(self.add_starttag('category', 4 , '', config.cattrans[cat2].capitalize(), True))
 
-                    else:
-                        if config.cattrans[cat1] != '':
-                            cat = cat1
+                elif cat1 in config.cattrans.keys() and config.cattrans[cat1] != '':
+                    xml.append(self.add_starttag('category', 4 , '', config.cattrans[cat1].capitalize(), True))
 
-                        else:
-                            cat = cat0
-
-                except:
-                    try:
-                        if config.cattrans[cat1] != '':
-                            cat = cat1
-
-                        else:
-                            cat = cat0
-
-                    except:
-                        cat = cat0
-
-                if cat in config.cattrans:
-                    xml.append(self.add_starttag('category', 4 , '', config.cattrans[cat].capitalize(), True))
+                elif cat0 in config.cattrans.keys() and config.cattrans[cat0] != '':
+                    xml.append(self.add_starttag('category', 4 , '', config.cattrans[cat0].capitalize(), True))
 
                 else:
                     xml.append(self.add_starttag('category', 4 , '', 'Unknown', True))
+
+                #~ try:
+                    #~ if config.cattrans[cat2] != '':
+                        #~ cat = cat2
+
+                    #~ else:
+                        #~ if config.cattrans[cat1] != '':
+                            #~ cat = cat1
+
+                        #~ else:
+                            #~ cat = cat0
+
+                #~ except:
+                    #~ try:
+                        #~ if config.cattrans[cat1] != '':
+                            #~ cat = cat1
+
+                        #~ else:
+                            #~ cat = cat0
+
+                    #~ except:
+                        #~ cat = cat0
+
+                #~ if cat in config.cattrans:
+                    #~ xml.append(self.add_starttag('category', 4 , '', config.cattrans[cat].capitalize(), True))
+
+            else:
+                if program['genre'] != '':
+                    xml.append(self.add_starttag('category', 4, 'lang="nl', program['genre'], True))
+
+                else:
+                    xml.append(self.add_starttag('category', 4 , '', 'Overige', True))
 
             # An available url
             if program['infourl'] != '':
@@ -8947,7 +8978,7 @@ def get_brt1_channel(days):
                 url = urldata.search(data)
                 data = url.group(1)
                 url = url.group(2)
-            except Exception as e:
+            except:
                 url = ''
             try:
                 details = extradata.search(data)
@@ -9018,15 +9049,17 @@ def main():
         xml_output.program_cache = None
 
     except:
-        err_obj = sys.exc_info()[2]
-        log('\nAn unexpected error has occured at line: %s, %s: %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti, sys.exc_info()[1]), 0)
+        log('\nAn unexpected error has occured:\n', 0)
+        log(traceback.format_exc())
+        #~ err_obj = sys.exc_info()[2]
+        #~ log('\nAn unexpected error has occured at line: %s, %s: %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti, sys.exc_info()[1]), 0)
 
-        while True:
-            err_obj = err_obj.tb_next
-            if err_obj == None:
-                break
+        #~ while True:
+            #~ err_obj = err_obj.tb_next
+            #~ if err_obj == None:
+                #~ break
 
-            log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
+            #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
 
         log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
         return(99)
