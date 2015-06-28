@@ -270,9 +270,9 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 9
-        self.patchdate = u'20150625'
+        self.patchdate = u'20150628'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.channels = {}
         self.chan_count = 0
@@ -2098,6 +2098,9 @@ class Configure:
         log(u'use_utc = %s' % (self.opt_dict['use_utc']), 1, 2)
         log(u'Channel specific settings other then the above:', 1, 2)
         for chan_def in self.channels.values():
+            if not chan_def.active:
+                continue
+
             chan_name_written = False
             if not chan_def.opt_dict['append_tvgidstv']:
                 log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
