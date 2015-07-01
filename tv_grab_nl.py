@@ -269,10 +269,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 1
-        self.patch = 9
-        self.patchdate = u'20150628'
+        self.patch = 10
+        self.patchdate = u'20150701'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.channels = {}
         self.chan_count = 0
@@ -3037,7 +3037,7 @@ class ProgramCache(Thread):
                 self.counter = 0
 
             if self.quit:
-                log('Please wait!! While I save the Cache!!\n', 0)
+                log('Please wait!! While I save the Cache!!\n', 1)
                 self.dump()
                 break
 
@@ -6248,7 +6248,7 @@ class tvgidstv_HTML(FetchData):
                             htmldata = ET.fromstring( ('<div><div>' + strdata).encode('utf-8'))
 
                         except:
-                            log('Error extracting ElementTree for channel:%s day:%s on tvgids.tv\n' % (config.channels[chanid].chan_name, offset))
+                            log("Error extracting ElementTree for channel:%s day:%s on tvgids.tv\n Possibly an incomplete pagefetch. Retry in the early morning after 4/5 o'clock.\n" % (config.channels[chanid].chan_name, offset))
                             if config.write_info_files:
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                                 infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
@@ -8324,7 +8324,15 @@ class Channel_Config(Thread):
                 self.ready = True
                 return
 
-            if programs[i] == None:
+            try:
+                if programs[i] == None:
+                    continue
+
+            except:
+                log(traceback.format_exc())
+                if config.write_info_files:
+                    infofiles.write_raw_string('Error: %s with index %s\n' % (sys.exc_info()[1], i))
+
                 continue
 
             p = programs[i]
