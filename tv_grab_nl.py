@@ -6253,6 +6253,7 @@ class tvgidstv_HTML(FetchData):
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                                 infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
 
+                            failure_count += 1
                             self.day_loaded[chanid][offset] = None
                             continue
 
