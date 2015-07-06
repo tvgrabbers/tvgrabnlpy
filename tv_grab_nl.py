@@ -142,6 +142,7 @@ from threading import Lock
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
 from collections import deque
+from Queue import Queue
 try:
     unichr(42)
 except NameError:
@@ -206,55 +207,106 @@ CET_CEST = AmsterdamTimeZone()
 UTC  = UTCTimeZone()
 
 config = None
-def log(message, log_level = 1, log_target = 3, Locked = False):
-    # Prints a warning to stderr.
-    # Note: The function encodes all ouput to utf-8. This may be wrong.
-    # TODO: use sys.stdout.encoding, locale.getpreferredencoding(), sys.getfilesystemencoding(), and/or
-    #       os.environ["PYTHONIOENCODING"] to determine the correct encoding.
-    # TODO: use logging module
-    def now():
-         return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S %Z') + ': '
 
-    try:
-        # If config is not yet available
-        if (config == None) and (log_target & 1):
-            sys.stderr.write('Error writing to log. Not (yet) available?\n')
-            sys.stderr.write(message.encode("utf-8"))
-            return
+class Logging(Thread):
+    def __init__(self):
+        Thread.__init__(self)
+        self.quit = False
+        self.log_level = 47
+        self.quiet = False
+        self.graphic_frontend = False
+        self.log_queue = deque()
+        self.log_output = None
 
-        if not Locked:
-            # If it's not locked beforehand
-            config.log_lock.acquire()
+    def run(self):
+        try:
+            while True:
+                try:
+                    if len(self.log_queue) == 0:
+                        continue
 
-        # Log to the Frontend. To set-up later.
-        if config.opt_dict['graphic_frontend']:
-            pass
+                    if self.quit and len(self.log_queue) == 0:
+                        return(0)
 
-        # Log to the screen
-        elif log_level == 0 or ((not config.opt_dict['quiet']) and (log_level & config.opt_dict['log_level']) and (log_target & 1)):
-            sys.stdout.write(message.encode("utf-8"))
+                    message = self.log_queue.popleft()
+                    if isinstance(message, (str, unicode)):
+                        if message == 'quit':
+                            return(0)
 
-        # Log to the log-file
-        if (log_level == 0 or ((log_level & config.opt_dict['log_level']) and (log_target & 2))) and config.log_output != None:
-            if '\n' in message:
-                message = re.split('\n', message)
+                        self.writelog(message)
+                        continue
 
-                for i in range(len(message)):
-                    if message[i] != '':
-                        sys.stderr.write(now() + message[i] + '\n')
+                    elif isinstance(message, (list ,tuple)):
+                        if len(message) == 1:
+                            self.writelog(message[0])
+                            continue
 
-            else:
-                sys.stderr.write(now() + message + '\n')
+                        elif len(message) == 2:
+                            self.writelog(message[0], message[1])
+                            continue
 
-        if not Locked:
-            config.log_lock.release()
+                        elif len(message) > 2:
+                            if isinstance(message[0], (str, unicode)):
+                                self.writelog(message[0], message[1], message[2])
+                                continue
 
-    except:
-        print 'An error ocured while logging!'
-        sys.stderr.write(now() + 'An error ocured while logging!\n')
-        traceback.print_exc()
-        if not Locked:
-            config.log_lock.release()
+                            elif isinstance(message[0], (list, tuple)):
+                                for m in message[0]:
+                                    self.writelog(m, message[1], message[2])
+                                    continue
+
+                    self.writelog('Unrecognized log-message')
+
+                except:
+                    pass
+
+        except:
+            self.writelog('\nAn unexpected error has occured:\n', 0)
+            self.writelog(traceback.format_exc())
+            self.writelog('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+            return(99)
+
+    def writelog(self, message, log_level = 1, log_target = 3):
+        def now():
+             return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S %Z') + ': '
+
+        try:
+            # If config is not yet available
+            if (config == None) and (log_target & 1):
+                sys.stderr.write('Error writing to log. Not (yet) available?\n')
+                sys.stderr.write(message.encode("utf-8"))
+                return
+
+            # Log to the Frontend. To set-up later.
+            if self.graphic_frontend:
+                pass
+
+            # Log to the screen
+            elif log_level == 0 or ((not self.quiet) and (log_level & self.log_level) and (log_target & 1)):
+                sys.stdout.write(message.encode("utf-8"))
+
+            # Log to the log-file
+            if (log_level == 0 or ((log_level & self.log_level) and (log_target & 2))) and self.log_output != None:
+                if '\n' in message:
+                    message = re.split('\n', message)
+
+                    for i in range(len(message)):
+                        if message[i] != '':
+                            sys.stderr.write(now() + message[i] + '\n')
+
+                else:
+                    sys.stderr.write(now() + message + '\n')
+
+        except:
+            print 'An error ocured while logging!'
+            traceback.print_exc()
+            sys.stderr.write(now() + 'An error ocured while logging!\n')
+
+# end Logging
+logging = Logging()
+
+def log(message, log_level = 1, log_target = 3):
+    logging.log_queue.append([message, log_level, log_target])
 
 # end log()
 
@@ -268,8 +320,8 @@ class Configure:
         # Version info as returned by the version function
         self.name ='tv_grab_nl_py'
         self.major = 2
-        self.minor = 1
-        self.patch = 10
+        self.minor = 2
+        self.patch = 0
         self.patchdate = u'20150701'
         self.alfa = False
         self.beta = True
@@ -1113,9 +1165,9 @@ class Configure:
     def read_commandline(self):
         """Initiate argparser and read the commandline"""
         self.description = 'The Netherlands: %s\n' % self.version(True) + \
-                        '  A grabber that grabs tvguide data from tvgids.nl, tvgids.tv, rtl.nl and\n' + \
-                        '  teveblad.be for up to 178+ channels and up to 14 days. Which it then stores\n' + \
-                        '  in XMLTV-compatible format.'
+                        '  A grabber that grabs tvguide data from tvgids.nl, tvgids.tv, rtl.nl,\n' + \
+                        '  teveblad.be and npo.nl for up to 178+ channels and up to 14 days. Which it\n' + \
+                        '  then stores in XMLTV-compatible format.'
 
         parser = argparse.ArgumentParser(description = self.description, formatter_class=argparse.RawTextHelpFormatter)
 
@@ -2792,6 +2844,9 @@ class Configure:
             if self.opt_dict['output_file'] != None:
                 self.output.close()
 
+            log('Closing down the log\n')
+            logging.quit = True
+            logging.join()
             if self.log_output != None:
                 self.log_output.close()
 
@@ -8360,11 +8415,7 @@ class Channel_Config(Thread):
                     continue
 
             # Either we are fast-mode, outsite slowdays or there is no url. So we continue
-            try:
-                no_detail_fetch = (no_fetch or ((p[xml_output.channelsource[0].detail_url] == '') and (p[xml_output.channelsource[1].detail_url] == '')))
-
-            except:
-                no_detail_fetch = True
+            no_detail_fetch = (no_fetch or ((p[xml_output.channelsource[0].detail_url] == '') and (p[xml_output.channelsource[1].detail_url] == '')))
 
             if no_detail_fetch:
                 log(u'    [no fetch] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
