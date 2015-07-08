@@ -31,7 +31,7 @@ Sinds versie 2:
 tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be), [RTL.nl](http://www.rtl.nl) and [NPO.nl](http://www.npo.nl) as a source.
 
 ###Release Notes Versie 2
-**p20150628**   version 2.1.9 set stable  
+**p20150628**   version 2.1.9  
 Fix for changed tvgids.tv detailpage and new npo.nl page.  
 Invalidated Python 2.6.  
 Better cache crash recovery.  
@@ -40,10 +40,10 @@ Fetch for today on teveblad.be without date.
 Use fresh title in stead of from the cache.  
 Some small fixes and code sanitation.  
 
-**p20150616**   version 2.1.8 set stable  
+**p20150616**   version 2.1.8  
 Intermediate version to fix disabling npo.
 
-**p20150531**   version 2.1.7 set stable  
+**p20150531**   version 2.1.7  
 Also stripped Episode numbering from Sports events. MythTV else will change category to Series.  
 Optimized the new source, adding a new option `use_npo`, which is on by default and can be set both global and per channel. Real endtimes are used, separately programming the info/commercial breaks.  
 Added a new source npo.nl, which only provides 'superior' timings for three days for the dutch public NPO and regional channels. It's use for now is implied.  
@@ -57,13 +57,13 @@ Some fine-tuning
 Some further changes to conform with the xmltv standard  
 Added new channeloption add_hd_id to create two listings for a channel, one with HD tagging and one without  
 
-**p20150512**   version 2.1.6 stable  
+**p20150512**   version 2.1.6  
 New base fetch for teveblad.be with the old one left for redundancy  
 New detail fetch for the renewed tvgids.nl pages  
 Added a json detail fetch for tvgids.nl for redundancy  
 Added beter conformity with the xmltv standard  
 
-**p20150501**   version 2.1.5 stable  
+**p20150501**   version 2.1.5  
 Fixed a bug, that could cause the script to hang on an error in a detailpage, resuling in excessive processor use.  
 Added 'prefered_description' channel option.  
 This option sets the preferred source for the descriptions for that channel, falling back to defaults(the longest one found) if no description present.  
@@ -76,7 +76,7 @@ Bugfix on detailfetch storing
 **p20150403**   version 2.1.3  
 Bugfix on new cache creation
 
-**p20150329**   version 2.1.2 Declared stable  
+**p20150329**   version 2.1.2  
 Minor updates  
 With updated MythTV script
 Preparations for future external graphical frontend  
@@ -87,7 +87,7 @@ Fixed illogical detail fetch counter since 2.1.0
 **p20150303**   version 2.1.1  
 Added a warning on configure to enable the desired channels
 
-**p20150302**   version 2.1.0 Declared stable  
+**p20150302**   version 2.1.0  
 Bugfix for tvgids.tv changed current date format  
 Added a retry loop around the prime page fetches.  
 Added the channel switch 'append_tvgidstv'  
@@ -115,18 +115,15 @@ fixed small bug in configuring new channel list.
 **p20150210**   version 2.0.1  
 added further channel ID linking between tvgids.nl and tvgids.tv
 
-**p20150209**   Declared Stable
-
-**p20150201**   Fixed stupid error in groupnameremove table processing  
-Updated default cattrans table
-
-**p20150129**   Fixed some more failures  
+**p20150209**   version 2.0.0  
+Fixed stupid error in groupnameremove table processing  
+Updated default cattrans table  
+Fixed some more failures  
 Added On/Off as boolean values in the configuration file  
 Adjusted Statistics Log output  
 Updated default cattrans table  
-Made default groupnameremove table only be used on first creation.
-
-**p20150127**   Fixed some failures on detail fetching due to invalid HTML/XMLtags in the website  
-Adjusted some helptext
+Made default groupnameremove table only be used on first creation.  
+Fixed some failures on detail fetching due to invalid HTML/XMLtags in the website  
+Adjusted some helptext  
 
 **p20150126**   Initial release Version 2.0.0-beta
