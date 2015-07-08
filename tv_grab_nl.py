@@ -219,52 +219,47 @@ class Logging(Thread):
         self.log_output = None
 
     def run(self):
-        try:
-            while True:
-                try:
-                    if len(self.log_queue) == 0:
-                        continue
+        self.log_output = config.log_output
+        while True:
+            try:
+                if self.quit and len(self.log_queue) == 0:
+                    return(0)
 
-                    if self.quit and len(self.log_queue) == 0:
+                if len(self.log_queue) == 0:
+                    continue
+
+                message = self.log_queue.popleft()
+                if isinstance(message, (str, unicode)):
+                    if message == 'quit':
                         return(0)
 
-                    message = self.log_queue.popleft()
-                    if isinstance(message, (str, unicode)):
-                        if message == 'quit':
-                            return(0)
+                    self.writelog(message, 1, 3)
+                    continue
 
-                        self.writelog(message)
+                elif isinstance(message, (list ,tuple)):
+                    llevel =1
+                    ltarget = 3
+                    if len(message) == 2:
+                        llevel = message[1]
+
+                    elif len(message) > 2:
+                        llevel = message[1]
+                        ltarget = message[2]
+
+                    if isinstance(message[0], (str, unicode)):
+                        self.writelog(message[0], llevel, ltarget)
                         continue
 
-                    elif isinstance(message, (list ,tuple)):
-                        if len(message) == 1:
-                            self.writelog(message[0])
-                            continue
+                    elif isinstance(message[0], (list, tuple)):
+                        for m in message[0]:
+                            self.writelog(m, llevel, ltarget)
 
-                        elif len(message) == 2:
-                            self.writelog(message[0], message[1])
-                            continue
+                        continue
 
-                        elif len(message) > 2:
-                            if isinstance(message[0], (str, unicode)):
-                                self.writelog(message[0], message[1], message[2])
-                                continue
+                self.writelog('Unrecognized log-message: %s of type %s\n' % (message, type(message)))
 
-                            elif isinstance(message[0], (list, tuple)):
-                                for m in message[0]:
-                                    self.writelog(m, message[1], message[2])
-                                    continue
-
-                    self.writelog('Unrecognized log-message')
-
-                except:
-                    pass
-
-        except:
-            self.writelog('\nAn unexpected error has occured:\n', 0)
-            self.writelog(traceback.format_exc())
-            self.writelog('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
-            return(99)
+            except:
+                pass
 
     def writelog(self, message, log_level = 1, log_target = 3):
         def now():
@@ -283,7 +278,7 @@ class Logging(Thread):
 
             # Log to the screen
             elif log_level == 0 or ((not self.quiet) and (log_level & self.log_level) and (log_target & 1)):
-                sys.stdout.write(message.encode("utf-8"))
+                sys.stderr.write(message.encode("utf-8"))
 
             # Log to the log-file
             if (log_level == 0 or ((log_level & self.log_level) and (log_target & 2))) and self.log_output != None:
@@ -292,15 +287,15 @@ class Logging(Thread):
 
                     for i in range(len(message)):
                         if message[i] != '':
-                            sys.stderr.write(now() + message[i] + '\n')
+                            self.log_output.write(now() + message[i] + '\n')
 
                 else:
-                    sys.stderr.write(now() + message + '\n')
+                    self.log_output.write(now() + message + '\n')
 
         except:
             print 'An error ocured while logging!'
-            traceback.print_exc()
             sys.stderr.write(now() + 'An error ocured while logging!\n')
+            traceback.print_exc()
 
 # end Logging
 logging = Logging()
@@ -346,7 +341,6 @@ class Configure:
         self.opt_dict['log_level'] = 47
         # The log filehandler, gets set later
         self.log_output = None
-        self.log_lock = Lock()
 
         # What match results go to the log/screen (needs code 32 above)
         # 0 = Log Nothing (just the overview)
@@ -1506,8 +1500,7 @@ class Configure:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
             except:
-                log(u'Error reading Config\n')
-                log(traceback.format_exc())
+                log([u'Error reading Config\n', traceback.format_exc()])
                 continue
 
         f.close()
@@ -1627,8 +1620,7 @@ class Configure:
                     self.roletrans[a[0].lower().strip()] = a[1].strip()
 
             except:
-                log('Error reading Defaults\n')
-                log(traceback.format_exc())
+                log(['Error reading Defaults\n', traceback.format_exc()])
                 continue
 
         f.close()
@@ -1814,11 +1806,13 @@ class Configure:
         elif not self.read_config():
             return(1)
 
-        if self.args.cache_save_interval != None:
-            self.opt_dict['cache_save_interval'] = self.args.cache_save_interval
-
         if self.args.quiet != None:
             self.opt_dict['quiet'] = self.args.quiet
+
+        logging.log_level = self.opt_dict['log_level']
+        logging.quiet = self.opt_dict['quiet']
+        if self.args.cache_save_interval != None:
+            self.opt_dict['cache_save_interval'] = self.args.cache_save_interval
 
         if self.args.use_utc != None:
             self.opt_dict['use_utc'] = self.args.use_utc
@@ -1902,11 +1896,12 @@ class Configure:
             if self.configversion == 1.0:
                 self.write_defaults_list()
             if not self.write_config(None):
-                log('Error updating to new Config.\nPlease remove the old config and Re-run me with the --configure flag.\n')
+                log(['Error updating to new Config.\n', 'Please remove the old config and Re-run me with the --configure flag.\n'])
                 return(1)
 
-            log('Updated the configfile %s!\nCheck if you are fine with the settings.\n' % self.config_file)
-            log('If this is a first install, you have to enable the desired channels!\n', 1, 1)
+            log(['Updated the configfile %s!\n' % self.config_file, \
+                'Check if you are fine with the settings.\n', \
+                'If this is a first install, you have to enable the desired channels!\n'], 1, 1)
             return(0)
 
         # Continue validating the settings for the individual channels
@@ -1926,8 +1921,9 @@ class Configure:
 
                 return(1)
 
-            log('Created the configfile %s!\nCheck if you are fine with the settings.\n' % self.config_file)
-            log('If this is a first install, you have to enable the desired channels!\n', 1, 1)
+            log(['Created the configfile %s!\n' % self.config_file, \
+                'Check if you are fine with the settings.\n', \
+                'If this is a first install, you have to enable the desired channels!\n'], 1, 1)
             return(0)
 
         if self.args.save_options:
@@ -1942,7 +1938,7 @@ class Configure:
 
                 return(1)
 
-            log('Updated the options in the configfile %s!\nCheck if you are fine with the settings.\n' % self.config_file)
+            log(['Updated the options in the configfile %s!\n' % self.config_file, 'Check if you are fine with the settings.\n'])
             return(0)
 
         #check for cache
@@ -2013,8 +2009,7 @@ class Configure:
                         return(2)
 
                 except:
-                    log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
-                    log(traceback.format_exc())
+                    log(['Cannot write to outputfile: %s\n' % self.opt_dict['output_file'], traceback.format_exc()])
                     return(2)
 
             else: self.output = None
@@ -2029,16 +2024,18 @@ class Configure:
 
                 self.save_oldfile(self.log_file)
                 self.log_output = self.open_file(self.log_file, mode = 'a')
-                if self.log_output != None:
-                    sys.stderr = self.log_output
+                #~ if self.log_output != None:
+                    #~ sys.stderr = self.log_output
 
-                else:
-                    log('Cannot write to logfile: %s\n' % self.log_file)
-                    log(traceback.format_exc())
+                #~ else:
+                if self.log_output == None:
+                    logging.writelog('Cannot write to logfile: %s\n' % self.log_file)
                     return(2)
 
+                logging.start()
+
             except:
-                log('Cannot write to logfile: %s\n' % self.log_file)
+                logging.writelog(['Cannot write to logfile: %s\n' % self.log_file, traceback.format_exc()])
                 return(2)
 
         if option == 'program_cache_file':
@@ -2064,8 +2061,7 @@ class Configure:
                     return(2)
 
             except:
-                log('Cannot write to cachefile: %s\n' % self.program_cache_file)
-                log(traceback.format_exc())
+                log(['Cannot write to cachefile: %s\n' % self.program_cache_file, traceback.format_exc()])
                 return(2)
 
             xml_output.program_cache = ProgramCache(self.program_cache_file)
@@ -2120,53 +2116,53 @@ class Configure:
         if self.log_output == None:
             return(0)
 
-        log(u'Python versie: %s.%s.%s' % (sys.version_info[0], sys.version_info[1], sys.version_info[2]),1, 2)
-        log(u'The Netherlands: %s' % self.version(True), 1, 2)
-        log(u'Capabilities:"baseline" ,"cache" ,"manualconfig" ,"preferredmethod")', 1, 2)
-        log(u'Preferred Methode: "allatonce"', 1, 2)
-        log(u'log level = %s' % (self.opt_dict['log_level']), 1, 2)
-        log(u'match log level = %s' % (self.opt_dict['match_log_level']), 1, 2)
-        log(u'config_file = %s' % (self.config_file), 1, 2)
-        log(u'program_cache_file = %s' % (self.program_cache_file), 1, 2)
-        log(u'cache_save_interval = %s' % (self.opt_dict['cache_save_interval']), 1, 2)
-        log(u'clean_cache = %s' % (self.clean_cache), 1, 2)
-        log(u'clear_cache = %s' % (self.clear_cache), 1, 2)
-        log(u'output_file = %s' % (self.opt_dict['output_file']), 1, 2)
-        log(u'quiet = %s' % (self.opt_dict['quiet']), 1, 2)
-        log(u'fast = %s' % (self.opt_dict['fast']), 1, 2)
-        log(u'offset = %s' % (self.opt_dict['offset']), 1, 2)
-        log(u'days = %s' % (self.opt_dict['days']), 1, 2)
-        log(u'slowdays = %s' % (self.opt_dict['slowdays']), 1, 2)
-        log(u'rtldays = %s' % (self.opt_dict['rtldays']), 1, 2)
-        log(u'tevedays = %s' % (self.opt_dict['tevedays']), 1, 2)
-        log(u'use_npo = %s' % (self.opt_dict['use_npo']), 1, 2)
-        log(u'compat = %s' % (self.opt_dict['compat']), 1, 2)
-        log(u'max_overlap = %s' % (self.opt_dict['max_overlap']), 1, 2)
-        log(u'overlap_strategy = %s' % (self.opt_dict['overlap_strategy']), 1, 2)
-        log(u'logos = %s' % (self.opt_dict['logos']), 1, 2)
-        log(u'desc_length = %s' % (self.opt_dict['desc_length']), 1, 2)
-        log(u'cattrans = %s' % (self.opt_dict['cattrans']), 1, 2)
-        log(u'mark_hd = %s' % (self.opt_dict['mark_hd']), 1, 2)
-        log(u'use_utc = %s' % (self.opt_dict['use_utc']), 1, 2)
-        log(u'Channel specific settings other then the above:', 1, 2)
+        log_array = [u'Python versie: %s.%s.%s' % (sys.version_info[0], sys.version_info[1], sys.version_info[2])]
+        log_array.append(u'The Netherlands: %s' % self.version(True))
+        log_array.append(u'Capabilities:"baseline" ,"cache" ,"manualconfig" ,"preferredmethod")')
+        log_array.append(u'Preferred Methode: "allatonce"')
+        log_array.append(u'log level = %s' % (self.opt_dict['log_level']))
+        log_array.append(u'match log level = %s' % (self.opt_dict['match_log_level']))
+        log_array.append(u'config_file = %s' % (self.config_file))
+        log_array.append(u'program_cache_file = %s' % (self.program_cache_file))
+        log_array.append(u'cache_save_interval = %s' % (self.opt_dict['cache_save_interval']))
+        log_array.append(u'clean_cache = %s' % (self.clean_cache))
+        log_array.append(u'clear_cache = %s' % (self.clear_cache))
+        log_array.append(u'output_file = %s' % (self.opt_dict['output_file']))
+        log_array.append(u'quiet = %s' % (self.opt_dict['quiet']))
+        log_array.append(u'fast = %s' % (self.opt_dict['fast']))
+        log_array.append(u'offset = %s' % (self.opt_dict['offset']))
+        log_array.append(u'days = %s' % (self.opt_dict['days']))
+        log_array.append(u'slowdays = %s' % (self.opt_dict['slowdays']))
+        log_array.append(u'rtldays = %s' % (self.opt_dict['rtldays']))
+        log_array.append(u'tevedays = %s' % (self.opt_dict['tevedays']))
+        log_array.append(u'use_npo = %s' % (self.opt_dict['use_npo']))
+        log_array.append(u'compat = %s' % (self.opt_dict['compat']))
+        log_array.append(u'max_overlap = %s' % (self.opt_dict['max_overlap']))
+        log_array.append(u'overlap_strategy = %s' % (self.opt_dict['overlap_strategy']))
+        log_array.append(u'logos = %s' % (self.opt_dict['logos']))
+        log_array.append(u'desc_length = %s' % (self.opt_dict['desc_length']))
+        log_array.append(u'cattrans = %s' % (self.opt_dict['cattrans']))
+        log_array.append(u'mark_hd = %s' % (self.opt_dict['mark_hd']))
+        log_array.append(u'use_utc = %s' % (self.opt_dict['use_utc']))
+        log_array.append(u'Channel specific settings other then the above:')
         for chan_def in self.channels.values():
             if not chan_def.active:
                 continue
 
             chan_name_written = False
             if not chan_def.opt_dict['append_tvgidstv']:
-                log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
                 chan_name_written = True
-                log(u'  append_tvgidstv = False\n', 1, 2)
+                log_array.append(u'  append_tvgidstv = False\n')
 
             for index in range(xml_output.source_count):
                 if chan_def.source_id[index] != '':
                     if chan_def.opt_dict['prime_source'] != index:
                         if not chan_name_written:
-                            log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                            log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
                             chan_name_written = True
 
-                        log(u'  prime_source = %s\n' % ( chan_def.opt_dict['prime_source']), 1, 2)
+                        log_array.append(u'  prime_source = %s\n' % ( chan_def.opt_dict['prime_source']))
 
                     break
 
@@ -2174,32 +2170,35 @@ class Configure:
                 if chan_def.opt_dict['prefered_description'] in chan_def.source_id.keys() and chan_def.source_id[chan_def.opt_dict['prefered_description']] != '':
                     if chan_def.opt_dict['prefered_description'] != index:
                         if not chan_name_written:
-                            log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                            log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
                             chan_name_written = True
 
-                        log(u'  prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']), 1, 2)
+                        log_array.append(u'  prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']))
 
             if chan_def.opt_dict['add_hd_id']:
                 if not chan_name_written:
-                    log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
                     chan_name_written = True
 
-                log(u'  add_hd_id = True\n', 1, 2)
+                log_array.append(u'  add_hd_id = True\n')
 
             if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
                 if not chan_name_written:
-                    log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
                     chan_name_written = True
 
-                log(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']), 1, 2)
+                log_array.append(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']))
 
             for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'use_npo'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
-                        log(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid), 1, 2)
+                        log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
                         chan_name_written = True
 
-                    log(u'  %s = %s' % (val, chan_def.opt_dict[val]), 1, 2)
+                    log_array.append(u'  %s = %s\n' % (val, chan_def.opt_dict[val]))
+
+        log_array.append(u' \n')
+        log(log_array, 1, 2)
 
     # end write_opts_to_log()
 
@@ -2825,7 +2824,7 @@ class Configure:
             infofiles.close()
 
         except:
-            log('\nAn unexpected error has occured closing infofiles: %s\n' %  (sys.exc_info()[1]), 0)
+            log(['\n', 'An unexpected error has occured closing infofiles: %s\n' %  (sys.exc_info()[1])], 0)
 
         # Quiting any remaining Threads
         for source in xml_output.channelsource.values():
@@ -3105,8 +3104,7 @@ class ProgramCache(Thread):
             self.pdict = pickle.load(open(self.filename,'r'))
 
         except:
-            log('Error loading cache file: %s (possibly corrupt)\n' % self.filename)
-            log(traceback.format_exc())
+            log(['Error loading cache file: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
             self.clear()
 
         self.lock.release()
@@ -3364,9 +3362,8 @@ class FetchData(Thread):
                 self.load_pages()
 
             except:
-                log('Fatal Error processing the basepages from %s\n' % (self.source), 0)
-                log('Setting them all to being loaded, to let the other sources finish the job\n', 0)
-                log(traceback.print_exc())
+                log(['Fatal Error processing the basepages from %s\n' % (self.source), \
+                    'Setting them all to being loaded, to let the other sources finish the job\n', traceback.print_exc()], 0)
                 for chanid in self.channels.keys():
                     self.channel_loaded[chanid] = True
                     config.channels[chanid].source_data[self.proc_id] = True
@@ -3418,8 +3415,7 @@ class FetchData(Thread):
 
                         except:
                             detailed_program = None
-                            log('Error processing the detailpage: %s\n' % (tdict[self.detail_url]), 1)
-                            log(traceback.print_exc())
+                            log(['Error processing the detailpage: %s\n' % (tdict[self.detail_url]), traceback.print_exc()], 1)
 
                     else:
                         detailed_program = None
@@ -3431,14 +3427,14 @@ class FetchData(Thread):
 
                         except:
                             detailed_program = None
-                            log('Error processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\n' % tdict[self.detail_id][3:], 1)
-                            log(traceback.print_exc())
+                            log(['Error processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\n' \
+                                % tdict[self.detail_id][3:], traceback.print_exc()], 1)
 
                     if detailed_program == None:
                         if (self.proc_id == 0) and (cache_id != None):
                             cached_program = xml_output.program_cache.query(tdict[cache_id])
                             if cached_program[xml_output.channelsource[1].detail_check]:
-                                log(u'      [cached] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+                                log(u'      [cached] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
                                 tdict= parent.use_cache(tdict, cached_program)
                                 parent.detailed_programs.append(tdict)
                                 parent.fetch_count[self.proc_id] -= 1
@@ -3452,7 +3448,7 @@ class FetchData(Thread):
                                 continue
 
                         else:
-                            log(u'[fetch failed or timed out] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+                            log(u'[fetch failed or timed out] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
                             parent.detailed_programs.append(tdict)
                             parent.fetch_count[self.proc_id] -= 1
                             parent.fail_count += 1
@@ -3467,10 +3463,10 @@ class FetchData(Thread):
                         detailed_program['ID'] = detailed_program[xml_output.channelsource[self.proc_id].detail_id]
                         parent.detailed_programs.append(detailed_program)
                         if self.proc_id == 0:
-                            log(u'[normal fetch] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+                            log(u'[normal fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
 
                         elif self.proc_id == 1:
-                            log(u'   [.tv fetch] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+                            log(u'   [.tv fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
 
                         parent.fetch_count[self.proc_id] -= 1
                         parent.fetched_count[self.proc_id] += 1
@@ -3483,23 +3479,10 @@ class FetchData(Thread):
                 self.ready = True
 
         except:
-            log('\nAn unexpected error has occured in the %s thread\n' %  (self.source), 0)
-            log('The current detail url is: %s\n' % (tdict[self.detail_url]), 0)
-            log(traceback.print_exc(), 0)
-
-            #~ err_obj = sys.exc_info()[2]
-            #~ log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
-            #~ log('The current detail url is: %s\n' % (tdict[self.detail_url]), 0)
-            #~ log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
-            #~ while True:
-                #~ err_obj = err_obj.tb_next
-                #~ if err_obj == None:
-                    #~ break
-
-                #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
-            log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+            log(['\n', 'An unexpected error has occured in the %s thread\n' %  (self.source), \
+                'The current detail url is: %s\n' % (tdict[self.detail_url]), traceback.print_exc(), '\n', \
+                'If you want assistence, please attach your configuration and log files!\n', \
+                '     %s\n' % (config.config_file), '     %s\n' % (config.log_file)],0)
 
             self.ready = True
             for source in xml_output.channelsource.values():
@@ -4264,10 +4247,10 @@ class FetchData(Thread):
                         (matchstr.rjust(20), config.channels[chanid].chan_name, other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'], \
                         other_prog['genre']), 32)
             else:
-                log(u'%s: %s: %s: %s.\n%s%s: %s.\n' % \
-                        (matchstr.rjust(12), config.channels[chanid].chan_name,  other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'] , \
-                        'to tvgids.nl: '.rjust(22 + len(other_prog['channel'])), tvgids_prog['start-time'].strftime('%d %b %H:%M'), \
-                        tvgids_prog['name']), 32)
+                log([u'%s: %s: %s: %s.\n' % \
+                        (matchstr.rjust(12), config.channels[chanid].chan_name,  other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name']), \
+                        '%s%s: %s.\n' % \
+                        ('to tvgids.nl: '.rjust(22 + len(other_prog['channel'])), tvgids_prog['start-time'].strftime('%d %b %H:%M'), tvgids_prog['name'])], 32)
         # end matchlog()
 
         def checkrange(crange = 0):
@@ -4880,21 +4863,19 @@ class FetchData(Thread):
 
         # end check_match_to_programs()
 
-        log('\n', 2)
-        log_array =[]
-        log_array.append('\n')
+        log_array =['\n']
         if other_is_dominant:
             # This goes for the belgium/british channels from teveblad.be (programs) and the rtl channels
-            log('Now merging %s (channel %s of %s):\n  %s programs from tvgids.nl into %s programs from %s\n' % \
-                (config.channels[chanid].chan_name, counter, config.chan_count, len(info) , len(programs), self.source), 2)
+            log(['\n', 'Now merging %s (channel %s of %s):\n' % (config.channels[chanid].chan_name, counter, config.chan_count), \
+                '  %s programs from tvgids.nl into %s programs from %s\n' %  (len(info) , len(programs), self.source)], 2)
 
             log_array.append('Merg statistics for %s (channel %s of %s) from tvgids.nl into %s\n' % \
                 (config.channels[chanid].chan_name, counter, config.chan_count, self.source))
 
         else:
             # this goes for adding tvgids.tv (programs) to tvgids.nl (info) and most channels from teveblad.be (programs)
-            log('Now merging %s (channel %s of %s):\n  %s programs from %s into %s programs from tvgids.nl\n' % \
-                (config.channels[chanid].chan_name , counter, config.chan_count, len(programs), self.source, len(info)), 2)
+            log(['\n', 'Now merging %s (channel %s of %s):\n' % (config.channels[chanid].chan_name , counter, config.chan_count), \
+                '  %s programs from %s into %s programs from tvgids.nl\n' % (len(programs), self.source, len(info))], 2)
 
             log_array.append('Merg statistics for %s (channel %s of %s) from %s into tvgids.nl\n' % \
                 (config.channels[chanid].chan_name , counter, config.chan_count, self.source))
@@ -5382,12 +5363,8 @@ class FetchData(Thread):
             for tdict in p:
                 matchlog('left over in %s' % self.source, tdict, None , 2)
 
-        config.log_lock.acquire()
-        for item in log_array:
-            log(item, 4, 3, True)
-
-        log('\n', 4, 3, True)
-        config.log_lock.release()
+        log_array.append('\n')
+        log(log_array, 4, 3)
 
         config.channels[chanid].all_programs = matched_programs
         try:
@@ -5586,8 +5563,8 @@ class tvgids_JSON(FetchData):
                     continue
 
                 channel_cnt += 1
-                log('\n', 2)
-                log('Now fetching %s channels from tvgids.nl\n    (day %s of %s).\n' % (len(self.channels), offset, config.opt_dict['days']), 2)
+                log(['\n', 'Now fetching %s channels from tvgids.nl\n' % len(self.channels), \
+                    '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
                 channel_url = self.get_url('day', offset)
 
@@ -5767,8 +5744,7 @@ class tvgids_JSON(FetchData):
             htmldata = ET.fromstring(strdata)
 
         except:
-            log('Fetching page %s returned an error:\n' % (tdict[self.detail_url]), 1)
-            log(traceback.format_exc())
+            log(['Fetching page %s returned an error:\n' % (tdict[self.detail_url]), traceback.format_exc()])
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')
@@ -5782,8 +5758,7 @@ class tvgids_JSON(FetchData):
             tdict = self.filter_description(htmldata, 'div/p', tdict)
 
         except:
-            log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
-            log(traceback.format_exc())
+            log(['Error processing the description from: %s\n' % (tdict[self.detail_url]), traceback.format_exc()])
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strdesc + '\n</root>\n')
@@ -6265,10 +6240,10 @@ class tvgidstv_HTML(FetchData):
                           (config.channels[chanid].opt_dict['append_tvgidstv'] and xml_output.channelsource[0].day_loaded[chanid][offset]):
                             continue
 
-                        log('\n', 2)
-                        log('Now fetching %s(xmltvid=%s%s) from tvgids.tv\n    (channel %s of %s) for day %s of %s.\n' % \
-                            (config.channels[chanid].chan_name, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), \
-                            chanid, channel_cnt, len(self.channels), offset, config.opt_dict['days']), 2)
+                        log(['\n', 'Now fetching %s(xmltvid=%s%s) from tvgids.tv\n' % \
+                            (config.channels[chanid].chan_name, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), chanid ), \
+                            '    (channel %s of %s) for day %s of %s.\n' % \
+                            (channel_cnt, len(self.channels), offset, config.opt_dict['days'])], 2)
                         # get the raw programming for the day
                         try:
                             channel_url = self.get_url(channel, offset)
@@ -6303,7 +6278,9 @@ class tvgidstv_HTML(FetchData):
                             htmldata = ET.fromstring( ('<div><div>' + strdata).encode('utf-8'))
 
                         except:
-                            log("Error extracting ElementTree for channel:%s day:%s on tvgids.tv\n Possibly an incomplete pagefetch. Retry in the early morning after 4/5 o'clock.\n" % (config.channels[chanid].chan_name, offset))
+                            log(["Error extracting ElementTree for channel:%s day:%s on tvgids.tv\n" % \
+                                (config.channels[chanid].chan_name, offset), \
+                                "Possibly an incomplete pagefetch. Retry in the early morning after 4/5 o'clock.\n"])
                             if config.write_info_files:
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                                 infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
@@ -6366,8 +6343,8 @@ class tvgidstv_HTML(FetchData):
                                 self.program_data[chanid].append(tdict)
 
                         except:
-                            log('Error processing tvgids.tv data for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
-                            log(traceback.format_exc())
+                            log(['Error processing tvgids.tv data for channel:%s day:%s\n' % \
+                                (config.channels[chanid].chan_name, offset), traceback.format_exc()])
                             continue
 
                         self.day_loaded[chanid][offset] = True
@@ -6428,8 +6405,7 @@ class tvgidstv_HTML(FetchData):
             tdict = self.filter_description(htmldata, 'div/div/div/p', tdict)
 
         except:
-            log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
-            log(traceback.format_exc())
+            log(['Error processing the description from: %s\n' % (tdict[self.detail_url]), traceback.format_exc()])
 
         data = htmldata.find('div/div[@class="section-content"]')
         datatype = u''
@@ -6514,8 +6490,7 @@ class tvgidstv_HTML(FetchData):
                     infofiles.addto_detail_list(unicode('new tvgids.d-tag => ' + d.tag))
 
         except:
-            log('Error processing tvgids.tv detailpage:%s\n' % (tdict[self.detail_url]))
-            log(traceback.format_exc())
+            log(['Error processing tvgids.tv detailpage:%s\n' % (tdict[self.detail_url]), traceback.format_exc()])
             return
 
         tdict['ID'] = tdict[self.detail_id]
@@ -6609,8 +6584,7 @@ class rtl_JSON(FetchData):
         if len(self.channels) == 0 :
             return
 
-        log('\n', 2)
-        log('Now fetching %s channels from rtl.nl for %s days.\n' %  (len(self.channels), config.opt_dict['rtldays']), 2)
+        log(['\n', 'Now fetching %s channels from rtl.nl for %s days.\n' %  (len(self.channels), config.opt_dict['rtldays'])], 2)
 
         channel_url = self.get_url()
 
@@ -6891,8 +6865,7 @@ class teveblad_HTML(FetchData):
                         return True
 
         except:
-            log('Invalid page returned by teveblad.be\n')
-            log('return_date: %s search_date: %s\n' % (return_date, search_date))
+            log(['Invalid page returned by teveblad.be\n', 'return_date: %s search_date: %s\n' % (return_date, search_date)])
             return False
 
         log('Wrong date %s-%s-%s returned from teveblad.be, %s requested\n' % \
@@ -6923,8 +6896,7 @@ class teveblad_HTML(FetchData):
             return ET.fromstring(strdata.encode('utf-8'))
 
         except:
-            log('error parsing %s/teveblad_channels.html\n' % (config.xmltv_dir))
-            log(traceback.format_exc())
+            log(['error parsing %s/teveblad_channels.html\n' % (config.xmltv_dir), traceback.format_exc()])
             return None
 
     def get_channels(self):
@@ -7074,8 +7046,7 @@ class teveblad_HTML(FetchData):
                                 # All channels processed for this day
                                 continue
 
-                        log('\n', 2)
-                        log('Now fetching GroupPage: %s from teveblad.be for day %s of %s.\n' % (group_page, offset, config.opt_dict['tevedays']), 2)
+                        log(['\n', 'Now fetching GroupPage: %s from teveblad.be for day %s of %s.\n' % (group_page, offset, config.opt_dict['tevedays'])], 2)
 
                         date_offset = offset
                         scan_date = datetime.date.fromordinal(self.current_date + offset)
@@ -7090,7 +7061,7 @@ class teveblad_HTML(FetchData):
                             continue
 
                         if not self.check_date(self.datecheckdata.search(strdata), scan_date):
-                            #~ log("Skip group=%s on teveblad.be, day=%d. Wrong date!\n" % (group_page, offset))
+                            log("Skip group=%s on teveblad.be, day=%d. Wrong date!\n" % (group_page, offset))
                             failure_count += 1
                             continue
 
@@ -7103,8 +7074,7 @@ class teveblad_HTML(FetchData):
                             htmldata = ET.fromstring(strdata.encode('utf-8'))
 
                         except:
-                            log('Error extracting ElementTree for zendergroup:%s day:%s\n' % (group_page, offset))
-                            log(traceback.format_exc())
+                            log(['Error extracting ElementTree for zendergroup:%s day:%s\n' % (group_page, offset), traceback.format_exc()])
                             if config.write_info_files:
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                                 infofiles.write_raw_string(unicode(strdata + u'\n'))
@@ -7312,8 +7282,7 @@ class teveblad_HTML(FetchData):
 
         except:
             err_obj = sys.exc_info()[2]
-            log('\nAn unexpected error has occured in the %s thread:\n' %  (self.source, sys.exc_info()[1]), 0)
-            log(traceback.format_exc())
+            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source, sys.exc_info()[1]), traceback.format_exc()], 0)
 
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -7338,10 +7307,10 @@ class teveblad_HTML(FetchData):
                     if self.day_loaded[chanid][offset] != False:
                         continue
 
-                    log('\n', 2)
-                    log('Now fetching %s(xmltvid=%s%s) from teveblad.be\n    (channel %s of %s) for day %s of %s days.\n' % \
-                        (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and \
-                        '.tvgids.nl' or ''), channel_cnt, len(self.channels), offset, config.opt_dict['tevedays']), 2)
+                    log(['\n', 'Now fetching %s(xmltvid=%s%s) from teveblad.be\n' % \
+                        (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                        '    (channel %s of %s) for day %s of %s days.\n' % \
+                        ( channel_cnt, len(self.channels), offset, config.opt_dict['tevedays'])], 2)
 
                     date_offset = offset
                     scan_date = datetime.date.fromordinal(self.current_date + offset)
@@ -7357,7 +7326,7 @@ class teveblad_HTML(FetchData):
                         continue
 
                     if not self.check_date(self.datecheckdata.search(strdata), scan_date):
-                        #~ log("Skip channel=%s on teveblad.be, day=%d. Wrong date!\n" % (config.channels[chanid].chan_name, offset))
+                        log("Skip channel=%s on teveblad.be, day=%d. Wrong date!\n" % (config.channels[chanid].chan_name, offset))
                         failure_count += 1
                         continue
 
@@ -7801,8 +7770,8 @@ class npo_HTML(FetchData):
             if self.quit:
                 return
 
-            log('\n', 2)
-            log('Now fetching %s channels from npo.nl\n    (day %s of %s).\n' % (len(self.channels), offset, config.opt_dict['days']), 2)
+            log(['\n', 'Now fetching %s channels from npo.nl\n' % (len(self.channels)), \
+                '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
             channel_url = self.get_url(offset, None, False)
 
@@ -7927,8 +7896,8 @@ class npo_HTML(FetchData):
             if self.quit:
                 return
 
-            log('\n', 2)
-            log('Now fetching %s channels from npo.nl\n    (day %s of %s).\n' % (len(self.channels), offset, config.opt_dict['days']), 2)
+            log(['\n', 'Now fetching %s channels from npo.nl\n' % len(self.channels), \
+            '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
             channel_url = self.get_url(offset)
 
@@ -7994,8 +7963,7 @@ class npo_HTML(FetchData):
                                 infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, self.all_channels[str(channel_cnt)]['name'], cname))
 
             except:
-                log('Error validating page for day:%s on npo.nl\n' % (offset))
-                log(traceback.format_exc())
+                log(['Error validating page for day:%s on npo.nl\n' % (offset), traceback.format_exc()])
                 #~ self.day_loaded[chanid][offset] = None
                 continue
 
@@ -8226,26 +8194,24 @@ class Channel_Config(Thread):
                     break
 
             # And log the results
-            config.log_lock.acquire()
             xml_output.progress_counter+= 1
             counter = xml_output.progress_counter
-            log('\n', 4, 3, True)
-            log('Detail statistics for %s (channel %s of %s)\n' % (self.chan_name, counter, config.chan_count),4, 3, True)
-            log('%6.0f cache hits\n' % (self.cache_count),4, 3, True)
+            log_array = ['\n', 'Detail statistics for %s (channel %s of %s)\n' % (self.chan_name, counter, config.chan_count)]
+            log_array.append( '%6.0f cache hits\n' % (self.cache_count))
             if self.opt_dict['fast']:
-                log('%6.0f without details in cache\n' % self.none_count,4, 3, True)
+               log_array.append('%6.0f without details in cache\n' % self.none_count)
 
             else:
-                log('%6.0f detail fetches from tvgids.nl\n' % self.fetched_count[0], 4, 3, True)
-                log('%6.0f detail fetches from tvgids.tv\n' % self.fetched_count[1], 4, 3, True)
-                log('%6.0f failures\n' % self.fail_count,4, 3, True)
-                log('%6.0f without detail info\n' % self.none_count, 4, 3, True)
-                log('\n', 4, 3, True)
-                log('%6.0f left in the tvgids.nl queue to process\n' % (len(xml_output.channelsource[0].detail_queue)), 4, 3, True)
-                log('%6.0f left in the tvgids.tv queue to process\n' % (len(xml_output.channelsource[1].detail_queue)), 4, 3, True)
+                log_array.append('%6.0f detail fetches from tvgids.nl\n' % self.fetched_count[0])
+                log_array.append('%6.0f detail fetches from tvgids.tv\n' % self.fetched_count[1])
+                log_array.append('%6.0f failures\n' % self.fail_count)
+                log_array.append('%6.0f without detail info\n' % self.none_count)
+                log_array.append('\n')
+                log_array.append('%6.0f left in the tvgids.nl queue to process\n' % (len(xml_output.channelsource[0].detail_queue)))
+                log_array.append('%6.0f left in the tvgids.tv queue to process\n' % (len(xml_output.channelsource[1].detail_queue)))
 
-            log('\n', 4, 3, True)
-            config.log_lock.release()
+            log_array.append('\n')
+            log(log_array, 4, 3)
 
             # a final check on the sanity of the data
             xml_output.channelsource[0].parse_programs(self.chanid, 1)
@@ -8274,20 +8240,10 @@ class Channel_Config(Thread):
             self.ready = True
 
         except:
-            log('\nAn unexpected error has occured in the %s thread:\n' %  (self.chan_name), 0)
-            log(traceback.format_exc())
-            #~ err_obj = sys.exc_info()[2]
-            #~ log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.chan_name, sys.exc_info()[1]), 0)
-            #~ log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
-            #~ while True:
-                #~ err_obj = err_obj.tb_next
-                #~ if err_obj == None:
-                    #~ break
-
-                #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
-            log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+            log(['\nAn unexpected error has occured in the %s thread:\n' %  (self.chan_name), traceback.format_exc(), \
+                '\n', 'If you want assistence, please attach your configuration and log files!\n', \
+                '     %s\n' % (config.config_file), \
+                '     %s\n' % (config.log_file)],0)
 
             self.ready = True
             for source in xml_output.channelsource.values():
@@ -8358,14 +8314,14 @@ class Channel_Config(Thread):
         programs = self.all_programs
 
         if self.opt_dict['fast']:
-            log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
-                (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or ''), \
-                self.counter, config.chan_count, config.opt_dict['days']), 2)
+            log(['\n', 'Now Checking cache for %s programs on %s(xmltvid=%s%s)\n' % \
+                (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
+                '    (channel %s of %s) for %s days.\n' % (self.counter, config.chan_count, config.opt_dict['days'])], 2)
 
         else:
-            log('\nNow fetching details for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
-                (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or ''), \
-                self.counter, config.chan_count, config.opt_dict['days']), 2)
+            log(['\n', 'Now fetching details for %s programs on %s(xmltvid=%s%s)\n' % \
+                (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
+                '    (channel %s of %s) for %s days.\n' % (self.counter, config.chan_count, config.opt_dict['days'])], 2)
 
         # randomize detail requests
         self.fetch_counter = 0
@@ -8391,7 +8347,7 @@ class Channel_Config(Thread):
                 continue
 
             p = programs[i]
-            logstring = u'%s-%s: %s \n' % \
+            logstring = u'%s-%s: %s' % \
                                 (p['start-time'].strftime('%d %b %H:%M'), \
                                 p['stop-time'].strftime('%H:%M'), \
                                 p['name'])
@@ -8409,7 +8365,7 @@ class Channel_Config(Thread):
                 if cached_program[xml_output.channelsource[0].detail_check] \
                   or ((p[xml_output.channelsource[0].detail_url] == '') and cached_program[xml_output.channelsource[1].detail_check]) \
                   or (no_fetch and cached_program[xml_output.channelsource[1].detail_check]):
-                    log(u'      [cached] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
+                    log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                     self.cache_count += 1
                     self.detailed_programs.append(self.use_cache(p, cached_program))
                     continue
@@ -8418,7 +8374,7 @@ class Channel_Config(Thread):
             no_detail_fetch = (no_fetch or ((p[xml_output.channelsource[0].detail_url] == '') and (p[xml_output.channelsource[1].detail_url] == '')))
 
             if no_detail_fetch:
-                log(u'    [no fetch] %s:(%3.0f%%) %s' % (self.chan_name, self.get_counter(), logstring), 8, 1)
+                log(u'    [no fetch] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                 self.none_count += 1
                 self.detailed_programs.append(p)
 
@@ -9089,19 +9045,10 @@ def main():
         xml_output.program_cache = None
 
     except:
-        log('\nAn unexpected error has occured:\n', 0)
-        log(traceback.format_exc())
-        #~ err_obj = sys.exc_info()[2]
-        #~ log('\nAn unexpected error has occured at line: %s, %s: %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti, sys.exc_info()[1]), 0)
-
-        #~ while True:
-            #~ err_obj = err_obj.tb_next
-            #~ if err_obj == None:
-                #~ break
-
-            #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
-        log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+        log(['\n', 'An unexpected error has occured:\n', traceback.format_exc(), \
+            '\n', 'If you want assistence, please attach your configuration and log files!\n', \
+            '     %s\n' % (config.config_file), \
+            '     %s\n' % (config.log_file)],0)
         return(99)
 
     # and return success
