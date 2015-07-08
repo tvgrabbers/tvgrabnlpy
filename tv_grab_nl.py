@@ -8746,6 +8746,7 @@ class XMLoutput:
 
             # Limit the length of the description
             if desc_line != '':
+                desc_line = re.sub('\n', ' ', desc_line)
                 if len(desc_line) > config.channels[chanid].opt_dict['desc_length']:
                     spacepos = desc_line[0:config.channels[chanid].opt_dict['desc_length']-3].rfind(' ')
                     desc_line = desc_line[0:spacepos] + '...'
