@@ -31,6 +31,18 @@ Sinds versie 2:
 tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be), [RTL.nl](http://www.rtl.nl) and [NPO.nl](http://www.npo.nl) as a source.
 
 ###Release Notes Versie 2
+**p20150628**   version 2.1.9 set stable  
+Fix for changed tvgids.tv detailpage and new npo.nl page.  
+Invalidated Python 2.6.  
+Better cache crash recovery.  
+Fixed a hang on certain crashes.  
+Fetch for today on teveblad.be without date.  
+Use fresh title in stead of from the cache.  
+Some small fixes and code sanitation.  
+
+**p20150616**   version 2.1.8 set stable  
+Intermediate version to fix disabling npo.
+
 **p20150531**   version 2.1.7 set stable  
 Also stripped Episode numbering from Sports events. MythTV else will change category to Series.
 
