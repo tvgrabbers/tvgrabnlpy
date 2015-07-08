@@ -229,22 +229,21 @@ class Logging(Thread):
                     continue
 
                 message = self.log_queue.popleft()
-                if isinstance(message, (str, unicode)):
-                    if message == 'quit':
-                        return(0)
+                if message == None:
+                    continue
 
-                    self.writelog(message, 1, 3)
+                if isinstance(message, (str, unicode)):
+                    self.writelog(message)
                     continue
 
                 elif isinstance(message, (list ,tuple)):
-                    llevel =1
-                    ltarget = 3
-                    if len(message) == 2:
-                        llevel = message[1]
+                    llevel = message[1] if len(message) > 1 else 1
+                    ltarget = message[2] if len(message) > 2 else 3
+                    if message[0] == None:
+                        continue
 
-                    elif len(message) > 2:
-                        llevel = message[1]
-                        ltarget = message[2]
+                    if message[0] == u'Closing down the log\n':
+                        self.quit = True
 
                     if isinstance(message[0], (str, unicode)):
                         self.writelog(message[0], llevel, ltarget)
@@ -252,7 +251,8 @@ class Logging(Thread):
 
                     elif isinstance(message[0], (list, tuple)):
                         for m in message[0]:
-                            self.writelog(m, llevel, ltarget)
+                            if isinstance(m, (str, unicode)):
+                                self.writelog(m, llevel, ltarget)
 
                         continue
 
@@ -296,7 +296,6 @@ class Logging(Thread):
                     self.log_output.write(now() + message + '\n')
 
         except:
-            print 'An error ocured while logging!'
             sys.stderr.write(now() + 'An error ocured while logging!\n')
             traceback.print_exc()
 
@@ -2042,13 +2041,14 @@ class Configure:
 
                 #~ else:
                 if self.log_output == None:
-                    logging.writelog('Cannot write to logfile: %s\n' % self.log_file)
+                    logging.writelog('Cannot open the logfile: %s\n' % self.log_file, 0,1)
                     return(2)
 
                 logging.start()
 
             except:
-                logging.writelog(['Cannot write to logfile: %s\n' % self.log_file, traceback.format_exc()])
+                logging.writelog('Cannot open the logfile: %s\n' % self.log_file, 0,1)
+                logging.writelog(traceback.format_exc(), 0,1)
                 return(2)
 
         if option == 'program_cache_file':
@@ -2857,7 +2857,6 @@ class Configure:
                 self.output.close()
 
             log('Closing down the log\n')
-            logging.quit = True
             logging.join()
             if self.log_output != None:
                 self.log_output.close()
@@ -5681,19 +5680,6 @@ class tvgids_JSON(FetchData):
                 self.program_by_id[tdict[self.detail_id]] = tdict
                 self.program_data[chanid].append(tdict)
                 config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
-                #~ if config.write_info_files:
-                    #~ if 'artikel_id' in item and item['artikel_id'] != '':
-                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel id => %s' % (item['db_id'], item['artikel_id'])))
-
-                    #~ if 'artikel_titel' in item and item['artikel_titel'] != '':
-                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel titel => %s' % (item['db_id'], item['artikel_titel'])))
-
-                    #~ if 'artikel_tekst' in item and item['artikel_tekst'] != '':
-                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel tekst => %s' % (item['db_id'], item['artikel_tekst'])))
-
-                    #~ if 'artikel_foto' in item and item['artikel_foto'] != '':
-                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel foto => %s' % (item['db_id'], item['artikel_foto'])))
-
 
             self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
             self.parse_programs(chanid, 0, 'None')
