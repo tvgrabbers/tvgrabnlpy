@@ -266,6 +266,9 @@ class Logging(Thread):
              return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S %Z') + ': '
 
         try:
+            if message == None:
+                return
+
             # If config is not yet available
             if (config == None) and (log_target & 1):
                 sys.stderr.write('Error writing to log. Not (yet) available?\n')
@@ -1180,6 +1183,9 @@ class Configure:
         parser.add_argument('--preferredmethod', action = 'store_true', default = False, dest = 'preferredmethod',
                         help = 'returns the preferred method to be called')
 
+        parser.add_argument('--show-sources', action = 'store_true', default = False, dest = 'show_sources',
+                        help = 'returns the available sources')
+
         parser.add_argument('-x', '--compat', action = 'store_true', default = None, dest = 'compat',
                         help = 'append tvgids.nl to the xmltv id\n(use this if you were using tv_grab_nl)')
 
@@ -1777,6 +1783,13 @@ class Configure:
 
         if self.args.preferredmethod:
             print('allatonce')
+            return(0)
+
+        if self.args.show_sources:
+            print 'The available sources are:'
+            for i, s in xml_output.channelsource.items():
+                print '  %s: %s' % (i, s.source)
+
             return(0)
 
         if self.args.config_file != self.config_file:
@@ -3735,7 +3748,11 @@ class FetchData(Thread):
         if len(self.program_data[chanid]) > 0:
             for i, tdict in enumerate(self.program_data[chanid]):
                 if i > 0 and type(tdict['start-time']) == datetime.datetime:
-                    self.program_data[chanid][i-1]['stop-time'] =  tdict['start-time']
+                    try:
+                        self.program_data[chanid][i-1]['stop-time'] =  tdict['start-time']
+
+                    except:
+                        pass
 
             # And one for the last program
             prog_date = datetime.date.fromordinal(self.current_date + self.program_data[chanid][-1]['offset'])
@@ -4301,7 +4318,7 @@ class FetchData(Thread):
         def general_renames(name):
             # Some renaming to cover diferences between the sources
             mname = name.lower()
-            if self.source == 'tvgidstv':
+            if self.source == 'tvgids.tv':
                 if chanid in ('1', '2', '3'):
                     if mname == 'nos-journaal':
                         return 'NOS Journaal'
@@ -4309,7 +4326,7 @@ class FetchData(Thread):
                     if mname == 'tekst tv':
                         return 'Tekst-TV'
 
-            elif self.source == 'teveblad':
+            elif self.source == 'teveblad.be':
                 if chanid in ('1', '2'):
                     if mname == 'nieuws':
                         return 'NOS Journaal'
@@ -4354,13 +4371,13 @@ class FetchData(Thread):
             Returns None if no match
             """
             def rename_to_tvgids_name(name):
-                if self.source == 'tvgidstv':
+                if self.source == 'tvgids.tv':
                     if chanid in ('1', '2', '3'):
                         if name[0:4] == 'nos-':
                             return 'nos ' + name[4:]
                         #~ if name = 'vandaag de dag':
 
-                if self.source == 'rtl':
+                if self.source == 'rtl.nl':
                     if chanid == '4':
                         if 'name' == 'weddingplanner':
                             return 'the wedding planner'
@@ -4384,7 +4401,7 @@ class FetchData(Thread):
                     elif chanid == 'rtl-telekids':
                         pass
 
-                elif self.source == 'teveblad':
+                elif self.source == 'teveblad.be':
                     if chanid == '5':
                         if name == 'het journaal':
                             return 'journaallus'
@@ -4621,7 +4638,7 @@ class FetchData(Thread):
             if tdict['merge-source'] == '':
                 tdict['merge-source'] = xml_output.channelsource[0].source
 
-            if self.source == 'teveblad':
+            if self.source == 'teveblad.be':
                 if tvdict['titel aflevering'] != '':
                     tdict['titel aflevering']  = tvdict['titel aflevering']
 
@@ -4640,7 +4657,7 @@ class FetchData(Thread):
                 if tvdict['rerun']:
                     tdict['rerun']  = True
 
-            elif self.source == 'rtl':
+            elif self.source == 'rtl.nl':
                 if tvdict['titel aflevering']!= '':
                     tdict['titel aflevering']  = tvdict['titel aflevering']
 
@@ -4653,7 +4670,7 @@ class FetchData(Thread):
                 if tvdict['rerun']:
                     tdict['rerun']  = True
 
-            elif self.source == 'tvgidstv':
+            elif self.source == 'tvgids.tv':
                 if tvdict['jaar van premiere']!= '':
                     tdict['jaar van premiere'] = tvdict['jaar van premiere']
 
@@ -4901,7 +4918,7 @@ class FetchData(Thread):
         # and organise them by name and start-time
         info_starttimes = {}
         info_names = {}
-        log_array.append('%6.0f programs in tvgids.nl for range: %s - %s, \n' % \
+        log_array.append('%6.0f programs in tvgids.nl   for range: %s - %s, \n' % \
             (len(info), infostarttime.strftime('%d-%b %H:%M:%S'), infoendtime.strftime('%d-%b %H:%M:%S')))
 
         gcount = 0
@@ -4910,7 +4927,7 @@ class FetchData(Thread):
         # And we create a list of starttimes and of names for matching
         for tdict in info[:]:
             # Passing over generic timeslots that maybe detailed in the other
-            if ((self.source == 'tvgidstv') and ((chanid in ('1', '2', '3')) and  (tdict['name'].lower() == 'kro kindertijd'))) \
+            if ((self.source == 'tvgids.tv') and ((chanid in ('1', '2', '3')) and  (tdict['name'].lower() == 'kro kindertijd'))) \
               or (tdict['name'].lower() == 'pause'):
                 pcount = 0
                 for tvdict in programs[:]:
@@ -4924,7 +4941,7 @@ class FetchData(Thread):
 
                 # For tvgidstv we asume the details were fetched before, so we remove the slot
                 # For teveblad we only remove if there is alternative content
-                if not ((self.source == 'teveblad') and (pcount > 0)) or (self.source == 'tvgidstv'):
+                if not ((self.source == 'teveblad.be') and (pcount > 0)) or (self.source == 'tvgids.tv'):
                     if tdict['merge-source'] == '':
                         tdict['merge-source'] = xml_output.channelsource[0].source
 
@@ -4957,12 +4974,12 @@ class FetchData(Thread):
         prog_stoptimes ={}
         prog_starttimes ={}
         log_array.append('%6.0f programs in %s for range: %s - %s\n' % \
-            (len(programs), self.source.ljust(9), progstarttime.strftime('%d-%b %H:%M:%S'), progendtime.strftime('%d-%b %H:%M:%S')))
+            (len(programs), self.source.ljust(11), progstarttime.strftime('%d-%b %H:%M:%S'), progendtime.strftime('%d-%b %H:%M:%S')))
 
         log_array.append('\n')
         for tdict in programs[:]:
             # Remove generic slots from teveblad.be en move the counterparts to matched
-            if (self.source == 'teveblad') and tdict['name'].lower() in config.teveblad_genericnames:
+            if (self.source == 'teveblad.be') and tdict['name'].lower() in config.teveblad_genericnames:
                 pcount = 0
                 for tvdict in info[:]:
                     if (tvdict['start-time'] >= tdict['start-time']) and (tvdict['stop-time'] <= tdict['stop-time']):
@@ -5001,7 +5018,7 @@ class FetchData(Thread):
                 prog_names[rname][tdict['start-time']] = {}
                 prog_names[rname][tdict['start-time']]['state'] = 'to late'
                 # If we are not matching with tvgids.tv we'll try to match generig
-                if self.source == 'tvgidstv':
+                if self.source == 'tvgids.tv':
                     tdict = set_main_id(tdict)
                     tdict['merge-source'] = self.source
                     matched_programs.append(tdict)
@@ -8633,10 +8650,10 @@ class XMLoutput:
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl'}
         self.source_order = (0, 1, 2, 3, 4)
         self.channelsource = {}
-        self.channelsource[0] = tvgids_JSON(0, 'tvgidsnl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
-        self.channelsource[1] = tvgidstv_HTML(1, 'tvgidstv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
+        self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
+        self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
         self.channelsource[2] = rtl_JSON(2, 'rtl.nl', 'rtl-ID', '', True)
-        self.channelsource[3] = teveblad_HTML(3, 'teveblad', 'be-ID', 'be-url')
+        self.channelsource[3] = teveblad_HTML(3, 'teveblad.be', 'be-ID', 'be-url')
         self.channelsource[4] = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
 
     def xmlescape(self, s):
