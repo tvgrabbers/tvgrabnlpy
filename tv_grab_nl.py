@@ -209,6 +209,9 @@ UTC  = UTCTimeZone()
 config = None
 
 class Logging(Thread):
+    """The tread that manages all logging.
+    The function below puts them in a queue that is sampled.
+    So logging can start after the queue is opend when this class is called below"""
     def __init__(self):
         Thread.__init__(self)
         self.quit = False
@@ -242,7 +245,7 @@ class Logging(Thread):
                     if message[0] == None:
                         continue
 
-                    if message[0] == u'Closing down the log\n':
+                    if message[0] == u'Closing down\n':
                         self.quit = True
 
                     if isinstance(message[0], (str, unicode)):
@@ -304,6 +307,13 @@ logging = Logging()
 
 def log(message, log_level = 1, log_target = 3):
     logging.log_queue.append([message, log_level, log_target])
+    if logging.log_output == None and log_level < 2:
+        if isinstance(message, (str, unicode)):
+            sys.stderr.write(message.encode("utf-8"))
+
+        elif isinstance(message, (list ,tuple)):
+            for m in message:
+                sys.stderr.write(m.encode("utf-8"))
 
 # end log()
 
@@ -326,9 +336,11 @@ class Configure:
         self.channels = {}
         self.chan_count = 0
         self.opt_dict = {}
+        # This must alway stay off. It can be turned on by a graphic frontend
+        # When this runs as a module
         self.opt_dict['graphic_frontend'] = False
 
-        # Used for creating extra output to beter the code
+        # Used for creating extra debugging output to beter the code
         self.write_info_files = False
 
         # This handles what goes to the log and screen
@@ -363,7 +375,7 @@ class Configure:
                'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.8) Gecko/20071022 Ubuntu/7.10 (gutsy) Firefox/2.0.0.8']
 
         # default encoding iso-8859-1 is general and iso-8859-15 is with euro support
-        self.configencoding = 'iso-8859-15'
+        self.httpencoding = 'iso-8859-15'
         self.file_encoding = 'utf-8'
 
         # seed the random generator
@@ -437,6 +449,8 @@ class Configure:
         self.opt_dict['tevedays'] = 8
 
         self.opt_dict['use_npo'] = True
+        self.opt_dict['disable_source'] = []
+        self.opt_dict['disable_detail_source'] = []
         # enable this option if you were using tv_grab_nl, it adjusts the generated
         # xmltvid's so that everything works.
         self.opt_dict['compat'] = False
@@ -497,9 +511,7 @@ class Configure:
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/drugs_transp.png'},
                         'd': {'code': 'Discriminatie','text': 'Discriminatie',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/discriminatie_transp.png'}}
-        # Mystery values: o.A. 5 7 8 G A
-        # RTL: AL,6,9,12,16 gasthd, tv: AL, 9, 12, 16, geweld
-        # DEU, ARG, AUS, FRA, USA, AUT, GBR, BEL, CAN, CHE, SWE, DNK, ESP, HKG, IRL, HUN, ITA, KOR, NLD, NOR, ZAF
+
         # Create a role translation dictionary for the xmltv credits part
         # The keys are the roles used by tvgids.nl (lowercase please)
         self.roletrans = {'regisseur'                         : 'director',
@@ -607,7 +619,7 @@ class Configure:
 
         self.source_channels ={}
         self.source_channels[0] = {}
-        # channels for which to look on tvgids.tv
+        # link to tvgids.nl for channels on tvgids.tv
         self.source_channels[1] = {1: u'nederland-1',
                                            2: u'nederland-2',
                                            3: u'nederland-3',
@@ -994,7 +1006,7 @@ class Configure:
                                                             2: u'tvgids.nl Channels',
                                                             3: u'Channels'}
 
-        self.__CHANNEL_CONFIG_SECTIONS__ = {}
+        #~ self.__CHANNEL_CONFIG_SECTIONS__ = {}
 
         self.__DEFAULT_SECTIONS__ = {1: u'genre conversion table',
                                                              2: u'no title split list',
@@ -1185,6 +1197,20 @@ class Configure:
         parser.add_argument('--show-sources', action = 'store_true', default = False, dest = 'show_sources',
                         help = 'returns the available sources')
 
+        parser.add_argument('--disable-source', action = 'append', default = [], dest = 'disable_source',
+                        metavar = '<source ID>', type = int,
+                        help = 'disable a numbered source.\nSee "--show-sources" for a list.')
+
+        parser.add_argument('--show-detail-sources', action = 'store_true', default = False, dest = 'show_detail_sources',
+                        help = 'returns the available detail sources')
+
+        parser.add_argument('--disable-detail-source', action = 'append', default = [], dest = 'disable_detail_source',
+                        metavar = '<source ID>', type = int,
+                        help = 'disable a numbered source for detailfetches.\nSee "--show-detail-sources" for a list.')
+
+        parser.add_argument('-N', '--nouse-NPO', action = 'store_false', default = None, dest = 'use_npo',
+                        help = 'do not use NPO.nl for more acurate timing,\nThis argument is deprecated, use "--disable-source 4".\n')
+
         parser.add_argument('-x', '--compat', action = 'store_true', default = None, dest = 'compat',
                         help = 'append tvgids.nl to the xmltv id\n(use this if you were using tv_grab_nl)')
 
@@ -1253,9 +1279,6 @@ class Configure:
                         metavar = '<days>',
                         help = '# number of days to grab from teveblad.be\nstarting from offset. (max 7 = default)')
 
-        parser.add_argument('-N', '--nouse-NPO', action = 'store_false', default = None, dest = 'use_npo',
-                        help = 'do not use NPO.nl for more acurate timing,\nThis is for the NPO and dutch regional channels')
-
         parser.add_argument('--logos', action = 'store_true', default = None, dest = 'logos',
                         help = '<default> insert urls to channel icons\n(mythfilldatabase will then use these)')
 
@@ -1300,6 +1323,7 @@ class Configure:
 
     def read_config(self):
         """Read the configurationfile Return False on failure."""
+        self.config_dict = {1:[], 2:[], 3:[], 9:{}}
         f = self.open_file(self.config_file)
         if f == None:
             log('Re-run me with the --configure flag.\n')
@@ -1328,187 +1352,219 @@ class Configure:
 
                 # Look for section headers
                 config_title = re.search('\[(.*?)\]', line)
-                if config_title != None and (config_title.group(1) in self.__CONFIG_SECTIONS__.values()):
-                    section = config_title.group(1)
-                    for i, v in self.__CONFIG_SECTIONS__.items():
-                        if v == config_title.group(1):
-                            type = i
-                            continue
+                if config_title != None:
+                    if (config_title.group(1) in self.__CONFIG_SECTIONS__.values()):
+                        section = config_title.group(1)
+                        for i, v in self.__CONFIG_SECTIONS__.items():
+                            if v == config_title.group(1):
+                                type = i
+                                continue
 
-                    continue
+                        continue
 
-                elif config_title != None and (config_title.group(1) in self.__CHANNEL_CONFIG_SECTIONS__.keys()):
-                    section = config_title.group(1)
-                    type = 9
-                    chanid = self.__CHANNEL_CONFIG_SECTIONS__[config_title.group(1)]
-                    continue
+                    elif config_title.group(1)[0:7].lower() == 'channel':
+                        section = config_title.group(1)[7:].strip().lower()
+                        type = 9
+                        if not section in self.config_dict[9].keys():
+                            self.config_dict[9][section] = []
+                        continue
+
+                    else:
+                        section = ''
+                        type = 0
 
                 # Unknown Section header, so ignore
-                if line[0:1] == '[':
+                elif line[0:1] == '[':
+                    section = ''
                     type = 0
                     continue
 
-                # Read Configuration options
-                if type == 1:
-                    try:
-                        # Strip the name from the value
-                        a = re.split('=',line)
-                        # Boolean Values
-                        if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc', 'use_npo'):
-                            if len(a) == 1:
-                                self.opt_dict[a[0].lower().strip()] = True
+                if type in (1, 2, 3):
+                    self.config_dict[type].append(line)
 
-                            elif a[1].lower().strip() in ('true', '1' , 'on'):
-                                self.opt_dict[a[0].lower().strip()] = True
-
-                            else:
-                                self.opt_dict[a[0].lower().strip()] = False
-
-                        elif a[0].lower().strip() == 'output_file':
-                            self.opt_dict['output_file'] = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1].strip()
-
-                        elif len(a) == 2:
-                            # Integer Values
-                            if a[0].lower().strip() in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', \
-                              'tevedays', 'max_overlap', 'desc_length', 'cache_save_interval'):
-                                try:
-                                    int(a[1])
-
-                                except ValueError:
-                                    if (a[0].lower().strip() == 'slowdays') and (a[1].lower().strip() == 'none'):
-                                        self.opt_dict[a[0].lower().strip()] = None
-
-                                else:
-                                    self.opt_dict[a[0].lower().strip()] = int(a[1])
-
-                            # Select Values
-                            elif a[0].lower().strip() == 'overlap_strategy':
-                                if a[1].lower().strip() in ('average', 'stop', 'start'):
-                                    self.opt_dict[a[0].lower().strip()] = a[1].lower().strip()
-
-                                else:
-                                    self.opt_dict[a[0].lower().strip()] = 'none'
-
-                    except:
-                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
-
-                # Read the channel stuff up to version 2.0
-                if type == 2:
-                    if self.configversion > 2.0:
-                        continue
-
-                    try:
-                        channel = line.split(None, 1) # split on first whitespace
-                        self.channels[unicode(channel[0]).strip()] = Channel_Config(unicode(channel[0]).strip(), unicode(channel[1]).strip())
-                        self.channels[unicode(channel[0]).strip()].active = True
-                        self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[0].strip()] = unicode(channel[0]).strip()
-
-                    except:
-                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
-
-                # Changed Channel config since version 2.1
-                if type == 3:
-                    if self.configversion < 2.1:
-                        continue
-
-                    try:
-                        if line[0:1] == '#':
-                            active = False
-                            line = line.lstrip('#').lstrip()
-
-                        else:
-                            active = True
-
-                        channel = re.split(';', line)
-                        if len(channel) != 8:
-                            continue
-
-                        for index in range(xml_output.source_count):
-                            if channel[index + 2].strip() != '':
-                                chanid = unicode(channel[index + 2]).strip()
-                                self.__CHANNEL_CONFIG_SECTIONS__[u'Channel %s' % channel[index + 2].strip()] = chanid
-                                break
-
-                        else:
-                            # No sources!
-                            continue
-
-                        self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]).strip(), int(channel[1]))
-                        for index in range(xml_output.source_count):
-                            self.channels[chanid].source_id[index] = unicode(channel[index + 2]).strip()
-
-                        self.channels[chanid].icon_source = int(channel[6])
-                        self.channels[chanid].icon = unicode(channel[7]).strip()
-                        # set the default prime_source
-                        if channel [4] != '':
-                            self.channels[chanid].opt_dict['prime_source'] = 2
-
-                        elif (channel [5] != '') and ((int(channel[1]) == 2) or (int(channel[1]) == 8)):
-                            self.channels[chanid].opt_dict['prime_source'] = 3
-
-                        else:
-                            for index in (0, 1, 3):
-                                if self.channels[chanid].source_id[index] != '':
-                                    self.channels[chanid].opt_dict['prime_source'] = index
-                                    break
-
-                        self.channels[chanid].active = active
-                        if active:
-                            self.chan_count += 1
-
-                    except:
-                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
-
-                # Read the channel specific configuration
-                if type == 9:
-                    try:
-                        # Strip the name from the value
-                        a = re.split('=',line)
-                        # Boolean Values
-                        if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv', 'use_npo'):
-                            if len(a) == 1:
-                                self.channels[chanid].opt_dict[a[0].lower().strip()] = True
-
-                            elif a[1].lower().strip() in ('true', '1' , 'on'):
-                                self.channels[chanid].opt_dict[a[0].lower().strip()] = True
-
-                            else:
-                                self.channels[chanid].opt_dict[a[0].lower().strip()] = False
-
-                        elif len(a) == 2:
-                            # Integer Values
-                            if a[0].lower().strip() in ('slowdays', 'max_overlap', 'desc_length', 'prime_source', 'prefered_description'):
-                                try:
-                                    int(a[1])
-
-                                except ValueError:
-                                    if (a[0].lower().strip() == 'slowdays') and (a[1].lower().strip() == 'none'):
-                                        self.channels[chanid].opt_dict[a[0].lower().strip()] = None
-
-                                else:
-                                    if a[0].lower().strip() == 'prime_source' or a[0].lower().strip() == 'prefered_description':
-                                        if self.channels[chanid].source_id[int(a[1])] != '':
-                                            self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
-
-                                    else:
-                                        self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
-
-                            # Select Values
-                            elif a[0].lower().strip() == 'overlap_strategy':
-                                if a[1].lower().strip() in ('average', 'stop', 'start'):
-                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = a[1].lower().strip()
-
-                                else:
-                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = 'none'
-
-                    except:
-                        log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
+                elif type == 9:
+                    self.config_dict[9][section].append(line)
 
             except:
                 log([u'Error reading Config\n', traceback.format_exc()])
                 continue
 
         f.close()
+        # Read Configuration options
+        for line in self.config_dict[1]:
+            try:
+                # Strip the name from the value
+                a = re.split('=',line)
+                # Boolean Values
+                if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc', 'use_npo'):
+                    if len(a) == 1:
+                        self.opt_dict[a[0].lower().strip()] = True
+
+                    elif a[1].lower().strip() in ('true', '1' , 'on'):
+                        self.opt_dict[a[0].lower().strip()] = True
+
+                    else:
+                        self.opt_dict[a[0].lower().strip()] = False
+
+                elif a[0].lower().strip() == 'output_file':
+                    self.opt_dict['output_file'] = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1].strip()
+
+                elif len(a) == 2:
+                    # Integer Values
+                    if a[0].lower().strip() in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', \
+                      'tevedays', 'max_overlap', 'desc_length', 'cache_save_interval', 'disable_source', 'disable_detail_source'):
+                        try:
+                            int(a[1])
+
+                        except ValueError:
+                            if (a[0].lower().strip() == 'slowdays') and (a[1].lower().strip() == 'none'):
+                                self.opt_dict[a[0].lower().strip()] = None
+
+                        else:
+                            if a[0].lower().strip() in ('disable_source', 'disable_detail_source') and int(a[1]) in xml_output.channelsource.keys():
+                                self.opt_dict[a[0].lower().strip()].append(int(a[1]))
+
+                            else:
+                                self.opt_dict[a[0].lower().strip()] = int(a[1])
+
+                    # Select Values
+                    elif a[0].lower().strip() == 'overlap_strategy':
+                        if a[1].lower().strip() in ('average', 'stop', 'start'):
+                            self.opt_dict[a[0].lower().strip()] = a[1].lower().strip()
+
+                        else:
+                            self.opt_dict[a[0].lower().strip()] = 'none'
+
+            except:
+                log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
+
+        # Read the channel stuff up to version 2.0
+        channel_names = {}
+        if self.configversion <= 2.0:
+            for line in self.config_dict[2]:
+                try:
+                    channel = line.split(None, 1) # split on first whitespace
+                    self.channels[unicode(channel[0]).strip()] = Channel_Config(unicode(channel[0]).strip(), unicode(channel[1]).strip())
+                    self.channels[unicode(channel[0]).strip()].active = True
+                    channel_names[unicode(channel[1]).strip().lower()] = unicode(channel[0]).strip()
+
+                except:
+                    log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
+
+        # Changed Channel config since version 2.1
+        if self.configversion >= 2.1:
+            for line in self.config_dict[3]:
+                try:
+                    if line[0:1] == '#':
+                        active = False
+                        line = line.lstrip('#').lstrip()
+
+                    else:
+                        active = True
+
+                    channel = re.split(';', line)
+                    if len(channel) != 8:
+                        continue
+
+                    for index in range(xml_output.source_count):
+                        if channel[index + 2].strip() != '':
+                            chanid = unicode(channel[index + 2]).strip()
+                            channel_names[unicode(channel[0]).strip().lower()] = chanid
+                            break
+
+                    else:
+                        # No sources!
+                        continue
+
+                    self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]).strip(), int(channel[1]))
+                    for index in range(xml_output.source_count):
+                        self.channels[chanid].source_id[index] = unicode(channel[index + 2]).strip()
+
+                    self.channels[chanid].icon_source = int(channel[6])
+                    self.channels[chanid].icon = unicode(channel[7]).strip()
+                    for i, v in self.opt_dict.items():
+                        if i in self.channels[chanid].opt_dict.keys():
+                            self.channels[chanid].opt_dict[i] = v
+
+                    # set the default prime_source
+                    if channel [4] != '':
+                        self.channels[chanid].opt_dict['prime_source'] = 2
+
+                    elif (channel [5] != '') and ((int(channel[1]) == 2) or (int(channel[1]) == 8)):
+                        self.channels[chanid].opt_dict['prime_source'] = 3
+
+                    else:
+                        for index in (0, 1, 3):
+                            if self.channels[chanid].source_id[index] != '':
+                                self.channels[chanid].opt_dict['prime_source'] = index
+                                break
+
+                    self.channels[chanid].active = active
+                    if active:
+                        self.chan_count += 1
+
+                except:
+                    log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
+
+        # Read the channel specific configuration
+        for c, values in self.config_dict[9].items():
+            if c in self.channels.keys():
+                chanid = c
+
+            elif c in channel_names.keys():
+                chanid = channel_names[c]
+
+            else:
+                continue
+
+            for line in values:
+                try:
+                    # Strip the name from the value
+                    a = re.split('=',line)
+                    # Boolean Values
+                    if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv', 'use_npo'):
+                        if len(a) == 1:
+                            self.channels[chanid].opt_dict[a[0].lower().strip()] = True
+
+                        elif a[1].lower().strip() in ('true', '1' , 'on'):
+                            self.channels[chanid].opt_dict[a[0].lower().strip()] = True
+
+                        else:
+                            self.channels[chanid].opt_dict[a[0].lower().strip()] = False
+
+                    elif len(a) == 2:
+                        # Integer Values
+                        if a[0].lower().strip() in ('slowdays', 'max_overlap', 'desc_length', 'prime_source', \
+                          'prefered_description', 'disable_source', 'disable_detail_source'):
+                            try:
+                                int(a[1])
+
+                            except ValueError:
+                                if (a[0].lower().strip() == 'slowdays') and (a[1].lower().strip() == 'none'):
+                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = None
+
+                            else:
+                                if a[0].lower().strip() in ('disable_source', 'disable_detail_source'):
+                                    if int(a[1]) in xml_output.channelsource.keys() and self.channels[chanid].source_id[int(a[1])] != '':
+                                        self.channels[chanid].opt_dict[a[0].lower().strip()].append(int(a[1]))
+
+                                elif a[0].lower().strip() in ('prime_source', 'prefered_description'):
+                                    if int(a[1]) in xml_output.channelsource.keys() and self.channels[chanid].source_id[int(a[1])] != '':
+                                        self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
+
+                                else:
+                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
+
+                        # Select Values
+                        elif a[0].lower().strip() == 'overlap_strategy':
+                            if a[1].lower().strip() in ('average', 'stop', 'start'):
+                                self.channels[chanid].opt_dict[a[0].lower().strip()] = a[1].lower().strip()
+
+                            else:
+                                self.channels[chanid].opt_dict[a[0].lower().strip()] = 'none'
+
+                except:
+                    log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
         # an extra option for gathering extra info to better the code
         if 'write_info_files' in self.opt_dict.keys():
@@ -1759,13 +1815,7 @@ class Configure:
             return(0)
 
         if self.args.description:
-            v=self.version()
-            if v[5]:
-                print("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s-beta" % (v[1], v[2], v[3]))
-
-            else:
-                print("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s" % (v[1], v[2], v[3]))
-
+            self.validate_option('description')
             return(0)
 
         if self.args.description_long:
@@ -1774,21 +1824,19 @@ class Configure:
             return(0)
 
         if self.args.capabilities:
-            print("baseline")
-            print("cache")
-            print("manualconfig")
-            print("preferredmethod")
+            self.validate_option('capabilities')
             return(0)
 
         if self.args.preferredmethod:
-            print('allatonce')
+            self.validate_option('preferredmethod')
             return(0)
 
         if self.args.show_sources:
-            print 'The available sources are:'
-            for i, s in xml_output.channelsource.items():
-                print '  %s: %s' % (i, s.source)
+            self.validate_option('show_sources')
+            return(0)
 
+        if self.args.show_detail_sources:
+            self.validate_option('show_detail_sources')
             return(0)
 
         if self.args.config_file != self.config_file:
@@ -1877,10 +1925,17 @@ class Configure:
         if self.args.output_file != None:
             self.opt_dict['output_file'] = self.args.output_file
 
+        for s in self.args.disable_source:
+            self.validate_option('disable_source', value = s)
+
         if self.args.use_npo != None:
-            self.opt_dict['use_npo'] = self.args.use_npo
-            for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['use_npo'] = self.opt_dict['use_npo']
+            self.validate_option('disable_source', value = 4)
+            #~ self.opt_dict['use_npo'] = self.args.use_npo
+            #~ for chanid in self.channels.keys():
+                #~ self.channels[chanid].opt_dict['use_npo'] = self.opt_dict['use_npo']
+
+        for s in self.args.disable_detail_source:
+            self.validate_option('disable_detail_source', value = s)
 
         # limit days to maximum supported by the several sites
         if self.args.offset != None:
@@ -1970,8 +2025,77 @@ class Configure:
 
     # end validate_commandline()
 
-    def validate_option(self, option, channel = config):
+    def validate_option(self, option, channel = config, value = None, stdoutput = True):
         """Validate an option"""
+        if option == 'description':
+            if stdoutput:
+                v=self.version()
+                if v[5]:
+                    print("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s-beta" % (v[1], v[2], v[3]))
+
+                else:
+                    print("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s" % (v[1], v[2], v[3]))
+
+            else:
+                v=self.version()
+                if v[5]:
+                    return("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s-beta" % (v[1], v[2], v[3]))
+
+                else:
+                    return("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s" % (v[1], v[2], v[3]))
+
+        if option == 'capabilities':
+            if stdoutput:
+                print("baseline")
+                print("cache")
+                print("manualconfig")
+                print("preferredmethod")
+
+            else:
+                return ("baseline", "cache", "manualconfig", "preferredmethod")
+
+        if option == 'preferredmethod':
+            if stdoutput:
+                 print('allatonce')
+
+            else:
+                 return('allatonce')
+
+        if option == 'show_sources':
+            if stdoutput:
+                print 'The available sources are:'
+                for i, s in xml_output.channelsource.items():
+                    print '  %s: %s' % (i, s.source)
+
+            else:
+                tdict = {}
+                for i, s in xml_output.channelsource.items():
+                    tdict[i] = s.source
+
+                return tdict
+
+        if option == 'show_detail_sources':
+            if stdoutput:
+                print 'The available detail sources are:'
+                for i, s in xml_output.channelsource.items():
+                    if s.detail_processor:
+                        print '  %s: %s' % (i, s.source)
+
+            else:
+                tdict = {}
+                for i, s in xml_output.channelsource.items():
+                    if s.detail_processor:
+                        tdict[i] = s.source
+
+                return tdict
+        if option == 'disable_source':
+            if value in xml_output.channelsource.keys():
+                xml_output.channelsource[value].active = False
+
+        if option == 'disable_detail_source':
+            if value in xml_output.channelsource.keys():
+                xml_output.channelsource[value].detail_processor = False
+
         if option == 'offset':
             if self.opt_dict['offset'] > 14:
                 if self.offset < 14:
@@ -2856,7 +2980,7 @@ class Configure:
             if self.opt_dict['output_file'] != None:
                 self.output.close()
 
-            log('Closing down the log\n')
+            log('Closing down\n')
             logging.join()
             if self.log_output != None:
                 self.log_output.close()
@@ -3267,7 +3391,7 @@ class FetchURL(Thread):
         if m:
             return m.group(1)
 
-        return 'iso-8859-1' # the default HTTP encoding.
+        return config.httpencoding # the default HTTP encoding.
 
     def get_page_internal(self, url, encoding = "default encoding"):
         """
@@ -3323,6 +3447,7 @@ class FetchData(Thread):
         # Flag to stop the thread
         self.quit = False
         self.ready = False
+        self.active = True
         self.isjson = isjson
         # The ID of the source
         self.proc_id = proc_id
@@ -3349,33 +3474,40 @@ class FetchData(Thread):
         # Specifics can be done in init_channels and init_json which are called here
         tdict = self.checkout_program_dict()
         try:
-            self.day_loaded[0] = {}
-            for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
-                self.day_loaded[0][day] = False
-
-            for chanid in config.channels.keys():
-                self.channel_loaded[chanid] = False
-                self.day_loaded[chanid] ={}
+            # Check if the source is not deactivated and if so set them all loaded
+            if self.active:
+                self.day_loaded[0] = {}
                 for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
-                    self.day_loaded[chanid][day] = False
+                    self.day_loaded[0][day] = False
 
-                self.program_data[chanid] = []
+                for chanid in config.channels.keys():
+                    self.channel_loaded[chanid] = False
+                    self.day_loaded[chanid] ={}
+                    for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
+                        self.day_loaded[chanid][day] = False
 
-            self.init_channels()
-            if not self.source in config.sources.keys():
-                config.sources[self.source] ={}
-                config.sources[self.source]['ID'] = self.detail_id if (self.detail_id != '') else ''
-                config.sources[self.source]['url'] = self.detail_url if (self.detail_url != '') else ''
-                config.detail_ids.append(self.detail_id)
+                    self.program_data[chanid] = []
 
-            self.init_json()
-            # Load and proccess al the program pages
-            try:
-                self.load_pages()
+                self.init_channels()
+                if not self.source in config.sources.keys():
+                    config.sources[self.source] ={}
+                    config.sources[self.source]['ID'] = self.detail_id if (self.detail_id != '') else ''
+                    config.sources[self.source]['url'] = self.detail_url if (self.detail_url != '') else ''
+                    config.detail_ids.append(self.detail_id)
 
-            except:
-                log(['Fatal Error processing the basepages from %s\n' % (self.source), \
-                    'Setting them all to being loaded, to let the other sources finish the job\n', traceback.print_exc()], 0)
+                self.init_json()
+                # Load and proccess al the program pages
+                try:
+                    self.load_pages()
+
+                except:
+                    log(['Fatal Error processing the basepages from %s\n' % (self.source), \
+                        'Setting them all to being loaded, to let the other sources finish the job\n', traceback.print_exc()], 0)
+                    for chanid in self.channels.keys():
+                        self.channel_loaded[chanid] = True
+                        config.channels[chanid].source_data[self.proc_id] = True
+
+            else:
                 for chanid in self.channels.keys():
                     self.channel_loaded[chanid] = True
                     config.channels[chanid].source_data[self.proc_id] = True
@@ -8135,6 +8267,8 @@ class Channel_Config(Thread):
         self.opt_dict['fast'] = config.opt_dict['fast']
         self.opt_dict['slowdays'] = config.opt_dict['slowdays']
         self.opt_dict['use_npo'] = config.opt_dict['use_npo']
+        self.opt_dict['disable_source'] = []
+        self.opt_dict['disable_detail_source'] = []
         self.opt_dict['compat'] = config.opt_dict['compat']
         self.opt_dict['max_overlap'] = config.opt_dict['max_overlap']
         self.opt_dict['overlap_strategy'] = config.opt_dict['overlap_strategy']
