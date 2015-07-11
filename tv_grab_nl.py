@@ -3158,7 +3158,7 @@ class ProgramCache(Thread):
         """
         Create a new ProgramCache object, optionally from file
         """
-        self.ID_list = ('ID','nl-ID','tv-ID','rtl-ID','be-ID')
+        self.ID_list = ('ID','nl-ID','tv-ID','rtl-ID','be-ID', 'npo-ID')
         # where we store our info
         self.filename  = filename
         self.delta_hour = datetime.timedelta(hours = 1)
@@ -4764,7 +4764,7 @@ class FetchData(Thread):
         # end set_main_id()
 
         # tdict is from info
-        def add_using_tvgids_timing(tdict, tvdict, use_other_title = False):
+        def add_using_tvgids_timing(tdict, tvdict, use_other_title = False, copy_ids = True):
             """Merge the source into the main data"""
             if tdict['merge-source'] == '':
                 tdict['merge-source'] = xml_output.channelsource[0].source
@@ -4839,6 +4839,16 @@ class FetchData(Thread):
             if tvdict['audio'] != '':
                 tdict['audio'] = tvdict['audio']
 
+            if copy_ids:
+                for source in config.sources.values():
+                    if source['ID'] != '':
+                        if tvdict[source['ID']] != '':
+                            tdict[source['ID']]  = tvdict[source['ID']]
+
+                    if source['url'] != '':
+                        if tvdict[source['url']] != '':
+                            tdict[source['url']]  = tvdict[source['url']]
+
             tdict = set_main_id(tdict)
             matched_programs.append(tdict)
             if tdict in info: info.remove(tdict)
@@ -4846,7 +4856,7 @@ class FetchData(Thread):
         # end add_using_tvgids_timing()
 
         # tdict is from programs
-        def add_using_other_timing(tdict, tvdict, add_episode_info = True):
+        def add_using_other_timing(tdict, tvdict, add_episode_info = True, copy_ids = True):
             """Merge the main data into the source"""
             matchlog('program match', tdict, tvdict, 4)
             tdict['merge-source'] = self.source
@@ -4865,15 +4875,6 @@ class FetchData(Thread):
 
             if tvdict['infourl'] != '':
                 tdict['infourl']  = tvdict['infourl']
-
-            for source in config.sources.values():
-                if source['ID'] != '':
-                    if tvdict[source['ID']] != '':
-                        tdict[source['ID']]  = tvdict[source['ID']]
-
-                if source['url'] != '':
-                    if tvdict[source['url']] != '':
-                        tdict[source['url']]  = tvdict[source['url']]
 
             if add_episode_info:
                 if tvdict['titel aflevering'] != '':
@@ -4923,6 +4924,16 @@ class FetchData(Thread):
 
             if 'credits' in tvdict:
                 tdict['credits']  = tvdict['credits']
+
+            if copy_ids:
+                for source in config.sources.values():
+                    if source['ID'] != '':
+                        if tvdict[source['ID']] != '':
+                            tdict[source['ID']]  = tvdict[source['ID']]
+
+                    if source['url'] != '':
+                        if tvdict[source['url']] != '':
+                            tdict[source['url']]  = tvdict[source['url']]
 
             tdict = set_main_id(tdict)
             matched_programs.append(tdict)
@@ -4974,7 +4985,7 @@ class FetchData(Thread):
             if mstart in prog_starttimes: del prog_starttimes[mstart]
             return True
 
-        # end check_match_to_programs()
+        # end check_match_to_info()
 
         # tdict is from programs
         def check_match_to_programs(tdict, pi, mstart, check_overlap = True, add_episode_info = True):
@@ -5278,11 +5289,11 @@ class FetchData(Thread):
                                 else:
                                     x = check_match_to_programs(pp, pi, None, False, False)
                                     if x == 1:
-                                        add_using_other_timing(pp, pi)
+                                        add_using_other_timing(pp, pi, True, False)
                                         ncount += 1
 
                                     elif x == 2:
-                                        add_using_other_timing(pp, pi)
+                                        add_using_other_timing(pp, pi, True, False)
                                         gcount += 1
 
                                     else:
@@ -5321,11 +5332,11 @@ class FetchData(Thread):
                                 else:
                                     x = check_match_to_programs(tdict, pp, None, False, False)
                                     if x == 1:
-                                        add_using_tvgids_timing(pp, tdict, True)
+                                        add_using_tvgids_timing(pp, tdict, True, False)
                                         ncount += 1
 
                                     elif x == 2:
-                                        add_using_tvgids_timing(pp, tdict, True)
+                                        add_using_tvgids_timing(pp, tdict, True, False)
                                         gcount += 1
 
                                     else:
@@ -5433,11 +5444,11 @@ class FetchData(Thread):
                             else:
                                 x = check_match_to_info(pp, pi, None, False)
                                 if x == 1:
-                                    add_using_tvgids_timing(pp, pi)
+                                    add_using_tvgids_timing(pp, pi, False, False)
                                     ncount += 1
 
                                 elif x == 2:
-                                    add_using_tvgids_timing(pp, pi)
+                                    add_using_tvgids_timing(pp, pi, False, False)
                                     ncount += 1
 
                                 else:
@@ -5476,11 +5487,11 @@ class FetchData(Thread):
                             else:
                                 x = check_match_to_info(tdict, pp, None, False)
                                 if x == 1:
-                                    add_using_other_timing(pp, tdict, True)
+                                    add_using_other_timing(pp, tdict, True, False)
                                     ncount += 1
 
                                 elif x == 2:
-                                    add_using_other_timing(pp, tdict, True)
+                                    add_using_other_timing(pp, tdict, True, False)
                                     ncount += 1
 
                                 else:
