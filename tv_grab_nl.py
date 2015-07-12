@@ -448,7 +448,6 @@ class Configure:
         # the total number of days to fetch basic info through belgium teveblad.be
         self.opt_dict['tevedays'] = 8
 
-        self.opt_dict['use_npo'] = True
         self.opt_dict['disable_source'] = []
         self.opt_dict['disable_detail_source'] = []
         # enable this option if you were using tv_grab_nl, it adjusts the generated
@@ -1340,6 +1339,7 @@ class Configure:
             type = 0
             section = ''
 
+        # Read the configuration into the self.config_dict dictionary
         f.seek(0,0)
         for byteline in f.readlines():
             try:
@@ -1362,6 +1362,7 @@ class Configure:
 
                         continue
 
+                    # Itś a channel confuration
                     elif config_title.group(1)[0:7].lower() == 'channel':
                         section = config_title.group(1)[7:].strip().lower()
                         type = 9
@@ -1369,7 +1370,9 @@ class Configure:
                             self.config_dict[9][section] = []
                         continue
 
+                    # Unknown Section header, so ignore
                     else:
+                        log('Ignoring unknown section "%s"\n' % config_title.group(1))
                         section = ''
                         type = 0
 
@@ -1385,55 +1388,65 @@ class Configure:
                 elif type == 9:
                     self.config_dict[9][section].append(line)
 
+                else:
+                    log('Ignoring configuration line "%s". Outside any known section.\n' % line)
+
+
             except:
                 log([u'Error reading Config\n', traceback.format_exc()])
                 continue
 
         f.close()
-        # Read Configuration options
+        # Read the General Configuration options
         for line in self.config_dict[1]:
             try:
                 # Strip the name from the value
                 a = re.split('=',line)
+                cfg_option = a[0].lower().strip()
                 # Boolean Values
-                if a[0].lower().strip() in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc', 'use_npo'):
+                if cfg_option in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc'):
                     if len(a) == 1:
-                        self.opt_dict[a[0].lower().strip()] = True
+                        self.opt_dict[cfg_option] = True
 
                     elif a[1].lower().strip() in ('true', '1' , 'on'):
-                        self.opt_dict[a[0].lower().strip()] = True
+                        self.opt_dict[cfg_option] = True
 
                     else:
-                        self.opt_dict[a[0].lower().strip()] = False
+                        self.opt_dict[cfg_option] = False
 
-                elif a[0].lower().strip() == 'output_file':
+                elif cfg_option == 'output_file':
                     self.opt_dict['output_file'] = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1].strip()
 
                 elif len(a) == 2:
-                    # Integer Values
-                    if a[0].lower().strip() in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', \
-                      'tevedays', 'max_overlap', 'desc_length', 'cache_save_interval', 'disable_source', 'disable_detail_source'):
-                        try:
-                            int(a[1])
-
-                        except ValueError:
-                            if (a[0].lower().strip() == 'slowdays') and (a[1].lower().strip() == 'none'):
-                                self.opt_dict[a[0].lower().strip()] = None
-
-                        else:
-                            if a[0].lower().strip() in ('disable_source', 'disable_detail_source') and int(a[1]) in xml_output.channelsource.keys():
-                                self.opt_dict[a[0].lower().strip()].append(int(a[1]))
-
-                            else:
-                                self.opt_dict[a[0].lower().strip()] = int(a[1])
+                    cfg_value = a[1].lower().strip()
+                    if cfg_option == 'use_npo':
+                        if cfg_value in ('false', '0' , 'off'):
+                            self.validate_option(cfg_option, value = 4)
 
                     # Select Values
-                    elif a[0].lower().strip() == 'overlap_strategy':
-                        if a[1].lower().strip() in ('average', 'stop', 'start'):
-                            self.opt_dict[a[0].lower().strip()] = a[1].lower().strip()
+                    elif cfg_option == 'overlap_strategy':
+                        if cfg_value in ('average', 'stop', 'start'):
+                            self.opt_dict[cfg_option] = cfg_value
 
                         else:
-                            self.opt_dict[a[0].lower().strip()] = 'none'
+                            self.opt_dict[cfg_option] = 'none'
+
+                    # Integer Values
+                    elif cfg_option in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', \
+                      'tevedays', 'max_overlap', 'desc_length', 'cache_save_interval', 'disable_source', 'disable_detail_source'):
+                        try:
+                            cfg_value = int(cfg_value)
+
+                        except ValueError:
+                            if (cfg_option == 'slowdays') and (cfg_value == 'none'):
+                                self.opt_dict[cfg_option] = None
+
+                        else:
+                            if cfg_option in ('disable_source', 'disable_detail_source'):
+                                self.validate_option(cfg_option, value = cfg_value)
+
+                            else:
+                                self.opt_dict[cfg_option] = cfg_value
 
             except:
                 log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
@@ -1463,10 +1476,17 @@ class Configure:
                         active = True
 
                     channel = re.split(';', line)
-                    if len(channel) != 8:
+                    if (self.configversion == 2.1) and (len(channel) != 8):
+                        # A 2.1  configuration line must contain 8 items
                         continue
 
+                    # We look for the first source to have an ID. This will be the general chanid
                     for index in range(xml_output.source_count):
+                        if index > len(channel) - 3:
+                            # The last two items are for the icon
+                            # No sources!
+                            continue
+
                         if channel[index + 2].strip() != '':
                             chanid = unicode(channel[index + 2]).strip()
                             channel_names[unicode(channel[0]).strip().lower()] = chanid
@@ -1478,10 +1498,16 @@ class Configure:
 
                     self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]).strip(), int(channel[1]))
                     for index in range(xml_output.source_count):
+                        if index > len(channel) - 3:
+                            # The last two items are for the icon
+                            break
+
                         self.channels[chanid].source_id[index] = unicode(channel[index + 2]).strip()
 
-                    self.channels[chanid].icon_source = int(channel[6])
-                    self.channels[chanid].icon = unicode(channel[7]).strip()
+                    # The icon defenition
+                    self.channels[chanid].icon_source = int(channel[-2])
+                    self.channels[chanid].icon = unicode(channel[-1]).strip()
+                    # fill in the default options
                     for i, v in self.opt_dict.items():
                         if i in self.channels[chanid].opt_dict.keys():
                             self.channels[chanid].opt_dict[i] = v
@@ -1499,6 +1525,7 @@ class Configure:
                                 self.channels[chanid].opt_dict['prime_source'] = index
                                 break
 
+                    # Set active if not remarked out
                     self.channels[chanid].active = active
                     if active:
                         self.chan_count += 1
@@ -1508,60 +1535,65 @@ class Configure:
 
         # Read the channel specific configuration
         for c, values in self.config_dict[9].items():
+            # is the name in the sectionheader a known chanid?
             if c in self.channels.keys():
                 chanid = c
 
+            # or a known channelname
             elif c in channel_names.keys():
                 chanid = channel_names[c]
 
             else:
+                # unknown chanid or channelname
+                log('Channel section "%s" ignored. Unknown channel/n' % c)
                 continue
 
             for line in values:
                 try:
                     # Strip the name from the value
                     a = re.split('=',line)
+                    cfg_option = a[0].lower().strip()
                     # Boolean Values
-                    if a[0].lower().strip() in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv', 'use_npo'):
+                    if cfg_option in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv'):
                         if len(a) == 1:
-                            self.channels[chanid].opt_dict[a[0].lower().strip()] = True
+                            self.channels[chanid].opt_dict[cfg_option] = True
 
                         elif a[1].lower().strip() in ('true', '1' , 'on'):
-                            self.channels[chanid].opt_dict[a[0].lower().strip()] = True
+                            self.channels[chanid].opt_dict[cfg_option] = True
 
                         else:
-                            self.channels[chanid].opt_dict[a[0].lower().strip()] = False
+                            self.channels[chanid].opt_dict[cfg_option] = False
 
                     elif len(a) == 2:
-                        # Integer Values
-                        if a[0].lower().strip() in ('slowdays', 'max_overlap', 'desc_length', 'prime_source', \
-                          'prefered_description', 'disable_source', 'disable_detail_source'):
-                            try:
-                                int(a[1])
-
-                            except ValueError:
-                                if (a[0].lower().strip() == 'slowdays') and (a[1].lower().strip() == 'none'):
-                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = None
-
-                            else:
-                                if a[0].lower().strip() in ('disable_source', 'disable_detail_source'):
-                                    if int(a[1]) in xml_output.channelsource.keys() and self.channels[chanid].source_id[int(a[1])] != '':
-                                        self.channels[chanid].opt_dict[a[0].lower().strip()].append(int(a[1]))
-
-                                elif a[0].lower().strip() in ('prime_source', 'prefered_description'):
-                                    if int(a[1]) in xml_output.channelsource.keys() and self.channels[chanid].source_id[int(a[1])] != '':
-                                        self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
-
-                                else:
-                                    self.channels[chanid].opt_dict[a[0].lower().strip()] = int(a[1])
+                        cfg_value = a[1].lower().strip()
+                        if cfg_option == 'use_npo':
+                            if cfg_value in ('false', '0' , 'off'):
+                                self.channels[chanid].opt_dict['disable_source'].append(4)
 
                         # Select Values
-                        elif a[0].lower().strip() == 'overlap_strategy':
-                            if a[1].lower().strip() in ('average', 'stop', 'start'):
-                                self.channels[chanid].opt_dict[a[0].lower().strip()] = a[1].lower().strip()
+                        elif cfg_option == 'overlap_strategy':
+                            if cfg_value in ('average', 'stop', 'start'):
+                                self.channels[chanid].opt_dict[cfg_option] = cfg_value
 
                             else:
-                                self.channels[chanid].opt_dict[a[0].lower().strip()] = 'none'
+                                self.channels[chanid].opt_dict[cfg_option] = 'none'
+
+                        # Integer Values
+                        elif cfg_option in ('slowdays', 'max_overlap', 'desc_length', 'prime_source', \
+                          'prefered_description', 'disable_source', 'disable_detail_source'):
+                            try:
+                                cfg_value = int(cfg_value)
+
+                            except ValueError:
+                                if (cfg_option == 'slowdays') and (cfg_value == 'none'):
+                                    self.channels[chanid].opt_dict[cfg_option] = None
+
+                            else:
+                                if cfg_option in ('disable_source', 'disable_detail_source', 'prime_source', 'prefered_description'):
+                                    self.validate_option(cfg_option, self.channels[chanid], cfg_value)
+
+                                else:
+                                    self.channels[chanid].opt_dict[cfg_option] = cfg_value
 
                 except:
                     log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
@@ -1729,7 +1761,7 @@ class Configure:
                     self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.gif'
 
         # Get the other sources
-        for index in (1, 3, 2):
+        for index in (1, 3, 2, 4):
             xml_output.channelsource[index].init_channels()
             xml_output.channelsource[index].get_channels()
             reverse_channels = {}
@@ -1785,19 +1817,8 @@ class Configure:
                 channel.opt_dict['mark_hd'] = True
 
             # set the default prime_source
-            if channel.source_id[2] != '':
-                channel.opt_dict['prime_source'] = 2
-
-            elif (channel.source_id[3] != '') and ((channel.group == 2) or (channel.group == 8)) :
-                channel.opt_dict['prime_source'] = 3
-
-            else:
-                for index in (0, 1, 3):
-                    if channel.source_id[index] != '':
-                        channel.opt_dict['prime_source'] = index
-                        break
-
-            # For Veronica tvgids.tv contains Disney XD, so we don't append it
+            self.validate_option('prime_source', channel, -1)
+              # For Veronica tvgids.tv contains Disney XD, so we don't append it
             if channel.source_id[0] in ('3', '34'):
                 channel.opt_dict['append_tvgidstv'] = False
 
@@ -1930,9 +1951,6 @@ class Configure:
 
         if self.args.use_npo != None:
             self.validate_option('disable_source', value = 4)
-            #~ self.opt_dict['use_npo'] = self.args.use_npo
-            #~ for chanid in self.channels.keys():
-                #~ self.channels[chanid].opt_dict['use_npo'] = self.opt_dict['use_npo']
 
         for s in self.args.disable_detail_source:
             self.validate_option('disable_detail_source', value = s)
@@ -1958,8 +1976,8 @@ class Configure:
         if self.validate_option('output_file') != None:
             return(2)
 
-        if not self.args.configure and self.configversion < 2.1:
-            # Update to a version 2.1 config
+        if not self.args.configure and self.configversion < float('%s.%s' % (self.major, self.minor)):
+            # Update to the current version config
             if self.configversion == 1.0:
                 self.write_defaults_list()
             if not self.write_config(None):
@@ -2044,7 +2062,7 @@ class Configure:
                 else:
                     return("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s" % (v[1], v[2], v[3]))
 
-        if option == 'capabilities':
+        elif option == 'capabilities':
             if stdoutput:
                 print("baseline")
                 print("cache")
@@ -2054,14 +2072,14 @@ class Configure:
             else:
                 return ("baseline", "cache", "manualconfig", "preferredmethod")
 
-        if option == 'preferredmethod':
+        elif option == 'preferredmethod':
             if stdoutput:
                  print('allatonce')
 
             else:
                  return('allatonce')
 
-        if option == 'show_sources':
+        elif option == 'show_sources':
             if stdoutput:
                 print 'The available sources are:'
                 for i, s in xml_output.channelsource.items():
@@ -2074,11 +2092,11 @@ class Configure:
 
                 return tdict
 
-        if option == 'show_detail_sources':
+        elif option == 'show_detail_sources':
             if stdoutput:
                 print 'The available detail sources are:'
                 for i, s in xml_output.channelsource.items():
-                    if s.detail_processor:
+                    if i in xml_output.detail_sources:
                         print '  %s: %s' % (i, s.source)
 
             else:
@@ -2088,15 +2106,59 @@ class Configure:
                         tdict[i] = s.source
 
                 return tdict
-        if option == 'disable_source':
+        elif option == 'disable_source':
             if value in xml_output.channelsource.keys():
-                xml_output.channelsource[value].active = False
+                if channel == config:
+                    xml_output.channelsource[value].active = False
+                    if value in xml_output.detail_sources:
+                        xml_output.channelsource[value].detail_processor = False
 
-        if option == 'disable_detail_source':
-            if value in xml_output.channelsource.keys():
-                xml_output.channelsource[value].detail_processor = False
+                elif channel in self.channels.values() and channel.source_id[value] != '':
+                    if value not in channel.opt_dict[option]:
+                        channel.opt_dict[option].append(value)
 
-        if option == 'offset':
+                    if value in xml_output.detail_sources and value not in channel.opt_dict['disable_detail_source']:
+                        channel.opt_dict['disable_detail_source'].append(value)
+
+        elif option == 'disable_detail_source':
+            if value in xml_output.detail_sources:
+                if channel == config:
+                    xml_output.channelsource[value].detail_processor = False
+
+                elif channel in self.channels.values() and channel.source_id[value] != '':
+                    if value not in channel.opt_dict[option]:
+                        channel.opt_dict[option].append(value)
+
+        elif option == 'prime_source':
+            if channel in self.channels.values() and value in xml_output.channelsource.keys() and channel.source_id[value] != '' \
+                and xml_output.channelsource.active and value not in channel.opt_dict['disable_source']:
+                    channel.opt_dict[option] = value
+
+            elif channel.source_id[2] != '':
+                channel.opt_dict[option] = 2
+
+            elif channel.source_id[4] != '':
+                channel.opt_dict[option] = 4
+
+            elif (channel.source_id[3] != '') and ((channel.group == 2) or (channel.group == 8)) :
+                channel.opt_dict[option] = 3
+
+            else:
+                for index in (0, 1, 3):
+                    if channel.source_id[index] != '':
+                        channel.opt_dict[option] = index
+                        break
+
+
+        elif option == 'prefered_description':
+            if channel in self.channels.values() and value in xml_output.channelsource.keys() and channel.source_id[value] != '' \
+                and xml_output.channelsource.active and value not in channel.opt_dict['disable_source']:
+                    channel.opt_dict[option] = value
+
+            else:
+                channel.opt_dict[option] = -1
+
+        elif option == 'offset':
             if self.opt_dict['offset'] > 14:
                 if self.offset < 14:
                     log("Een zo hoge offset van: %s is belachelijk. We resetten naar %s\n" % (self.opt_dict['offset'], self.offset),1,1)
@@ -2106,7 +2168,7 @@ class Configure:
                     log("Een zo hoge offset van: %s is belachelijk. We resetten naar 0\n" % (self.opt_dict['offset']),1,1)
                     self.opt_dict['offset'] = 0
 
-        if option == 'days':
+        elif option == 'days':
             if self.opt_dict['days'] > (14 - self.opt_dict['offset']):
                 log("tvgids.nl/tvgids.tv kunnen maximaal 14 dagen vooruit kijken. Resetting\n",1,1)
 
@@ -2115,7 +2177,7 @@ class Configure:
             if self.opt_dict['slowdays'] == None:
                 self.opt_dict['slowdays'] = config.opt_dict['days']
 
-        if option == 'tevedays':
+        elif option == 'tevedays':
             if self.opt_dict['tevedays'] > (8 - self.opt_dict['offset']):
                 log("teveblad.be kan maximaal 7 dagen vooruit kijken. Resetting\n",1,1)
 
@@ -2124,14 +2186,14 @@ class Configure:
             if self.opt_dict['tevedays'] < 0:
                 self.opt_dict['tevedays'] = 0
 
-        if option == 'rtldays':
+        elif option == 'rtldays':
             if self.opt_dict['rtldays'] > (14 - self.opt_dict['offset']):
                 log("rtl.nl kan maximaal 14 dagen vooruit kijken.\n",1,1)
 
             self.opt_dict['rtldays'] = min(self.opt_dict['rtldays'],(14 - self.opt_dict['offset']))
             self.opt_dict['rtldays'] = min(self.opt_dict['days'], self.opt_dict['rtldays'])
 
-        if option == 'output_file':
+        elif option == 'output_file':
             if self.opt_dict['output_file'] != None:
                 try:
                     output_dir = os.path.dirname(self.opt_dict['output_file'])
@@ -2150,7 +2212,7 @@ class Configure:
 
             else: self.output = None
 
-        if option == 'log_file':
+        elif option == 'log_file':
             # Save an old session log and open a new one
             try:
                 log_dir = os.path.dirname(self.log_file)
@@ -2175,7 +2237,7 @@ class Configure:
                 logging.writelog(traceback.format_exc(), 0,1)
                 return(2)
 
-        if option == 'program_cache_file':
+        elif option == 'program_cache_file':
             if self.program_cache_file.lower() == 'none' or self.program_cache_file == None:
                 self.program_cache_file = None
                 xml_output.program_cache = ProgramCache(self.program_cache_file)
@@ -2208,7 +2270,7 @@ class Configure:
             if self.clear_cache:
                 xml_output.program_cache.clear()
 
-        if option == 'slowdays':
+        elif option == 'slowdays':
             if channel.opt_dict['slowdays'] == None:
                 channel.opt_dict['slowdays'] = self.opt_dict['days']
                 if channel.opt_dict['desc_length'] == 0:
@@ -2223,15 +2285,15 @@ class Configure:
                 if channel.opt_dict['slowdays'] < self.opt_dict['days']:
                     channel.opt_dict['fast']  = False
 
-        if option == 'desc_length':
+        elif option == 'desc_length':
             if channel.opt_dict['desc_length'] != self.opt_dict['desc_length']:
                 log('Using description length: %d for Cannel: %s\n' % (channel.opt_dict['desc_length'], channel.chan_name),1,1)
 
-        if option == 'overlap_strategy':
+        elif option == 'overlap_strategy':
             if not channel.opt_dict['overlap_strategy'] in ['average', 'stop', 'start']:
                 channel.opt_dict['overlap_strategy'] = 'none'
 
-        if option == 'max_overlap':
+        elif option == 'max_overlap':
             if channel.opt_dict['max_overlap'] == 0:
                 # no max_overlap implies strategie == 'None'
                 channel.opt_dict['overlap_strategy'] = 'None'
@@ -2266,13 +2328,19 @@ class Configure:
         log_array.append(u'clear_cache = %s' % (self.clear_cache))
         log_array.append(u'output_file = %s' % (self.opt_dict['output_file']))
         log_array.append(u'quiet = %s' % (self.opt_dict['quiet']))
+        for index in range(xml_output.source_count):
+            if not xml_output.channelsource[index].active:
+                log_array.append(u'Source: %s disabled' % xml_output.channelsource[index].source)
+
+            elif not xml_output.channelsource[index].detail_processor and index in xml_output.detail_sources:
+                log_array.append(u'No detailfetches from Source: %s' % xml_output.channelsource[index].source)
+
         log_array.append(u'fast = %s' % (self.opt_dict['fast']))
         log_array.append(u'offset = %s' % (self.opt_dict['offset']))
         log_array.append(u'days = %s' % (self.opt_dict['days']))
         log_array.append(u'slowdays = %s' % (self.opt_dict['slowdays']))
         log_array.append(u'rtldays = %s' % (self.opt_dict['rtldays']))
         log_array.append(u'tevedays = %s' % (self.opt_dict['tevedays']))
-        log_array.append(u'use_npo = %s' % (self.opt_dict['use_npo']))
         log_array.append(u'compat = %s' % (self.opt_dict['compat']))
         log_array.append(u'max_overlap = %s' % (self.opt_dict['max_overlap']))
         log_array.append(u'overlap_strategy = %s' % (self.opt_dict['overlap_strategy']))
@@ -2287,9 +2355,27 @@ class Configure:
                 continue
 
             chan_name_written = False
+            if len(chan_def.opt_dict['disable_source']) > 0:
+                if not chan_name_written:
+                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
+                    chan_name_written = True
+
+                for index in chan_def.opt_dict['disable_source']:
+                    log_array.append(u'  Source: %s disabled\n' % xml_output.channelsource[index].source)
+
+            if len(chan_def.opt_dict['disable_detail_source']) > 0:
+                if not chan_name_written:
+                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
+                    chan_name_written = True
+
+                for index in chan_def.opt_dict['disable_detail_source']:
+                    log_array.append(u'  Source: %s disabled\n' % xml_output.channelsource[index].source)
+
             if not chan_def.opt_dict['append_tvgidstv']:
-                log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                chan_name_written = True
+                if not chan_name_written:
+                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
+                    chan_name_written = True
+
                 log_array.append(u'  append_tvgidstv = False\n')
 
             for index in range(xml_output.source_count):
@@ -2326,7 +2412,7 @@ class Configure:
 
                 log_array.append(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']))
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'use_npo'):
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
@@ -2357,9 +2443,7 @@ class Configure:
 
         # Save the options
         f.write(u'# This is a list with default options set by the --save-options (-O)\n')
-        f.write(u'# argument. They can be overruled on the commandline.\n')
-        f.write(u'# !!THIS MUST COME FIRST BEFORE THE CHANNEL SECTIONS!!\n')
-        f.write(u'# !!OR SYSTEM DEFAULTS WILL BE USED INSTEAD!!\n')
+        f.write(u'# argument. Most can be overruled on the commandline.\n')
         f.write(u'# Be carefull with manually editing. Invalid options will be\n')
         f.write(u'# silently ignored. Boolean options can be set with True/False,\n')
         f.write(u'# On/Off or 1/0. Leaving it blank sets them on. Setting an invalid\n')
@@ -2392,6 +2476,13 @@ class Configure:
         f.write(u'quiet = %s\n' % self.opt_dict['quiet'])
         f.write(u'output_file = %s\n' % self.opt_dict['output_file'])
         f.write(u'cache_save_interval = %s\n' % self.opt_dict['cache_save_interval'])
+        for index in range(xml_output.source_count):
+            if not xml_output.channelsource[index].active:
+                f.write(u'disable_source = %s\n' % index)
+
+            elif not xml_output.channelsource[index].detail_processor and index in xml_output.detail_sources:
+                f.write(u'disable_detail_source = %s\n' % index)
+
         f.write(u'compat = %s\n' % self.opt_dict['compat'])
         f.write(u'logos = %s\n' % self.opt_dict['logos'])
         f.write(u'use_utc = %s\n' % self.opt_dict['use_utc'])
@@ -2401,7 +2492,6 @@ class Configure:
         f.write(u'slowdays = %s\n' % self.opt_dict['slowdays'])
         f.write(u'rtldays = %s\n' % self.opt_dict['rtldays'])
         f.write(u'tevedays = %s\n' % self.opt_dict['tevedays'])
-        f.write(u'use_npo = %s\n' % self.opt_dict['use_npo'])
         f.write(u'cattrans = %s\n' % self.opt_dict['cattrans'])
         f.write(u'mark_hd = %s\n' % self.opt_dict['mark_hd'])
         f.write(u'overlap_strategy = %s\n' % self.opt_dict['overlap_strategy'] )
@@ -2409,13 +2499,14 @@ class Configure:
         f.write(u'desc_length = %s\n' % self.opt_dict['desc_length'])
         f.write(u'\n')
 
-        f.write(u'# These are the channels to parse. You can disable a channel by placing\n')
+        f.write(u'# These are the channeldefinitions. You can disable a channel by placing\n')
         f.write(u'# a \'#\' in front. Seperated by \';\' you see on every line: The Name,\n')
-        f.write(u'# the group, the ID\'s from tvgids.nl, tvgids.tv, rtl.nl and teveblad.be\n')
-        f.write(u'# and finally the iconsource and name.\n')
-        f.write(u'# You can change the names to suit your own preferences or\n')
+        f.write(u'# the group, the ID\'s for the sources in the order as returned by the\n')
+        f.write(u'# "--show-sources" option and finally the iconsource and name.\n')
+        f.write(u'# You can change the names to suit your own preferences.\n')
         f.write(u'# A missing ID means the source doesn\'t supply the channel.\n')
-        f.write(u'# remove an ID to not fetch from that source, but keep the \';\'s in place.\n')
+        f.write(u'# Removing an ID disables fetching from that source, but keep the \';\'s in place.\n')
+        f.write(u'# You better use the "disable_source" option as described below.\n')
         f.write(u'# Set iconsource to 99, to add your own full url.\n')
         f.write(u'\n')
         f.write(u'# To specify further Channel settings you can add sections in the form of\n')
@@ -2424,30 +2515,54 @@ class Configure:
         f.write(u'# !!THEY MUST BE BELOW THE CONFIGURATION AND CHANNEL SECTIONS!!\n')
         f.write(u'# You can use the following tags:\n')
         f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
-        f.write(u'#   fast, compat, logos, cattrans, mark_hd, add_hd_id, append_tvgidstv, use_npo\n')
+        f.write(u'#   fast, compat, logos, cattrans, mark_hd, add_hd_id, append_tvgidstv\n')
         f.write(u'#     append_tvgidstv is True by default, which means: \'Don\'t get data\n')
         f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
         f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
         f.write(u'#     add_hd_id: if set to True will create two listings for the given channel.\n')
         f.write(u'#     One normal on without HD tagging and one with \'-hd\' added to the ID\n')
         f.write(u'#     and with the HD tags. This will overrule any setting of mark_hd\n')
-        f.write(u'#     use_npo is by default on and delivers superior timings for three days\n')
-        f.write(u'#     for the NPO channels and the dutch regional channels\n')
         f.write(u'# Integer values:\n')
         f.write(u'#   slowdays, max_overlap, desc_length, prime_source, prefered_description\n')
-        f.write(u'#     prime_source (0-3) is the source whose timings are dominant\n')
+        f.write(u'#   disable_source, disable_detail_source\n')
+        f.write(u'#     prime_source (0-4) is the source whose timings are dominant\n')
         f.write(u'#     It defaults to the first available source or 2 for rtl channels\n')
         f.write(u'#     and 3 for group 2 and 8 (Flemmisch) channels\n')
         f.write(u'#     prefered_description (0-3) is the source whose description, if present,\n')
         f.write(u'#     is used. It defaults to the longest description found.\n')
+        f.write(u'#     with disable_source and disable_detail_source you can disable a source\n')
+        f.write(u'#     for that channel either al together or only for the detail fetches\n')
+        f.write(u'#     disabling an unavailable source has no effect.\n')
+        f.write(u'#     With the commandline options: "--show-sources" and "--show-detail-sources"\n')
+        f.write(u'#     you can get a list of available sources and their ID\n')
         f.write(u'# String values:\n')
         f.write(u'#   overlap_strategy (With possible values): \n')
         f.write(u'#     average, stop, start; everything else sets it to none\n')
         f.write(u'\n')
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
 
+        def get_channel_string(chanid, active = None, chan_string = None, icon_string = None):
+            chan = self.channels[chanid]
+            if chan_string == None:
+                chan_string = '%s;%s' % (chan.chan_name, chan.group)
+
+            for index in range(xml_output.source_count):
+                chan_string = '%s;%s' % (chan_string, chan.source_id[index])
+
+            if icon_string == None:
+                chan_string = '%s;%s;%s\n' % (chan_string, chan.icon_source, chan.icon)
+
+            else:
+                chan_string = '%s;%s\n' % (chan_string, icon_string)
+
+            if (active == True) or (active == None and channel.active):
+                return chan_string
+
+            elif (active == False) or (active == None and not channel.active):
+                return '# %s' % chan_string
+
         # just copy over the channels section
-        if add_channels == False and configversion == 2.1:
+        if add_channels == False and self.configversion == float('%s.%s' % (self.major, self.minor)):
             fo = self.open_file(self.config_file + '.old')
             if fo == None or not self.check_encoding(fo):
                 # We cannot read the old config, so we create a new one
@@ -2586,15 +2701,7 @@ class Configure:
 
                         if chan[0].strip() in self.channels.keys():
                             chanid = chan[0].strip()
-                            chan_list[self.channels[chanid].group].append('%s;%s;%s;%s;%s;%s;%s;%s\n' % (\
-                                                                                                chan[1], \
-                                                                                                self.channels[chanid].group, \
-                                                                                                self.channels[chanid].source_id[0], \
-                                                                                                self.channels[chanid].source_id[1], \
-                                                                                                self.channels[chanid].source_id[2], \
-                                                                                                self.channels[chanid].source_id[3], \
-                                                                                                self.channels[chanid].icon_source, \
-                                                                                                self.channels[chanid].icon))
+                            chan_list[self.channels[chanid].group].append(get_channel_string(chanid, True, '%s;%s' % (chan[1], self.channels[chanid].group)))
                             chan_added.append(chanid)
 
                         else:
@@ -2609,37 +2716,25 @@ class Configure:
 
                         if chan[0].strip() in self.channels.keys():
                             chanid = chan[0].strip()
-                            chan_list[self.channels[chanid].group].append('# %s;%s;%s;%s;%s;%s;%s;%s\n' % (\
-                                                                                                chan[1], \
-                                                                                                self.channels[chanid].group, \
-                                                                                                self.channels[chanid].source_id[0], \
-                                                                                                self.channels[chanid].source_id[1], \
-                                                                                                self.channels[chanid].source_id[2], \
-                                                                                                self.channels[chanid].source_id[3], \
-                                                                                                self.channels[chanid].icon_source, \
-                                                                                                self.channels[chanid].icon))
+                            chan_list[self.channels[chanid].group].append(get_channel_string(chanid, False, '%s;%s' % (chan[1], self.channels[chanid].group)))
                             chan_added.append(chanid)
 
                         else:
-                            chan_not_updated.append(item + '\n')
+                            chan_not_updated.append(u'# %s\n' % (item))
 
                 if self.configversion > 2.0:
                     for item in configlines['3']:
                         chan = re.split(';', item)
-                        if len(chan) != 8:
+                        if self.configversion == 2.1 and len(chan) != 8:
                             chan_not_updated.append(u'# %s\n' % (item))
                             continue
 
-                        for channel in self.channels.values():
-                            if ((chan[2].strip() !='') and (chan[2].strip() == channel.source_id[0])) or \
-                              ((chan[3].strip() !='') and (chan[2].strip() == channel.source_id[1])) or \
-                              ((chan[4].strip() !='') and (chan[2].strip() == channel.source_id[2])) or \
-                              ((chan[5].strip() !='') and (chan[2].strip() == channel.source_id[3])):
-                                chan_list[chan[1]].append('%s;%s;%s;%s;%s;%s;%s;%s\n' % (chan[0], chan[1], \
-                                    channel.source_id[0], channel.source_id[1], channel.source_id[2], channel.source_id[3], chan[6], chan[7]))
-
-                                chan_added.append(channel.chanid)
-                                break
+                        for chanid, channel in self.channels.items():
+                            for index in range(xml_output.source_count):
+                                if (chan[index + 2].strip() !='') and (chan[index + 2].strip() == channel.source_id[index]):
+                                    chan_list[chan[1]].append(get_channel_string(chanid, True, '%s;%s' % (chan[0], chan[1]), '%s;%s\n' % (chan[-2], chan[-1])))
+                                    chan_added.append(chanid)
+                                    break
 
                         else:
                             chan_not_updated.append(u'# %s\n' % (item))
@@ -2647,40 +2742,27 @@ class Configure:
                     for item in configlines['3remarks']:
                         chan = re.sub('#', '', item)
                         chan = re.split(';', chan)
-                        if len(chan) != 8:
+                        if self.configversion == 2.1 and len(chan) != 8:
                             chan_not_updated.append(u'# %s\n' % (item))
                             continue
 
-                        for channel in self.channels.values():
-                            if ((chan[2].strip() !='') and (chan[2].strip() == channel.source_id[0])) or \
-                              ((chan[3].strip() !='') and (chan[2].strip() == channel.source_id[1])) or \
-                              ((chan[4].strip() !='') and (chan[2].strip() == channel.source_id[2])) or \
-                              ((chan[5].strip() !='') and (chan[2].strip() == channel.source_id[3])):
-                                chan_list[chan[1]].append('# %s;%s;%s;%s;%s;%s;%s;%s\n' % (chan[0], chan[1], \
-                                    channel.source_id[0], channel.source_id[1], channel.source_id[2], channel.source_id[3], chan[6], chan[7]))
-
-                                chan_added.append(channel.chanid)
-                                break
+                        for chanid, channel in self.channels.items():
+                            for index in range(xml_output.source_count):
+                                if (chan[index + 2].strip() !='') and (chan[index + 2].strip() == channel.source_id[index]):
+                                    chan_list[chan[1]].append(get_channel_string(chanid, False, '%s;%s' % (chan[0], chan[1]), '%s;%s\n' % (chan[-2], chan[-1])))
+                                    chan_added.append(chanid)
+                                    break
 
                         else:
-                            chan_not_updated.append(item+'\n')
+                            chan_not_updated.append(u'# %s\n' % (item))
 
                 del configlines['2']
                 del configlines['3']
                 del configlines['2remarks']
                 del configlines['3remarks']
-
-                for chanid in self.channels.keys():
+                for chanid, channel in self.channels.items():
                     if not chanid in chan_added:
-                        chan_list[self.channels[chanid].group].append('# %s;%s;%s;%s;%s;%s;%s;%s\n' % (\
-                                                                                            self.channels[chanid].chan_name, \
-                                                                                            self.channels[chanid].group, \
-                                                                                            self.channels[chanid].source_id[0], \
-                                                                                            self.channels[chanid].source_id[1], \
-                                                                                            self.channels[chanid].source_id[2], \
-                                                                                            self.channels[chanid].source_id[3], \
-                                                                                            self.channels[chanid].icon_source, \
-                                                                                            self.channels[chanid].icon))
+                        chan_list[channel.group].append(get_channel_string(chanid, False))
 
                 for g in self.chan_groups.keys():
                     f.write('\n')
@@ -2702,22 +2784,8 @@ class Configure:
             for g in self.chan_groups.keys():
                 chan_list[g] =[]
 
-            for channel in self.channels.values():
-                chan_string = '%s;%s;%s;%s;%s;%s;%s;%s\n' % (\
-                                        channel.chan_name, \
-                                        channel.group, \
-                                        channel.source_id[0], \
-                                        channel.source_id[1], \
-                                        channel.source_id[2], \
-                                        channel.source_id[3], \
-                                        channel.icon_source, \
-                                        channel.icon)
-
-                if channel.active:
-                    chan_list[channel.group].append(chan_string)
-
-                else:
-                    chan_list[channel.group].append('# %s' % chan_string)
+            for chanid, channel in self.channels.items():
+                chan_list[channel.group].append(get_channel_string(chanid))
 
             for g in self.chan_groups.keys():
                 f.write('\n')
@@ -2730,36 +2798,60 @@ class Configure:
         f.write(u'# Channel specific settings other then the above or the default:\n')
         for chan_def in self.channels.values():
             chan_name_written = False
+            if len(chan_def.opt_dict['disable_source']) > 0:
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
+
+                for index in chan_def.opt_dict['disable_source']:
+                    if index in chan_def.source_id.keys() and chan_def.source_id[index] != '':
+                        f.write(u'disable_source = %s\n' % index)
+
+            if len(chan_def.opt_dict['disable_detail_source']) > 0:
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
+
+                for index in chan_def.opt_dict['disable_detail_source']:
+                    if index in chan_def.source_id.keys() and chan_def.source_id[index] != '':
+                        f.write(u'disable_detail_source = %s\n' % index)
+
             if not chan_def.opt_dict['append_tvgidstv']:
-                f.write(u'\n')
-                f.write(u'# %s\n' % (chan_def.chan_name))
-                f.write(u'[Channel %s]\n' % (chan_def.chanid))
-                chan_name_written = True
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
+
                 f.write(u'append_tvgidstv = False\n')
 
-            for index in range(xml_output.source_count):
-                if chan_def.source_id[index] != '':
-                    if chan_def.opt_dict['prime_source'] != index:
+            opt_val = chan_def.opt_dict['prime_source']
+            if opt_val in chan_def.source_id.keys() and chan_def.source_id[opt_val] != '':
+                for index in range(xml_output.source_count):
+                    if chan_def.source_id[index] != '' and opt_val != index:
                         if not chan_name_written:
                             f.write(u'\n')
                             f.write(u'# %s\n' % (chan_def.chan_name))
                             f.write(u'[Channel %s]\n' % (chan_def.chanid))
                             chan_name_written = True
 
-                        f.write(u'prime_source = %s\n' % ( chan_def.opt_dict['prime_source']))
+                        f.write(u'prime_source = %s\n' % opt_val)
 
-                    break
+                        break
 
-            if chan_def.opt_dict['prefered_description'] != -1:
-                if chan_def.opt_dict['prefered_description'] in chan_def.source_id.keys() and chan_def.source_id[chan_def.opt_dict['prefered_description']] != '':
-                    if chan_def.opt_dict['prefered_description'] != index:
-                        if not chan_name_written:
-                            f.write(u'\n')
-                            f.write(u'# %s\n' % (chan_def.chan_name))
-                            f.write(u'[Channel %s]\n' % (chan_def.chanid))
-                            chan_name_written = True
+            opt_val = chan_def.opt_dict['prefered_description']
+            if opt_val in chan_def.source_id.keys() and chan_def.source_id[opt_val] != '':
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
 
-                        f.write(u'prefered_description = %s\n' % ( chan_def.opt_dict['prefered_description']))
+                f.write(u'prefered_description = %s\n' % ( opt_val))
 
             if chan_def.opt_dict['add_hd_id']:
                 if not chan_name_written:
@@ -2779,7 +2871,7 @@ class Configure:
 
                 f.write(u'slowdays = %s\n' % (chan_def.opt_dict['slowdays']))
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'use_npo'):
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         f.write(u'\n')
@@ -3585,7 +3677,9 @@ class FetchData(Thread):
                                 parent.cache_count += 1
                                 continue
 
-                            elif tdict[xml_output.channelsource[1].detail_url] != '':
+                            elif xml_output.channelsource[1].detail_processor and \
+                              1 not in parent.opt_dict['disable_detail_source'] and \
+                              tdict[xml_output.channelsource[1].detail_url] != '':
                                 xml_output.channelsource[1].detail_queue.append({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent})
                                 parent.fetch_count[self.proc_id] -= 1
                                 parent.fetch_count[1] += 1
@@ -7733,7 +7827,7 @@ class npo_HTML(FetchData):
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
             if channel.active and chanid in config.source_channels[self.proc_id].keys():
-                if channel.opt_dict['use_npo']:
+                if not self.proc_id in channel.opt_dict['disable_source']:
                     self.channels[chanid] = config.source_channels[self.proc_id][chanid]
                     channel.source_id[self.proc_id] = self.channels[chanid]
 
@@ -8275,11 +8369,13 @@ class Channel_Config(Thread):
         self.all_programs = []
 
         self.opt_dict = {}
-        self.opt_dict['fast'] = config.opt_dict['fast']
-        self.opt_dict['slowdays'] = config.opt_dict['slowdays']
-        self.opt_dict['use_npo'] = config.opt_dict['use_npo']
         self.opt_dict['disable_source'] = []
         self.opt_dict['disable_detail_source'] = []
+        self.opt_dict['prime_source'] = -1
+        self.opt_dict['prefered_description'] = -1
+        self.opt_dict['append_tvgidstv'] = True
+        self.opt_dict['fast'] = config.opt_dict['fast']
+        self.opt_dict['slowdays'] = config.opt_dict['slowdays']
         self.opt_dict['compat'] = config.opt_dict['compat']
         self.opt_dict['max_overlap'] = config.opt_dict['max_overlap']
         self.opt_dict['overlap_strategy'] = config.opt_dict['overlap_strategy']
@@ -8288,9 +8384,6 @@ class Channel_Config(Thread):
         self.opt_dict['cattrans'] = config.opt_dict['cattrans']
         self.opt_dict['mark_hd'] = config.opt_dict['mark_hd']
         self.opt_dict['add_hd_id'] = False
-        self.opt_dict['prime_source'] = -1
-        self.opt_dict['prefered_description'] = -1
-        self.opt_dict['append_tvgidstv'] = True
 
     def validate_settings(self):
 
@@ -8312,7 +8405,7 @@ class Channel_Config(Thread):
             xml_data = False
             # Retrieve and merge the data from the available sources.
             for index in xml_output.source_order:
-                if (self.source_id[index] != '') and ((index != 4) or (index == 4 and self.opt_dict['use_npo'])):
+                if (self.source_id[index] != '') and (index not in self.opt_dict['disable_source']):
                     while self.source_data[index] == False:
                         if self.quit:
                             self.ready = True
@@ -8529,16 +8622,13 @@ class Channel_Config(Thread):
 
                 continue
 
-            detailed_program = None
-            if p[xml_output.channelsource[0].detail_url] != '':
-                self.fetch_count[0]  += 1
-                xml_output.channelsource[0].detail_queue.append({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
-                continue
-
-            if detailed_program == None and p[xml_output.channelsource[1].detail_url] != '':
-                self.fetch_count[1]  += 1
-                xml_output.channelsource[1].detail_queue.append({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
-                continue
+            for src_id in xml_output.detail_sources:
+                if xml_output.channelsource[src_id].detail_processor and \
+                  src_id not in self.opt_dict['disable_detail_source'] and \
+                  p[xml_output.channelsource[src_id].detail_url] != '':
+                    self.fetch_count[src_id]  += 1
+                    xml_output.channelsource[src_id].detail_queue.append({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
+                    break
 
     def title_split(self,program):
         """
@@ -8780,6 +8870,7 @@ class XMLoutput:
         self.source_count = 5
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl'}
         self.source_order = (0, 1, 2, 3, 4)
+        self.detail_sources = (0, 1)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
