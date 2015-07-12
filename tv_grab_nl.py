@@ -1005,7 +1005,6 @@ class Configure:
                                                             2: u'tvgids.nl Channels',
                                                             3: u'Channels'}
 
-        #~ self.__CHANNEL_CONFIG_SECTIONS__ = {}
 
         self.__DEFAULT_SECTIONS__ = {1: u'genre conversion table',
                                                              2: u'no title split list',
@@ -2106,12 +2105,10 @@ class Configure:
         elif option == 'disable_source':
             if value in xml_output.channelsource.keys():
                 if channel == None:
-                    print "None"
                     if value not in self.opt_dict['disable_source']:
                         self.opt_dict['disable_source'].append(value)
 
                 elif channel.source_id[value] != '':
-                    print channel.chanid
                     if value not in channel.opt_dict['disable_source']:
                         channel.opt_dict['disable_source'].append(value)
 
@@ -2132,32 +2129,42 @@ class Configure:
             if channel == None:
                 return
 
+            if value == None:
+                value = channel.opt_dict['prime_source']
+
             if value in xml_output.channelsource.keys() and channel.source_id[value] != '' \
-                and value not in self.opt_dict['disable_source'] and value not in channel.opt_dict['disable_source']:
+                and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
                     channel.opt_dict['prime_source'] = value
 
-            elif channel.source_id[2] != '':
-                channel.opt_dict['prime_source'] = 2
+            elif channel.source_id[2] != '' \
+                and not (2 in self.opt_dict['disable_source'] or 2 in channel.opt_dict['disable_source']):
+                    channel.opt_dict['prime_source'] = 2
 
-            elif channel.source_id[4] != '':
-                channel.opt_dict['prime_source'] = 4
+            elif channel.source_id[4] != '' \
+                and not (4 in self.opt_dict['disable_source'] or 4 in channel.opt_dict['disable_source']):
+                    channel.opt_dict['prime_source'] = 4
 
-            elif (channel.source_id[3] != '') and ((channel.group == 2) or (channel.group == 8)) :
+            elif (channel.source_id[3] != '') and ((channel.group == 2) or (channel.group == 8))  \
+                and not (3 in self.opt_dict['disable_source'] or 3 in channel.opt_dict['disable_source']):
                 channel.opt_dict['prime_source'] = 3
 
             else:
-                for index in (0, 1, 3):
-                    if channel.source_id[index] != '':
-                        channel.opt_dict['prime_source'] = index
-                        break
+                for value in (0, 1, 3):
+                    if channel.source_id[value] != '' \
+                        and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
+                            channel.opt_dict['prime_source'] = value
+                            break
 
 
         elif option == 'prefered_description':
             if channel == None:
                 return
 
+            if value == None:
+                value = channel.opt_dict['prefered_description']
+
             if value in xml_output.channelsource.keys() and channel.source_id[value] != '' \
-                and value not in self.opt_dict['disable_source'] and value not in channel.opt_dict['disable_source']:
+                and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
                     channel.opt_dict['prefered_description'] = value
 
             else:
@@ -2227,10 +2234,6 @@ class Configure:
 
                 self.save_oldfile(self.log_file)
                 self.log_output = self.open_file(self.log_file, mode = 'a')
-                #~ if self.log_output != None:
-                    #~ sys.stderr = self.log_output
-
-                #~ else:
                 if self.log_output == None:
                     logging.writelog('Cannot open the logfile: %s\n' % self.log_file, 0,1)
                     return(2)
@@ -2374,10 +2377,10 @@ class Configure:
         log_array.append(u'use_utc = %s' % (self.opt_dict['use_utc']))
         for index in range(xml_output.source_count):
             if index in self.opt_dict['disable_source']:
-                log_array.append(u'Source %s: %s disabled' % (index, xml_output.channelsource[index].source))
+                log_array.append(u'Source %s (%s) disabled' % (index, xml_output.channelsource[index].source))
 
             elif index in self.opt_dict['disable_detail_source']:
-                log_array.append(u'No detailfetches from Source %s: %s' % (index, xml_output.channelsource[index].source))
+                log_array.append(u'No detailfetches from Source %s (%s)' % (index, xml_output.channelsource[index].source))
 
         log_array.append(u'Channel specific settings other then the above:')
         for chan_def in self.channels.values():
@@ -2393,7 +2396,7 @@ class Configure:
                     log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
                     chan_name_written = True
 
-                log_array.append(u'  Source %s: %s disabled\n' % (index, xml_output.channelsource[index].source))
+                log_array.append(u'  Source %s (%s) disabled\n' % (index, xml_output.channelsource[index].source))
 
             for index in chan_def.opt_dict['disable_detail_source']:
                 if index in chan_def.opt_dict['disable_source'] or index in self.opt_dict['disable_source'] or index in self.opt_dict['disable_detail_source']:
@@ -2403,7 +2406,7 @@ class Configure:
                     log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
                     chan_name_written = True
 
-                log_array.append(u'  Detail Source %s: %s disabled\n' % (index, xml_output.channelsource[index].source))
+                log_array.append(u'  Detail Source %s (%s) disabled\n' % (index, xml_output.channelsource[index].source))
 
             if not chan_def.opt_dict['append_tvgidstv']:
                 if not chan_name_written:
@@ -8101,7 +8104,6 @@ class npo_HTML(FetchData):
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                     infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
 
-                #~ self.day_loaded[chanid][offset] = None
                 continue
 
             # First we check for a changed line-up
@@ -8137,7 +8139,6 @@ class npo_HTML(FetchData):
 
             except:
                 log(traceback.format_exc())
-                #~ self.day_loaded[chanid][offset] = None
                 continue
 
             try:
@@ -8227,7 +8228,6 @@ class npo_HTML(FetchData):
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                     infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
 
-                #~ self.day_loaded[chanid][offset] = None
                 continue
 
             # First we check for a changed line-up
@@ -8274,7 +8274,6 @@ class npo_HTML(FetchData):
 
             except:
                 log(['Error validating page for day:%s on npo.nl\n' % (offset), traceback.format_exc()])
-                #~ self.day_loaded[chanid][offset] = None
                 continue
 
             try:
@@ -8305,10 +8304,6 @@ class npo_HTML(FetchData):
                                     if v == '':
                                         log('Unable to determin Title and/or Starttime')
                                         continue
-
-                                # We skip any program starting before the regular day start at 6
-                                #~ if day_offset == 0 and phour == 6 and int(pshour) < 6:
-                                    #~ continue
 
                                 tdict = self.checkout_program_dict()
                                 tdict['source'] = u'npo'
@@ -8459,6 +8454,8 @@ class Channel_Config(Thread):
         if not self.active:
             return
 
+        config.validate_option('prime_source', self)
+        config.validate_option('prefered_description', self)
         config.validate_option('overlap_strategy', self)
         config.validate_option('max_overlap', self)
         config.validate_option('desc_length', self)
@@ -8640,7 +8637,6 @@ class Channel_Config(Thread):
         fetch_order = list(range(0,self.nprograms))
         random.shuffle(fetch_order)
 
-        #~ counter = 0
         for i in fetch_order:
             if self.quit:
                 self.ready = True
