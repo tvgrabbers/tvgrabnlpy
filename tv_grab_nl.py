@@ -1202,6 +1202,9 @@ class Configure:
         parser.add_argument('--show-detail-sources', action = 'store_true', default = False, dest = 'show_detail_sources',
                         help = 'returns the available detail sources')
 
+        parser.add_argument('--show-logo-sources', action = 'store_true', default = False, dest = 'show_logo_sources',
+                        help = 'returns the available logo sources')
+
         parser.add_argument('--disable-detail-source', action = 'append', default = [], dest = 'disable_detail_source',
                         metavar = '<source ID>', type = int,
                         help = 'disable a numbered source for detailfetches.\nSee "--show-detail-sources" for a list.')
@@ -1823,121 +1826,44 @@ class Configure:
         if self.read_commandline() == 0:
              return(0)
 
-        if self.args.version:
-            print("The Netherlands: %s" % self.version(True))
-            return(0)
+        # The Query options
+        for (a, o) in ((self.args.version, 'version'), \
+                              (self.args.description, 'description'), \
+                              (self.args.description_long, 'description_long'), \
+                              (self.args.capabilities, 'capabilities'), \
+                              (self.args.preferredmethod, 'preferredmethod'), \
+                              (self.args.show_sources, 'show_sources'), \
+                              (self.args.show_logo_sources, 'show_logo_sources'), \
+                              (self.args.show_detail_sources, 'show_detail_sources')):
+            if a:
+                self.validate_option(o)
+                return(0)
 
-        if self.args.description:
-            self.validate_option('description')
-            return(0)
-
-        if self.args.description_long:
-            print("The Netherlands: %s" % self.version(True))
-            print(description_text)
-            return(0)
-
-        if self.args.capabilities:
-            self.validate_option('capabilities')
-            return(0)
-
-        if self.args.preferredmethod:
-            self.validate_option('preferredmethod')
-            return(0)
-
-        if self.args.show_sources:
-            self.validate_option('show_sources')
-            return(0)
-
-        if self.args.show_detail_sources:
-            self.validate_option('show_detail_sources')
-            return(0)
-
+        # Check config an log file
         if self.args.config_file != self.config_file:
             # use the provided name for configuration and logging
             self.config_file = self.args.config_file
             self.log_file = self.args.config_file+'.log'
             log('Using config file: %s\n' % self.args.config_file)
 
-        if self.validate_option('log_file') != None:
-            return(2)
-
-        if self.args.configure:
-
-            # check for the config dir
-            config_dir = os.path.dirname(self.config_file)
-            if (config_dir != '') and not os.path.exists(config_dir):
-                log('Creating %s directory,\n' % config_dir)
-                os.mkdir(config_dir)
-
-            elif os.access(self.config_file, os.F_OK):
-                self.read_config()
-
-            log('Creating config file: %s\n' % self.config_file)
-            x = self.get_channels()
-
-        # get config if available Overrule if set by commandline
-        elif not self.read_config():
-            return(1)
+        x = self.validate_option('config_file')
+        if x != None:
+            return(x)
 
         if self.args.quiet != None:
             self.opt_dict['quiet'] = self.args.quiet
 
-        logging.log_level = self.opt_dict['log_level']
         logging.quiet = self.opt_dict['quiet']
-        if self.args.cache_save_interval != None:
-            self.opt_dict['cache_save_interval'] = self.args.cache_save_interval
+        logging.log_level = self.opt_dict['log_level']
 
-        if self.args.use_utc != None:
-            self.opt_dict['use_utc'] = self.args.use_utc
-
-        if self.args.compat != None:
-            self.opt_dict['compat'] = self.args.compat
-            for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['compat'] = self.opt_dict['compat']
-
-        if self.args.fast != None:
-            self.opt_dict['fast'] = self.args.fast
-            for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['fast'] = self.opt_dict['fast']
-
-        if self.args.logos != None:
-            self.opt_dict['logos'] = self.args.logos
-            for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['logos'] = self.opt_dict['logos']
-
-        if self.args.mark_hd != None:
-            self.opt_dict['mark_hd'] = self.args.mark_hd
-            for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['mark_hd'] = self.opt_dict['mark_hd']
-
-        if self.args.cattrans != None:
-            self.opt_dict['cattrans'] = self.args.cattrans
-            for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['cattrans'] = self.opt_dict['cattrans']
-
-        if self.args.slowdays != None:
-            self.opt_dict['slowdays'] = self.args.slowdays
-            for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['slowdays'] = self.opt_dict['slowdays']
-
-        if self.args.desc_length != None:
-            self.opt_dict['desc_length'] = self.args.desc_length
-            for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['desc_length'] = self.opt_dict['desc_length']
-
-        if self.args.overlap_strategy != None:
-            self.opt_dict['overlap_strategy'] = self.args.overlap_strategy
-            for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['overlap_strategy'] = self.opt_dict['overlap_strategy']
-
-        if self.args.max_overlap != None:
-            self.opt_dict['max_overlap'] = self.args.max_overlap
-            for chanid in self.channels.keys():
-                self.channels[chanid].opt_dict['max_overlap'] = self.opt_dict['max_overlap']
-
+        # Check a possible output file
         if self.args.output_file != None:
             self.opt_dict['output_file'] = self.args.output_file
 
+        if self.validate_option('output_file') != None:
+            return(2)
+
+        # Validate the options
         for s in self.args.disable_source:
             self.validate_option('disable_source', value = s)
 
@@ -1947,26 +1873,37 @@ class Configure:
         for s in self.args.disable_detail_source:
             self.validate_option('disable_detail_source', value = s)
 
+        for (a, o) in ((self.args.compat, 'compat'), \
+                              (self.args.fast, 'fast'), \
+                              (self.args.logos, 'logos'), \
+                              (self.args.mark_hd, 'mark_hd'), \
+                              (self.args.cattrans, 'cattrans'), \
+                              (self.args.slowdays, 'slowdays'), \
+                              (self.args.desc_length, 'desc_length'), \
+                              (self.args.overlap_strategy, 'overlap_strategy'), \
+                              (self.args.max_overlap, 'max_overlap')):
+            if a != None:
+                self.opt_dict[o] = a
+                for chanid in self.channels.keys():
+                    self.channels[chanid].opt_dict[o] = self.opt_dict[o]
+
+        self.offset = self.opt_dict['offset']
+        for (a, o) in ((self.args.use_utc, 'use_utc'), \
+                              (self.args.cache_save_interval, 'cache_save_interval'), \
+                              (self.args.offset, 'offset'), \
+                              (self.args.days, 'days'), \
+                              (self.args.tevedays, 'tevedays'), \
+                              (self.args.rtldays, 'rtldays')):
+            if a != None:
+                self.opt_dict[o] = a
+
         # limit days to maximum supported by the several sites
-        if self.args.offset != None:
-            self.offset = self.opt_dict['offset']
-            self.opt_dict['offset'] = self.args.offset
+        for o in ('offset', 'days', 'tevedays', 'rtldays'):
+            self.validate_option(o)
 
-        if self.args.days != None:
-            self.opt_dict['days'] = self.args.days
-
-        if self.args.tevedays != None:
-            self.opt_dict['tevedays'] = self.args.tevedays
-
-        if self.args.rtldays != None:
-            self.opt_dict['rtldays'] = self.args.rtldays
-
-        self.validate_option('offset')
-        self.validate_option('days')
-        self.validate_option('tevedays')
-        self.validate_option('rtldays')
-        if self.validate_option('output_file') != None:
-            return(2)
+        # Continue validating the settings for the individual channels
+        for chanid in self.channels.keys():
+            self.channels[chanid].validate_settings()
 
         if not self.args.configure and self.configversion < float('%s.%s' % (self.major, self.minor)):
             # Update to the current version config
@@ -1980,10 +1917,6 @@ class Configure:
                 'Check if you are fine with the settings.\n', \
                 'If this is a first install, you have to enable the desired channels!\n'], 1, 1)
             return(0)
-
-        # Continue validating the settings for the individual channels
-        for chanid in self.channels.keys():
-            self.channels[chanid].validate_settings()
 
         self.write_opts_to_log()
         if self.args.configure:
@@ -2019,15 +1952,6 @@ class Configure:
             return(0)
 
         #check for cache
-        if self.args.clean_cache != self.clean_cache:
-            self.clean_cache = self.args.clean_cache
-
-        if self.args.clear_cache != self.clear_cache:
-            self.clear_cache = self.args.clear_cache
-
-        if self.args.program_cache_file != self.program_cache_file:
-            self.program_cache_file = self.args.program_cache_file
-
         if self.validate_option('program_cache_file') != None:
             return(2)
 
@@ -2038,10 +1962,13 @@ class Configure:
     def validate_option(self, option, channel = None, value = None, stdoutput = True):
         """Validate an option"""
         if not (channel == None or channel in self.channels.values()):
-            print 'No validation'
             return
 
-        if option == 'description':
+        if option == 'version':
+            print("The Netherlands: %s" % self.version(True))
+            return(0)
+
+        elif option == 'description':
             if stdoutput:
                 v=self.version()
                 if v[5]:
@@ -2057,6 +1984,11 @@ class Configure:
 
                 else:
                     return("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s" % (v[1], v[2], v[3]))
+
+        elif option == 'description_long':
+            print("The Netherlands: %s" % self.version(True))
+            print(description_text)
+            return(0)
 
         elif option == 'capabilities':
             if stdoutput:
@@ -2102,6 +2034,22 @@ class Configure:
                         tdict[i] = s.source
 
                 return tdict
+        elif option == 'show_logo_sources':
+            if stdoutput:
+                print 'The available logo sources are:'
+                for i in range(len(xml_output.logo_provider)):
+                    print '  %s: %s' % (i, xml_output.logo_provider[i])
+
+                print ' 99: Your own full logo url'
+
+            else:
+                tdict = {}
+                for i in range(len(xml_output.logo_provider)):
+                    tdict[i] = xml_output.logo_provider[i]
+
+                    tdict[99] = 'free-form'
+                return tdict
+
         elif option == 'disable_source':
             if value in xml_output.channelsource.keys():
                 if channel == None:
@@ -2224,15 +2172,24 @@ class Configure:
 
             else: self.output = None
 
-        elif option == 'log_file':
+        elif option == 'config_file':
             # Save an old session log and open a new one
             try:
-                log_dir = os.path.dirname(self.log_file)
-                if (log_dir != '') and not os.path.exists(log_dir):
-                    log('Creating %s directory,\n' % log_dir)
-                    os.mkdir(log_dir)
+                # check for the config/log dir
+                config_dir = os.path.dirname(self.config_file)
+                if (config_dir != '') and not os.path.exists(config_dir):
+                    log('Creating %s directory,\n' % config_dir)
+                    os.mkdir(config_dir)
 
-                self.save_oldfile(self.log_file)
+                else:
+                    self.save_oldfile(self.log_file)
+
+            except:
+                logging.writelog('Cannot access the config/log directory: %s\n' % config_dir, 0,1)
+                logging.writelog(traceback.format_exc(), 0,1)
+                return(2)
+
+            try:
                 self.log_output = self.open_file(self.log_file, mode = 'a')
                 if self.log_output == None:
                     logging.writelog('Cannot open the logfile: %s\n' % self.log_file, 0,1)
@@ -2244,6 +2201,17 @@ class Configure:
                 logging.writelog('Cannot open the logfile: %s\n' % self.log_file, 0,1)
                 logging.writelog(traceback.format_exc(), 0,1)
                 return(2)
+
+            log('Using config file: %s\n' % self.config_file)
+            if self.args.configure:
+                log('Creating config file: %s\n' % self.config_file)
+                self.get_channels()
+                if os.access(self.config_file, os.F_OK):
+                    self.read_config()
+
+            # get config if available Overrule if set by commandline
+            elif not self.read_config():
+                return(1)
 
         elif option == 'program_cache_file':
             if self.program_cache_file.lower() == 'none' or self.program_cache_file == None:
@@ -2268,14 +2236,14 @@ class Configure:
                     return(2)
 
             except:
-                log(['Cannot write to cachefile: %s\n' % self.program_cache_file, traceback.format_exc()])
+                log(['Error accessing cachefile(directory): %s\n' % self.program_cache_file, traceback.format_exc()])
                 return(2)
 
             xml_output.program_cache = ProgramCache(self.program_cache_file)
-            if self.clean_cache:
+            if self.args.clean_cache:
                 xml_output.program_cache.clean()
 
-            if self.clear_cache:
+            if self.args.clear_cache:
                 xml_output.program_cache.clear()
 
         elif option == 'slowdays':
@@ -2355,10 +2323,10 @@ class Configure:
         log_array.append(u'log level = %s' % (self.opt_dict['log_level']))
         log_array.append(u'match log level = %s' % (self.opt_dict['match_log_level']))
         log_array.append(u'config_file = %s' % (self.config_file))
-        log_array.append(u'program_cache_file = %s' % (self.program_cache_file))
+        log_array.append(u'program_cache_file = %s' % (self.args.program_cache_file))
         log_array.append(u'cache_save_interval = %s' % (self.opt_dict['cache_save_interval']))
-        log_array.append(u'clean_cache = %s' % (self.clean_cache))
-        log_array.append(u'clear_cache = %s' % (self.clear_cache))
+        log_array.append(u'clean_cache = %s' % (self.args.clean_cache))
+        log_array.append(u'clear_cache = %s' % (self.args.clear_cache))
         log_array.append(u'output_file = %s' % (self.opt_dict['output_file']))
         log_array.append(u'quiet = %s' % (self.opt_dict['quiet']))
         log_array.append(u'fast = %s' % (self.opt_dict['fast']))
@@ -3789,10 +3757,18 @@ class FetchData(Thread):
                 self.ready = True
 
         except:
-            log(['\n', 'An unexpected error has occured in the %s thread\n' %  (self.source), \
-                'The current detail url is: %s\n' % (tdict[self.detail_url]), traceback.print_exc(), '\n', \
+            log_list = ['\n', 'An unexpected error has occured in the %s thread\n' %  (self.source)]
+            if tdict[self.detail_url] == '':
+                log_list.append('While fetching the base pages\n')
+
+            else:
+                log_list.append('The current detail url is: %s\n' % (tdict[self.detail_url]))
+
+            log_list.extend([traceback.print_exc(), '\n', \
                 'If you want assistence, please attach your configuration and log files!\n', \
-                '     %s\n' % (config.config_file), '     %s\n' % (config.log_file)],0)
+                '     %s\n' % (config.config_file), '     %s\n' % (config.log_file)])
+
+            log(log_list,0)
 
             self.ready = True
             for source in xml_output.channelsource.values():
@@ -3899,7 +3875,7 @@ class FetchData(Thread):
         text_values = ('source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
-              'rtl-ID', 'npo-ID', 'nl-url', 'tv-url', 'be-url', 'npo-url',  \
+              'rtl-ID', 'npo-ID', 'nl-url', 'tv-url', 'rtl-url', 'be-url', 'npo-url',  \
               'infourl', 'audio', 'star-rating', 'country', 'omroep')
         date_values = ('start-time', 'stop-time')
         bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst', \
@@ -8548,10 +8524,9 @@ class Channel_Config(Thread):
             self.ready = True
 
         except:
-            log(['\nAn unexpected error has occured in the %s thread:\n' %  (self.chan_name), traceback.format_exc(), \
+            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.chan_name), traceback.format_exc(), \
                 '\n', 'If you want assistence, please attach your configuration and log files!\n', \
-                '     %s\n' % (config.config_file), \
-                '     %s\n' % (config.log_file)],0)
+                '     %s\n' % (config.config_file), '     %s\n' % (config.log_file)],0)
 
             self.ready = True
             for source in xml_output.channelsource.values():
@@ -8939,7 +8914,7 @@ class XMLoutput:
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
-        self.channelsource[2] = rtl_JSON(2, 'rtl.nl', 'rtl-ID', '', True)
+        self.channelsource[2] = rtl_JSON(2, 'rtl.nl', 'rtl-ID', 'rtl-url', True)
         self.channelsource[3] = teveblad_HTML(3, 'teveblad.be', 'be-ID', 'be-url')
         self.channelsource[4] = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
 
@@ -9352,8 +9327,7 @@ def main():
     except:
         log(['\n', 'An unexpected error has occured:\n', traceback.format_exc(), \
             '\n', 'If you want assistence, please attach your configuration and log files!\n', \
-            '     %s\n' % (config.config_file), \
-            '     %s\n' % (config.log_file)],0)
+            '     %s\n' % (config.config_file), '     %s\n' % (config.log_file)],0)
         return(99)
 
     # and return success
