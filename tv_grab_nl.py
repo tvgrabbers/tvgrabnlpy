@@ -246,6 +246,9 @@ def log(message, log_level = 1, log_target = 3, Locked = False):
             else:
                 sys.stderr.write(now() + message + '\n')
 
+            if log_level <= 1:
+                config.log_output.flush()
+
         if not Locked:
             config.log_lock.release()
 
@@ -270,7 +273,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 10
-        self.patchdate = u'20150711'
+        self.patchdate = u'20150721'
         self.alfa = False
         self.beta = True
 
@@ -2057,8 +2060,6 @@ class Configure:
                 if channel.opt_dict['overlap_strategy'] != self.opt_dict['overlap_strategy']:
                     log('overlap strategy for Channel: %s set to: \'%s\'\n' % (channel.chan_name, channel.opt_dict['overlap_strategy']),1,1)
 
-        #~ if option == '':
-        #~ if option == '':
     # end validate_option()
 
     def write_opts_to_log(self):
@@ -2783,6 +2784,9 @@ class Configure:
             channel.quit = True
 
         if xml_output.program_cache != None:
+            if self.log_output != None:
+                self.log_output.flush()
+
             xml_output.program_cache.quit = True
             xml_output.program_cache.join()
             xml_output.program_cache = None
@@ -3431,20 +3435,10 @@ class FetchData(Thread):
             log('\nAn unexpected error has occured in the %s thread\n' %  (self.source), 0)
             log('The current detail url is: %s\n' % (tdict[self.detail_url]), 0)
             log(traceback.print_exc(), 0)
-
-            #~ err_obj = sys.exc_info()[2]
-            #~ log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.source, sys.exc_info()[1]), 0)
-            #~ log('The current detail url is: %s\n' % (tdict[self.detail_url]), 0)
-            #~ log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
-            #~ while True:
-                #~ err_obj = err_obj.tb_next
-                #~ if err_obj == None:
-                    #~ break
-
-                #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
             log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+
+            if config.log_output != None:
+                config.log_output.flush()
 
             self.ready = True
             for source in xml_output.channelsource.values():
@@ -5643,19 +5637,6 @@ class tvgids_JSON(FetchData):
                 self.program_by_id[tdict[self.detail_id]] = tdict
                 self.program_data[chanid].append(tdict)
                 config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
-                #~ if config.write_info_files:
-                    #~ if 'artikel_id' in item and item['artikel_id'] != '':
-                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel id => %s' % (item['db_id'], item['artikel_id'])))
-
-                    #~ if 'artikel_titel' in item and item['artikel_titel'] != '':
-                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel titel => %s' % (item['db_id'], item['artikel_titel'])))
-
-                    #~ if 'artikel_tekst' in item and item['artikel_tekst'] != '':
-                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel tekst => %s' % (item['db_id'], item['artikel_tekst'])))
-
-                    #~ if 'artikel_foto' in item and item['artikel_foto'] != '':
-                        #~ infofiles.addto_detail_list(unicode('tvgids.nl json:%s artikel foto => %s' % (item['db_id'], item['artikel_foto'])))
-
 
             self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
             self.parse_programs(chanid, 0, 'None')
@@ -8233,18 +8214,10 @@ class Channel_Config(Thread):
         except:
             log('\nAn unexpected error has occured in the %s thread:\n' %  (self.chan_name), 0)
             log(traceback.format_exc())
-            #~ err_obj = sys.exc_info()[2]
-            #~ log('\nAn unexpected error has occured in the %s thread: %s\n' %  (self.chan_name, sys.exc_info()[1]), 0)
-            #~ log('                                at line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
-            #~ while True:
-                #~ err_obj = err_obj.tb_next
-                #~ if err_obj == None:
-                    #~ break
-
-                #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
             log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+
+            if config.log_output != None:
+                config.log_output.flush()
 
             self.ready = True
             for source in xml_output.channelsource.values():
@@ -8330,7 +8303,6 @@ class Channel_Config(Thread):
         fetch_order = list(range(0,self.nprograms))
         random.shuffle(fetch_order)
 
-        #~ counter = 0
         for i in fetch_order:
             if self.quit:
                 self.ready = True
@@ -9052,17 +9024,11 @@ def main():
     except:
         log('\nAn unexpected error has occured:\n', 0)
         log(traceback.format_exc())
-        #~ err_obj = sys.exc_info()[2]
-        #~ log('\nAn unexpected error has occured at line: %s, %s: %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti, sys.exc_info()[1]), 0)
-
-        #~ while True:
-            #~ err_obj = err_obj.tb_next
-            #~ if err_obj == None:
-                #~ break
-
-            #~ log('                   tracing back to line: %s, %s\n' %  (err_obj.tb_lineno, err_obj.tb_lasti), 0)
-
         log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+
+        if config.log_output != None:
+            config.log_output.flush()
+
         return(99)
 
     # and return success
