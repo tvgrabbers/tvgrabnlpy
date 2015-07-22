@@ -298,6 +298,9 @@ class Logging(Thread):
                 else:
                     self.log_output.write(now() + message + '\n')
 
+                if log_level <= 1:
+                    self.log_output.flush()
+
         except:
             sys.stderr.write(now() + 'An error ocured while logging!\n')
             traceback.print_exc()
