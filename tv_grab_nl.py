@@ -273,7 +273,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 10
-        self.patchdate = u'20150721'
+        self.patchdate = u'20150726'
         self.alfa = False
         self.beta = True
 
@@ -6178,6 +6178,9 @@ class tvgidstv_HTML(FetchData):
                     if self.quit:
                         return
 
+                    if config.channels[chanid].source_data[self.proc_id]:
+                        continue
+
                     channel = self.channels[chanid]
                     # Start from the offset but skip the days allready fetched by tvgids.nl
                     # Except when append_tvgidstv is False
@@ -8046,7 +8049,7 @@ class npo_HTML(FetchData):
             self.parse_programs(chanid, 0, 'fill')
             config.channels[chanid].source_data[self.proc_id] = True
             if len(self.program_data) == 0:
-                log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
+                log('No data for channel:%s on npo.nl\n' % (config.channels[chanid].chan_name))
                 config.channels[chanid].source_data[self.proc_id] = None
                 continue
 
