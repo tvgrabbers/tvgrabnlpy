@@ -6312,7 +6312,7 @@ class tvgidstv_HTML(FetchData):
                         # be nice to tvgids.tv
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
-                    if len(self.program_data) == 0:
+                    if len(self.program_data[chanid]) == 0:
                         log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
                         config.channels[chanid].source_data[self.proc_id] = None
                         continue
@@ -7832,16 +7832,17 @@ class npo_HTML(FetchData):
             time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
         for chanid in self.channels.keys():
+            self.channel_loaded[chanid] = True
+            if len(self.program_data[chanid]) == 0:
+                log('No data for channel:%s on npo.nl\n' % (config.channels[chanid].chan_name))
+                config.channels[chanid].source_data[self.proc_id] = None
+                continue
+
             for tdict in self.program_data[chanid]:
                 self.program_by_id[tdict[self.detail_id]] = tdict
 
-            self.channel_loaded[chanid] = True
             self.parse_programs(chanid, 0, 'none')
             config.channels[chanid].source_data[self.proc_id] = True
-            if len(self.program_data) == 0:
-                log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
-                config.channels[chanid].source_data[self.proc_id] = None
-                continue
 
             try:
                 infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
