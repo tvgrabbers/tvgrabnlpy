@@ -273,7 +273,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 10
-        self.patchdate = u'20150726'
+        self.patchdate = u'20150801'
         self.alfa = False
         self.beta = True
 
@@ -3329,32 +3329,45 @@ class FetchData(Thread):
             if self.detail_processor:
                 # We process detail requests, so we loop till we are finished
                 self.cookyblock = False
+                lastrequest = datetime.datetime.now()
                 while True:
                     if self.quit:
                         self.ready = True
                         break
 
-                    # be nice to the source site
-                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                    # If the queue is empty
+                    if len(self.detail_queue) == 0:
+                        # and if we are tvgids.tv we wait for followup requests from tvgids.nl failures
+                        if (self.proc_id == 1) and xml_output.channelsource[0].is_alive():
+                            continue
 
-                    # Check if all channels are ready
-                    for channel in config.channels.values():
-                        if channel.active and not channel.ready:
+                        # Check if all channels are ready
+                        for channel in config.channels.values():
+                            if channel.is_alive():
+                                break
+
+                        # All channels are ready, so if there is nothing in the queue
+                        else:
+                            self.ready = True
                             break
 
-                    else:
-                        # All channels are ready, so if there is nothing in the queue
-                        if len(self.detail_queue) == 0:
-                            # if we are tvgids.tv we wait for followup requests from tvgids.nl failures
-                            if (self.proc_id == 1) and (not xml_output.channelsource[0].ready):
-                                continue
+                        # OK we have been sitting idle for 30 minutes, So we tell all channels they won get anything more!
+                        if (datetime.datetime.now() - lastrequest).total_seconds() > 1800:
+                            for channel in config.channels.values():
+                                if channel.is_alive() and channel.fetch_count[self.proc_id] != 0:
+                                    channel.fetch_count[self.proc_id] = 0
+                                    log('Channel %s seems to be waiting for %s lost detail requests from %s.\nSetting it to zero\n' % \
+                                        (channel.chan_name, channel.fetch_count[self.proc_id], self.source))
 
                             self.ready = True
                             break
 
-                    if len(self.detail_queue) == 0:
-                        continue
+                        else:
+                            continue
 
+                    # be nice to the source site
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                    lastrequest = datetime.datetime.now()
                     tdict = self.detail_queue.popleft()
                     cache_id = tdict['cache_id']
                     logstring = tdict['logstring']
@@ -8143,6 +8156,10 @@ class Channel_Config(Thread):
                             self.ready = True
                             return
 
+                        # Check if the source is still alive
+                        if not xml_output.channelsource[index].is_alive():
+                            break
+
                 if xml_data == False and self.source_data[index] == True:
                     xml_data = True
                     self.all_programs = xml_output.channelsource[index].program_data[self.chanid]
@@ -8162,6 +8179,13 @@ class Channel_Config(Thread):
                 if self.quit:
                     self.ready = True
                     return
+
+                # Check if the sources are still alive
+                for s in (0, 1):
+                    if not xml_output.channelsource[s].is_alive() and self.fetch_count[s] != 0:
+                        self.fetch_count[s] == 0
+                        log('source: %s died.\n So we stop waiting for the pending details for channel %s/n' \
+                            % (xml_output.channelsource[s].source, self.chan_name))
 
                 if self.fetch_count[0] == 0 and self.fetch_count[1] == 0:
                     self.all_programs = self.detailed_programs
