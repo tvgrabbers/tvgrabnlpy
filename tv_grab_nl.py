@@ -1457,8 +1457,10 @@ class Configure:
                         log('Invalid line in %s section of config file %s: %r\n' % (section, self.config_file, line))
 
             except:
+                config.log_lock.acquire()
                 log(u'Error reading Config\n')
                 log(traceback.format_exc())
+                config.log_lock.release()
                 continue
 
         f.close()
@@ -1578,8 +1580,10 @@ class Configure:
                     self.roletrans[a[0].lower().strip()] = a[1].strip()
 
             except:
+                config.log_lock.acquire()
                 log('Error reading Defaults\n')
                 log(traceback.format_exc())
+                config.log_lock.release()
                 continue
 
         f.close()
@@ -1964,8 +1968,10 @@ class Configure:
                         return(2)
 
                 except:
+                    config.log_lock.acquire()
                     log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
                     log(traceback.format_exc())
+                    config.log_lock.release()
                     return(2)
 
             else: self.output = None
@@ -1984,8 +1990,10 @@ class Configure:
                     sys.stderr = self.log_output
 
                 else:
+                    config.log_lock.acquire()
                     log('Cannot write to logfile: %s\n' % self.log_file)
                     log(traceback.format_exc())
+                    config.log_lock.release()
                     return(2)
 
             except:
@@ -2015,8 +2023,10 @@ class Configure:
                     return(2)
 
             except:
+                config.log_lock.acquire()
                 log('Cannot write to cachefile: %s\n' % self.program_cache_file)
                 log(traceback.format_exc())
+                config.log_lock.release()
                 return(2)
 
             xml_output.program_cache = ProgramCache(self.program_cache_file)
@@ -3054,8 +3064,10 @@ class ProgramCache(Thread):
             self.pdict = pickle.load(open(self.filename,'r'))
 
         except:
+            config.log_lock.acquire()
             log('Error loading cache file: %s (possibly corrupt)\n' % self.filename)
             log(traceback.format_exc())
+            config.log_lock.release()
             self.clear()
 
         self.lock.release()
@@ -3237,11 +3249,11 @@ class FetchURL(Thread):
             return page
 
         except (urllib.URLError) as e:
-            log('Cannot open url %s: %s\n' % (url, e.reason), 1, 1)
+            log('Cannot open url %s: %s\n' % (url, e.reason))
             return None
 
         except (urllib.HTTPError) as e:
-            log('Cannot parse url %s: code=%s\n' % (url, e.code), 1, 1)
+            log('Cannot parse url %s: code=%s\n' % (url, e.code))
             return None
 
 # end FetchURL
@@ -3313,9 +3325,11 @@ class FetchData(Thread):
                 self.load_pages()
 
             except:
+                config.log_lock.acquire()
                 log('Fatal Error processing the basepages from %s\n' % (self.source), 0)
                 log('Setting them all to being loaded, to let the other sources finish the job\n', 0)
                 log(traceback.print_exc())
+                config.log_lock.release()
                 for chanid in self.channels.keys():
                     self.channel_loaded[chanid] = True
                     config.channels[chanid].source_data[self.proc_id] = True
@@ -3380,8 +3394,10 @@ class FetchData(Thread):
 
                         except:
                             detailed_program = None
+                            config.log_lock.acquire()
                             log('Error processing the detailpage: %s\n' % (tdict[self.detail_url]), 1)
                             log(traceback.print_exc())
+                            config.log_lock.release()
 
                     else:
                         detailed_program = None
@@ -3393,8 +3409,10 @@ class FetchData(Thread):
 
                         except:
                             detailed_program = None
+                            config.log_lock.acquire()
                             log('Error processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\n' % tdict[self.detail_id][3:], 1)
                             log(traceback.print_exc())
+                            config.log_lock.release()
 
                     if detailed_program == None:
                         if (self.proc_id == 0) and (cache_id != None):
@@ -3445,10 +3463,12 @@ class FetchData(Thread):
                 self.ready = True
 
         except:
+            config.log_lock.acquire()
             log('\nAn unexpected error has occured in the %s thread\n' %  (self.source), 0)
             log('The current detail url is: %s\n' % (tdict[self.detail_url]), 0)
             log(traceback.print_exc(), 0)
             log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+            config.log_lock.release()
 
             if config.log_output != None:
                 config.log_output.flush()
@@ -5717,8 +5737,10 @@ class tvgids_JSON(FetchData):
             htmldata = ET.fromstring(strdata)
 
         except:
+            config.log_lock.acquire()
             log('Fetching page %s returned an error:\n' % (tdict[self.detail_url]), 1)
             log(traceback.format_exc())
+            config.log_lock.release()
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')
@@ -5732,8 +5754,10 @@ class tvgids_JSON(FetchData):
             tdict = self.filter_description(htmldata, 'div/p', tdict)
 
         except:
+            config.log_lock.acquire()
             log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
             log(traceback.format_exc())
+            config.log_lock.release()
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strdesc + '\n</root>\n')
@@ -6320,8 +6344,10 @@ class tvgidstv_HTML(FetchData):
                                 self.program_data[chanid].append(tdict)
 
                         except:
+                            config.log_lock.acquire()
                             log('Error processing tvgids.tv data for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
                             log(traceback.format_exc())
+                            config.log_lock.release()
                             continue
 
                         self.day_loaded[chanid][offset] = True
@@ -6365,16 +6391,22 @@ class tvgidstv_HTML(FetchData):
                 return
 
             strdata = self.clean_html('<root><div><div class="section-title">' + self.detaildata.search(strdata).group(1) + '</root>').encode('utf-8')
+        except:
+            config.log_lock.acquire()
+            log('Error Fetching detailpage %s\n' % tdict[self.detail_url])
+            log(traceback.format_exc())
+            config.log_lock.release()
+            return None
+
+        try:
             htmldata = ET.fromstring(strdata)
 
         except:
-            log(traceback.format_exc())
+            log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict[self.detail_url]))
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string(strdata + '\n')
 
-            # if we cannot find the description page,
-            # go to next in the loop
             return None
 
         # We scan every alinea of the description
@@ -6382,8 +6414,10 @@ class tvgidstv_HTML(FetchData):
             tdict = self.filter_description(htmldata, 'div/div/div/p', tdict)
 
         except:
+            config.log_lock.acquire()
             log('Error processing the description from: %s\n' % (tdict[self.detail_url]), 1)
             log(traceback.format_exc())
+            config.log_lock.release()
 
         data = htmldata.find('div/div[@class="section-content"]')
         datatype = u''
@@ -6468,8 +6502,10 @@ class tvgidstv_HTML(FetchData):
                     infofiles.addto_detail_list(unicode('new tvgids.d-tag => ' + d.tag))
 
         except:
+            config.log_lock.acquire()
             log('Error processing tvgids.tv detailpage:%s\n' % (tdict[self.detail_url]))
             log(traceback.format_exc())
+            config.log_lock.release()
             return
 
         tdict['ID'] = tdict[self.detail_id]
@@ -6877,8 +6913,10 @@ class teveblad_HTML(FetchData):
             return ET.fromstring(strdata.encode('utf-8'))
 
         except:
+            config.log_lock.acquire()
             log('error parsing %s/teveblad_channels.html\n' % (config.xmltv_dir))
             log(traceback.format_exc())
+            config.log_lock.release()
             return None
 
     def get_channels(self):
@@ -7057,8 +7095,10 @@ class teveblad_HTML(FetchData):
                             htmldata = ET.fromstring(strdata.encode('utf-8'))
 
                         except:
+                            config.log_lock.acquire()
                             log('Error extracting ElementTree for zendergroup:%s day:%s\n' % (group_page, offset))
                             log(traceback.format_exc())
+                            config.log_lock.release()
                             if config.write_info_files:
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                                 infofiles.write_raw_string(unicode(strdata + u'\n'))
@@ -7265,9 +7305,10 @@ class teveblad_HTML(FetchData):
                                     pass
 
         except:
-            err_obj = sys.exc_info()[2]
-            log('\nAn unexpected error has occured in the %s thread:\n' %  (self.source, sys.exc_info()[1]), 0)
+            config.log_lock.acquire()
+            log('\nAn unexpected error has occured in the %s thread:\n' %  (self.source), 0)
             log(traceback.format_exc())
+            config.log_lock.release()
 
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -7949,8 +7990,10 @@ class npo_HTML(FetchData):
                                 infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, self.all_channels[str(channel_cnt)]['name'], cname))
 
             except:
+                config.log_lock.acquire()
                 log('Error validating page for day:%s on npo.nl\n' % (offset))
                 log(traceback.format_exc())
+                config.log_lock.release()
                 #~ self.day_loaded[chanid][offset] = None
                 continue
 
@@ -8240,9 +8283,11 @@ class Channel_Config(Thread):
             self.ready = True
 
         except:
+            config.log_lock.acquire()
             log('\nAn unexpected error has occured in the %s thread:\n' %  (self.chan_name), 0)
             log(traceback.format_exc())
             log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+            config.log_lock.release()
 
             if config.log_output != None:
                 config.log_output.flush()
@@ -9050,9 +9095,11 @@ def main():
         xml_output.program_cache = None
 
     except:
+        config.log_lock.acquire()
         log('\nAn unexpected error has occured:\n', 0)
         log(traceback.format_exc())
         log('\nIf you want assistence, please attach your configuration and log files!\n     %s\n     %s\n' % (config.config_file, config.log_file),0)
+        config.log_lock.release()
 
         if config.log_output != None:
             config.log_output.flush()
