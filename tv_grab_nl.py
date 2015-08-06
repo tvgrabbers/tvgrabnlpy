@@ -273,7 +273,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 10
-        self.patchdate = u'20150801'
+        self.patchdate = u'20150806'
         self.alfa = False
         self.beta = True
 
@@ -4012,10 +4012,10 @@ class FetchData(Thread):
         """
 
         if mode == 0:
-            programs = self.program_data[chanid]
+            programs = self.program_data[chanid][:]
 
         elif mode == 1:
-            programs = config.channels[chanid].all_programs
+            programs = config.channels[chanid].all_programs[:]
 
         else:
             return
@@ -4216,11 +4216,11 @@ class FetchData(Thread):
             return
 
         if len(config.channels[chanid].all_programs) == 0:
-            config.channels[chanid].all_programs = self.program_data[chanid]
+            config.channels[chanid].all_programs = self.program_data[chanid][:]
             return
 
-        programs = self.program_data[chanid]
-        info = config.channels[chanid].all_programs
+        programs = self.program_data[chanid][:]
+        info = config.channels[chanid].all_programs[:]
 
         # 0 = Log Nothing
         # 1 = log not matched programs
@@ -8205,7 +8205,7 @@ class Channel_Config(Thread):
 
                 if xml_data == False and self.source_data[index] == True:
                     xml_data = True
-                    self.all_programs = xml_output.channelsource[index].program_data[self.chanid]
+                    self.all_programs = xml_output.channelsource[index].program_data[self.chanid][:]
 
                 elif self.source_data[index] == True:
                     xml_data = True
@@ -8358,7 +8358,7 @@ class Channel_Config(Thread):
         if len(self.all_programs) == 0:
             return
 
-        programs = self.all_programs
+        programs = self.all_programs[:]
 
         if self.opt_dict['fast']:
             log('\nNow Checking cache for %s programs on %s(xmltvid=%s%s)\n    (channel %s of %s) for %s days.\n' % \
@@ -8761,7 +8761,7 @@ class XMLoutput:
 
         self.xml_programs[chanidhd] = []
         config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
-        for program in config.channels[chanid].all_programs:
+        for program in config.channels[chanid].all_programs[:]:
             xml = []
 
             # Start/Stop
