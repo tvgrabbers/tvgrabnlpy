@@ -3656,32 +3656,45 @@ class FetchData(Thread):
             if self.detail_processor and  not self.proc_id in config.opt_dict['disable_detail_source']:
                 # We process detail requests, so we loop till we are finished
                 self.cookyblock = False
+                lastrequest = datetime.datetime.now()
                 while True:
                     if self.quit:
                         self.ready = True
                         break
 
-                    # be nice to the source site
-                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                    # If the queue is empty
+                    if len(self.detail_queue) == 0:
+                        # and if we are tvgids.tv we wait for followup requests from tvgids.nl failures
+                        if (self.proc_id == 1) and xml_output.channelsource[0].is_alive():
+                            continue
 
-                    # Check if all channels are ready
-                    for channel in config.channels.values():
-                        if channel.active and not channel.ready:
+                        # Check if all channels are ready
+                        for channel in config.channels.values():
+                            if channel.is_alive():
+                                break
+
+                        # All channels are ready, so if there is nothing in the queue
+                        else:
+                            self.ready = True
                             break
 
-                    else:
-                        # All channels are ready, so if there is nothing in the queue
-                        if len(self.detail_queue) == 0:
-                            # if we are tvgids.tv we wait for followup requests from tvgids.nl failures
-                            if (self.proc_id == 1) and (not xml_output.channelsource[0].ready):
-                                continue
+                        # OK we have been sitting idle for 30 minutes, So we tell all channels they won get anything more!
+                        if (datetime.datetime.now() - lastrequest).total_seconds() > 1800:
+                            for channel in config.channels.values():
+                                if channel.is_alive() and channel.fetch_count[self.proc_id] != 0:
+                                    channel.fetch_count[self.proc_id] = 0
+                                    log('Channel %s seems to be waiting for %s lost detail requests from %s.\nSetting it to zero\n' % \
+                                        (channel.chan_name, channel.fetch_count[self.proc_id], self.source))
 
                             self.ready = True
                             break
 
-                    if len(self.detail_queue) == 0:
-                        continue
+                        else:
+                            continue
 
+                    # be nice to the source site
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                    lastrequest = datetime.datetime.now()
                     tdict = self.detail_queue.popleft()
                     cache_id = tdict['cache_id']
                     logstring = tdict['logstring']
@@ -4316,10 +4329,10 @@ class FetchData(Thread):
         """
 
         if mode == 0:
-            programs = self.program_data[chanid]
+            programs = self.program_data[chanid][:]
 
         elif mode == 1:
-            programs = config.channels[chanid].all_programs
+            programs = config.channels[chanid].all_programs[:]
 
         else:
             return
@@ -4520,11 +4533,11 @@ class FetchData(Thread):
             return
 
         if len(config.channels[chanid].all_programs) == 0:
-            config.channels[chanid].all_programs = self.program_data[chanid]
+            config.channels[chanid].all_programs = self.program_data[chanid][:]
             return
 
-        programs = self.program_data[chanid]
-        info = config.channels[chanid].all_programs
+        programs = self.program_data[chanid][:]
+        info = config.channels[chanid].all_programs[:]
 
         # 0 = Log Nothing
         # 1 = log not matched programs
@@ -6507,6 +6520,9 @@ class tvgidstv_HTML(FetchData):
                     if self.quit:
                         return
 
+                    if config.channels[chanid].source_data[self.proc_id]:
+                        continue
+
                     channel = self.channels[chanid]
                     # Start from the offset but skip the days allready fetched by tvgids.nl
                     # Except when append_tvgidstv is False
@@ -6643,7 +6659,7 @@ class tvgidstv_HTML(FetchData):
                         # be nice to tvgids.tv
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
-                    if len(self.program_data) == 0:
+                    if len(self.program_data[chanid]) == 0:
                         log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
                         config.channels[chanid].source_data[self.proc_id] = None
                         continue
@@ -6680,16 +6696,19 @@ class tvgidstv_HTML(FetchData):
                 return
 
             strdata = self.clean_html('<root><div><div class="section-title">' + self.detaildata.search(strdata).group(1) + '</root>').encode('utf-8')
+        except:
+            log(['Error Fetching detailpage %s\n' % tdict[self.detail_url], traceback.format_exc()])
+            return None
+
+        try:
             htmldata = ET.fromstring(strdata)
 
         except:
-            log(traceback.format_exc())
+            log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict[self.detail_url]))
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string(strdata + '\n')
 
-            # if we cannot find the description page,
-            # go to next in the loop
             return None
 
         # We scan every alinea of the description
@@ -7573,8 +7592,7 @@ class teveblad_HTML(FetchData):
                                     pass
 
         except:
-            err_obj = sys.exc_info()[2]
-            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source, sys.exc_info()[1]), traceback.format_exc()], 0)
+            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source, traceback.format_exc()], 0)
 
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -8153,16 +8171,17 @@ class npo_HTML(FetchData):
             time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
         for chanid in self.channels.keys():
+            self.channel_loaded[chanid] = True
+            if len(self.program_data[chanid]) == 0:
+                log('No data for channel:%s on npo.nl\n' % (config.channels[chanid].chan_name))
+                config.channels[chanid].source_data[self.proc_id] = None
+                continue
+
             for tdict in self.program_data[chanid]:
                 self.program_by_id[tdict[self.detail_id]] = tdict
 
-            self.channel_loaded[chanid] = True
             self.parse_programs(chanid, 0, 'none')
             config.channels[chanid].source_data[self.proc_id] = True
-            if len(self.program_data) == 0:
-                log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
-                config.channels[chanid].source_data[self.proc_id] = None
-                continue
 
             try:
                 infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
@@ -8456,9 +8475,13 @@ class Channel_Config(Thread):
                             self.ready = True
                             return
 
+                        # Check if the source is still alive
+                        if not xml_output.channelsource[index].is_alive():
+                            break
+
                 if xml_data == False and self.source_data[index] == True:
                     xml_data = True
-                    self.all_programs = xml_output.channelsource[index].program_data[self.chanid]
+                    self.all_programs = xml_output.channelsource[index].program_data[self.chanid][:]
 
                 elif self.source_data[index] == True:
                     xml_data = True
@@ -8475,6 +8498,13 @@ class Channel_Config(Thread):
                 if self.quit:
                     self.ready = True
                     return
+
+                # Check if the sources are still alive
+                for s in (0, 1):
+                    if not xml_output.channelsource[s].is_alive() and self.fetch_count[s] != 0:
+                        self.fetch_count[s] == 0
+                        log('source: %s died.\n So we stop waiting for the pending details for channel %s/n' \
+                            % (xml_output.channelsource[s].source, self.chan_name))
 
                 if self.fetch_count[0] == 0 and self.fetch_count[1] == 0:
                     self.all_programs = self.detailed_programs
@@ -8597,7 +8627,7 @@ class Channel_Config(Thread):
         if len(self.all_programs) == 0:
             return
 
-        programs = self.all_programs
+        programs = self.all_programs[:]
 
         if self.opt_dict['fast']:
             log(['\n', 'Now Checking cache for %s programs on %s(xmltvid=%s%s)\n' % \
@@ -8994,7 +9024,7 @@ class XMLoutput:
 
         self.xml_programs[chanidhd] = []
         config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
-        for program in config.channels[chanid].all_programs:
+        for program in config.channels[chanid].all_programs[:]:
             xml = []
 
             # Start/Stop
