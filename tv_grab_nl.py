@@ -273,7 +273,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 10
-        self.patchdate = u'20150806'
+        self.patchdate = u'20150807'
         self.alfa = False
         self.beta = True
 
@@ -3042,6 +3042,7 @@ class ProgramCache(Thread):
             return
 
         while True:
+            time.sleep(5)
             if self.save:
                 self.dump()
                 self.save = False
@@ -3345,6 +3346,8 @@ class FetchData(Thread):
                 self.cookyblock = False
                 lastrequest = datetime.datetime.now()
                 while True:
+                    # be nice to the source site
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
                     if self.quit:
                         self.ready = True
                         break
@@ -3379,8 +3382,6 @@ class FetchData(Thread):
                         else:
                             continue
 
-                    # be nice to the source site
-                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
                     lastrequest = datetime.datetime.now()
                     tdict = self.detail_queue.popleft()
                     cache_id = tdict['cache_id']
@@ -8195,6 +8196,7 @@ class Channel_Config(Thread):
             for index in xml_output.source_order:
                 if (self.source_id[index] != '') and ((index != 4) or (index == 4 and self.opt_dict['use_npo'])):
                     while self.source_data[index] == False:
+                        time.sleep(1)
                         if self.quit:
                             self.ready = True
                             return
@@ -8219,6 +8221,7 @@ class Channel_Config(Thread):
 
             # Wait for all details being processed
             while True:
+                time.sleep(2)
                 if self.quit:
                     self.ready = True
                     return
