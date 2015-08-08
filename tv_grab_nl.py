@@ -139,6 +139,7 @@ except ImportError:
     from htmlentitydefs import name2codepoint
 from threading import Thread
 from threading import Lock
+from threading import active_count
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
 from collections import deque
@@ -246,8 +247,7 @@ def log(message, log_level = 1, log_target = 3, Locked = False):
             else:
                 sys.stderr.write(now() + message + '\n')
 
-            if log_level <= 1:
-                config.log_output.flush()
+            config.log_output.flush()
 
         if not Locked:
             config.log_lock.release()
@@ -3047,7 +3047,7 @@ class ProgramCache(Thread):
                 self.dump()
                 self.save = False
 
-            if self.counter == config.opt_dict['cache_save_interval']:
+            if self.counter > config.opt_dict['cache_save_interval']:
                 self.dump()
                 self.counter = 0
 
@@ -5565,7 +5565,7 @@ class tvgids_JSON(FetchData):
                 if self.quit:
                     return
 
-                # Check if it is allready loaded
+                # Check if it is already loaded
                 if self.day_loaded[0][offset]:
                     continue
 
@@ -5589,7 +5589,7 @@ class tvgids_JSON(FetchData):
 
                 # Just let the json library parse it.
                 for chanid, v in json.loads(strdata).iteritems():
-                    # Most channels profide a list of program dicts, some a numbered dict
+                    # Most channels provide a list of program dicts, some a numbered dict
                     try:
                         if isinstance(v, dict):
                             v=list(v.values())
@@ -8352,6 +8352,7 @@ class Channel_Config(Thread):
     def get_counter(self):
         self.fetch_counter += 1
         return 100*float(self.fetch_counter)/float(self.nprograms)
+
     def get_details(self, ):
         """
         Given a list of programs, from the several sources, retrieve program details
@@ -8419,7 +8420,7 @@ class Channel_Config(Thread):
                     self.detailed_programs.append(self.use_cache(p, cached_program))
                     continue
 
-            # Either we are fast-mode, outsite slowdays or there is no url. So we continue
+            # Either we are fast-mode, outside slowdays or there is no url. So we continue
             try:
                 no_detail_fetch = (no_fetch or ((p[xml_output.channelsource[0].detail_url] == '') and (p[xml_output.channelsource[1].detail_url] == '')))
 
@@ -9058,11 +9059,13 @@ def main():
     # We want to handle unexpected errors nicely. With a message to the log
     try:
         # Get the options, channels and other configuration
+        start_time = datetime.datetime.now()
         x = config.validate_commandline()
         if x != None:
             return(x)
 
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
+        log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
 
         # Start the seperate fetching threads
         for source in xml_output.channelsource.values():
@@ -9072,6 +9075,7 @@ def main():
 
         # Start the Channel threads
         counter = 0
+        channel_threads = []
         for channel in config.channels.values():
             if not channel.active:
                 continue
@@ -9082,11 +9086,14 @@ def main():
             if x != None:
                 return(x)
 
+            channel_threads.append(channel)
+
         # This thread monitors the cache and saves it at an interval
         xml_output.program_cache.start()
 
-        xml_output.channelsource[0].join()
-        xml_output.channelsource[1].join()
+        # Synchronize
+        for this_channel_thread in channel_threads:
+            this_channel_thread.join()
 
         # Make sure the cache is saved
         xml_output.program_cache.quit = True
@@ -9097,6 +9104,12 @@ def main():
         xml_output.program_cache.join()
         xml_output.program_cache = None
 
+        # Report duration
+        end_time = datetime.datetime.now()
+        duration = end_time - start_time
+
+        log('\nExecution complete. Summary:\nStart time of this run: %s\nEnd time: %s\nDuration: %s \n' % \
+            (start_time.strftime('%Y-%m-%d %H:%M'), end_time.strftime('%Y-%m-%d %H:%M'), duration),4)
     except:
         config.log_lock.acquire()
         log('\nAn unexpected error has occured:\n', 0)
