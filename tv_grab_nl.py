@@ -139,6 +139,7 @@ except ImportError:
     from htmlentitydefs import name2codepoint
 from threading import Thread
 from threading import Lock
+from threading import Event
 from threading import active_count
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
@@ -2988,7 +2989,7 @@ class ProgramCache(Thread):
         self.delta_hour = datetime.timedelta(hours = 1)
         self.lock = Lock()
         self.quit = False
-        self.save = False
+        self.save = Event()
         self.counter = 0
 
         if self.filename == None:
@@ -3042,19 +3043,15 @@ class ProgramCache(Thread):
             return
 
         while True:
-            time.sleep(5)
-            if self.save:
-                self.dump()
-                self.save = False
-
-            if self.counter > config.opt_dict['cache_save_interval']:
-                self.dump()
-                self.counter = 0
-
+            self.save.wait(5)
             if self.quit:
                 log('Please wait!! While I save the Cache!!\n', 1)
                 self.dump()
                 break
+
+            if self.save.is_set():
+                self.dump()
+                self.save.release()
 
     def load(self):
         """
@@ -3148,6 +3145,10 @@ class ProgramCache(Thread):
             if program[id] != '' and program[id] != None:
                 self.pdict[program[id]] = program
                 self.counter+= 1
+                if self.counter >= config.opt_dict['cache_save_interval'] or self.quit:
+                    self.save.set()
+                    self.counter = 0
+
                 self.lock.release()
                 return
 
@@ -3333,7 +3334,7 @@ class FetchData(Thread):
                 config.log_lock.release()
                 for chanid in self.channels.keys():
                     self.channel_loaded[chanid] = True
-                    config.channels[chanid].source_data[self.proc_id] = True
+                    config.channels[chanid].source_data[self.proc_id].set()
 
             # if this is the prefered description source set the value
             for chanid in self.channels.keys():
@@ -3372,6 +3373,7 @@ class FetchData(Thread):
                         if (datetime.datetime.now() - lastrequest).total_seconds() > 1800:
                             for channel in config.channels.values():
                                 if channel.is_alive() and channel.fetch_count[self.proc_id] != 0:
+                                    channel.source_data[self.proc_id].set()
                                     channel.fetch_count[self.proc_id] = 0
                                     log('Channel %s seems to be waiting for %s lost detail requests from %s.\nSetting it to zero\n' % \
                                         (channel.chan_name, channel.fetch_count[self.proc_id], self.source))
@@ -3422,21 +3424,33 @@ class FetchData(Thread):
                                 log(u'      [cached] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
                                 tdict= parent.use_cache(tdict, cached_program)
                                 parent.detailed_programs.append(tdict)
-                                parent.fetch_count[self.proc_id] -= 1
                                 parent.cache_count += 1
+                                parent.fetch_count[self.proc_id] -= 1
+                                if parent.fetch_count[self.proc_id] == 0:
+                                    parent.source_data[self.proc_id].set()
+
                                 continue
 
                             elif tdict[xml_output.channelsource[1].detail_url] != '':
                                 xml_output.channelsource[1].detail_queue.append({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent})
-                                parent.fetch_count[self.proc_id] -= 1
                                 parent.fetch_count[1] += 1
+                                if parent.source_data[1].is_set():
+                                    parent.source_data[1].release()
+
+                                parent.fetch_count[self.proc_id] -= 1
+                                if parent.fetch_count[self.proc_id] == 0:
+                                    parent.source_data[self.proc_id].set()
+
                                 continue
 
                         else:
                             log(u'[fetch failed or timed out] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
                             parent.detailed_programs.append(tdict)
-                            parent.fetch_count[self.proc_id] -= 1
                             parent.fail_count += 1
+                            parent.fetch_count[self.proc_id] -= 1
+                            if parent.fetch_count[self.proc_id] == 0:
+                                parent.source_data[self.proc_id].set()
+
                             continue
 
                     else:
@@ -3455,6 +3469,8 @@ class FetchData(Thread):
 
                         parent.fetch_count[self.proc_id] -= 1
                         parent.fetched_count[self.proc_id] += 1
+                        if parent.fetch_count[self.proc_id] == 0:
+                            parent.source_data[self.proc_id].set()
 
                         # do not cache programming that is unknown at the time of fetching.
                         if tdict['name'].lower() != 'onbekend':
@@ -5544,7 +5560,7 @@ class tvgids_JSON(FetchData):
         if config.opt_dict['offset'] > 4:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
-                config.channels[chanid].source_data[self.proc_id] = True
+                config.channels[chanid].source_data[self.proc_id].set()
 
             return
 
@@ -5614,8 +5630,8 @@ class tvgids_JSON(FetchData):
 
         for chanid in self.channels.keys():
             if len(dl[chanid]) == 0:
-                log('No data on tvgids.nl for channel:%s\n' % (config.channels[chanid].chan_name))
-                config.channels[chanid].source_data[self.proc_id] = None
+                #~ log('No data on tvgids.nl for channel:%s\n' % (config.channels[chanid].chan_name))
+                config.channels[chanid].source_data[self.proc_id].set()
                 continue
 
             # item is a dict, like:
@@ -5675,7 +5691,7 @@ class tvgids_JSON(FetchData):
             self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
             self.parse_programs(chanid, 0, 'None')
             self.channel_loaded[chanid] = True
-            config.channels[chanid].source_data[self.proc_id] = True
+            config.channels[chanid].source_data[self.proc_id].set()
             try:
                 infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
 
@@ -6216,7 +6232,7 @@ class tvgidstv_HTML(FetchData):
                     if self.quit:
                         return
 
-                    if config.channels[chanid].source_data[self.proc_id]:
+                    if config.channels[chanid].source_data[self.proc_id].is_set():
                         continue
 
                     channel = self.channels[chanid]
@@ -6232,7 +6248,7 @@ class tvgidstv_HTML(FetchData):
                         fetch_range = range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days']))
 
                     if len(fetch_range) == 0:
-                        config.channels[chanid].source_data[self.proc_id] = None
+                        config.channels[chanid].source_data[self.proc_id].set()
                         continue
 
                     # Tvgids.tv shows programs per channel per day, so we loop over the number of days
@@ -6356,8 +6372,8 @@ class tvgidstv_HTML(FetchData):
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
                     if len(self.program_data[chanid]) == 0:
-                        log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
-                        config.channels[chanid].source_data[self.proc_id] = None
+                        #~ log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
+                        config.channels[chanid].source_data[self.proc_id].set()
                         continue
 
                     # Add starttime of the next program as the endtime
@@ -6370,7 +6386,7 @@ class tvgidstv_HTML(FetchData):
                     if failure_count == 0 or retry == 1:
                         self.channel_loaded[chanid] = True
                         self.parse_programs(chanid, 0, 'None')
-                        config.channels[chanid].source_data[self.proc_id] = True
+                        config.channels[chanid].source_data[self.proc_id].set()
 
                         try:
                             infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
@@ -6382,7 +6398,7 @@ class tvgidstv_HTML(FetchData):
             log(traceback.format_exc())
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
-                config.channels[chanid].source_data[self.proc_id] = True
+                config.channels[chanid].source_data[self.proc_id].set()
 
     def load_detailpage(self, tdict):
 
@@ -6614,6 +6630,9 @@ class rtl_JSON(FetchData):
             strdata = self.get_page(channel_url)
             if strdata == None or strdata.replace('\n','') == '{}':
                 log("Error loading rtl json data\n")
+                for chanid in self.channels.keys():
+                    config.channels[chanid].source_data[self.proc_id].set()
+
                 return False
 
         # Just let the json library parse it.
@@ -6710,7 +6729,7 @@ class rtl_JSON(FetchData):
             for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['rtldays'])):
                 self.day_loaded[chanid][day] = True
 
-            config.channels[chanid].source_data[self.proc_id] = True
+            config.channels[chanid].source_data[self.proc_id].set()
             try:
                 infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
 
@@ -6998,7 +7017,7 @@ class teveblad_HTML(FetchData):
         if config.opt_dict['offset'] > 8:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
-                config.channels[chanid].source_data[self.proc_id] = True
+                config.channels[chanid].source_data[self.proc_id].set()
 
             return
 
@@ -7025,7 +7044,7 @@ class teveblad_HTML(FetchData):
                 if not channel in self.all_channels:
                     # This channel is removed, for it reurns empty
                     self.channel_loaded[chanid] = True
-                    config.channels[chanid].source_data[self.proc_id] = True
+                    config.channels[chanid].source_data[self.proc_id].set()
                     continue
 
                 # Check wich grouppage to load
@@ -7297,7 +7316,7 @@ class teveblad_HTML(FetchData):
 
                                 self.channel_loaded[chanid] = True
                                 self.parse_programs(chanid, 0, 'None')
-                                config.channels[chanid].source_data[self.proc_id] = True
+                                config.channels[chanid].source_data[self.proc_id].set()
 
                                 try:
                                     infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
@@ -7313,7 +7332,7 @@ class teveblad_HTML(FetchData):
 
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
-                config.channels[chanid].source_data[self.proc_id] = True
+                config.channels[chanid].source_data[self.proc_id].set()
             return None
 
     def load_solopages(self):
@@ -7365,7 +7384,7 @@ class teveblad_HTML(FetchData):
                         htmldata = ET.fromstring(strdata.encode('utf-8'))
                         if htmldata.findtext('div/p') == "We don't have any events for this broadcaster":
                             log('No data for channel:%s on teveblad.be\n' % (config.channels[chanid].chan_name))
-                            config.channels[chanid].source_data[self.proc_id] = None
+                            config.channels[chanid].source_data[self.proc_id].set()
                             for i in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
                                 self.day_loaded[chanid][i] = None
                             break
@@ -7519,7 +7538,7 @@ class teveblad_HTML(FetchData):
                 if failure_count == 0:
                     self.channel_loaded[chanid] = True
                     self.parse_programs(chanid, 0, 'None')
-                    config.channels[chanid].source_data[self.proc_id] = True
+                    config.channels[chanid].source_data[self.proc_id].set()
 
                 try:
                     infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
@@ -7619,7 +7638,7 @@ class npo_HTML(FetchData):
 
                 else:
                     self.channel_loaded[chanid] = True
-                    config.channels[chanid].source_data[self.proc_id] = True
+                    config.channels[chanid].source_data[self.proc_id].set()
 
             else:
                 channel.source_id[self.proc_id] = ''
@@ -7786,7 +7805,7 @@ class npo_HTML(FetchData):
         if config.opt_dict['offset'] > 7:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
-                config.channels[chanid].source_data[self.proc_id] = True
+                config.channels[chanid].source_data[self.proc_id].set()
 
             return
 
@@ -7892,15 +7911,15 @@ class npo_HTML(FetchData):
         for chanid in self.channels.keys():
             self.channel_loaded[chanid] = True
             if len(self.program_data[chanid]) == 0:
-                log('No data for channel:%s on npo.nl\n' % (config.channels[chanid].chan_name))
-                config.channels[chanid].source_data[self.proc_id] = None
+                #~ log('No data for channel:%s on npo.nl\n' % (config.channels[chanid].chan_name))
+                config.channels[chanid].source_data[self.proc_id].set()
                 continue
 
             for tdict in self.program_data[chanid]:
                 self.program_by_id[tdict[self.detail_id]] = tdict
 
             self.parse_programs(chanid, 0, 'none')
-            config.channels[chanid].source_data[self.proc_id] = True
+            config.channels[chanid].source_data[self.proc_id].set()
 
             try:
                 infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
@@ -7913,7 +7932,7 @@ class npo_HTML(FetchData):
         if config.opt_dict['offset'] > 3:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
-                config.channels[chanid].source_data[self.proc_id] = True
+                config.channels[chanid].source_data[self.proc_id].set()
 
             return
 
@@ -8104,10 +8123,10 @@ class npo_HTML(FetchData):
 
             self.channel_loaded[chanid] = True
             self.parse_programs(chanid, 0, 'fill')
-            config.channels[chanid].source_data[self.proc_id] = True
+            config.channels[chanid].source_data[self.proc_id].set()
             if len(self.program_data) == 0:
-                log('No data for channel:%s on npo.nl\n' % (config.channels[chanid].chan_name))
-                config.channels[chanid].source_data[self.proc_id] = None
+                #~ log('No data for channel:%s on npo.nl\n' % (config.channels[chanid].chan_name))
+                config.channels[chanid].source_data[self.proc_id].set()
                 continue
 
             try:
@@ -8144,7 +8163,7 @@ class Channel_Config(Thread):
 
         for index in range(xml_output.source_count):
             self.source_id[index] = ''
-            self.source_data[index] = False
+            self.source_data[index] = Event()
 
         self.none_count = 0
         self.cache_count = 0
@@ -8194,22 +8213,29 @@ class Channel_Config(Thread):
             xml_data = False
             # Retrieve and merge the data from the available sources.
             for index in xml_output.source_order:
-                if (self.source_id[index] != '') and ((index != 4) or (index == 4 and self.opt_dict['use_npo'])):
-                    while self.source_data[index] == False:
-                        time.sleep(1)
-                        if self.quit:
-                            self.ready = True
-                            return
+                if not (self.source_id[index] != '') and ((index != 4) or (index == 4 and self.opt_dict['use_npo'])):
+                    # There is no ID for this source
+                    continue
 
-                        # Check if the source is still alive
-                        if not xml_output.channelsource[index].is_alive():
-                            break
+                while not self.source_data[index].is_set():
+                    # Wait till the event is set by the source, but check every 5 seconds for an unexpected break or wether the source is still alive
+                    self.source_data[index].wait(5)
+                    if self.quit:
+                        self.ready = True
+                        return
 
-                if xml_data == False and self.source_data[index] == True:
+                    # Check if the source is still alive
+                    if not xml_output.channelsource[index].is_alive():
+                        break
+
+                if len(xml_output.channelsource[index].program_data[self.chanid]) == 0:
+                    log('No Data from %s for channel: %s'% (xml_output.channelsource[index].source, self.chan_name))
+
+                if xml_data == False and self.source_data[index].is_set():
                     xml_data = True
                     self.all_programs = xml_output.channelsource[index].program_data[self.chanid][:]
 
-                elif self.source_data[index] == True:
+                elif self.source_data[index].is_set():
                     xml_data = True
                     xml_output.channelsource[index].merge_sources(self.chanid, ((self.opt_dict['prime_source'] == index) or (index == 4)), self.counter)
                     xml_output.channelsource[index].parse_programs(self.chanid, 1, 'None')
@@ -8220,22 +8246,21 @@ class Channel_Config(Thread):
             self.get_details()
 
             # Wait for all details being processed
-            while True:
-                time.sleep(2)
-                if self.quit:
-                    self.ready = True
-                    return
+            for index in (0, 1):
+                while not self.source_data[index].is_set():
+                    self.source_data[index].wait(5)
+                    if self.quit:
+                        self.ready = True
+                        return
 
-                # Check if the sources are still alive
-                for s in (0, 1):
-                    if not xml_output.channelsource[s].is_alive() and self.fetch_count[s] != 0:
-                        self.fetch_count[s] == 0
+                    # Check if the sources are still alive
+                    if not xml_output.channelsource[index].is_alive() and self.fetch_count[index] != 0:
+                        self.fetch_count[index] == 0
+                        self.source_data[index].set()
                         log('source: %s died.\n So we stop waiting for the pending details for channel %s/n' \
-                            % (xml_output.channelsource[s].source, self.chan_name))
+                            % (xml_output.channelsource[index].source, self.chan_name))
 
-                if self.fetch_count[0] == 0 and self.fetch_count[1] == 0:
-                    self.all_programs = self.detailed_programs
-                    break
+            self.all_programs = self.detailed_programs
 
             # And log the results
             config.log_lock.acquire()
@@ -8437,11 +8462,17 @@ class Channel_Config(Thread):
             detailed_program = None
             if p[xml_output.channelsource[0].detail_url] != '':
                 self.fetch_count[0]  += 1
+                if self.source_data[0].is_set():
+                    self.source_data[0].clear()
+
                 xml_output.channelsource[0].detail_queue.append({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
                 continue
 
             if detailed_program == None and p[xml_output.channelsource[1].detail_url] != '':
                 self.fetch_count[1]  += 1
+                if self.source_data[1].is_set():
+                    self.source_data[1].clear()
+
                 xml_output.channelsource[1].detail_queue.append({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
                 continue
 
