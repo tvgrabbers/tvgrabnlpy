@@ -7610,7 +7610,7 @@ class teveblad_HTML(FetchData):
                                     pass
 
         except:
-            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source, traceback.format_exc())], 0)
+            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source), traceback.format_exc()], 0)
 
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
