@@ -143,7 +143,8 @@ from threading import Event
 from threading import active_count
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
-from collections import deque
+#~ from collections import deque
+import Queue
 try:
     unichr(42)
 except NameError:
@@ -274,7 +275,7 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 10
-        self.patchdate = u'20150809'
+        self.patchdate = u'20150810'
         self.alfa = False
         self.beta = True
 
@@ -3286,7 +3287,7 @@ class FetchData(Thread):
         self.detail_url = detail_url
         self.detail_check = detail_check
         self.detail_processor = detail_processor
-        self.detail_queue = deque()
+        self.detail_queue = Queue.Queue()
 
         self.all_channels = {}
         self.channels = {}
@@ -3295,13 +3296,13 @@ class FetchData(Thread):
         self.program_data = {}
         self.program_by_id = {}
         self.chan_count = 0
-        self.fetch_count = {}
 
     def run(self):
         """The grabing thread"""
         # First some generic initiation that couldn't be done earlier in __init__
         # Specifics can be done in init_channels and init_json which are called here
         tdict = self.checkout_program_dict()
+        idle_timeout = 1800
         try:
             self.day_loaded[0] = {}
             for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
@@ -3310,7 +3311,6 @@ class FetchData(Thread):
             for chanid in config.channels.keys():
                 self.channel_loaded[chanid] = False
                 self.day_loaded[chanid] ={}
-                self.fetch_count[chanid] = 0
                 for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
                     self.day_loaded[chanid][day] = False
 
@@ -3349,21 +3349,20 @@ class FetchData(Thread):
                 self.cookyblock = False
                 lastrequest = datetime.datetime.now()
                 while True:
-                    # be nice to the source site
-                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
                     if self.quit:
                         self.ready = True
                         break
 
                     # If the queue is empty
-                    if len(self.detail_queue) == 0:
+                    if self.detail_queue.empty():
+                        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
                         # and if we are tvgids.tv we wait for followup requests from tvgids.nl failures
                         if (self.proc_id == 1) and xml_output.channelsource[0].is_alive():
                             continue
 
                         # Check if all channels are ready
                         for channel in config.channels.values():
-                            if channel.is_alive():
+                            if channel.is_alive() and not channel.detail_data.is_set():
                                 break
 
                         # All channels are ready, so if there is nothing in the queue
@@ -3372,13 +3371,13 @@ class FetchData(Thread):
                             break
 
                         # OK we have been sitting idle for 30 minutes, So we tell all channels they won get anything more!
-                        if (datetime.datetime.now() - lastrequest).total_seconds() > 1800:
-                            for channel in config.channels.values():
-                                if channel.is_alive() and channel.fetch_count[self.proc_id] != self.fetch_count[channel.chanid]:
-                                    self.fetch_count[channel.chanid] = channel.fetch_count[self.proc_id]
-                                    channel.source_data[self.proc_id].set()
-                                    log('Channel %s seems to be waiting for %s lost detail requests from %s.\nSetting it to zero\n' % \
-                                        (channel.chan_name, (channel.fetch_count[self.proc_id] - self.fetch_count[channel.chanid]), self.source))
+                        if (datetime.datetime.now() - lastrequest).total_seconds() > idle_timeout:
+                            if self.proc_id == 1:
+                                for channel in config.channels.values():
+                                    if channel.is_alive() and not channel.detail_data.is_set():
+                                        channel.detail_data.set()
+                                        log('Channel %s seems to be waiting for lost detail requests from %s.\nSetting it to ready\n' % \
+                                            (channel.chan_name, self.source))
 
                             self.ready = True
                             break
@@ -3387,12 +3386,28 @@ class FetchData(Thread):
                             continue
 
                     lastrequest = datetime.datetime.now()
-                    tdict = self.detail_queue.popleft()
+                    try:
+                        tdict = self.detail_queue.get()
+
+                    except Queue.Empty:
+                        continue
+
+                    parent = tdict['parent']
+                    if ('last_one' in tdict) and tdict['last_one']:
+                        if self.proc_id == 1:
+                            parent.detail_data.set()
+                            continue
+
+                        else:
+                            xml_output.channelsource[1].detail_queue.put(tdict)
+                            continue
+
                     cache_id = tdict['cache_id']
                     logstring = tdict['logstring']
-                    parent = tdict['parent']
                     tdict = tdict['tdict']
                     chanid = tdict['channelid']
+                    # be nice to the source site
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
                     if not self.cookyblock:
                         try:
                             detailed_program = self.load_detailpage(tdict)
@@ -3427,35 +3442,17 @@ class FetchData(Thread):
                                 tdict= parent.use_cache(tdict, cached_program)
                                 parent.detailed_programs.append(tdict)
                                 parent.cache_count += 1
-                                #~ parent.fetch_count[self.proc_id] -= 1
-                                self.fetch_count[chanid] +=1
-                                if parent.fetch_count[self.proc_id] == self.fetch_count[chanid]:
-                                    parent.source_data[self.proc_id].set()
-
                                 continue
 
                             elif tdict[xml_output.channelsource[1].detail_url] != '':
-                                xml_output.channelsource[1].detail_queue.append({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent})
+                                xml_output.channelsource[1].detail_queue.put({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent, 'last_one': False})
                                 parent.fetch_count[1] += 1
-                                if parent.source_data[1].is_set():
-                                    parent.source_data[1].release()
-
-                                #~ parent.fetch_count[self.proc_id] -= 1
-                                self.fetch_count[chanid] +=1
-                                if parent.fetch_count[self.proc_id] == self.fetch_count[chanid]:
-                                    parent.source_data[self.proc_id].set()
-
                                 continue
 
                         else:
                             log(u'[fetch failed or timed out] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
                             parent.detailed_programs.append(tdict)
                             parent.fail_count += 1
-                            #~ parent.fetch_count[self.proc_id] -= 1
-                            self.fetch_count[chanid] +=1
-                            if parent.fetch_count[self.proc_id] == self.fetch_count[chanid]:
-                                parent.source_data[self.proc_id].set()
-
                             continue
 
                     else:
@@ -3472,11 +3469,7 @@ class FetchData(Thread):
                         elif self.proc_id == 1:
                             log(u'   [.tv fetch] %s:(%3.0f%%) %s' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
 
-                        #~ parent.fetch_count[self.proc_id] -= 1
-                        self.fetch_count[chanid] +=1
                         parent.fetched_count[self.proc_id] += 1
-                        if parent.fetch_count[self.proc_id] == self.fetch_count[chanid]:
-                            parent.source_data[self.proc_id].set()
 
                         # do not cache programming that is unknown at the time of fetching.
                         if tdict['name'].lower() != 'onbekend':
@@ -5636,7 +5629,6 @@ class tvgids_JSON(FetchData):
 
         for chanid in self.channels.keys():
             if len(dl[chanid]) == 0:
-                #~ log('No data on tvgids.nl for channel:%s\n' % (config.channels[chanid].chan_name))
                 config.channels[chanid].source_data[self.proc_id].set()
                 continue
 
@@ -6378,7 +6370,6 @@ class tvgidstv_HTML(FetchData):
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
                     if len(self.program_data[chanid]) == 0:
-                        #~ log('No data for channel:%s on tvgids.tv\n' % (config.channels[chanid].chan_name))
                         config.channels[chanid].source_data[self.proc_id].set()
                         continue
 
@@ -7390,7 +7381,6 @@ class teveblad_HTML(FetchData):
                             strdata = u'<div><div>' + self.progdata.search(strdata).group(1)
                             htmldata = ET.fromstring(strdata.encode('utf-8'))
                             if htmldata.findtext('div/p') == "We don't have any events for this broadcaster":
-                                log('No data for channel:%s on teveblad.be\n' % (config.channels[chanid].chan_name))
                                 config.channels[chanid].source_data[self.proc_id].set()
                                 for i in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
                                     self.day_loaded[chanid][i] = None
@@ -7929,7 +7919,6 @@ class npo_HTML(FetchData):
         for chanid in self.channels.keys():
             self.channel_loaded[chanid] = True
             if len(self.program_data[chanid]) == 0:
-                #~ log('No data for channel:%s on npo.nl\n' % (config.channels[chanid].chan_name))
                 config.channels[chanid].source_data[self.proc_id].set()
                 continue
 
@@ -8143,7 +8132,6 @@ class npo_HTML(FetchData):
             self.parse_programs(chanid, 0, 'fill')
             config.channels[chanid].source_data[self.proc_id].set()
             if len(self.program_data) == 0:
-                #~ log('No data for channel:%s on npo.nl\n' % (config.channels[chanid].chan_name))
                 config.channels[chanid].source_data[self.proc_id].set()
                 continue
 
@@ -8166,6 +8154,7 @@ class Channel_Config(Thread):
 
         # Flags to indicate the data is in
         self.source_data = {}
+        self.detail_data = Event()
 
         # Flag to indicate all data is processed
         self.ready = False
@@ -8224,6 +8213,10 @@ class Channel_Config(Thread):
     def run(self):
 
         if not self.active:
+            for index in xml_output.source_order:
+                self.source_data[index].set()
+
+            self.detail_data.set()
             self.ready = True
             return
 
@@ -8233,6 +8226,7 @@ class Channel_Config(Thread):
             for index in xml_output.source_order:
                 if not (self.source_id[index] != '') and ((index != 4) or (index == 4 and self.opt_dict['use_npo'])):
                     # There is no ID for this source
+                    self.source_data[index].set()
                     continue
 
                 while not self.source_data[index].is_set():
@@ -8262,26 +8256,22 @@ class Channel_Config(Thread):
                         self.all_programs[i] = xml_output.channelsource[index].checkout_program_dict(self.all_programs[i])
 
             # And get the detailpages
-            if len(self.all_programs) > 0:
+            if len(self.all_programs) == 0:
+                self.detail_data.set()
+
+            else:
                 self.get_details()
+                while not self.detail_data.is_set():
+                    self.detail_data.wait(5)
+                    if self.quit:
+                        self.ready = True
+                        return
 
-                # Wait for all details being processed
-                for index in (0, 1):
-                    if (self.source_id[index] == '') or (self.fetch_count[index] == xml_output.channelsource[index].fetch_count[self.chanid]):
-                        continue
-
-                    while not self.source_data[index].is_set():
-                        self.source_data[index].wait(5)
-                        if self.quit:
-                            self.ready = True
-                            return
-
-                        # Check if the sources are still alive
-                        if not xml_output.channelsource[index].is_alive() and (self.fetch_count[index] != xml_output.channelsource[index].fetch_count[self.chanid]):
-                            xml_output.channelsource[index].fetch_count[self.chanid] = self.fetch_count[index]
-                            self.source_data[index].set()
-                            log('source: %s died.\n So we stop waiting for the pending details for channel %s/n' \
-                                % (xml_output.channelsource[index].source, self.chan_name))
+                    # Check if the sources are still alive
+                    if not (xml_output.channelsource[0].is_alive() or xml_output.channelsource[1].is_alive()):
+                        self.detail_data.set()
+                        log('sources: %s and %s died.\n So we stop waiting for the pending details for channel %s/n' \
+                            % (xml_output.channelsource[0].source, xml_output.channelsource[1].source, self.chan_name))
 
                 self.all_programs = self.detailed_programs
 
@@ -8301,8 +8291,8 @@ class Channel_Config(Thread):
                 log('%6.0f failures\n' % self.fail_count,4, 3, True)
                 log('%6.0f without detail info\n' % self.none_count, 4, 3, True)
                 log('\n', 4, 3, True)
-                log('%6.0f left in the tvgids.nl queue to process\n' % (len(xml_output.channelsource[0].detail_queue)), 4, 3, True)
-                log('%6.0f left in the tvgids.tv queue to process\n' % (len(xml_output.channelsource[1].detail_queue)), 4, 3, True)
+                log('%6.0f left in the tvgids.nl queue to process\n' % (xml_output.channelsource[0].detail_queue.qsize()), 4, 3, True)
+                log('%6.0f left in the tvgids.tv queue to process\n' % (xml_output.channelsource[1].detail_queue.qsize()), 4, 3, True)
 
             log('\n', 4, 3, True)
             config.log_lock.release()
@@ -8482,19 +8472,23 @@ class Channel_Config(Thread):
             detailed_program = None
             if p[xml_output.channelsource[0].detail_url] != '':
                 self.fetch_count[0]  += 1
-                if self.source_data[0].is_set():
-                    self.source_data[0].clear()
-
-                xml_output.channelsource[0].detail_queue.append({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
+                xml_output.channelsource[0].detail_queue.put({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self, 'last_one': False})
                 continue
 
             if detailed_program == None and p[xml_output.channelsource[1].detail_url] != '':
                 self.fetch_count[1]  += 1
-                if self.source_data[1].is_set():
-                    self.source_data[1].clear()
-
-                xml_output.channelsource[1].detail_queue.append({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
+                xml_output.channelsource[1].detail_queue.put({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self, 'last_one': False})
                 continue
+
+        # Place terminator items in the queue
+        if self.fetch_count[0] > 0:
+            xml_output.channelsource[0].detail_queue.put({'tdict':None, 'cache_id': None, 'logstring': None, 'parent': self, 'last_one': True})
+
+        elif self.fetch_count[1] > 0:
+            xml_output.channelsource[1].detail_queue.put({'tdict':None, 'cache_id': None, 'logstring': None, 'parent': self, 'last_one': True})
+
+        else:
+            self.detail_data.set()
 
     def title_split(self,program):
         """
@@ -9143,11 +9137,15 @@ def main():
         xml_output.program_cache.start()
 
         # Synchronize
-        for this_channel_thread in channel_threads:
-            this_channel_thread.join()
+        for index in (0, 1):
+            xml_output.channelsource[index].join()
 
         # Make sure the cache is saved
         xml_output.program_cache.quit = True
+
+        for channel in channel_threads:
+            if channel.is_alive():
+                channel.join()
 
         # produce the results and wrap-up
         config.write_defaults_list()
