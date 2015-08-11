@@ -1852,7 +1852,6 @@ class Configure:
             # use the provided name for configuration and logging
             self.config_file = self.args.config_file
             self.log_file = self.args.config_file+'.log'
-            log('Using config file: %s\n' % self.args.config_file)
 
         x = self.validate_option('config_file')
         if x != None:
@@ -3353,7 +3352,6 @@ class ProgramCache(Thread):
 
         while True:
             self.save.wait(5)
-            print 'ProgramCache'
             if self.quit:
                 log('Please wait!! While I save the Cache!!\n', 1)
                 self.dump()
@@ -3508,6 +3506,7 @@ class FetchURL(Thread):
         self.encoding = encoding
 
     def run(self):
+        xml_output.fetch_count += 1
         try:
             self.result = self.get_page_internal(self.url, self.encoding)
 
@@ -3603,6 +3602,9 @@ class FetchData(Thread):
         self.program_data = {}
         self.program_by_id = {}
         self.chan_count = 0
+        self.base_count = 0
+        self.detail_count = 0
+        self.fail_count = 0
 
     def run(self):
         """The grabing thread"""
@@ -3645,6 +3647,7 @@ class FetchData(Thread):
                 self.load_pages()
 
             except:
+                self.fail_count += 1
                 log(['Fatal Error processing the basepages from %s\n' % (self.source), \
                     'Setting them all to being loaded, to let the other sources finish the job\n', traceback.print_exc()], 0)
                 for chanid in self.channels.keys():
@@ -3724,9 +3727,12 @@ class FetchData(Thread):
                     if not self.cookyblock:
                         try:
                             detailed_program = self.load_detailpage(tdict)
+                            if detailed_program == None:
+                                self.fail_count += 1
 
                         except:
                             detailed_program = None
+                            self.fail_count += 1
                             log(['Error processing the detailpage: %s\n' % (tdict[self.detail_url]), traceback.print_exc()], 1)
 
                     else:
@@ -3736,9 +3742,12 @@ class FetchData(Thread):
                     if detailed_program == None and (self.proc_id == 0):
                         try:
                             detailed_program = self.load_json_detailpage(tdict)
+                            if detailed_program == None:
+                                self.fail_count += 1
 
                         except:
                             detailed_program = None
+                            self.fail_count += 1
                             log(['Error processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\n' \
                                 % tdict[self.detail_id][3:], traceback.print_exc()], 1)
 
@@ -3784,6 +3793,7 @@ class FetchData(Thread):
 
                         #~ parent.fetch_count[self.proc_id] -= 1
                         parent.fetched_count[self.proc_id] += 1
+                        self.detail_count += 1
 
                         # do not cache programming that is unknown at the time of fetching.
                         if tdict['name'].lower() != 'onbekend':
@@ -5914,9 +5924,11 @@ class tvgids_JSON(FetchData):
                 strdata = self.get_page(channel_url)
                 if strdata == None or strdata.replace('\n','') == '{}':
                     log("No data on tvgids.nl for day=%d\n" % (offset))
+                    self.fail_count += 1
                     continue
 
                 # Just let the json library parse it.
+                self.base_count += 1
                 for chanid, v in json.loads(strdata).iteritems():
                     # Most channels provide a list of program dicts, some a numbered dict
                     try:
@@ -6416,12 +6428,14 @@ class tvgidstv_HTML(FetchData):
         try:
             strdata = self.get_page(self.get_url())
             if strdata == None:
+                self.fail_count += 1
                 return
 
             strdata = self.clean_html('<div>' + self.getcontent.search(strdata).group(1)).encode('utf-8')
             htmldata = ET.fromstring(strdata)
 
         except:
+            self.fail_count += 1
             return None
 
         self.all_channels ={}
@@ -6577,11 +6591,13 @@ class tvgidstv_HTML(FetchData):
                             if strdata == None:
                                 log("Skip channel=%s on tvgids.tv, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
                                 failure_count += 1
+                                self.fail_count += 1
                                 continue
 
                         except:
                             log('Error: "%s" reading the tvgids.tv basepage for channel=%s, day=%d.\n' % (sys.exc_info()[1]))
                             failure_count += 1
+                            self.fail_count += 1
                             continue
 
 
@@ -6590,6 +6606,7 @@ class tvgidstv_HTML(FetchData):
                         if x == None:
                             log("Skip channel=%s on tvgids,tv, day=%d. Wrong date!\n" % (config.channels[chanid].chan_name, offset))
                             failure_count += 1
+                            self.fail_count += 1
                             continue
 
                         date_offset = x
@@ -6611,6 +6628,7 @@ class tvgidstv_HTML(FetchData):
                                 infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
 
                             failure_count += 1
+                            self.fail_count += 1
                             self.day_loaded[chanid][offset] = None
                             continue
 
@@ -6671,8 +6689,10 @@ class tvgidstv_HTML(FetchData):
                         except:
                             log(['Error processing tvgids.tv data for channel:%s day:%s\n' % \
                                 (config.channels[chanid].chan_name, offset), traceback.format_exc()])
+                            self.fail_count += 1
                             continue
 
+                        self.base_count += 1
                         self.day_loaded[chanid][offset] = True
                         # be nice to tvgids.tv
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
@@ -6925,6 +6945,7 @@ class rtl_JSON(FetchData):
             strdata = self.get_page(channel_url)
             if strdata == None or strdata.replace('\n','') == '{}':
                 log("Error loading rtl json data\n")
+                self.fail_count += 1
                 for chanid in self.channels.keys():
                     config.channels[chanid].source_data[self.proc_id].set()
 
@@ -6932,6 +6953,7 @@ class rtl_JSON(FetchData):
 
         # Just let the json library parse it.
         total = json.loads(strdata)
+        self.base_count += 1
         # and find relevant programming info
         schedules = total['schedule']
         for r in schedules:
@@ -7239,6 +7261,7 @@ class teveblad_HTML(FetchData):
         try:
             strdata = self.get_page(self.get_url())
             if strdata == None:
+                self.fail_count += 1
                 htmldata = self.read_channelfile()
                 if htmldata == None:
                     return None
@@ -7248,6 +7271,7 @@ class teveblad_HTML(FetchData):
                 htmldata = ET.fromstring(strdata)
 
         except:
+            self.fail_count += 1
             htmldata = self.read_channelfile()
             if htmldata == None:
                 return None
@@ -7284,11 +7308,15 @@ class teveblad_HTML(FetchData):
                 chan = item.get('href')
                 if chan != None:
                     chanid = re.split('/', chan)[-1]
-                    icon = item.find('img').get('src')
-                    icon = re.split('/', icon)
-                    icon = '%s/%s' % (icon[-2], icon[-1])
+                    i = item.find('img')
+                    icon = '' if i == None else i.get('src', '')
+                    if icon != '':
+                        icon = re.split('/', icon)
+                        icon = '%s/%s' % (icon[-2], icon[-1])
+
                     self.all_channels[chanid] = {}
-                    self.all_channels[chanid]['name'] = item.find('img').get('title')
+                    t = item.find('img')
+                    self.all_channels[chanid]['name'] = '' if t == None else t.get('title', '')
                     self.all_channels[chanid]['icon'] = icon
                     self.all_channels[chanid]['group'] = changroup
                     self.all_channels[chanid]['group_list'] = []
@@ -7389,11 +7417,13 @@ class teveblad_HTML(FetchData):
                         if strdata == None:
                             log("Skip %s page on teveblad.be, day=%d. No data!\n" % (group_page, offset))
                             failure_count += 1
+                            self.fail_count += 1
                             continue
 
                         if not self.check_date(self.datecheckdata.search(strdata), scan_date):
                             log("Skip group=%s on teveblad.be, day=%d. Wrong date!\n" % (group_page, offset))
                             failure_count += 1
+                            self.fail_count += 1
                             continue
 
                         # and extract the ElementTree
@@ -7411,8 +7441,10 @@ class teveblad_HTML(FetchData):
                                 infofiles.write_raw_string(unicode(strdata + u'\n'))
 
                             self.day_loaded[group_page][offset] = None
+                            self.fail_count += 1
                             continue
 
+                        self.base_count += 1
                         channel_cnt = 0
                         chan_list = {}
                         # Retrieve the available channels and add the wanted channels to the channel list
@@ -7653,11 +7685,13 @@ class teveblad_HTML(FetchData):
                     if strdata == None:
                         log("Skip channel=%s on teveblad.be, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
                         failure_count += 1
+                        self.fail_count += 1
                         continue
 
                     if not self.check_date(self.datecheckdata.search(strdata), scan_date):
                         log("Skip channel=%s on teveblad.be, day=%d. Wrong date!\n" % (config.channels[chanid].chan_name, offset))
                         failure_count += 1
+                        self.fail_count += 1
                         continue
 
                     # and extract the ElementTree
@@ -7679,8 +7713,10 @@ class teveblad_HTML(FetchData):
                             infofiles.write_raw_string(strdata + u'\n')
 
                         self.day_loaded[chanid][offset] = None
+                        self.fail_count += 1
                         continue
 
+                    self.base_count += 1
                     for p in htmldata.findall('div/div[@class="programme"]'):
                         tdict = self.checkout_program_dict()
                         p = p.find('div[@class="c"]')
@@ -8108,6 +8144,7 @@ class npo_HTML(FetchData):
             strdata = self.get_page(channel_url)
             if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
                 log("No data on npo.nl for day=%d\n" % (offset))
+                self.fail_count += 1
                 continue
 
             try:
@@ -8116,6 +8153,7 @@ class npo_HTML(FetchData):
 
             except:
                 log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
+                self.fail_count += 1
                 if config.write_info_files:
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                     infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
@@ -8123,6 +8161,7 @@ class npo_HTML(FetchData):
                 continue
 
             # First we check for a changed line-up
+            self.base_count += 1
             try:
                 startdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-start')
                 nextdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-end')
@@ -8232,6 +8271,7 @@ class npo_HTML(FetchData):
             strdata = self.get_page(channel_url)
             if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
                 log("No data on npo.nl for day=%d\n" % (offset))
+                self.fail_count += 1
                 continue
 
             try:
@@ -8240,6 +8280,7 @@ class npo_HTML(FetchData):
 
             except:
                 log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
+                self.fail_count += 1
                 if config.write_info_files:
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                     infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
@@ -8247,6 +8288,7 @@ class npo_HTML(FetchData):
                 continue
 
             # First we check for a changed line-up
+            self.base_count += 1
             try:
                 startdate = htmldata.find('div/div/div').get('data-start')
                 nextdate = htmldata.find('div/div/div').get('data-end')
@@ -8499,7 +8541,6 @@ class Channel_Config(Thread):
                 while not self.source_data[index].is_set():
                     # Wait till the event is set by the source, but check every 5 seconds for an unexpected break or wether the source is still alive
                     self.source_data[index].wait(5)
-                    print '%s waiting for %s base pages' % (self.chan_name, xml_output.channelsource[index].source)
                     if self.quit:
                         self.ready = True
                         return
@@ -8530,7 +8571,6 @@ class Channel_Config(Thread):
                 self.get_details()
                 while not self.detail_data.is_set():
                     self.detail_data.wait(5)
-                    print '%s waiting for details' % self.chan_name
                     if self.quit:
                         self.ready = True
                         return
@@ -8544,6 +8584,7 @@ class Channel_Config(Thread):
                 self.all_programs = self.detailed_programs
 
             # And log the results
+            xml_output.cache_count += self.cache_count
             xml_output.progress_counter+= 1
             counter = xml_output.progress_counter
             log_array = ['\n', 'Detail statistics for %s (channel %s of %s)\n' % (self.chan_name, counter, config.chan_count)]
@@ -8993,6 +9034,9 @@ class XMLoutput:
         self.channelsource[2] = rtl_JSON(2, 'rtl.nl', 'rtl-ID', 'rtl-url', True)
         self.channelsource[3] = teveblad_HTML(3, 'teveblad.be', 'be-ID', 'be-url')
         self.channelsource[4] = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
+        self.cache_count = 0
+        self.fetch_count = 0
+        self.program_count = 0
 
     def xmlescape(self, s):
         """Escape <, > and & characters for use in XML"""
@@ -9064,6 +9108,7 @@ class XMLoutput:
 
         else:
             chanidhd = chanid
+            self.program_count += len(config.channels[chanid].all_programs)
 
         self.xml_programs[chanidhd] = []
         config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
@@ -9416,15 +9461,28 @@ def main():
         end_time = datetime.datetime.now()
         duration = end_time - start_time
 
-        log(['\n', 'Execution complete. Summary of this run:\n', \
-            ' Start time: %s\n'% (start_time.strftime('%Y-%m-%d %H:%M')), \
-            '   End time: %s\n' % (end_time.strftime('%Y-%m-%d %H:%M')), \
-            '   Duration: %s\n' % (duration)],4)
+        log_array = ['\n', 'Execution complete.\n', '\n']
+        log_array.append('Fetch statistics for %s programms on %s channels:\n' % (xml_output.program_count, config.chan_count))
+        log_array.append(' Start time: %s\n'% (start_time.strftime('%Y-%m-%d %H:%M')))
+        log_array.append('   End time: %s\n' % (end_time.strftime('%Y-%m-%d %H:%M')))
+        log_array.append('   Duration: %s\n' % (duration))
+        log_array.append( '%6.0f pages fetched\n' % (xml_output.fetch_count))
+        log_array.append( '%6.0f cache hits\n' % (xml_output.cache_count))
+        log_array.extend([' Time/fetch: %s\n' % (duration/xml_output.fetch_count), '\n'])
+        for source in xml_output.channelsource.values():
+            log_array.append('%6.0f base pages fetched from %s\n' % (source.base_count, source.source))
+            if source.detail_processor:
+                log_array.append('%6.0f detail pages fetched from %s\n' % (source.detail_count, source.source))
+
+            log_array.extend(['%6.0f failures on %s\n' % (source.fail_count, source.source), '\n'])
+
+        log(log_array, 4, 3)
 
     except:
         log(['\n', 'An unexpected error has occured:\n', traceback.format_exc(), \
             '\n', 'If you want assistence, please attach your configuration and log files!\n', \
             '     %s\n' % (config.config_file), '     %s\n' % (config.log_file)],0)
+
         return(99)
 
     # and return success
