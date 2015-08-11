@@ -229,14 +229,19 @@ class Logging(Thread):
                 if self.quit and self.log_queue.empty():
                     return(0)
 
-                message = self.log_queue.get(True, 5)
-                if self.log_queue.empty():
+                try:
+                    message = self.log_queue.get(True, 5)
+
+                except Queue.Empty:
                     continue
 
                 if message == None:
                     continue
 
                 if isinstance(message, (str, unicode)):
+                    if message == 'Closing down\n':
+                        self.quit=True
+
                     self.writelog(message)
                     continue
 
@@ -246,7 +251,7 @@ class Logging(Thread):
                     if message[0] == None:
                         continue
 
-                    if message[0] == u'Closing down\n':
+                    if message[0] == 'Closing down\n':
                         self.quit = True
 
                     if isinstance(message[0], (str, unicode)):
@@ -332,8 +337,8 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150701'
-        self.alfa = False
+        self.patchdate = u'20150810'
+        self.alfa = True
         self.beta = True
 
         self.channels = {}
@@ -3109,17 +3114,13 @@ class Configure:
             xml_output.program_cache = None
 
         # close everything neatly
-        try:
-            if self.opt_dict['output_file'] != None:
-                self.output.close()
+        if self.opt_dict['output_file'] != None:
+            self.output.close()
 
-            log('Closing down\n')
-            logging.join()
-            if self.log_output != None:
-                self.log_output.close()
-
-        except:
-            pass
+        logging.log_queue.put('Closing down\n')
+        logging.join()
+        if self.log_output != None:
+            self.log_output.close()
 
     # end close()
 
@@ -3352,6 +3353,7 @@ class ProgramCache(Thread):
 
         while True:
             self.save.wait(5)
+            print 'ProgramCache'
             if self.quit:
                 log('Please wait!! While I save the Cache!!\n', 1)
                 self.dump()
@@ -8489,7 +8491,7 @@ class Channel_Config(Thread):
             xml_data = False
             # Retrieve and merge the data from the available sources.
             for index in xml_output.source_order:
-                if not (self.source_id[index] != '') and ((index != 4) or (index == 4 and self.opt_dict['use_npo'])):
+                if (self.source_id[index] == '') or (index in self.opt_dict['disable_source']) or (index in config.opt_dict['disable_source']):
                     # There is no ID for this source
                     self.source_data[index].set()
                     continue
@@ -8497,6 +8499,7 @@ class Channel_Config(Thread):
                 while not self.source_data[index].is_set():
                     # Wait till the event is set by the source, but check every 5 seconds for an unexpected break or wether the source is still alive
                     self.source_data[index].wait(5)
+                    print '%s waiting for %s base pages' % (self.chan_name, xml_output.channelsource[index].source)
                     if self.quit:
                         self.ready = True
                         return
@@ -8527,6 +8530,7 @@ class Channel_Config(Thread):
                 self.get_details()
                 while not self.detail_data.is_set():
                     self.detail_data.wait(5)
+                    print '%s waiting for details' % self.chan_name
                     if self.quit:
                         self.ready = True
                         return
@@ -9412,8 +9416,10 @@ def main():
         end_time = datetime.datetime.now()
         duration = end_time - start_time
 
-        log('\nExecution complete. Summary:\nStart time of this run: %s\nEnd time: %s\nDuration: %s \n' % \
-            (start_time.strftime('%Y-%m-%d %H:%M'), end_time.strftime('%Y-%m-%d %H:%M'), duration),4)
+        log(['\n', 'Execution complete. Summary of this run:\n', \
+            ' Start time: %s\n'% (start_time.strftime('%Y-%m-%d %H:%M')), \
+            '   End time: %s\n' % (end_time.strftime('%Y-%m-%d %H:%M')), \
+            '   Duration: %s\n' % (duration)],4)
 
     except:
         log(['\n', 'An unexpected error has occured:\n', traceback.format_exc(), \
