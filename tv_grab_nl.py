@@ -3353,7 +3353,7 @@ class FetchData(Thread):
                 self.cookyblock = False
                 lastrequest = datetime.datetime.now()
                 while True:
-                    print '%s: %s' % (self.source, self.detail_queue.qsize())
+                    log('%s thread with: %s in queue\n' % (self.source, self.detail_queue.qsize()),1024)
                     if self.quit:
                         self.ready = True
                         break
