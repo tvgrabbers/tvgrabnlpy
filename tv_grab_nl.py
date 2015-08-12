@@ -6322,6 +6322,15 @@ class tvgidstv_HTML(FetchData):
                             continue
 
                         try:
+                            if htmldata.find('div/a[@class]') == None:
+                                log(["No Programming for channel=%s, day=%d on tvgids.tv!\n" % (config.channels[chanid].chan_name, offset), \
+                                        "We assume further pages to be empty!\n"])
+
+                                for d in range((offset - 1), config.opt_dict['days']):
+                                    self.day_loaded[chanid][d] = None
+
+                                continue
+
                             for p in htmldata.findall('div/a[@class]'):
                                 tdict = self.checkout_program_dict()
                                 tdict['source'] = u'tvgidstv'
