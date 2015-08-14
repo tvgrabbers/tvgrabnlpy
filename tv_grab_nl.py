@@ -254,7 +254,7 @@ def log(message, log_level = 1, log_target = 3, Locked = False):
             config.log_lock.release()
 
     except:
-        print 'An error ocured while logging!'
+        print 'An error ocured while logging! %s' % message
         sys.stderr.write(now() + 'An error ocured while logging!\n')
         traceback.print_exc()
         if not Locked:
@@ -6323,8 +6323,8 @@ class tvgidstv_HTML(FetchData):
 
                         try:
                             if htmldata.find('div/a[@class]') == None:
-                                log(["No Programming for channel=%s, day=%d on tvgids.tv!\n" % (config.channels[chanid].chan_name, offset), \
-                                        "We assume further pages to be empty!\n"])
+                                log("No Programming for channel=%s, day=%d on tvgids.tv!\nWe assume further pages to be empty!\n" \
+                                % (config.channels[chanid].chan_name, offset))
 
                                 for d in range((offset - 1), config.opt_dict['days']):
                                     self.day_loaded[chanid][d] = None
