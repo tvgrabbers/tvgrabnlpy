@@ -128,7 +128,7 @@ description_text = """
 import re, sys, codecs, locale, argparse
 import time, random, io, json, shutil
 import os, os.path, curses, pickle
-import traceback, socket
+import traceback, socket, sqlite3
 try:
     import urllib.request as urllib
 except ImportError:
@@ -206,6 +206,92 @@ class UTCTimeZone(datetime.tzinfo):
 
 CET_CEST = AmsterdamTimeZone()
 UTC  = UTCTimeZone()
+
+def adapt_kw(val):
+    ret_val = ''
+    for k in val:
+        ret_val += k
+
+    return ret_val
+
+def convert_kw(val):
+    ret_val = []
+    for k in val:
+        ret_val.append(k)
+
+    return ret_val
+
+def adapt_bool(val):
+    if val:
+        return 'True'
+
+    elif val == None:
+        return 'None'
+
+    else:
+        return 'False'
+
+def convert_bool(val):
+    if val == 'True':
+        return True
+
+    elif val == 'False':
+        return False
+
+    else:
+        return None
+
+def adapt_datetime(val):
+    if isinstance(val, (datetime.datetime)):
+        return val.isoformat(' ')
+
+    if isinstance(val, (datetime.date,datetime.time)):
+        return val.isoformat()
+
+    else:
+        return ''
+
+def convert_datetime(val):
+    if not isinstance(val, (str, unicode)) or val == '':
+        return None
+
+    val = re.split(' ', val)
+    if len(val) == 2:
+        d = re.split('-', val[0])
+        t = re.split('\+', val[1])
+        tt = re.split(':', t[0])
+        if len(t) == 2 and (t[1] != '00:00'):
+            tz = CET_CEST
+
+        else:
+            tz = UTC
+
+        return datetime.datetime(int(d[0]), int(d[1]), int(d[2]), int(tt[0]), int(tt[1]), int(tt[2]), tzinfo = tz)
+
+    elif '-' in val[0]:
+        d = re.split('-', val[0])
+        return datetime.date(int(d[0]), int(d[1]), int(d[2]))
+
+    elif ':' in val[0]:
+        t = re.split('\+', val[0])
+        tt = re.split(':', t[0])
+        if len(t) == 2 and (t[1] != '00:00'):
+            tz = CET_CEST
+
+        else:
+            tz = UTC
+
+        return datetime.time(int(tt[0]), int(tt[1]), int(tt[2]), tzinfo = tz)
+
+    else:
+        return None
+
+sqlite3.register_adapter(list, adapt_kw)
+sqlite3.register_converter(str('kijkwijzer'), convert_kw)
+sqlite3.register_adapter(bool, adapt_bool)
+sqlite3.register_converter(str('boolean'), convert_bool)
+sqlite3.register_adapter(datetime, adapt_datetime)
+sqlite3.register_converter(str('datetime'), convert_datetime)
 
 config = None
 
@@ -337,7 +423,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150810'
+        self.patchdate = u'20150812'
         self.alfa = True
         self.beta = True
 
@@ -404,10 +490,6 @@ class Configure:
 
         # cache the detail information.
         self.program_cache_file = u'%s/program_cache' % self.xmltv_dir
-
-        # save the cache every # fetches
-        self.opt_dict['cache_save_interval'] = 1000
-
         self.clean_cache = True
         self.clear_cache = False
 
@@ -626,109 +708,109 @@ class Configure:
 
         self.source_channels ={}
         self.source_channels[0] = {}
-        # link to tvgids.nl for channels on tvgids.tv
-        self.source_channels[1] = {1: u'nederland-1',
-                                           2: u'nederland-2',
-                                           3: u'nederland-3',
-                                           4: u'rtl-4',
-                                           31: u'rtl-5',
-                                           46: u'rtl-7',
-                                           92: u'rtl-8',
-                                           36: u'sbs-6',
-                                           37: u'net-5',
-                                           34: u'veronica',
-                                           460: u'sbs-9',
-                                           440: u'fox',
-                                           29: u'discovery-channel',
-                                           305: u'discovery-world',
-                                           306: u'discovery-science',
-                                           414: u'investigation-discovery',
-                                           94: u'syfy',
-                                           439: u'animal-planet',
-                                           438: u'tlc',
-                                           18: u'national-geographic',
-                                           416: u'nat-geo-wild',
-                                           413: u'history',
-                                           25: u'mtv',
-                                           404: u'foxlife',
-                                           408: u'rtl-lounge',
-                                           99: u'sport1',
-                                           419: u'sport-1-3',
-                                           420: u'sport-1-extra',
-                                           19: u'eurosport',
-                                           436: u'eurosport-2',
-                                           148: u'eredivisie-live',
-                                           417: u'extreme-sports',
-                                           418: u'espn-classic',
-                                           24: u'film1.1',
-                                           411: u'film1-action',
-                                           39: u'film1-familiy',
-                                           107: u'film1-festival',
-                                           430: u'film1-series',
-                                           93: u'13th-street',
-                                           409: u'rtl-crime',
-                                           311: u'disney-xd',
-                                           424: u'disney-channel',
-                                           21: u'cartoon-network',
-                                           317: u'comedy-family',
-                                           91: u'comedy-central',
-                                           89: u'nickelodeon',
-                                           312: u'nick-jr',
-                                           410: u'101-tv',
-                                           66: u'humortv-24',
-                                           316: u'best-24',
-                                           70: u'cultura-24',
-                                           81: u'hollanddoc-24',
-                                           90: u'bvn',
-                                           403: u'goed-tv',
-                                           431: u'hbo',
-                                           432: u'hbo-2',
-                                           433: u'hbo-3',
-                                           435: u'24kitchen',
-                                           428: u'bravatv',
-                                           407: u'out-tv',
-                                           461: u'pebble-tv',
-                                           304: u'mgm',
-                                           5: u'een',
-                                           6: u'ketnet-canvas',
-                                           49: u'vtm',
-                                           59: u'2be',
-                                           60: u'vt4',
-                                           40: u'at-5',
-                                           115: u'l1-tv',
-                                           114: u'omroep-brabant',
-                                           113: u'omroep-flevoland',
-                                           109: u'omrop-fryslan',
-                                           112: u'omroep-gelderland',
-                                           116: u'omroep-zeeland',
-                                           110: u'rtv-drenthe',
-                                           108: u'rtv-noord',
-                                           103: u'rtv-noord-holland',
-                                           111: u'rtv-oost',
-                                           102: u'rtv-rijnmond',
-                                           100: u'rtv-utrecht',
-                                           101: u'rtv-west',
-                                           7: u'bbc-1',
-                                           8: u'bbc-2',
-                                           300: u'bbc-3',
-                                           301: u'bbc-4',
-                                           104: u'bbc-prime',
-                                           86: u'bbc-world',
-                                           26: u'cnn',
-                                           9: u'ard',
-                                           10: u'zdf',
-                                           11: u'rtl',
-                                           12: u'wdr-fernsehen',
-                                           13: u'ndr-fernsehen',
-                                           50: u'3sat',
-                                           38: u'arte',
-                                           58: u'pro-7',
-                                           28: u'sat-1',
-                                           17: u'tv-5',
-                                           15: u'rtbf-la-1',
-                                           16: u'rtbf-la-2',
-                                           32: u'trt-international',
-                                           20: u'tcm'}
+        # link to tvgids.nl for channels on tvgids.tv': '
+        self.source_channels[1] = {'1': 'nederland-1',
+                                           '2': 'nederland-2',
+                                           '3': 'nederland-3',
+                                           '4': 'rtl-4',
+                                           '31': 'rtl-5',
+                                           '46': 'rtl-7',
+                                           '92': 'rtl-8',
+                                           '36': 'sbs-6',
+                                           '37': 'net-5',
+                                           '34': 'veronica',
+                                           '460': 'sbs-9',
+                                           '440': 'fox',
+                                           '29': 'discovery-channel',
+                                           '305': 'discovery-world',
+                                           '306': 'discovery-science',
+                                           '414': 'investigation-discovery',
+                                           '94': 'syfy',
+                                           '439': 'animal-planet',
+                                           '438': 'tlc',
+                                           '18': 'national-geographic',
+                                           '416': 'nat-geo-wild',
+                                           '413': 'history',
+                                           '25': 'mtv',
+                                           '404': 'foxlife',
+                                           '408': 'rtl-lounge',
+                                           '99': 'sport1',
+                                           '419': 'sport-1-3',
+                                           '420': 'sport-1-extra',
+                                           '19': 'eurosport',
+                                           '436': 'eurosport-2',
+                                           '148': 'eredivisie-live',
+                                           '417': 'extreme-sports',
+                                           '418': 'espn-classic',
+                                           '24': 'film1.1',
+                                           '411': 'film1-action',
+                                           '39': 'film1-familiy',
+                                           '107': 'film1-festival',
+                                           '430': 'film1-series',
+                                           '93': '13th-street',
+                                           '409': 'rtl-crime',
+                                           '311': 'disney-xd',
+                                           '424': 'disney-channel',
+                                           '21': 'cartoon-network',
+                                           '317': 'comedy-family',
+                                           '91': 'comedy-central',
+                                           '89': 'nickelodeon',
+                                           '312': 'nick-jr',
+                                           '410': '101-tv',
+                                           '66': 'humortv-24',
+                                           '316': 'best-24',
+                                           '70': 'cultura-24',
+                                           '81': 'hollanddoc-24',
+                                           '90': 'bvn',
+                                           '403': 'goed-tv',
+                                           '431': 'hbo',
+                                           '432': 'hbo-2',
+                                           '433': 'hbo-3',
+                                           '435': '24kitchen',
+                                           '428': 'bravatv',
+                                           '407': 'out-tv',
+                                           '461': 'pebble-tv',
+                                           '304': 'mgm',
+                                           '5': 'een',
+                                           '6': 'ketnet-canvas',
+                                           '49': 'vtm',
+                                           '59': '2be',
+                                           '60': 'vt4',
+                                           '40': 'at-5',
+                                           '115': 'l1-tv',
+                                           '114': 'omroep-brabant',
+                                           '113': 'omroep-flevoland',
+                                           '109': 'omrop-fryslan',
+                                           '112': 'omroep-gelderland',
+                                           '116': 'omroep-zeeland',
+                                           '110': 'rtv-drenthe',
+                                           '108': 'rtv-noord',
+                                           '103': 'rtv-noord-holland',
+                                           '111': 'rtv-oost',
+                                           '102': 'rtv-rijnmond',
+                                           '100': 'rtv-utrecht',
+                                           '101': 'rtv-west',
+                                           '7': 'bbc-1',
+                                           '8': 'bbc-2',
+                                           '300': 'bbc-3',
+                                           '301': 'bbc-4',
+                                           '104': 'bbc-prime',
+                                           '86': 'bbc-world',
+                                           '26': 'cnn',
+                                           '9': 'ard',
+                                           '10': 'zdf',
+                                           '11': 'rtl',
+                                           '12': 'wdr-fernsehen',
+                                           '13': 'ndr-fernsehen',
+                                           '50': '3sat',
+                                           '38': 'arte',
+                                           '58': 'pro-7',
+                                           '28': 'sat-1',
+                                           '17': 'tv-5',
+                                           '15': 'rtbf-la-1',
+                                           '16': 'rtbf-la-2',
+                                           '32': 'trt-international',
+                                           '20': 'tcm'}
 
         # tvgids.tv subgenre to genre translation table
         self.tvtvcattrans = {'euromillions': 'Amusement',
@@ -770,61 +852,62 @@ class Configure:
 
         # channels for which to look on rtl.nl
         # RTLL = RTL Lounge, RTLT = RTL Telekids, RTCR = RTL Crime
-        self.source_channels[2] = {4: 'RTL4',
-                                    31: 'RTL5',
-                                    46: 'RTL7',
-                                    92: 'RTL8',
-                                    408: 'RTLL',
-                                    409: 'RTCR',
+        self.source_channels[2] = {'4': 'RTL4',
+                                    '31': 'RTL5',
+                                    '46': 'RTL7',
+                                    '92': 'RTL8',
+                                    '408': 'RTLL',
+                                    '409': 'RTCR',
                                     'rtl-telekids': 'RTLT'}
 
         # channels for which to look on teveblad.be
-        self.source_channels[3] = {5: 'een',
-                                            6: 'canvas',
-                                            1: 'npo-1',
-                                            2: 'npo-2',
-                                            3: 'npo-3',
-                                            49: 'vtm',
-                                            60: 'vier',
-                                            59: '2be',
-                                            18: 'national-geographic',
-                                            4: 'rtl4',
-                                            31: 'rtl5',
-                                            36: 'sbs6',
-                                            20: 'tcm',
-                                            21: 'cartoon-network',
-                                            19: 'eurosport',
-                                            89: 'nickelodeonnl',
-                                            90: 'bvn-tv',
-                                            15: 'la-une',
-                                            16: 'la-deux',
-                                            17: 'tv5',
-                                            7: 'bbc1-nl',
-                                            8: 'bbc2-nl',
-                                            300: 'bbc3-nl',
-                                            301: 'bbc4-nl',
-                                            104: 'bbc-entertainment',
-                                            26: 'cnn',
-                                            86: 'bbc-world',
-                                            9: 'ard',
-                                            10: 'zdf',
-                                            12: 'wdr',
-                                            11: 'rtl',
-                                            305: 'discovery-world',
-                                            306: 'discovery-science',
-                                            438: 'tlc',
-                                            439: 'animal',
-                                            413: 'historychannel',
-                                            417: 'extreme',
-                                            461: 'pebbletv',
-                                            424: 'disneychannel',
-                                            94: 'syfy',
-                                            93: '13th-street',
-                                            304: 'mgmmoviechannel',
-                                            404: 'foxlife',
-                                            436: 'eurosport-2',
-                                            38: 'arte',
-                                            25: 'mtv',
+        self.source_channels[3] = {'5': 'een',
+                                            '6': 'canvas',
+                                            '1': 'npo-1',
+                                            '2': 'npo-2',
+                                            '3': 'npo-3',
+                                            '49': 'vtm',
+                                            '60': 'vier',
+                                            '59': '2be',
+                                            '18': 'national-geographic',
+                                            '4': 'rtl4',
+                                            '31': 'rtl5',
+                                            '36': 'sbs6',
+                                            '20': 'tcm',
+                                            '21': 'cartoon-network',
+                                            '19': 'eurosport',
+                                            '89': 'nickelodeonnl',
+                                            '90': 'bvn-tv',
+                                            '15': 'la-une',
+                                            '16': 'la-deux',
+                                            '17': 'tv5',
+                                            '7': 'bbc1-nl',
+                                            '8': 'bbc2-nl',
+                                            '300': 'bbc3-nl',
+                                            '301': 'bbc4-nl',
+                                            '104': 'bbc-entertainment',
+                                            '26': 'cnn',
+                                            '86': 'bbc-world',
+                                            '9': 'ard',
+                                            '10': 'zdf',
+                                            '12': 'wdr',
+                                            '11': 'rtl',
+                                            '305': 'discovery-world',
+                                            '306': 'discovery-science',
+                                            '438': 'tlc',
+                                            '439': 'animal',
+                                            '413': 'historychannel',
+                                            '417': 'extreme',
+                                            '461': 'pebbletv',
+                                            '424': 'disneychannel',
+                                            '94': 'syfy',
+                                            '93': '13th-street',
+                                            '304': 'mgmmoviechannel',
+                                            '404': 'foxlife',
+                                            '436': 'eurosport-2',
+                                            '38': 'arte',
+                                            '25': 'mtv',
+                                            'ketnet-canvas-2': 'ketnet',
                                             'discovery-vlaanderen': 'discovery',
                                             'vijftv': 'vijf',
                                             'op12': 'op12',
@@ -983,6 +1066,203 @@ class Configure:
 
         self.npo_fill = 'Programmainfo en Reclame'
 
+        # channels for which to look on horizon.tv
+        self.source_channels[5] = {'1': u'24443942983',
+                                           '2': u'24443942987',
+                                           '3': u'24443943037',
+                                           '66': u'24443943064',
+                                           '70': u'24443943108',
+                                           '81': u'24443943160',
+                                           '316': u'24443943102',
+                                           '410': u'24443943148',
+                                           'journaal-24': u'24443943149',
+                                           'politiek-24': u'24443943152',
+                                           'zappelin': u'564193831242',
+                                           '4': u'24443943096',
+                                           '31': u'24443943146',
+                                           '46': u'24443943014',
+                                           '92': u'24443943182',
+                                           '408': u'24443943060',
+                                           '409': u'24443943033',
+                                           'rtl-telekids': u'24443943100',
+                                           '36': u'24443943184',
+                                           '37': u'24443943091',
+                                           '34': u'24443943190',
+                                           '460': u'566369831211',
+                                           '440': u'120746535305',
+                                           '5': u'24443943058',
+                                           '6': u'555680807173',
+                                           'ketnet-canvas-2': u'24443943087',
+                                           '40': u'24443943004',
+                                           '100': u'24443943078',
+                                           '101': u'24443943071',
+                                           '102': u'24443943075',
+                                           '103': u'24443943063',
+                                           '108': u'24443943192',
+                                           '109': u'24443943144',
+                                           '110': u'24443943187',
+                                           '111': u'24443943043',
+                                           '112': u'24443943141',
+                                           '113': u'24443943001',
+                                           '114': u'24443943069',
+                                           '115': u'24443943061',
+                                           '116': u'24443943178',
+                                           '7': u'24443942999',
+                                           '8': u'560453158983',
+                                           '26': u'561138215261',
+                                           '86': u'24443943049',
+                                           '104': u'24443943099',
+                                           '300': u'24443943013',
+                                           '301': u'24443943080',
+                                           '9': u'429332519216',
+                                           '10': u'429332519214',
+                                           '11': u'555680807174',
+                                           '12': u'24443943112',
+                                           '13': u'24443943105',
+                                           '38': u'24443943121',
+                                           '435': u'540738087345',
+                                           'amc': u'563391527030',
+                                           '439': u'24443943106',
+                                           '428': u'24443943156',
+                                           '21': u'24443943186',
+                                           '317': u'565790759340',
+                                           '91': u'24443943012',
+                                           '306': u'24443943097',
+                                           '305': u'24443943084',
+                                           '29': u'24443943009',
+                                           '424': u'24443942993',
+                                           'disney-junior': u'541838374997',
+                                           '311': u'24443943086',
+                                           '413': u'540738087343',
+                                           '404': u'560453158985',
+                                           '414': u'24443943110',
+                                           'jimjam': u'24443942995',
+                                           '25': u'24443943006',
+                                           '416': u'540738087344',
+                                           '18': u'24443943035',
+                                           '312': u'24443942992',
+                                           '89': u'542836775318',
+                                           '461': u'560453158987',
+                                           '438': u'562458663437',
+                                           '17': u'24443943054',
+                                           '19': u'24443943029',
+                                           '436': u'561138215257',
+                                           '417': u'24443943122',
+                                           '148': u'119414823233',
+                                           'eredivisie-live-2': u'119414823227',
+                                           'eredivisie-live-3': u'119414823235',
+                                           'eredivisie-live-4': u'119414823230',
+                                           'fox-sports-5-eredivisie': u'555680807172',
+                                           '99': u'24443943161',
+                                           '419': u'24443943140',
+                                           'sport-1-2': u'24443943164',
+                                           'sport-1-extra-1': u'40301607426',
+                                           'sport1-extra-2': u'24443943189',
+                                           'sport1-racing': u'24443943143',
+                                           '411': u'24443943173',
+                                           '39': u'540738087342',
+                                           '24': u'562458663436',
+                                           '430': u'153935399225',
+                                           '107': u'185866791162',
+                                           '431': u'540738087341',
+                                           '432': u'555680807176',
+                                           '433': u'560453158986',
+                                           '32': u'24443943081',
+                                           '313': u'24443943095',
+                                           '315': u'24443943111',
+                                           '406': u'24443943124',
+                                           '415': u'564193831244',
+                                           '422': u'24443943027',
+                                           '423': u'561138215259',
+                                           '427': u'24443943136',
+                                           '429': u'24443943188',
+                                           '434': u'24443943019',
+                                           '437': u'24443943077',
+                                           '462': u'24443943072',
+                                           'tv-e': u'24443942991'}
+                                           #~ '': u'100% NL TV 606274087100',
+                                           #~ '': u'192TV 24443943155',
+                                           #~ '': u'2M 606274087098',
+                                           #~ '': u'Aljazeera 565790759345',
+                                           #~ '': u'Baby TV 561138215256',
+                                           #~ '': u'CNBC Europe 24443943051',
+                                           #~ '': u'CCTV News 544430119366',
+                                           #~ '': u'CI 561793575034',
+                                           #~ '': u'DJAZZ.tv 560453158982',
+                                           #~ '': u'DanceTrippin 24443943025',
+                                           #~ '': u'Family7 24443943174',
+                                           #~ '': u'Fashion TV 24443943044',
+                                           #~ '': u'Horse & Country TV 606274087102',
+                                           #~ '': u'MBC 565790759344',
+                                           #~ '': u'MTV Live 606274087099',
+                                           #~ '': u'MTV Music 24 24443943214',
+                                           #~ '': u'Mediaset Italia 555680807175',
+                                           #~ '': u'Mezzo 24443943129',
+                                           #~ '': u'Motors TV 24443943016',
+                                           #~ '': u'MyZen 24443943145',
+                                           #~ '': u'Nick Hits 24443943216',
+                                           #~ '': u'Nicktoons 24443942994',
+                                           #~ '': u'RT 529739815221',
+                                           #~ '': u'RTV-7 24443943118',
+                                           #~ '': u'SLAMTV 24443943138',
+                                           #~ '': u'Sat. 1 24443942986',
+                                           #~ '': u'Stingray LiteTV 24443943150',
+                                           #~ '': u'TV538 561138215258',
+                                           #~ '': u'TVM Europe 647417383035',
+                                           #~ '': u'The Indonesian Channel 544216614964',
+                                           #~ '': u'VH1 Classic 24443943039',
+                                           #~ '': u'XITE 24443943028',
+                                           #~ '': u'FOX Sports 6 606274087106',
+                                           #~ '': u'Zender van de Maand 24443943085',
+                                           #~ '': u'SET Asia 606274087104',
+                                           #~ '': u'STAR Gold 429332519213',
+                                           #~ '': u'STAR Plus 24443943030',
+                                           #~ '': u'Zee Cinema 24443943185',
+                                           #~ '': u'Zee TV 24443943023',
+                                           #~ '': u'Zing 564193831245',
+                                           #~ '': u'ATV Avrupa 24443943153',
+                                           #~ '': u'Euro D 24443943109',
+                                           #~ '': u'Euro Star 24443943092',
+                                           #~ '': u'Kral TV 606274087105',
+                                           #~ '': u'Samanyolu Avrupa 24443943090',
+                                           #~ '': u'Show TV 606274087101',
+                                           #~ '': u'Planet TÃŒrk 606274087103',
+                                           #~ '': u'HabertÃŒrk 24443942998',
+                                           #~ '': u'TGRT EU 560453158988',
+                                           #~ '': u'Brazzers TV Europe 330522663235',
+                                           #~ '': u'MvH Hard 457547303396',
+                                           #~ '': u'MvH Soft 541628455136',
+                                           #~ '': u'PassieXXX 24443943083',
+                                           #~ '': u'Penthouse 606274087107',
+                                           #~ '': u'X-MO 24443943126',
+                                           #~ '': u'OUTTV 545453607330',
+                                           #~ '': u'OUTTV 545453607331',
+
+                                           #~ 'Omrop Fryslân': u'Omrop FryslÃ¢n 24443943144',
+                                           #~ '': u'Planet TÃŒrk 606274087103',
+                                           #~ '': u'HabertÃŒrk 24443942998',
+                                           #~ '': u'TRT TÃŒrk 24443943081',
+                                           #~ '': u'Ã©Ã©n 24443943058',
+
+                                           #~ '': u'Dummy 565790759338',
+                                           #~ '': u'Erotiek Still 615722023372',
+                                           #~ '': u'Eventkanaal 24443943133',
+                                           #~ '': u'FOX Sports Info 614261799194',
+                                           #~ '': u'Testbeeld 24443943135',
+                                           #~ '': u'Ziggo TV 123063846982',
+                                           #~ '': u'Ziggo Zenderoverzicht 614261799193',
+                                           #~ '': u'Ziggo Live Events 624196647052',
+                                           #~ '': u'Ziggo Live Events FOX Sports 635928103346',
+                                           #~ '': u'Ziggo Live Events FOX Sports 635928103347',
+                                           #~ '': u'Ziggo Live Events FOX Sports 635928103348',
+                                           #~ '': u'Ziggo Live Events FOX Sports 635928103349',
+                                           #~ '': u'Ziggo Live Events FOX Sports 635928103351',
+                                           #~ '': u'Ziggo Live Events Sport1 112676391039',
+                                           #~ '': u'Ziggo Live Events Sport1 155550759273',
+                                           #~ '': u'Ziggo Live Events Sport1 24443942974',
+                                           #~ '': u'Ziggo Live Events Sport1 24443942980',
+                                           #~ '': u'Ziggo Live Events Sport1 635928103350',
+                                           #~ '': u'Ziggo Live Events Sport1 635928103352',
         #Channel group names as used in tvgids.tv
         self.chan_groups = {1: 'Nederlands',
                                           2: 'Vlaams',
@@ -993,7 +1273,8 @@ class Configure:
                                           7: 'Nederlands Overig',
                                           8: 'Vlaams Overig',
                                           9: 'Internationaal',
-                                         10: 'Overig'}
+                                         10: 'Overig',
+                                         11: 'Temp'}
 
         self.group_names = {1: 'Nederlandse kanalen',
                                           2: 'Vlaamse kanalen',
@@ -1243,7 +1524,7 @@ class Configure:
 
         parser.add_argument('-S', '--cache-save-interval', type = int, default = None, dest = 'cache_save_interval',
                         metavar = '<number>',
-                        help = 'after how many fetches to save the cache <Default %s>' % self.opt_dict['cache_save_interval'])
+                        help = 'This option is deprecated>')
 
         parser.add_argument('--clean_cache', action = 'store_true', default = self.clean_cache, dest = 'clean_cache',
                         help = 'clean the cache of outdated data before fetching')
@@ -1443,7 +1724,7 @@ class Configure:
 
                     # Integer Values
                     elif cfg_option in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', \
-                      'tevedays', 'max_overlap', 'desc_length', 'cache_save_interval', 'disable_source', 'disable_detail_source'):
+                      'tevedays', 'max_overlap', 'desc_length', 'disable_source', 'disable_detail_source'):
                         try:
                             cfg_value = int(cfg_value)
 
@@ -1546,7 +1827,7 @@ class Configure:
 
             else:
                 # unknown chanid or channelname
-                log('Channel section "%s" ignored. Unknown channel/n' % c)
+                log('Channel section "%s" ignored. Unknown channel/n' % section)
                 continue
 
             for line in values:
@@ -1740,6 +2021,8 @@ class Configure:
             'discovery-science', 'sport-10', 'culture-7', 'espn', 'pebbletv', 'lacht', '13th-street', \
             'live!tv', 'stories', 'op12', 'actua-tv', 'espn-america', 'swr', '', 'mtv', 'tmf', 'cultuur-7')
         empty_channels[4] = []
+        empty_channels[5] = ['Dummy', 'Erotiek Still', 'Dummy', 'Eventkanaal', 'FOX Sports Info', 'Testbeeld', \
+            'Ziggo Zenderoverzicht HD', 'Ziggo TV', 'Ziggo Live Events FOX Sports', 'Ziggo Live Events Sport1']
         # download the json feed
         xml_output.channelsource[0].init_channels()
         xml_output.channelsource[0].get_channels()
@@ -1763,7 +2046,7 @@ class Configure:
                     self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.gif'
 
         # Get the other sources
-        for index in (1, 3, 2, 4):
+        for index in (1, 3, 5, 2, 4):
             xml_output.channelsource[index].init_channels()
             xml_output.channelsource[index].get_channels()
             reverse_channels = {}
@@ -1796,6 +2079,10 @@ class Configure:
                     self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[index].all_channels[chanid]['name'])
                     self.channels[chanid].source_id[index] = chanid
                     self.channels[chanid].group = xml_output.channelsource[index].all_channels[chanid]['group']
+                    if index == 5:
+                        self.channels[chanid].icon_source = 5
+                        self.channels[chanid].icon = xml_output.channelsource[index].all_channels[chanid]['icon']
+
                     if index == 3:
                         self.channels[chanid].icon_source = 2
                         self.channels[chanid].icon = xml_output.channelsource[index].all_channels[chanid]['icon']
@@ -1813,6 +2100,10 @@ class Configure:
 
             # mark HD channels
             if channel.chan_name[-3:].lower() == ' hd':
+                channel.opt_dict['mark_hd'] = True
+
+            if channel.source_id[5] != '' and channel.source_id[5] in xml_output.channelsource[5].all_channels \
+              and xml_output.channelsource[5].all_channels[channel.source_id[5]]['HD']:
                 channel.opt_dict['mark_hd'] = True
 
             if channel.source_id[3] != '' and channel.source_id[3] in xml_output.channelsource[3].all_channels \
@@ -1896,7 +2187,6 @@ class Configure:
 
         self.offset = self.opt_dict['offset']
         for (a, o) in ((self.args.use_utc, 'use_utc'), \
-                              (self.args.cache_save_interval, 'cache_save_interval'), \
                               (self.args.offset, 'offset'), \
                               (self.args.days, 'days'), \
                               (self.args.tevedays, 'tevedays'), \
@@ -2224,6 +2514,7 @@ class Configure:
             if self.program_cache_file.lower() == 'none' or self.program_cache_file == None:
                 self.program_cache_file = None
                 xml_output.program_cache = ProgramCache(self.program_cache_file)
+                xml_output.program_cache.start()
                 return
 
             try:
@@ -2247,11 +2538,12 @@ class Configure:
                 return(2)
 
             xml_output.program_cache = ProgramCache(self.program_cache_file)
+            xml_output.program_cache.start()
             if self.args.clean_cache:
-                xml_output.program_cache.clean()
+                xml_output.program_cache.cache_request.put({'task':'clean'})
 
             if self.args.clear_cache:
-                xml_output.program_cache.clear()
+                xml_output.program_cache.cache_request.put({'task':'clear'})
 
         elif option == 'slowdays':
             if channel == None:
@@ -2331,7 +2623,6 @@ class Configure:
         log_array.append(u'match log level = %s' % (self.opt_dict['match_log_level']))
         log_array.append(u'config_file = %s' % (self.config_file))
         log_array.append(u'program_cache_file = %s' % (self.args.program_cache_file))
-        log_array.append(u'cache_save_interval = %s' % (self.opt_dict['cache_save_interval']))
         log_array.append(u'clean_cache = %s' % (self.args.clean_cache))
         log_array.append(u'clear_cache = %s' % (self.args.clear_cache))
         log_array.append(u'output_file = %s' % (self.opt_dict['output_file']))
@@ -2391,25 +2682,27 @@ class Configure:
                 log_array.append(u'  append_tvgidstv = False\n')
 
             src_id = chan_def.opt_dict['prime_source']
-            for index in range(xml_output.source_count):
-                if chan_def.source_id[index] != '':
+            if src_id != -1:
+                for index in range(xml_output.source_count):
+                    if chan_def.source_id[index] != '':
+                        if src_id != index:
+                            if not chan_name_written:
+                                log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
+                                chan_name_written = True
+
+                            log_array.append(u'  prime_source = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
+
+                        break
+
+            src_id = chan_def.opt_dict['prefered_description']
+            if src_id != -1:
+                if src_id in chan_def.source_id.keys() and chan_def.source_id[src_id] != '':
                     if src_id != index:
                         if not chan_name_written:
                             log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
                             chan_name_written = True
 
-                        log_array.append(u'  prime_source = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
-
-                    break
-
-            src_id = chan_def.opt_dict['prefered_description']
-            if src_id in chan_def.source_id.keys() and chan_def.source_id[src_id] != '':
-                if src_id != index:
-                    if not chan_name_written:
-                        log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                        chan_name_written = True
-
-                    log_array.append(u'  prefered_description = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
+                        log_array.append(u'  prefered_description = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
 
             if chan_def.opt_dict['add_hd_id']:
                 if not chan_name_written:
@@ -2488,7 +2781,6 @@ class Configure:
         f.write(u'\n')
         f.write(u'quiet = %s\n' % self.opt_dict['quiet'])
         f.write(u'output_file = %s\n' % self.opt_dict['output_file'])
-        f.write(u'cache_save_interval = %s\n' % self.opt_dict['cache_save_interval'])
         for index in range(xml_output.source_count):
             if index in self.opt_dict['disable_source']:
                 f.write(u'disable_source = %s\n' % index)
@@ -3101,20 +3393,27 @@ class Configure:
             log(['\n', 'An unexpected error has occured closing infofiles: %s\n' %  (sys.exc_info()[1])], 0)
 
         # Quiting any remaining Threads
-        for source in xml_output.channelsource.values():
-            source.quit = True
+            for source in xml_output.channelsource.values():
+                if source.is_alive():
+                    source.cache_return.put('quit')
+                    source.quit = True
 
-        for channel in config.channels.values():
-            channel.quit = True
+            for channel in self.channels.values():
+                if channel.is_alive():
+                    channel.cache_return.put('quit')
+                    channel.quit = True
 
-        if xml_output.program_cache != None:
-            xml_output.program_cache.quit = True
-            xml_output.program_cache.join()
+        if xml_output.program_cache != None and xml_output.program_cache.is_alive():
+            xml_output.program_cache.cache_request.put({'task':'quit'})
             xml_output.program_cache = None
 
         # close everything neatly
         if self.opt_dict['output_file'] != None:
-            self.output.close()
+            try:
+                self.output.close()
+
+            except:
+                pass
 
         logging.log_queue.put('Closing down\n')
         if logging.is_alive():
@@ -3277,9 +3576,6 @@ class InfoFiles:
 # end InfoFiles
 infofiles = InfoFiles()
 
-# Work in progress, the idea is to cache program categories and
-# descriptions to eliminate a lot of page fetches from tvgids.nl
-# for programs that do not have interesting/changing descriptions
 class ProgramCache(Thread):
     """
     A cache to hold program name and category info.
@@ -3294,137 +3590,238 @@ class ProgramCache(Thread):
         Create a new ProgramCache object, optionally from file
         """
         self.ID_list = ('ID','nl-ID','tv-ID','rtl-ID','be-ID', 'npo-ID')
+        xml_output.channelsource[0].checkout_program_dict()
+        self.field_list = ['genre', 'kijkwijzer']
+        self.field_list.extend( xml_output.channelsource[0].text_values)
+        self.field_list.extend( xml_output.channelsource[0].date_values)
+        self.field_list.extend( xml_output.channelsource[0].bool_values)
+        self.field_list.extend( xml_output.channelsource[0].num_values)
+        self.field_list.extend( xml_output.channelsource[0].video_values)
         # where we store our info
         self.filename  = filename
-        self.delta_hour = datetime.timedelta(hours = 1)
         self.quit = False
-        self.save_the_cache = Event()
-        self.cache_lock = Lock()
-        self.counter = 0
+        self.cache_request = Queue.Queue()
 
+    def open_cache(self):
         if self.filename == None:
             log('Cache function disabled!\n')
-            self.pdict = {}
+            return
 
-        else:
-            if os.path.isfile(self.filename +'.tmp'):
-                # Trying to recover a backup cache file
-                if os.path.isfile(filename):
-                    if os.stat(self.filename +'.tmp').st_size > os.stat(self.filename).st_size:
-                        try:
-                            os.remove(self.filename)
-                            os.rename(self.filename + '.tmp', self.filename)
+        if os.path.isfile(self.filename +'.db'):
+            # There is already a db file
+            self.load_db()
+            return
 
-                        except:
-                            pass
+        # Check the directory
+        if not os.path.exists(os.path.dirname(self.filename)):
+            try:
+                os.makedirs(os.path.dirname(self.filename), 0755)
+                self.create_table
+                return
 
-                    else:
-                        try:
-                            os.remove(self.filename + '.tmp')
+            except:
+                log('The cache directory is not accesible. Cache function disabled!\n')
+                self.filename = None
+                return
 
-                        except:
-                            pass
-
-                else:
+        self.create_table()
+        # Check for an old cache file to convert
+        if os.path.isfile(self.filename +'.tmp'):
+            # Trying to recover a backup cache file
+            if os.path.isfile(self.filename):
+                if os.stat(self.filename +'.tmp').st_size > os.stat(self.filename).st_size:
                     try:
+                        os.remove(self.filename)
                         os.rename(self.filename + '.tmp', self.filename)
 
                     except:
                         pass
 
-            if os.path.isfile(filename):
-                self.load()
+                else:
+                    try:
+                        os.remove(self.filename + '.tmp')
 
-            elif not os.path.exists(os.path.dirname(filename)):
-                try:
-                    os.makedirs(os.path.dirname(filename), 0755)
-
-                except:
-                    log('Cache function disabled!\n')
-                    self.filename = None
-
-                self.pdict = {}
+                    except:
+                        pass
 
             else:
-                self.pdict = {}
+                try:
+                    os.rename(self.filename + '.tmp', self.filename)
+
+                except:
+                    pass
+
+        if os.path.isfile(self.filename):
+            self.load_old()
 
     def run(self):
-        if self.filename == None:
-            return
-
+        self.open_cache()
         while True:
-            self.save_the_cache.wait(5)
-            if self.quit:
-                log('Please wait!! While I save the Cache!!\n', 1)
-                self.dump()
+            if self.quit and self.cache_request.empty():
+                self.pconn.close()
                 break
 
-            if self.save_the_cache.is_set():
-                self.dump()
-                self.save_the_cache.clear()
+            try:
+                crequest = self.cache_request.get(True, 5)
 
-    def load(self):
+            except Queue.Empty:
+                continue
+
+            if (not isinstance(crequest, dict)) or (not 'task' in crequest):
+                continue
+
+            if crequest['task'] == 'query_id':
+                if not 'parent' in crequest:
+                    continue
+
+                if self.filename == None or (not 'program' in crequest):
+                    pid = None
+
+                else:
+                    pid = self.query_id(crequest['program'])
+
+                crequest['parent'].cache_return.put(pid)
+                continue
+
+            if crequest['task'] == 'query':
+                if not 'parent' in crequest:
+                    continue
+
+                if self.filename == None or (not 'pid' in crequest):
+                    program = None
+
+                else:
+                    program = self.query(crequest['pid'])
+
+                crequest['parent'].cache_return.put(program)
+                continue
+
+            if self.filename == None:
+                continue
+
+            if crequest['task'] == 'add':
+                if not 'program' in crequest:
+                    continue
+
+                self.add(crequest['program'])
+                continue
+
+            if crequest['task'] == 'clear':
+                self.clear()
+                continue
+
+            if crequest['task'] == 'clean':
+                self.clean()
+                continue
+
+            if crequest['task'] == 'quit':
+                self.quit = True
+                continue
+
+    def create_table(self):
+        self.load_db()
+        create_string = "CREATE table programs ('pid' TEXT PRIMARY KEY, 'genre' TEXT"
+        for key in xml_output.channelsource[0].text_values:
+            create_string = "%s, '%s' text" % (create_string, key)
+
+        for key in xml_output.channelsource[0].date_values:
+            create_string = "%s, '%s' datetime" % (create_string, key)
+
+        for key in xml_output.channelsource[0].bool_values:
+            create_string = "%s, '%s' boolean" % (create_string, key)
+
+        for key in xml_output.channelsource[0].num_values:
+            create_string = "%s, '%s' integer" % (create_string, key)
+
+        for key in xml_output.channelsource[0].video_values:
+            create_string = "%s, '%s' boolean" % (create_string, key)
+
+        create_string = "%s, 'kijkwijzer' kijkwijzer)" % create_string
+        #~ create_string = "%s, 'kijkwijzer' KIJKWIJZER, INDEX ('stop-time'))" % create_string
+
+        with self.pconn:
+            self.pconn.execute(create_string)
+            self.pconn.execute("CREATE table credits ('pid' TEXT, 'title' TEXT, 'name' TEXT)")
+            #~ self.pconn.execute("CREATE table credits ('pid' TEXT INDEX, 'title' TEXT, 'name' TEXT)")
+            #~ self.pconn.commit()
+
+    def load_db(self):
+        """
+        Opens a sqlite cache db
+        """
+        try:
+            self.pconn = sqlite3.connect(database=self.filename + '.db', isolation_level=None, detect_types=sqlite3.PARSE_DECLTYPES)
+            #, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES
+            self.pconn.row_factory = sqlite3.Row
+
+        except:
+            log(['Error loading cache db: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
+
+    def load_old(self):
         """
         Loads a pickled cache dict from file
         """
-        with self.cache_lock:
-            try:
-                self.pdict = pickle.load(open(self.filename,'r'))
-
-            except:
-                log(['Error loading cache file: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
-                self.clear()
-
-    def dump(self):
-        """
-        Dumps a pickled cache, and makes sure it is valid
-        """
-
-        with self.cache_lock:
-            pdict_tmp = self.pdict.copy()
-            self.counter = 0
-
-        if os.access(self.filename, os.F_OK):
-            try:
-                os.rename(self.filename, self.filename + '.tmp')
-
-            except:
-                log('Cannot rename %s, check permissions\n' % self.filename)
-
-        tmpfile = open(self.filename, 'w')
-        pickle.dump(pdict_tmp, tmpfile)
-        pdict_tmp = None
         try:
-            tmpfile.close()
+            pdict = pickle.load(open(self.filename,'r'))
 
-        except IOError:
-            pass
+        except:
+            log(['Error loading old cache file: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
+            return
 
-        if os.access(self.filename +'.tmp', os.F_OK):
-            try:
-                os.remove(self.filename +'.tmp')
+        dnow = datetime.date.today()
+        log(['Converting the old pickle cache to sqlite.\n', 'This may take some time!\n'])
+        pcount = 0
+        for p in pdict.values():
+            if 'stop-time'  in p and 'name'  in p and \
+                    p['stop-time'].date() >= dnow and \
+                    type(p['name']) == unicode and \
+                    p['name'].lower() != 'onbekend':
 
-            except:
-                log('Cannot remove %s, check permissions\n' % self.filename +'.tmp')
+                self.add(p)
+                pcount += 1
 
+        log('Added %s program records to the database.\n' % pcount)
 
     def query(self, program_id):
         """
         Updates/gets/whatever.
         """
-        with self.cache_lock:
-            if program_id in self.pdict.keys():
-                return self.pdict[program_id]
+        pcursor = self.pconn.cursor()
+        pcursor.execute("SELECT * FROM programs WHERE pid = ?", (program_id,))
+        r = pcursor.fetchone()
+        if r == None:
+            return
 
-        return None
+        program = xml_output.channelsource[0].checkout_program_dict()
+        for item in r.keys():
+            if item == 'pid':
+                continue
+
+            elif item in xml_output.channelsource[0].video_values:
+                program['video'][item] = r[item]
+
+            else:
+                program[item] = r[item]
+
+        pcursor.execute("SELECT * FROM credits WHERE pid = ?", (program_id,))
+        for r in pcursor.fetchall():
+            if not r[str('title')] in program['credits'].keys():
+                program['credits'][r[str('title')]] = []
+
+            program['credits'][r[str('title')]].append(r[str('name')])
+
+        program = xml_output.channelsource[0].checkout_program_dict(program)
+        return program
 
     def query_id(self, program):
         """
         Check which ID is used
         """
-        with self.cache_lock:
-            for id in self.ID_list:
-                if program[id] != '' and program[id] != None and program[id] in self.pdict.keys():
+        for id in self.ID_list:
+            if program[id] != '' and program[id] != None:
+                pcursor = self.pconn.cursor()
+                pcursor.execute("SELECT pid FROM programs WHERE pid = ?", (program[id],))
+                if pcursor.fetchone() != None:
                     return id
 
         return None
@@ -3434,22 +3831,39 @@ class ProgramCache(Thread):
         Adds a program
         """
         # First check if it was previously saved to prevent doubles
-        if self.filename == None:
-            return
-
         id = self.query_id(program)
-        with self.cache_lock:
-            if id != None and id in program and program[id] in self.pdict.keys():
-                del self.pdict[program[id]]
+        if id != None and id in program:
+            with self.pconn:
+                self.pconn.execute("DELETE FROM programs WHERE pid = ?", (program[id],))
+                self.pconn.execute("DELETE FROM credits WHERE pid = ?", (program[id],))
+                #~ self.pconn.commit()
 
-            for id in self.ID_list:
-                if program[id] != '' and program[id] != None:
-                    self.pdict[program[id]] = program
-                    self.counter+= 1
-                    if self.counter >= config.opt_dict['cache_save_interval']:
-                        self.counter = 0
-                        self.save_the_cache.set()
+        for id in self.ID_list:
+            if program[id] != '' and program[id] != None:
+                sql_flds = "INSERT INTO programs ('pid'"
+                sql_cnt = 'VALUES (?'
+                sql_vals = [program[id]]
+                for f, v in program.items():
+                    if f in self.field_list:
+                        sql_flds = "%s, '%s'" % (sql_flds, f)
+                        sql_cnt = '%s, ?' % (sql_cnt)
+                        sql_vals.append(v)
 
+                for f, v in program['video'].items():
+                    sql_flds = "%s, '%s'" % (sql_flds, f)
+                    sql_cnt = '%s, ?' % (sql_cnt)
+                    sql_vals.append(v)
+
+                add_string = '%s) %s)' % (sql_flds, sql_cnt)
+                with self.pconn:
+                    self.pconn.execute(add_string, tuple(sql_vals))
+                    credits = []
+                    for f, v in program['credits'].items():
+                        credits.append((program[id], f, v))
+
+                    self.pconn.executemany("INSERT INTO credits (pid, title, name) VALUES (?, ?, ?)", credits)
+
+                    #~ self.pconn.commit()
                     return
 
         log('Error saving program %s to the cache.\n' %  program['name'])
@@ -3458,31 +3872,23 @@ class ProgramCache(Thread):
         """
         Clears the cache (i.e. empties it)
         """
-        with self.cache_lock:
-            self.pdict = {}
+        with self.pconn:
+            self.pconn.execute("TRUNCATE TABLE programs")
+            self.pconn.execute("TRUNCATE TABLE credits")
+            #~ self.pconn.commit()
 
     def clean(self):
         """
         Removes all cached programming before today.
         Also removes erroneously cached programming.
         """
-        if self.filename == None:
-            return
-
-        dnow = datetime.date.today()
-        with self.cache_lock:
-            for key in self.pdict.keys():
-                try:
-                    p = self.pdict[key]
-                    if 'stop-time' not in p or 'name' not in p or \
-                            self.pdict[key]['stop-time'].date() < dnow or \
-                            type(p['name']) != unicode or \
-                            self.pdict[key]['name'].lower() == 'onbekend':
-
-                        del self.pdict[key]
-
-                except LookupError:
-                    continue
+        dnow = datetime.date.today().isoformat()
+        with self.pconn:
+            self.pconn.execute("DELETE FROM programs WHERE 'stop-time' < ?", (dnow,))
+            #~ self.pconn.commit()
+        with self.pconn:
+            self.pconn.execute("DELETE FROM credits WHERE NOT EXISTS (SELECT * FROM programs WHERE programs.pid = credits.pid)")
+            #~ self.pconn.commit()
 
 # end ProgramCache
 
@@ -3586,7 +3992,8 @@ class FetchData(Thread):
         self.detail_url = detail_url
         self.detail_check = detail_check
         self.detail_processor = detail_processor
-        self.detail_queue = Queue.Queue()
+        self.detail_request = Queue.Queue()
+        self.cache_return = Queue.Queue()
         self.source_lock = Lock()
 
         self.all_channels = {}
@@ -3665,7 +4072,7 @@ class FetchData(Thread):
                         break
 
                     # If the queue is empty
-                    if self.detail_queue.empty():
+                    if self.detail_request.empty():
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
                         # and if we are tvgids.tv we wait for followup requests from tvgids.nl failures
                         if (self.proc_id == 1) and xml_output.channelsource[0].is_alive():
@@ -3698,7 +4105,7 @@ class FetchData(Thread):
 
                     lastrequest = datetime.datetime.now()
                     try:
-                        tdict = self.detail_queue.get()
+                        tdict = self.detail_request.get()
 
                     except Queue.Empty:
                         continue
@@ -3710,7 +4117,7 @@ class FetchData(Thread):
                             continue
 
                         else:
-                            xml_output.channelsource[1].detail_queue.put(tdict)
+                            xml_output.channelsource[1].detail_request.put(tdict)
                             continue
 
                     cache_id = tdict['cache_id']
@@ -3748,8 +4155,13 @@ class FetchData(Thread):
 
                     if detailed_program == None:
                         if (self.proc_id == 0) and (cache_id != None):
-                            cached_program = xml_output.program_cache.query(tdict[cache_id])
-                            if cached_program[xml_output.channelsource[1].detail_check]:
+                            xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': tdict[cache_id]})
+                            cached_program = self.cache_return.get(True)
+                            if cached_program == 'quit':
+                                self.ready = True
+                                break
+
+                            if cached_program != None and cached_program[xml_output.channelsource[1].detail_check]:
                                 log(u'      [cached] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
                                 tdict= parent.use_cache(tdict, cached_program)
                                 parent.detailed_programs.append(tdict)
@@ -3758,9 +4170,9 @@ class FetchData(Thread):
                                 continue
 
                             elif xml_output.channelsource[1].detail_processor and \
-                              1 not in parent.opt_dict['disable_detail_source'] and \
-                              tdict[xml_output.channelsource[1].detail_url] != '':
-                                xml_output.channelsource[1].detail_queue.put({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent, 'last_one': False})
+                                    1 not in parent.opt_dict['disable_detail_source'] and \
+                                    tdict[xml_output.channelsource[1].detail_url] != '':
+                                xml_output.channelsource[1].detail_request.put({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent, 'last_one': False})
                                 parent.update_counter('fetch', 1)
                                 parent.update_counter('fetch', self.proc_id, False)
                                 continue
@@ -3792,7 +4204,7 @@ class FetchData(Thread):
 
                         # do not cache programming that is unknown at the time of fetching.
                         if tdict['name'].lower() != 'onbekend':
-                            xml_output.program_cache.add(xml_output.channelsource[0].checkout_program_dict(detailed_program))
+                            xml_output.program_cache.cache_request.put({'task':'add', 'parent': self, 'program': xml_output.channelsource[0].checkout_program_dict(detailed_program)})
 
             else:
                 self.ready = True
@@ -3813,12 +4225,15 @@ class FetchData(Thread):
 
             self.ready = True
             for source in xml_output.channelsource.values():
-                source.quit = True
+                if source.is_alive():
+                    source.cache_return.put('quit')
+                    source.quit = True
 
             for channel in config.channels.values():
-                channel.quit = True
+                if channel.is_alive():
+                    channel.cache_return.put('quit')
+                    channel.quit = True
 
-            xml_output.program_cache.quit = True
             return(98)
 
     # Dummys to be filled in by the sub-Classes
@@ -3886,6 +4301,7 @@ class FetchData(Thread):
         # description                   jd hd               hd         j              h hd
         # rerun                                hd                            j              h hd
         # jaar van premiere             hd              hd                        h hd
+        # airdate
         # country                                                                           h hd
         # originaltitle                                                                     h hd
 
@@ -3913,23 +4329,23 @@ class FetchData(Thread):
         #       blackwhite                hd
 
 
-        text_values = ('source', 'channel', 'unixtime', 'prefered description', \
+        self.text_values = ('source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
-              'rtl-ID', 'npo-ID', 'nl-url', 'tv-url', 'rtl-url', 'be-url', 'npo-url',  \
-              'infourl', 'audio', 'star-rating', 'country', 'omroep')
-        date_values = ('start-time', 'stop-time')
-        bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst', \
+              'rtl-ID', 'npo-ID', 'horizon-ID', 'nl-url', 'tv-url', 'rtl-url', 'be-url', 'npo-url',  \
+              'horizon-url', 'infourl', 'audio', 'star-rating', 'country', 'omroep')
+        self.date_values = ('start-time', 'stop-time', 'airdate')
+        self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst', \
               'new', 'last-chance', 'premiere')
-        num_values = ('channelid', 'season', 'episode', 'offset')
-        dict_values = ('credits', 'video')
-        list_values = ('kijkwijzer', )
-        video_values = ('HD', 'breedbeeld', 'blackwhite')
+        self.num_values = ('channelid', 'season', 'episode', 'offset')
+        self.dict_values = ('credits', 'video')
+        self.list_values = ('kijkwijzer', )
+        self.video_values = ('HD', 'breedbeeld', 'blackwhite')
 
         if tdict == None:
             tdict = {}
 
-        for key in text_values:
+        for key in self.text_values:
             if not key in tdict.keys() or tdict[key] == None:
                 tdict[key] = u''
 
@@ -3940,26 +4356,26 @@ class FetchData(Thread):
             except UnicodeError:
                 tdict[key] = u''
 
-        for key in date_values:
+        for key in self.date_values:
             if not key in tdict.keys() or tdict[key] == None:
                 tdict[key] = u''
 
         if not 'genre' in tdict.keys() or tdict['genre'] == None or tdict['genre'] == '':
             tdict['genre'] = u'overige'
 
-        for key in bool_values:
+        for key in self.bool_values:
             if not key in tdict.keys() or tdict[key] != True:
                 tdict[key] = False
 
-        for key in num_values:
+        for key in self.num_values:
             if not key in tdict.keys() or tdict[key] == None or tdict[key] == '':
                 tdict[key] = u'0'
 
-        for key in dict_values:
+        for key in self.dict_values:
             if not key in tdict.keys() or not isinstance(tdict[key], dict):
                 tdict[key] = {}
 
-        for key in list_values:
+        for key in self.list_values:
             if not key in tdict.keys() or not isinstance(tdict[key], list):
                 tdict[key] = []
 
@@ -3975,7 +4391,7 @@ class FetchData(Thread):
                 except UnicodeError:
                     tdict['credits'][subkey][i] = u''
 
-        for subkey in video_values:
+        for subkey in self.video_values:
             if not subkey in tdict['video'].keys() or  tdict['video'][subkey] != True:
                 tdict['video'][subkey] = False
 
@@ -7041,7 +7457,7 @@ class rtl_JSON(FetchData):
                     tdict['kijkwijzer'].append('1')
 
                 for k in ('g', 'a', 's', 't', 'h', 'd'):
-                    if 'k' in nicam:
+                    if k in nicam:
                         tdict['kijkwijzer'].append(k)
 
                 with self.source_lock:
@@ -8471,6 +8887,272 @@ class npo_HTML(FetchData):
 
 # end npo_HTML()
 
+class horizon_JSON(FetchData):
+    """
+    Get all available days of programming for the requested channels
+    from the horizon.tv json pages. Based on FetchData
+    """
+    def init_channels(self):
+        # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
+        self.channels = {}
+        self.url_channels = ''
+
+        for chanid, channel in config.channels.iteritems():
+            self.program_data[chanid] = []
+            if channel.active and channel.source_id[self.proc_id] != '':
+                self.channels[chanid] = channel.source_id[self.proc_id]
+                #~ if self.url_channels == '':
+                    #~ self.url_channels = channel.source_id[self.proc_id]
+
+                #~ else:
+                    #~ self.url_channels  = '%s,%s' % (self.url_channels, channel.source_id[self.proc_id])
+
+    def init_json(self):
+
+        self.json_by_id = {}
+        self.jsondata = {}
+        self.jsondict = {}
+        #~ self.jsondict['abstracts'] = {}
+        #~ self.jsondict['seasons'] = {}
+        #~ self.jsondict['episodes'] = {}
+        #~ self.jsondata = {'abstract_name': {'listname':'abstracts','keyname':'abstract_key','valuename':'name'}, \
+                                   #~ 'season':                {'listname':'seasons','keyname':'season_key','valuename':'season_number'}, \
+                                   #~ 'season_name':      {'listname':'seasons','keyname':'season_key','valuename':'name'}, \
+                                   #~ 'episode':              {'listname':'episodes','keyname':'episode_key','valuename':'episode_number'}, \
+                                   #~ 'episode_name':    {'listname':'episodes','keyname':'episode_key','valuename':'name'}, \
+                                   #~ 'description':      {'listname':'episodes','keyname':'episode_key','valuename':'synopsis'}, \
+                                   #~ 'nicam':                  {'listname':'episodes','keyname':'episode_key','valuename':'nicam'}}
+
+    def get_url(self, type = 'channels', channel = 0, start = 0, end = 0):
+
+        horizon = 'https://www.horizon.tv/oesp/api/NL/nld/web/'
+
+        if type == 'channels':
+            return  u'%schannels/' % (horizon)
+
+        elif type == 'day':
+            return '%slistings?byStationId=%s&byStartTime=%s~%s&sort=startTime' % (horizon, channel, start, end)
+
+    def get_channels(self):
+        """
+        Get a list of all available channels and store these
+        in all_channels.
+        """
+
+        # download the json feed
+        total = self.get_page(self.get_url())
+        if total == None:
+            log("Don't write configuration file\n")
+            return 69  # EX_UNAVAILABLE
+
+        channel_list = json.loads(total)
+
+        # and create a file with the channels
+        self.all_channels ={}
+        for channel in channel_list['channels']:
+            for schedule in channel['stationSchedules']:
+                chanid = schedule['station']['id']
+                self.all_channels[chanid] = {}
+                self.all_channels[chanid]['group'] = 11
+                self.all_channels[chanid]['name'] = self.unescape(schedule['station']['title']).strip()
+                if self.all_channels[chanid]['name'][-3:] == ' HD':
+                    self.all_channels[chanid]['name'] = self.all_channels[chanid]['name'][:-3].strip()
+
+                self.all_channels[chanid]['HD'] = schedule['station']['isHd']
+                for icon in schedule['station']['images']:
+                    if icon['assetType'] == 'station-logo-large' and icon['url'] != '':
+                        icon = re.split('/', icon['url'])
+                        self.all_channels[chanid]['icon'] = '%s/%s/%s' % (icon[-3], icon[-2], icon[-1])
+                        break
+
+    def load_pages(self):
+        feature_list = []
+        mediatype = []
+        cats = []
+        def get_datetime(val):
+            stime = time.localtime(int(val)/1000)
+            return datetime.datetime(stime[0], stime[1], stime[2], stime[3], stime[4], stime[5],tzinfo = CET_CEST)
+
+        if config.opt_dict['offset'] > 7:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+
+            return
+
+        if len(self.channels) == 0 :
+            return
+
+        try:
+            channel_cnt = 0
+            for chanid in self.channels.keys():
+                channel_cnt += 1
+                page_count = 0
+                if self.quit:
+                    return
+
+                channel = self.channels[chanid]
+                # Maximum 100 programs are returned. So we try to get all and reset start to the endtime of the last
+                start = datetime.date.fromordinal(self.current_date + config.opt_dict['offset'])
+                start = int(time.mktime((start.year,start.month,start.day,0,0,0,0,0,-1)))*1000
+                end = start + (86400000 * config.opt_dict['days'])
+                while True:
+                    if self.quit:
+                        return
+
+                    if end <= start:
+                        break
+
+                    page_count += 1
+                    log(['\n', 'Now fetching %s(xmltvid=%s%s) from horizon.tv\n' % \
+                        (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                        '    (channel %s of %s) for %s days, page %s.\n' % \
+                        ( channel_cnt, len(self.channels), config.opt_dict['days'], page_count)], 2)
+
+                    channel_url = self.get_url('day', channel, start, end)
+
+                    # get the raw programming for the day
+                    strdata = self.get_page(channel_url)
+                    if strdata == None or strdata.replace('\n','') == '{}':
+                        log("No data on horizon.tv channel%s page=%d\n" % (config.channels[chanid].chan_name, page_count))
+                        self.fail_count += 1
+                        continue
+
+                    # Just let the json library parse it.
+                    program_list = json.loads(strdata)
+                    self.base_count += 1
+                    for item in program_list['listings']:
+                        if not 'program' in item:
+                            continue
+
+                        if item['program']['title'] == 'Zender verstrekt geen informatie':
+                            start = end
+                            break
+
+                        for f in item['program']:
+                            if f not in ('id', 'mediaGroupId', 'listingId', 'currentProductIds', 'currentTvodProductIds', \
+                              'entitlements', 'languageCode', 'countryCode', 'deviceCode', 'medium','images', 'videoStreams', 'videos', \
+                              'title', 'secondaryTitle', 'seriesEpisodeNumber', 'description',  'shortDescription',  'longDescription', \
+                              'duration', 'year', 'airDate', 'latestBroadcastStartTime', 'latestBroadcastEndTime', 'isReplayTv', \
+                              'mediaType', 'categories', 'cast', 'directors', 'isAdult', 'parentalRating') and not f in feature_list:
+                                feature_list.append(f)
+
+                        if 'mediaType' in item['program'] and not item['program']['mediaType'] in mediatype:
+                            mediatype.append(item['program']['mediaType'])
+
+                        tdict = self.checkout_program_dict()
+                        if (item['imi'] != '') and (item['imi'] != None):
+                            tdict[self.detail_id] = u'ho-%s' % (item['imi'][4:])
+                            self.json_by_id[tdict[self.detail_id]] = item
+                            tdict['ID'] = tdict[self.detail_id]
+
+                        tdict['source'] = self.source
+                        tdict['channelid'] = chanid
+                        tdict['channel']  = config.channels[chanid].chan_name
+                        #~ tdict[self.detail_url] = self.get_url(type= 'detail', id = item['db_id'])
+
+                        # The Title
+                        tdict['name'] = self.unescape(item['program']['title'])
+                        tdict = self.check_title_name(tdict)
+                        if  tdict['name'] == None or tdict['name'] == '':
+                            log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                            continue
+
+                        # The timing
+                        tdict['start-time'] = get_datetime(item['startTime'])
+                        tdict['stop-time']  = get_datetime(item['endTime'])
+                        if tdict['start-time'] == None or tdict['stop-time'] == None:
+                            continue
+
+                        tdict['offset'] = self.get_offset(tdict['start-time'])
+                        start = item['endTime']
+                        tdict['titel aflevering'] = item['program']['secondaryTitle'] if 'secondaryTitle' in item['program'] else ''
+                        ep = int(item['program']['seriesEpisodeNumber']) if 'seriesEpisodeNumber' in item['program'] else 0
+                        tdict['episode'] =  u'0' if ep > 1000 else str(ep)
+
+                        shortdesc = item['program']['shortDescription'] if 'shortDescription' in item['program'] else ''
+                        tdict['description'] = item['program']['description'] if 'description' in item['program'] else shortdesc
+                        tdict['airdate'] = get_datetime(item['program']['airdate']) if 'airdate' in item['program'] else ''
+                        tdict['jaar van premiere'] = item['program']['year'] if 'year' in item['program'] else ''
+                        if 'cast' in item['program'] and item['program']['cast'] != []:
+                            tdict['credits']['actor'] = item['program']['cast']
+
+                        if 'directors' in item['program'] and item['program']['directors'] != []:
+                            tdict['credits']['director'] = item['program']['directors']
+
+                        if 'IMDb rating:' in tdict['description']:
+                            d = re.split('IMDb rating:', tdict['description'])
+                            tdict['description'] = d[0].strip()
+                            tdict['star-rating'] = re.split('/', d[1])[0].strip()
+
+                        tdict['rerun'] = True if 'latestBroadcastStartTime' in item['program'] and item['startTime'] != item['program']['latestBroadcastStartTime'] else False
+
+                        #~ for c in item['program']['categories']:
+                            #~ c = {c['id']: c['title']}
+                            #~ if not c in cats:
+                                #~ cats.append(c)
+
+                        if config.write_info_files:
+                            for c in item['program']['categories']:
+                                infofiles.addto_detail_list(unicode('new horizon categorie => ' + c['id'] + ': ' + c['title']))
+
+                       #mediaType: Episode, FeatureFilm
+                        #~ if 'categories' in item['program']:
+                            #~ tdict[''] = item['program']['']
+
+                        #~ if '' in item['program']:
+                            #~ tdict[''] = item['program']['']
+
+
+
+                        #~ tdict['genre'] = self.unescape(item['genre']) if ('genre' in item and item['genre'] != None) else ''
+                        #~ tdict['subgenre'] = self.unescape(item['soort']) if ('soort' in item and item['soort'] != None) else ''
+                        #~ if  ('kijkwijzer' in item and not (item['kijkwijzer'] == None or item['kijkwijzer'] == '')):
+                            #~ for k in item['kijkwijzer']:
+                                #~ if k in config.kijkwijzer.keys() and k not in tdict['kijkwijzer']:
+                                    #~ tdict['kijkwijzer'].append(k)
+
+                        self.program_by_id[tdict[self.detail_id]] = tdict
+                        with self.source_lock:
+                            self.program_data[chanid].append(tdict)
+
+                        #~ config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
+
+
+
+                    # be nice to teveblad.be
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+                with self.source_lock:
+                    for tdict in self.program_data[chanid]:
+                        self.program_by_id[tdict[self.detail_id]] = tdict
+
+
+                # If all went well or it's the last try we set them loaded
+                self.channel_loaded[chanid] = True
+                self.parse_programs(chanid, 0, 'None')
+                config.channels[chanid].source_data[self.proc_id].set()
+
+                try:
+                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+                except:
+                    pass
+
+            print feature_list
+            print mediatype
+            print cats
+
+        except:
+            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source), traceback.format_exc()], 0)
+
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+            return None
+
+# end horizon_JSON
+
 class Channel_Config(Thread):
     """
     Class that holds the Channel definitions and manages the data retrieval and processing
@@ -8483,6 +9165,7 @@ class Channel_Config(Thread):
         # Flags to indicate the data is in
         self.source_data = {}
         self.detail_data = Event()
+        self.cache_return = Queue.Queue()
         self.channel_lock = Lock()
 
         # Flag to indicate all data is processed
@@ -8625,8 +9308,8 @@ class Channel_Config(Thread):
                 log_array.append('%6.0f failure(s)\n' % self.counters['fail'])
                 log_array.append('%6.0f without detail info\n' % self.counters['none'])
                 log_array.append('\n')
-                log_array.append('%6.0f left in the tvgids.nl queue to process\n' % (xml_output.channelsource[0].detail_queue.qsize()))
-                log_array.append('%6.0f left in the tvgids.tv queue to process\n' % (xml_output.channelsource[1].detail_queue.qsize()))
+                log_array.append('%6.0f left in the tvgids.nl queue to process\n' % (xml_output.channelsource[0].detail_request.qsize()))
+                log_array.append('%6.0f left in the tvgids.tv queue to process\n' % (xml_output.channelsource[1].detail_request.qsize()))
 
             log_array.append('\n')
             log(log_array, 4, 3)
@@ -8664,12 +9347,15 @@ class Channel_Config(Thread):
 
             self.ready = True
             for source in xml_output.channelsource.values():
-                source.quit = True
+                if source.is_alive():
+                    source.cache_return.put('quit')
+                    source.quit = True
 
             for channel in config.channels.values():
-                channel.quit = True
+                if channel.is_alive():
+                    channel.cache_return.put('quit')
+                    channel.quit = True
 
-            xml_output.program_cache.quit = True
             return(97)
 
     def use_cache(self, tdict, cached):
@@ -8806,18 +9492,32 @@ class Channel_Config(Thread):
 
             # check the cache for this program's ID
             # If not found, check the various ID's and (if found) make it the prime one
-            cache_id = xml_output.program_cache.query_id(p)
+            xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'program': p})
+            cache_id = self.cache_return.get(True)
+            if cache_id =='quit':
+                self.ready = True
+                return
+
             if cache_id != None:
-                cached_program = xml_output.program_cache.query(p[cache_id])
+                xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': p[cache_id]})
+                cached_program = self.cache_return.get(True)
+                if cached_program =='quit':
+                    self.ready = True
+                    return
 
                 # check if it contains detail info from tvgids.nl or (if no nl-url known, or in no_fetch mode) tvgids.tv
-                if cached_program[xml_output.channelsource[0].detail_check] \
+                if cached_program != None and (cached_program[xml_output.channelsource[0].detail_check] \
                   or ((p[xml_output.channelsource[0].detail_url] == '') and cached_program[xml_output.channelsource[1].detail_check]) \
-                  or (no_fetch and cached_program[xml_output.channelsource[1].detail_check]):
-                    log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
-                    self.update_counter('cache')
-                    self.detailed_programs.append(self.use_cache(p, cached_program))
-                    continue
+                  or (no_fetch and cached_program[xml_output.channelsource[1].detail_check])):
+                #~ if cached_program != None:
+                    #~ print cached_program
+                    #~ if (cached_program[xml_output.channelsource[0].detail_check] \
+                      #~ or ((p[xml_output.channelsource[0].detail_url] == '') and cached_program[xml_output.channelsource[1].detail_check]) \
+                      #~ or (no_fetch and cached_program[xml_output.channelsource[1].detail_check])):
+                        log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
+                        self.update_counter('cache')
+                        self.detailed_programs.append(self.use_cache(p, cached_program))
+                        continue
 
             # Either we are fast-mode, outside slowdays or there is no url. So we continue
             no_detail_fetch = (no_fetch or ((p[xml_output.channelsource[0].detail_url] == '') and (p[xml_output.channelsource[1].detail_url] == '')))
@@ -8834,13 +9534,13 @@ class Channel_Config(Thread):
                   src_id not in self.opt_dict['disable_detail_source'] and \
                   p[xml_output.channelsource[src_id].detail_url] != '':
                     self.update_counter('fetch', src_id)
-                    xml_output.channelsource[src_id].detail_queue.put({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self, 'last_one': False})
+                    xml_output.channelsource[src_id].detail_request.put({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self, 'last_one': False})
                     break
 
         # Place terminator items in the queue
         for src_id in xml_output.detail_sources:
             if self.counters['fetch'][src_id] > 0:
-                xml_output.channelsource[src_id].detail_queue.put({'tdict':None, 'cache_id': None, 'logstring': None, 'parent': self, 'last_one': True})
+                xml_output.channelsource[src_id].detail_request.put({'tdict':None, 'cache_id': None, 'logstring': None, 'parent': self, 'last_one': True})
                 break
 
         else:
@@ -8905,7 +9605,8 @@ class XMLoutput:
                                         'http://static.tvgids.nl/gfx/zenders/',
                                         'http://s4.cdn.sanomamedia.be/a/epg/q100/w60/h/',
                                         'http://staticfiles.rtl.nl/styles/img/logos/',
-                                        'http://212.142.41.211/ChannelLogos/02/']
+                                        'http://212.142.41.211/ChannelLogos/02/',
+                                        'https://www.horizon.tv/static-images/']
 
                                     #~ 1 : [0, 'ned1'],
                                     #~ 2 : [0, 'ned2'],
@@ -9083,9 +9784,9 @@ class XMLoutput:
                                     'sky-sports-news' : [4, 'sky_news'],
                                     'bbc-hd' : [4, 'bbc_hd']}
 
-        self.source_count = 5
-        self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl'}
-        self.source_order = (0, 1, 2, 3, 4)
+        self.source_count = 6
+        self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl', 5: 'horizon.tv'}
+        self.source_order = (0, 1, 5, 2, 3, 4)
         self.detail_sources = (0, 1)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
@@ -9093,6 +9794,7 @@ class XMLoutput:
         self.channelsource[2] = rtl_JSON(2, 'rtl.nl', 'rtl-ID', 'rtl-url', True)
         self.channelsource[3] = teveblad_HTML(3, 'teveblad.be', 'be-ID', 'be-url')
         self.channelsource[4] = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
+        self.channelsource[5] = horizon_JSON(5, 'horizon.tv', 'horizon-ID', 'horizon-url', True)
         self.output_lock = Lock()
         self.cache_count = 0
         self.fetch_count = 0
@@ -9472,6 +10174,31 @@ def main():
         if x != None:
             return(x)
 
+        #~ start = int(time.time() * 1000)
+        #~ print time.ctime()
+        #~ print start
+        #~ print datetime.date.today().toordinal()
+        #~ print datetime.datetime.fromordinal( datetime.date.today().toordinal() +1)
+        #~ print start + (86400 * 7 * 1000)
+        #~ print start + (86400 * 8 * 1000)
+        #~ current_date = datetime.date.today().toordinal()
+        #~ start = datetime.date.fromordinal(current_date )
+        #~ start = int(time.mktime((start.year,start.month,start.day,0,0,0,0,0,-1)))*1000
+        #~ end = start + 86400000
+        #~ print start
+        #~ stime = time.gmtime(1439559000)
+        #~ print stime
+        #~ print datetime.datetime(stime[0], stime[1], stime[2], stime[3], stime[4], stime[5],tzinfo = UTC).astimezone(CET_CEST)
+        #~ stime = time.localtime(1356998400)
+        #~ print stime
+        #~ print datetime.datetime(stime[0], stime[1], stime[2], stime[3], stime[4], stime[5],tzinfo = CET_CEST)
+        #~ print end
+        #~ print int(start+86400*1000)
+        #~ test = horizon_JSON(5, 'horizon.tv', 'horizon-ID', 'horizon-url', True)
+        #~ test.init_channels()
+        #~ test.get_channels()
+        #~ return
+
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
 
@@ -9496,15 +10223,9 @@ def main():
 
             channel_threads.append(channel)
 
-        # This thread monitors the cache and saves it at an interval
-        xml_output.program_cache.start()
-
         # Synchronize
         for index in (0, 1):
             xml_output.channelsource[index].join()
-
-        # Make sure the cache is saved
-        xml_output.program_cache.quit = True
 
         for channel in channel_threads:
             if channel.is_alive():
@@ -9513,10 +10234,6 @@ def main():
         # produce the results and wrap-up
         config.write_defaults_list()
         xml_output.print_string()
-        if xml_output.program_cache.is_alive():
-            xml_output.program_cache.join()
-
-        xml_output.program_cache = None
 
         # Report duration
         end_time = datetime.datetime.now()
@@ -9529,7 +10246,7 @@ def main():
         log_array.append('   Duration: %s\n' % (duration))
         log_array.append( '%6.0f page(s) fetched\n' % (xml_output.fetch_count))
         log_array.append( '%6.0f cache hits\n' % (xml_output.cache_count))
-        log_array.extend([' Time/fetch: %s\n' % (duration/xml_output.fetch_count), '\n'])
+        log_array.extend([' Time/fetch: %s seconds\n' % (duration.total_seconds()/xml_output.fetch_count), '\n'])
         for source in xml_output.channelsource.values():
             log_array.append('%6.0f   base page(s) fetched from %s\n' % (source.base_count, source.source))
             if source.detail_processor:
