@@ -274,9 +274,9 @@ class Configure:
         self.major = 2
         self.minor = 1
         self.patch = 10
-        self.patchdate = u'20150811'
+        self.patchdate = u'20150817'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.channels = {}
         self.chan_count = 0
@@ -2828,6 +2828,7 @@ class InfoFiles:
         self.raw_list = []
         self.raw_string = ''
         self.fetch_strings = {}
+        self.info_lock = Lock()
 
     def open_files(self):
 
@@ -2837,84 +2838,88 @@ class InfoFiles:
 
     def addto_raw_string(self, string):
         if config.write_info_files:
-            self.raw_string = unicode(self.raw_string + string)
+            with self.info_lock:
+                self.raw_string = unicode(self.raw_string + string)
 
     def write_raw_string(self, string):
         if config.write_info_files:
-            self.raw_string = unicode(self.raw_string + string)
-            self.raw_output.write(self.raw_string + u'\n')
-            self.raw_string = ''
+            with self.info_lock:
+                self.raw_string = unicode(self.raw_string + string)
+                self.raw_output.write(self.raw_string + u'\n')
+                self.raw_string = ''
 
     def addto_raw_list(self, raw_data = None):
-
         if config.write_info_files:
-            if raw_data == None:
-                self.raw_list.append(self.raw_string)
-                self.raw_string = ''
-            else:
-                self.raw_list.append(raw_data)
+            with self.info_lock:
+                if raw_data == None:
+                    self.raw_list.append(self.raw_string)
+                    self.raw_string = ''
+                else:
+                    self.raw_list.append(raw_data)
 
     def write_raw_list(self, raw_data = None):
 
         if (not config.write_info_files) or (self.raw_output == None):
             return
 
-        if raw_data != None:
-            self.raw_list.append(raw_data)
+        with self.info_lock:
+            if raw_data != None:
+                self.raw_list.append(raw_data)
 
-        self.raw_list.sort()
-        for i in self.raw_list:
-            i = re.sub('\n +?\n', '\n', i)
-            i = re.sub('\n+?', '\n', i)
-            if i.strip() == '\n':
-                continue
+            self.raw_list.sort()
+            for i in self.raw_list:
+                i = re.sub('\n +?\n', '\n', i)
+                i = re.sub('\n+?', '\n', i)
+                if i.strip() == '\n':
+                    continue
 
-            self.raw_output.write(i + u'\n')
+                self.raw_output.write(i + u'\n')
 
-        self.raw_list = []
-        self.raw_string = ''
+            self.raw_list = []
+            self.raw_string = ''
 
     def addto_detail_list(self, detail_data):
-
-        if config.write_info_files: self.detail_list.append(detail_data)
+        if config.write_info_files:
+            with self.info_lock:
+                self.detail_list.append(detail_data)
 
     def write_fetch_list(self, programs, chanid, source, ismerge = False):
-
         if (not config.write_info_files) or (self.fetch_list == None):
             return
 
-        if not chanid in  self.fetch_strings:
-             self.fetch_strings[chanid] = {}
+        with self.info_lock:
+            if not chanid in  self.fetch_strings:
+                 self.fetch_strings[chanid] = {}
 
-        if not source in  self.fetch_strings[chanid]:
-            self.fetch_strings[chanid][source] = ''
+            if not source in  self.fetch_strings[chanid]:
+                self.fetch_strings[chanid][source] = ''
 
-        if ismerge:
-            self.fetch_strings[chanid][source] += u'(%3.0f) merging channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
-
-        else:
-            self.fetch_strings[chanid][source] += u'(%3.0f) channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
-
-        programs.sort(key=lambda program: (program['start-time']))
-
-        for tdict in programs:
             if ismerge:
-                id = tdict['ID']
-
-            elif source in config.sources.keys():
-                id = tdict[config.sources[source]['ID']]
+                self.fetch_strings[chanid][source] += u'(%3.0f) merging channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
 
             else:
-                id = ''
+                self.fetch_strings[chanid][source] += u'(%3.0f) channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
 
-            self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
-                            tdict['start-time'].strftime('%d %b %H:%M'), \
-                            tdict['stop-time'].strftime('%H:%M'), \
-                            id.rjust(15), tdict['genre'][0:10].rjust(10), \
-                            tdict['name'], tdict['titel aflevering'], \
-                            tdict['season'], tdict['episode'])
+            programs.sort(key=lambda program: (program['start-time']))
 
-        if ismerge: self.fetch_strings[chanid][source] += u'#\n'
+            for tdict in programs:
+                if ismerge:
+                    id = tdict['ID']
+
+                elif source in config.sources.keys():
+                    id = tdict[config.sources[source]['ID']]
+
+                else:
+                    id = ''
+
+                self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
+                                tdict['start-time'].strftime('%d %b %H:%M'), \
+                                tdict['stop-time'].strftime('%H:%M'), \
+                                id.rjust(15), tdict['genre'][0:10].rjust(10), \
+                                tdict['name'], tdict['titel aflevering'], \
+                                tdict['season'], tdict['episode'])
+
+            if ismerge: self.fetch_strings[chanid][source] += u'#\n'
 
     def write_xmloutput(self, xml):
 
