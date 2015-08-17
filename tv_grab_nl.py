@@ -207,92 +207,6 @@ class UTCTimeZone(datetime.tzinfo):
 CET_CEST = AmsterdamTimeZone()
 UTC  = UTCTimeZone()
 
-def adapt_kw(val):
-    ret_val = ''
-    for k in val:
-        ret_val += k
-
-    return ret_val
-
-def convert_kw(val):
-    ret_val = []
-    for k in val:
-        ret_val.append(k)
-
-    return ret_val
-
-def adapt_bool(val):
-    if val:
-        return 'True'
-
-    elif val == None:
-        return 'None'
-
-    else:
-        return 'False'
-
-def convert_bool(val):
-    if val == 'True':
-        return True
-
-    elif val == 'False':
-        return False
-
-    else:
-        return None
-
-def adapt_datetime(val):
-    if isinstance(val, (datetime.datetime)):
-        return val.isoformat(' ')
-
-    if isinstance(val, (datetime.date,datetime.time)):
-        return val.isoformat()
-
-    else:
-        return ''
-
-def convert_datetime(val):
-    if not isinstance(val, (str, unicode)) or val == '':
-        return None
-
-    val = re.split(' ', val)
-    if len(val) == 2:
-        d = re.split('-', val[0])
-        t = re.split('\+', val[1])
-        tt = re.split(':', t[0])
-        if len(t) == 2 and (t[1] != '00:00'):
-            tz = CET_CEST
-
-        else:
-            tz = UTC
-
-        return datetime.datetime(int(d[0]), int(d[1]), int(d[2]), int(tt[0]), int(tt[1]), int(tt[2]), tzinfo = tz)
-
-    elif '-' in val[0]:
-        d = re.split('-', val[0])
-        return datetime.date(int(d[0]), int(d[1]), int(d[2]))
-
-    elif ':' in val[0]:
-        t = re.split('\+', val[0])
-        tt = re.split(':', t[0])
-        if len(t) == 2 and (t[1] != '00:00'):
-            tz = CET_CEST
-
-        else:
-            tz = UTC
-
-        return datetime.time(int(tt[0]), int(tt[1]), int(tt[2]), tzinfo = tz)
-
-    else:
-        return None
-
-sqlite3.register_adapter(list, adapt_kw)
-sqlite3.register_converter(str('kijkwijzer'), convert_kw)
-sqlite3.register_adapter(bool, adapt_bool)
-sqlite3.register_converter(str('boolean'), convert_bool)
-sqlite3.register_adapter(datetime, adapt_datetime)
-sqlite3.register_converter(str('datetime'), convert_datetime)
-
 config = None
 
 class Logging(Thread):
@@ -400,14 +314,20 @@ class Logging(Thread):
 logging = Logging()
 
 def log(message, log_level = 1, log_target = 3):
-    logging.log_queue.put([message, log_level, log_target])
-    if logging.log_output == None and log_level < 2:
+    # If logging not (jet) available, make sure important messages go to the screen
+    if (logging.log_output == None) and (log_level < 2) and (log_target & 1):
         if isinstance(message, (str, unicode)):
             sys.stderr.write(message.encode("utf-8"))
 
         elif isinstance(message, (list ,tuple)):
             for m in message:
                 sys.stderr.write(m.encode("utf-8"))
+
+        if log_target & 2:
+            logging.log_queue.put([message, log_level, 2])
+
+    else:
+        logging.log_queue.put([message, log_level, log_target])
 
 # end log()
 
@@ -423,7 +343,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150812'
+        self.patchdate = u'20150817'
         self.alfa = True
         self.beta = True
 
@@ -470,6 +390,7 @@ class Configure:
 
         # default encoding iso-8859-1 is general and iso-8859-15 is with euro support
         self.httpencoding = 'iso-8859-15'
+        #~ self.httpencoding = 'utf-8'
         self.file_encoding = 'utf-8'
 
         # seed the random generator
@@ -632,7 +553,6 @@ class Configure:
         # The keys are the categories used by tvgids.nl (lowercase please)
         # See the file ~/.xmltv/genre_translation created after the first run and edit there!
         self.cattrans = { (u'', u'')                                                 : u'Unknown',
-                             (u'talks', u'')                                              : u'Talk',
                              (u'amusement', u'')                                      : u'Talk',
                              (u'amusement', u'quiz')                              : u'Game',
                              (u'amusement', u'spelshow')                      : u'Game',
@@ -911,7 +831,6 @@ class Configure:
                                             'discovery-vlaanderen': 'discovery',
                                             'vijftv': 'vijf',
                                             'op12': 'op12',
-                                            'ketnet': 'ketnet',
                                             'vitaya': 'vitaya',
                                             'acht': 'acht',
                                             'jim': 'jim',
@@ -936,6 +855,7 @@ class Configure:
         self.teveblad_genericnames = ("ochtend- en dagprogramma's",
                                                             "ochtend - en dagprogramma's",
                                                             "nachtprogramma's",
+                                                            "kinderprogramma's",
                                                             "kinder-tv",
                                                             "pause")
 
@@ -981,88 +901,89 @@ class Configure:
                                            '115': u'23',
                                            '116': u'24'}
 
-        self.npocattrans = {'9': (u'nieuws/actualiteiten', u''),
-                                     '10': (u'amusement', u''),
-                                     '10,79': (u'amusement', u'komedie'),
-                                     '10,84': (u'amusement', u'quiz'),
-                                     '10,85': (u'amusement', u'cabaret'),
-                                     '11': (u'informatief', u''),
-                                     '11,9': (u'nieuws/actualiteiten', u''),
-                                     '11,12': (u'informatief', u'religieus'),
-                                     '11,19': (u'informatief', u'kunst/cultuur'),
-                                     '11,22': (u'informatief', u'natuur'),
-                                     '11,28': (u'informatief', u'wetenschap'),
-                                     '11,76': (u'informatief', u'reizen'),
-                                     '11,77': (u'informatief', u'gezondheid'),
-                                     '11,81': (u'informatief', u'consument'),
-                                     '11,82': (u'informatief', u'wonen-tuin'),
-                                     '11,84': (u'informatief', u'quiz'),
-                                     '11,88': (u'informatief', u'kookprogramma'),
-                                     '11,89': (u'informatief', u'geschiedenis'),
-                                     '12': (u'religieus', u''),
-                                     '13': (u'jeugd', u''),
-                                     '13,10': (u'jeugd', u'amusement'),
-                                     '13,11': (u'jeugd', u'informatief'),
-                                     '13,16': (u'jeugd', u'documentaire'),
-                                     '13,17': (u'jeugd', u'sport'),
-                                     '13,21': (u'jeugd', u'animatieserie'),
-                                     '13,22': (u'jeugd', u'natuur'),
-                                     '13,24': (u'jeugd', u'muziek'),
-                                     '13,25': (u'jeugd', u'film'),
-                                     '13,78': (u'jeugd', u'serie'),
-                                     '13,84': (u'jeugd', u'quiz'),
-                                     '14': (u'serie/soap', u''),
-                                     '15': (u'overige', u''),
-                                     '16': (u'documentaire', u''),
-                                     '16,12': (u'documentaire', u'religieus'),
-                                     '16,19': (u'documentaire', u'kunst/cultuur'),
-                                     '16,22': (u'documentaire', u'natuur'),
-                                     '16,28': (u'documentaire', u'wetenschap'),
-                                     '16,76': (u'documentaire', u'reizen'),
-                                     '16,89': (u'documentaire', u'geschiedenis'),
-                                     '17': (u'sport', u''),
-                                     '17,86': (u'sport', u'journaal'),
-                                     '18': (u'serie/soap', u'misdaadserie'),
-                                     '19': (u'kunst/cultuur', u''),
-                                     '20': (u'amusement', u'erotisch programma'),
-                                     '21': (u'serie/soap', u'animatieserie'),
-                                     '22': (u'natuur', u''),
-                                     '23': (u'amusement', u'komedie'),
-                                     '24': (u'muziek', u''),
-                                     '24,83': (u'muziek', u'populair'),
-                                     '24,87': (u'muziek', u'klassiek'),
-                                     '25': (u'film', u''),
-                                     '25,21': (u'film', u'animatieserie'),
-                                     '25,31': (u'film', u'drama'),
-                                     '25,79': (u'film', u'komisch'),
-                                     '26': (u'educatief', u''),
-                                     '27': (u'informatief', u'fitnessprogramma'),
-                                     '28': (u'wetenschap', u''),
-                                     '29': (u'jeugd', u'6-12'),
-                                     '30': (u'maatschappij', u''),
-                                     '31': (u'serie/soap', u'drama'),
-                                     '32': (u'jeugd', u'2-5'),
-                                     '34': (u'muziek', u'klassiek'),
-                                     '76': (u'reizen', u''),
-                                     '77': (u'gezondheid-opvoeding', u''),
-                                     '78': (u'serie/soap', u''),
-                                     '78,31': (u'serie/soap', u'drama'),
-                                     '78,79': (u'serie/soap', u'komisch'),
-                                     '78,80': (u'serie/soap', u'spanning'),
-                                     '78,91': (u'serie/soap', u'soap'),
-                                     '79': (u'komisch', u''),
-                                     '80': (u'spanning', u''),
-                                     '81': (u'consumenten-informatie', u''),
-                                     '82': (u'wonen-tuin', u''),
-                                     '83': (u'muziek-populair', u''),
-                                     '84': (u'spel-quiz', u''),
-                                     '85': (u'cabaret', u''),
-                                     '86': (u'sport-informatie', u''),
-                                     '87': (u'muziek-klassiek', u''),
-                                     '88': (u'koken-eten', u''),
-                                     '89': (u'geschiedenis', u''),
-                                     '90': (u'sport-wedstrijd', u''),
-                                     '91': (u'soap-serie', u'')}
+        self.npocattrans = {'nieuws-actualiteiten': (u'nieuws/actualiteiten', u''),
+                                     'amusement': (u'amusement', u''),
+                                     'amusement,komisch': (u'amusement', u'komedie'),
+                                     'amusement,spel-quiz': (u'amusement', u'quiz'),
+                                     'amusement,cabaret': (u'amusement', u'cabaret'),
+                                     'informatief': (u'informatief', u''),
+                                     'informatief,nieuws-actualiteiten': (u'nieuws/actualiteiten', u''),
+                                     'informatief,religieus': (u'informatief', u'religieus'),
+                                     'informatief,kunst-cultuur': (u'informatief', u'kunst/cultuur'),
+                                     'informatief,natuur': (u'informatief', u'natuur'),
+                                     'informatief,wetenschap': (u'informatief', u'wetenschap'),
+                                     'informatief,reizen': (u'informatief', u'reizen'),
+                                     'informatief,gezondheid-opvoeding': (u'informatief', u'gezondheid'),
+                                     'informatief,consumenten-informatie': (u'informatief', u'consument'),
+                                     'informatief,wonen-tuin': (u'informatief', u'wonen-tuin'),
+                                     'informatief,spel-quiz': (u'informatief', u'quiz'),
+                                     'informatief,koken-eten': (u'informatief', u'kookprogramma'),
+                                     'informatief,geschiedenis': (u'informatief', u'geschiedenis'),
+                                     'religieus': (u'religieus', u''),
+                                     'jeugd': (u'jeugd', u''),
+                                     'jeugd,amusement': (u'jeugd', u'amusement'),
+                                     'jeugd,informatief': (u'jeugd', u'informatief'),
+                                     'jeugd,documentaire': (u'jeugd', u'documentaire'),
+                                     'jeugd,sport': (u'jeugd', u'sport'),
+                                     'jeugd,animatie': (u'jeugd', u'animatieserie'),
+                                     'jeugd,natuur': (u'jeugd', u'natuur'),
+                                     'jeugd,muziek': (u'jeugd', u'muziek'),
+                                     'jeugd,film': (u'jeugd', u'film'),
+                                     'jeugd,serie': (u'jeugd', u'serie'),
+                                     'jeugd,spel-quiz': (u'jeugd', u'quiz'),
+                                     'documentaire': (u'documentaire', u''),
+                                     'documentaire,religieus': (u'documentaire', u'religieus'),
+                                     'documentaire,kunst-cultuur': (u'documentaire', u'kunst/cultuur'),
+                                     'documentaire,natuur': (u'documentaire', u'natuur'),
+                                     'documentaire,wetenschap': (u'documentaire', u'wetenschap'),
+                                     'documentaire,reizen': (u'documentaire', u'reizen'),
+                                     'documentaire,geschiedenis': (u'documentaire', u'geschiedenis'),
+                                     'sport': (u'sport', u''),
+                                     'sport,sport-informatie': (u'sport', u'journaal'),
+                                     'animatie': (u'serie/soap', u'animatieserie'),
+                                     'natuur': (u'natuur', u''),
+                                     'muziek': (u'muziek', u''),
+                                     'muziek,muziek-populair': (u'muziek', u'populair'),
+                                     'muziek,muziek-klassiek': (u'muziek', u'klassiek'),
+                                     'film': (u'film', u''),
+                                     'film,animatie': (u'film', u'animatieserie'),
+                                     'film,drama': (u'film', u'drama'),
+                                     'film,komisch': (u'film', u'komisch'),
+                                     'film,spanning': (u'film', u'thriller'),
+                                     'wetenschap': (u'wetenschap', u''),
+                                     'drama': (u'serie/soap', u'drama'),
+                                     'reizen': (u'reizen', u''),
+                                     'serie': (u'serie/soap', u''),
+                                     'serie,drama': (u'serie/soap', u'drama'),
+                                     'serie,komisch': (u'serie/soap', u'komisch'),
+                                     'serie,spanning': (u'serie/soap', u'spanning'),
+                                     'serie,soap-serie': (u'serie/soap', u'soap')}
+                                     #~ '14': (u'serie/soap', u''),
+                                     #~ '15': (u'overige', u''),
+                                     #~ '18': (u'serie/soap', u'misdaadserie'),
+                                     #~ '19': (u'kunst/cultuur', u''),
+                                     #~ '20': (u'amusement', u'erotisch programma'),
+                                     #~ '23': (u'amusement', u'komedie'),
+                                     #~ '26': (u'educatief', u''),
+                                     #~ '27': (u'informatief', u'fitnessprogramma'),
+                                     #~ '29': (u'jeugd', u'6-12'),
+                                     #~ '30': (u'maatschappij', u''),
+                                     #~ '32': (u'jeugd', u'2-5'),
+                                     #~ '34': (u'muziek', u'klassiek'),
+                                     #~ '77': (u'gezondheid-opvoeding', u''),
+                                     #~ '79': (u'komisch', u''),
+                                     #~ '80': (u'spanning', u''),
+                                     #~ '81': (u'consumenten-informatie', u''),
+                                     #~ '82': (u'wonen-tuin', u''),
+                                     #~ '83': (u'muziek-populair', u''),
+                                     #~ '84': (u'spel-quiz', u''),
+                                     #~ '85': (u'cabaret', u''),
+                                     #~ '86': (u'sport-informatie', u''),
+                                     #~ '87': (u'muziek-klassiek', u''),
+                                     #~ '88': (u'koken-eten', u''),
+                                     #~ '89': (u'geschiedenis', u''),
+                                     #~ '90': (u'sport-wedstrijd', u''),
+                                     #~ '91': (u'soap-serie', u'')}
 
         self.npo_fill = 'Programmainfo en Reclame'
 
@@ -1119,6 +1040,7 @@ class Configure:
                                            '11': u'555680807174',
                                            '12': u'24443943112',
                                            '13': u'24443943105',
+                                           '28': u'24443942986',
                                            '38': u'24443943121',
                                            '435': u'540738087345',
                                            'amc': u'563391527030',
@@ -1171,6 +1093,7 @@ class Configure:
                                            '313': u'24443943095',
                                            '315': u'24443943111',
                                            '406': u'24443943124',
+                                           '407': u'545453607330',
                                            '415': u'564193831244',
                                            '422': u'24443943027',
                                            '423': u'561138215259',
@@ -1205,7 +1128,6 @@ class Configure:
                                            #~ '': u'RT 529739815221',
                                            #~ '': u'RTV-7 24443943118',
                                            #~ '': u'SLAMTV 24443943138',
-                                           #~ '': u'Sat. 1 24443942986',
                                            #~ '': u'Stingray LiteTV 24443943150',
                                            #~ '': u'TV538 561138215258',
                                            #~ '': u'TVM Europe 647417383035',
@@ -1226,8 +1148,8 @@ class Configure:
                                            #~ '': u'Kral TV 606274087105',
                                            #~ '': u'Samanyolu Avrupa 24443943090',
                                            #~ '': u'Show TV 606274087101',
-                                           #~ '': u'Planet TÃŒrk 606274087103',
-                                           #~ '': u'HabertÃŒrk 24443942998',
+                                           #~ '': u'Planet Türk 606274087103',
+                                           #~ '': u'Habertürk 24443942998',
                                            #~ '': u'TGRT EU 560453158988',
                                            #~ '': u'Brazzers TV Europe 330522663235',
                                            #~ '': u'MvH Hard 457547303396',
@@ -1235,14 +1157,7 @@ class Configure:
                                            #~ '': u'PassieXXX 24443943083',
                                            #~ '': u'Penthouse 606274087107',
                                            #~ '': u'X-MO 24443943126',
-                                           #~ '': u'OUTTV 545453607330',
                                            #~ '': u'OUTTV 545453607331',
-
-                                           #~ 'Omrop Fryslân': u'Omrop FryslÃ¢n 24443943144',
-                                           #~ '': u'Planet TÃŒrk 606274087103',
-                                           #~ '': u'HabertÃŒrk 24443942998',
-                                           #~ '': u'TRT TÃŒrk 24443943081',
-                                           #~ '': u'Ã©Ã©n 24443943058',
 
                                            #~ '': u'Dummy 565790759338',
                                            #~ '': u'Erotiek Still 615722023372',
@@ -1263,6 +1178,25 @@ class Configure:
                                            #~ '': u'Ziggo Live Events Sport1 24443942980',
                                            #~ '': u'Ziggo Live Events Sport1 635928103350',
                                            #~ '': u'Ziggo Live Events Sport1 635928103352',
+        self.horizoncattrans ={'13946319': ('nieuws/actualiteiten',''),
+                                     ('13946319', '13946323'): ('informatief', 'Documentaire'),
+                                     ('13946319', '13946324'): ('informatief', 'Discussie'),
+                                     '13946336': ('amusement',''),
+                                     ('13946336', '13946338'): ('kunst en cultuur', 'Variété'),
+                                     ('13946336', '13946340'): ('talkshow', ''),
+                                     '13946352': ('sport',''),
+                                     '13946369': ('jeugd', ''),
+                                     '13946386': ('muziek', ''),
+                                     '13946404': ('kunst en cultuur', ''),
+                                     ('13946404', '13946407'): ('religieus', ''),
+                                     '13946455': ('informatief', ''),
+                                     '13946420': ('informatief', ''),
+                                     '13946438': ('informatief', ''),
+                                     '13946472': ('informatief', ''),
+                                     '13948023': ('serie/soap', ''),
+                                     ('13948023', '13948026'): ('serie/soap', 'sciencefictionserie'),
+                                     ('13948023', '13948027'): ('serie/soap', 'comedyserie'),
+                                     ('13948023', '13948033'): ('serie/soap', 'detectiveserie')}
         #Channel group names as used in tvgids.tv
         self.chan_groups = {1: 'Nederlands',
                                           2: 'Vlaams',
@@ -1273,8 +1207,7 @@ class Configure:
                                           7: 'Nederlands Overig',
                                           8: 'Vlaams Overig',
                                           9: 'Internationaal',
-                                         10: 'Overig',
-                                         11: 'Temp'}
+                                         10: 'Overig'}
 
         self.group_names = {1: 'Nederlandse kanalen',
                                           2: 'Vlaamse kanalen',
@@ -2013,7 +1946,7 @@ class Configure:
         empty_channels[0] = ('83','308','309','310','20','65','401','403','412')
         empty_channels[1] = ('eurosport-hd', 'la-une-hd', 'tf1-hd', 'vtm-hd', 'nat-geo-hd', 'tmf', 'life-tv', \
             'espn-america', 'espn-classic', 'canal-z', 'disney-playhouse', 'exqi-sport-culture', \
-            'prime-sport', 'vitaliteit', 'vtmkzoom-2', 'ketnet-op12', 'cnbc-europe', 'virgin-1')
+            'prime-sport', 'vitaliteit', 'vtmkzoom-2', 'ketnet-op12', 'cnbc-europe', 'virgin-1', 'rtlz')
         empty_channels[2] = []
         empty_channels[3] = ('rtl4', 'rtl5', 'sbs6', 'tv5monde-europe', 'cnn', 'tcm', 'cartoon-network', \
             'rtp-international', 'foxlife', 'discovery-id', 'studio100-tv', 'fashion-one', 'tnt-benelux', \
@@ -2021,8 +1954,10 @@ class Configure:
             'discovery-science', 'sport-10', 'culture-7', 'espn', 'pebbletv', 'lacht', '13th-street', \
             'live!tv', 'stories', 'op12', 'actua-tv', 'espn-america', 'swr', '', 'mtv', 'tmf', 'cultuur-7')
         empty_channels[4] = []
-        empty_channels[5] = ['Dummy', 'Erotiek Still', 'Dummy', 'Eventkanaal', 'FOX Sports Info', 'Testbeeld', \
-            'Ziggo Zenderoverzicht HD', 'Ziggo TV', 'Ziggo Live Events FOX Sports', 'Ziggo Live Events Sport1']
+        empty_channels[5] = ['565790759338', '615722023372', '24443943133', '614261799194', '24443943135', \
+            '123063846982', '614261799193', '624196647052', '635928103346', '635928103347', '635928103348', \
+            '635928103349', '635928103351', '112676391039', '155550759273', '24443942974', '24443942980', \
+            '635928103350', '635928103352']
         # download the json feed
         xml_output.channelsource[0].init_channels()
         xml_output.channelsource[0].get_channels()
@@ -2502,9 +2437,10 @@ class Configure:
             log('Using config file: %s\n' % self.config_file)
             if self.args.configure:
                 log('Creating config file: %s\n' % self.config_file)
-                self.get_channels()
                 if os.access(self.config_file, os.F_OK):
                     self.read_config()
+
+                self.get_channels()
 
             # get config if available Overrule if set by commandline
             elif not self.read_config():
@@ -2734,9 +2670,9 @@ class Configure:
     def write_config(self, add_channels = None):
         """
         Save the channel info and the default options
-        if add_channels is False or None we copy over the Channels sections
-        If add_channels is None we convert the channel info to the new form
-        if add_channels is True we create a fresh channels section
+        if add_channels is False or None we copy over the Channels sections, called on save_options
+        If add_channels is None we convert the channel info to the new form, called on version update
+        if add_channels is True we create a fresh channels section                , called on configure
         """
         self.save_oldfile(self.config_file)
         f = self.open_file(self.config_file, 'w')
@@ -2843,7 +2779,6 @@ class Configure:
         f.write(u'#   overlap_strategy (With possible values): \n')
         f.write(u'#     average, stop, start; everything else sets it to none\n')
         f.write(u'\n')
-        f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
 
         def get_channel_string(chanid, active = None, chan_string = None, icon_string = None):
             chan = self.channels[chanid]
@@ -2882,7 +2817,7 @@ class Configure:
                 for byteline in fo.readlines():
                     line = self.get_line(fo, byteline, None)
                     try:
-                        if line == '# encoding: utf-8' or line == False:
+                        if  line == False:
                             continue
 
                         # Look for section headers
@@ -2891,19 +2826,15 @@ class Configure:
                             for i, v in self.__CONFIG_SECTIONS__.items():
                                 if v == config_title.group(1):
                                     type = i
-                                    continue
-
-                            continue
+                                    break
 
                         elif config_title != None and (config_title.group(1)[0:8] == 'Channel '):
                             type = 9
-                            continue
 
                         # Unknown Section header, so ignore
                         if line[0:1] == '[':
                             type = 0
                             continue
-
 
                         if type > 1:
                             # We just copy everything except the old configuration (type = 1)
@@ -2940,6 +2871,7 @@ class Configure:
                 else:
                     type = 0
 
+                # Read the old configuration
                 for byteline in fo.readlines():
                     line = self.get_line(fo, byteline, None, self.encoding)
                     try:
@@ -3086,6 +3018,7 @@ class Configure:
                     if not chanid in chan_added:
                         chan_list[unicode(channel.group)].append(get_channel_string(chanid, False))
 
+                f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
                 for g in self.chan_groups.keys():
                     f.write('\n')
                     f.write('# %s\n' % self.chan_groups[g])
@@ -3110,6 +3043,7 @@ class Configure:
             for chanid, channel in self.channels.items():
                 chan_list[channel.group].append(get_channel_string(chanid))
 
+            f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
             for g in self.chan_groups.keys():
                 f.write('\n')
                 f.write('# %s\n' % self.chan_groups[g])
@@ -3436,6 +3370,7 @@ class InfoFiles:
         self.raw_list = []
         self.raw_string = ''
         self.fetch_strings = {}
+        self.info_lock = Lock()
 
     def open_files(self):
 
@@ -3445,84 +3380,91 @@ class InfoFiles:
 
     def addto_raw_string(self, string):
         if config.write_info_files:
-            self.raw_string = unicode(self.raw_string + string)
+            with self.info_lock:
+                self.raw_string = unicode(self.raw_string + string)
 
     def write_raw_string(self, string):
         if config.write_info_files:
-            self.raw_string = unicode(self.raw_string + string)
-            self.raw_output.write(self.raw_string + u'\n')
-            self.raw_string = ''
+            with self.info_lock:
+                self.raw_string = unicode(self.raw_string + string)
+                self.raw_output.write(self.raw_string + u'\n')
+                self.raw_string = ''
 
     def addto_raw_list(self, raw_data = None):
 
         if config.write_info_files:
-            if raw_data == None:
-                self.raw_list.append(self.raw_string)
-                self.raw_string = ''
-            else:
-                self.raw_list.append(raw_data)
+            with self.info_lock:
+                if raw_data == None:
+                    self.raw_list.append(self.raw_string)
+                    self.raw_string = ''
+                else:
+                    self.raw_list.append(raw_data)
 
     def write_raw_list(self, raw_data = None):
 
         if (not config.write_info_files) or (self.raw_output == None):
             return
 
-        if raw_data != None:
-            self.raw_list.append(raw_data)
+        with self.info_lock:
+            if raw_data != None:
+                self.raw_list.append(raw_data)
 
-        self.raw_list.sort()
-        for i in self.raw_list:
-            i = re.sub('\n +?\n', '\n', i)
-            i = re.sub('\n+?', '\n', i)
-            if i.strip() == '\n':
-                continue
+            self.raw_list.sort()
+            for i in self.raw_list:
+                i = re.sub('\n +?\n', '\n', i)
+                i = re.sub('\n+?', '\n', i)
+                if i.strip() == '\n':
+                    continue
 
-            self.raw_output.write(i + u'\n')
+                self.raw_output.write(i + u'\n')
 
-        self.raw_list = []
-        self.raw_string = ''
+            self.raw_list = []
+            self.raw_string = ''
 
     def addto_detail_list(self, detail_data):
 
-        if config.write_info_files: self.detail_list.append(detail_data)
+        if config.write_info_files:
+            with self.info_lock:
+                self.detail_list.append(detail_data)
 
     def write_fetch_list(self, programs, chanid, source, ismerge = False):
 
         if (not config.write_info_files) or (self.fetch_list == None):
             return
 
-        if not chanid in  self.fetch_strings:
-             self.fetch_strings[chanid] = {}
+        with self.info_lock:
+            if not chanid in  self.fetch_strings:
+                 self.fetch_strings[chanid] = {}
 
-        if not source in  self.fetch_strings[chanid]:
-            self.fetch_strings[chanid][source] = ''
+            if not source in  self.fetch_strings[chanid]:
+                self.fetch_strings[chanid][source] = ''
 
-        if ismerge:
-            self.fetch_strings[chanid][source] += u'(%3.0f) merging channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
-
-        else:
-            self.fetch_strings[chanid][source] += u'(%3.0f) channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
-
-        programs.sort(key=lambda program: (program['start-time']))
-
-        for tdict in programs:
             if ismerge:
-                id = tdict['ID']
-
-            elif source in config.sources.keys():
-                id = tdict[config.sources[source]['ID']]
+                self.fetch_strings[chanid][source] += u'(%3.0f) merging channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
 
             else:
-                id = ''
+                self.fetch_strings[chanid][source] += u'(%3.0f) channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
 
-            self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
-                            tdict['start-time'].strftime('%d %b %H:%M'), \
-                            tdict['stop-time'].strftime('%H:%M'), \
-                            id.rjust(15), tdict['genre'][0:10].rjust(10), \
-                            tdict['name'], tdict['titel aflevering'], \
-                            tdict['season'], tdict['episode'])
+            programs.sort(key=lambda program: (program['start-time']))
 
-        if ismerge: self.fetch_strings[chanid][source] += u'#\n'
+            for tdict in programs:
+                if ismerge:
+                    id = tdict['ID']
+
+                elif source in config.sources.keys():
+                    id = tdict[config.sources[source]['ID']]
+
+                else:
+                    id = ''
+
+                self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
+                                tdict['start-time'].strftime('%d %b %H:%M'), \
+                                tdict['stop-time'].strftime('%H:%M'), \
+                                id.rjust(15), tdict['genre'][0:10].rjust(10), \
+                                tdict['name'], tdict['titel aflevering'], \
+                                tdict['season'], tdict['episode'])
+
+            if ismerge: self.fetch_strings[chanid][source] += u'#\n'
 
     def write_xmloutput(self, xml):
 
@@ -3541,9 +3483,9 @@ class InfoFiles:
         if self.fetch_list != None:
             for chanid in config.channels.keys():
                 if chanid in self.fetch_strings:
-                    for source in xml_output.channelsource.values():
-                        if source.source in self.fetch_strings[chanid].keys():
-                            self.fetch_list.write(self.fetch_strings[chanid][source.source])
+                    for s in xml_output.source_order:
+                        if xml_output.channelsource[s].source in self.fetch_strings[chanid].keys():
+                            self.fetch_list.write(self.fetch_strings[chanid][xml_output.channelsource[s].source])
 
             self.fetch_list.close()
 
@@ -3597,10 +3539,68 @@ class ProgramCache(Thread):
         self.field_list.extend( xml_output.channelsource[0].bool_values)
         self.field_list.extend( xml_output.channelsource[0].num_values)
         self.field_list.extend( xml_output.channelsource[0].video_values)
+        sqlite3.register_adapter(list, self.adapt_kw)
+        sqlite3.register_converter(str('kijkwijzer'), self.convert_kw)
+        sqlite3.register_adapter(bool, self.adapt_bool)
+        sqlite3.register_converter(str('boolean'), self.convert_bool)
+        sqlite3.register_adapter(datetime.datetime, self.adapt_datetime)
+        sqlite3.register_converter(str('datetime'), self.convert_datetime)
+
         # where we store our info
         self.filename  = filename
         self.quit = False
         self.cache_request = Queue.Queue()
+
+    def adapt_kw(self, val):
+        ret_val = ''
+        for k in val:
+            ret_val += k
+
+        return ret_val
+
+    def convert_kw(self, val):
+        ret_val = []
+        for k in val:
+            ret_val.append(k)
+
+        return ret_val
+
+    def adapt_bool(self, val):
+        if val:
+            return 'True'
+
+        elif val == None:
+            return 'None'
+
+        else:
+            return 'False'
+
+    def convert_bool(self, val):
+        if val == 'True':
+            return True
+
+        elif val == 'False':
+            return False
+
+        else:
+            return None
+
+    def adapt_datetime(self, val):
+        if isinstance(val, (datetime.datetime)):
+            if val.tzinfo == CET_CEST:
+                return time.mktime(val.timetuple())*1000
+
+            else:
+                return time.mktime(val.astimezone(CET_CEST).timetuple())*1000
+
+        else:
+            return ''
+
+    def convert_datetime(self, val):
+        if isinstance(val, (int, long, float)):
+            return datetime.datetime.fromtimestamp(int(val)/1000, CET_CEST)
+
+        return None
 
     def open_cache(self):
         if self.filename == None:
@@ -3913,7 +3913,7 @@ class FetchURL(Thread):
             log('An unexpected error "%s" has occured while fetching page: %s\n' %  (sys.exc_info()[1], self.url), 0)
             return None
 
-    def find_html_encoding(self, httphead, htmlhead):
+    def find_html_encoding(self, httphead, htmlhead, default_encoding="default encoding"):
         # look for the text '<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />'
         # in the first 600 bytes of the HTTP page
         m = re.search(r'<meta[^>]+\bcharset=["\']?([A-Za-z0-9\-]+)\b', htmlhead[:512].decode('ascii', 'ignore'))
@@ -3924,8 +3924,11 @@ class FetchURL(Thread):
         m = re.search(r'\bcharset=([A-Za-z0-9\-]+)\b', httphead.info().getheader('Content-Type'))
         if m:
             return m.group(1)
+        if default_encoding == "default encoding":
+            return config.httpencoding
 
-        return config.httpencoding # the default HTTP encoding.
+        else:
+            return default_encoding # the default HTTP encoding.
 
     def get_page_internal(self, url, encoding = "default encoding"):
         """
@@ -3943,7 +3946,8 @@ class FetchURL(Thread):
             bytes = fp.read()
             page = None
 
-            encoding = self.find_html_encoding(fp, bytes)
+            encoding = self.find_html_encoding(fp, bytes, encoding)
+
             try:
                 # log ('parse %s as %s' % (url, encoding))
                 page = bytes.decode(encoding, 'replace')
@@ -4988,19 +4992,20 @@ class FetchData(Thread):
         # 2 = log left over programs
         # 4 = Log All
 
+        match_array = []
         def matchlog(matchstr, other_prog, tvgids_prog = None, mode = 1):
             if not (mode & config.opt_dict['match_log_level']):
                 return
 
             if tvgids_prog == None:
-                log(u'%s: %s: %s: %s Genre: %s.\n' % \
+                match_array.append(u'%s: %s: %s: %s Genre: %s.\n' % \
                         (matchstr.rjust(20), config.channels[chanid].chan_name, other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'], \
-                        other_prog['genre']), 32)
+                        other_prog['genre']))
             else:
-                log([u'%s: %s: %s: %s.\n' % \
+                match_array.extend([u'%s: %s: %s: %s.\n' % \
                         (matchstr.rjust(12), config.channels[chanid].chan_name,  other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name']), \
                         '%s%s: %s.\n' % \
-                        ('to tvgids.nl: '.rjust(22 + len(other_prog['channel'])), tvgids_prog['start-time'].strftime('%d %b %H:%M'), tvgids_prog['name'])], 32)
+                        ('to tvgids.nl: '.rjust(22 + len(other_prog['channel'])), tvgids_prog['start-time'].strftime('%d %b %H:%M'), tvgids_prog['name'])])
         # end matchlog()
 
         def checkrange(crange = 0):
@@ -5051,28 +5056,41 @@ class FetchData(Thread):
         def general_renames(name):
             # Some renaming to cover diferences between the sources
             mname = name.lower()
+            if chanid in ('1', '2', '3'):
+                if mname == 'journaal':
+                    return 'NOS Journaal'
+
+            if chanid == '5':
+                if mname == 'Herhalingen':
+                    return 'Journaallus'
+
+            if chanid == '6':
+                if mname == 'herhalingen':
+                    return 'Canvaslus'
+
+            if chanid == '9':
+                if mname == 'nieuws':
+                    return 'Tagesschau'
+
+            if chanid == '10':
+                if mname == 'nieuws':
+                    return 'Heute'
+
             if self.source == 'tvgids.tv':
                 if chanid in ('1', '2', '3'):
-                    if mname == 'nos-journaal':
-                        return 'NOS Journaal'
-
-                    if mname == 'tekst tv':
-                        return 'Tekst-TV'
+                    pass
 
             elif self.source == 'teveblad.be':
                 if chanid in ('1', '2'):
                     if mname == 'nieuws':
                         return 'NOS Journaal'
 
-                    if mname == 'tekst tv':
-                        return 'Tekst-TV'
+                    if  'sport' in mname:
+                        return 'Studio sport'
 
                 elif chanid == '3':
                     if mname == 'nieuws':
                         return 'NOS op 3'
-
-                    if mname == 'tekst tv':
-                        return 'Tekst-TV'
 
                 elif chanid == '5':
                     pass
@@ -5088,9 +5106,33 @@ class FetchData(Thread):
                     if mname == 'het weer':
                         return 'Regional News and Weather'
 
-                elif chanid == '9':
-                    if mname == 'nieuws':
-                        return 'Tagesschau'
+            elif self.source == 'horizon.tv':
+                if chanid in ('1', '2', '3'):
+                    if  'nos journaal' in mname:
+                        return 'NOS Journaal'
+
+                    if  'nos jeugdjournaal' in mname:
+                        return 'Jeugdjournaal'
+
+                    if  'studio sport' in mname:
+                        return 'Studio sport'
+
+                    if  'sportjournaal' in mname:
+                        return 'Sportjournaal'
+
+                    if mname == 'z@ppbios':
+                        return 'Zappbios'
+
+                    if mname == 'z@ppsport':
+                        return 'ZappSport'
+
+                if chanid in ('5', '6'):
+                    if  'het journaal' in mname:
+                        return 'Journaal'
+
+                if chanid in ('4', '31', '46', '92'):
+                    if 'rtl nieuws' in mname:
+                        return 'Nieuws'
 
             name = re.sub(' / ',' - ', name)
             return name
@@ -5206,6 +5248,9 @@ class FetchData(Thread):
 
             def compare(nother, ntvgids, nsub = ''):
                 if nother == ntvgids:
+                    return 0
+
+                if re.sub('[-,. ]', '', nother) == re.sub('[-,. ]', '', ntvgids):
                     return 0
 
                 if len(ntvgids.split(':')) > 1 and nsub != '':
@@ -5382,7 +5427,8 @@ class FetchData(Thread):
                     tdict['episode'] = tvdict['episode']
 
                 if tvdict['jaar van premiere'] != '':
-                    tdict['jaar van premiere'] = tvdict['jaar van premiere']
+                    if tdict['jaar van premiere'] == '' or int(tvdict['jaar van premiere']) < int(tdict['jaar van premiere']):
+                        tdict['jaar van premiere'] = tvdict['jaar van premiere']
 
                 if tvdict['country'] != '':
                     tdict['country'] = tvdict['country']
@@ -5403,9 +5449,27 @@ class FetchData(Thread):
                 if tvdict['rerun']:
                     tdict['rerun']  = True
 
+            elif self.source == 'horizon.tv':
+                if tvdict['titel aflevering']!= '':
+                    tdict['titel aflevering']  = tvdict['titel aflevering']
+
+                if tvdict['episode']!= '0':
+                    tdict['episode'] = tvdict['episode']
+
+                if tvdict['jaar van premiere'] != '':
+                    if tdict['jaar van premiere'] == '' or int(tvdict['jaar van premiere']) < int(tdict['jaar van premiere']):
+                        tdict['jaar van premiere'] = tvdict['jaar van premiere']
+
+                if tvdict['airdate'] != '':
+                    tdict['airdate'] = tvdict['airdate']
+
+                if tvdict['rerun']:
+                    tdict['rerun']  = True
+
             elif self.source == 'tvgids.tv':
                 if tvdict['jaar van premiere']!= '':
-                    tdict['jaar van premiere'] = tvdict['jaar van premiere']
+                    if tdict['jaar van premiere'] == '' or int(tvdict['jaar van premiere']) < int(tdict['jaar van premiere']):
+                        tdict['jaar van premiere'] = tvdict['jaar van premiere']
 
                 if tvdict['infourl']!= '':
                     tdict['infourl']  = tvdict['infourl']
@@ -5489,8 +5553,11 @@ class FetchData(Thread):
                     tdict['episode']  = tvdict['episode']
 
                 if tvdict['jaar van premiere'] != '':
-                    tdict['jaar van premiere']  = tvdict['jaar van premiere']
+                    if tdict['jaar van premiere'] == '' or int(tvdict['jaar van premiere']) < int(tdict['jaar van premiere']):
+                        tdict['jaar van premiere']  = tvdict['jaar van premiere']
 
+                if tvdict['airdate'] != '':
+                    tdict['airdate']  = tvdict['airdate']
                 if tvdict['country'] != '':
                     tdict['country']  = tvdict['country']
 
@@ -5645,6 +5712,9 @@ class FetchData(Thread):
         for i in range(0, len(programs)):
             programs[i]['name'] = general_renames(programs[i]['name'])
 
+        for i in range(0, len(info)):
+            info[i]['name'] = general_renames(info[i]['name'])
+
         # Sort both lists on starttime and get their ranges
         info.sort(key=lambda program: (program['start-time'],program['stop-time']))
         infostarttime = info[0]['start-time'] - datetime.timedelta(0, 0, 0, 0, 30)
@@ -5671,8 +5741,9 @@ class FetchData(Thread):
         # And we create a list of starttimes and of names for matching
         for tdict in info[:]:
             # Passing over generic timeslots that maybe detailed in the other
-            if ((self.source == 'tvgids.tv') and ((chanid in ('1', '2', '3')) and  (tdict['name'].lower() == 'kro kindertijd'))) \
-              or (tdict['name'].lower() == 'pause'):
+            if (chanid in ('1', '2', '3') and  tdict['name'].lower() == 'kro kindertijd') \
+              or (tdict['name'].lower() in ('geen programmagegevens beschikbaar.', 'pause')) \
+              or (chanid == 34 and tdict['name'].lower() == 'disney xd'):
                 pcount = 0
                 for tvdict in programs[:]:
                     if (tvdict['start-time'] >= tdict['start-time']) and (tvdict['stop-time'] <= tdict['stop-time']):
@@ -5723,7 +5794,9 @@ class FetchData(Thread):
         log_array.append('\n')
         for tdict in programs[:]:
             # Remove generic slots from teveblad.be en move the counterparts to matched
-            if (self.source == 'teveblad.be') and tdict['name'].lower() in config.teveblad_genericnames:
+            if (tdict['name'].lower() in config.teveblad_genericnames) \
+              or (tdict['name'].lower() == 'geen programmagegevens beschikbaar.') \
+              or (chanid == 34 and tdict['name'].lower() == 'disney xd'):
                 pcount = 0
                 for tvdict in info[:]:
                     if (tvdict['start-time'] >= tdict['start-time']) and (tvdict['stop-time'] <= tdict['stop-time']):
@@ -6126,6 +6199,7 @@ class FetchData(Thread):
 
         log_array.append('\n')
         log(log_array, 4, 3)
+        log(match_array, 32, 3)
 
         config.channels[chanid].all_programs = matched_programs
         try:
@@ -6278,7 +6352,7 @@ class tvgids_JSON(FetchData):
         """
 
         # download the json feed
-        total = self.get_page(self.get_url())
+        total = self.get_page(self.get_url(), 'utf-8')
         if total == None:
             log("Don't write configuration file\n")
             return 69  # EX_UNAVAILABLE
@@ -6335,7 +6409,7 @@ class tvgids_JSON(FetchData):
                     first_fetched = True
 
                 # get the raw programming for the day
-                strdata = self.get_page(channel_url)
+                strdata = self.get_page(channel_url, 'utf-8')
                 if strdata == None or strdata.replace('\n','') == '{}':
                     log("No data on tvgids.nl for day=%d\n" % (offset))
                     self.fail_count += 1
@@ -6506,6 +6580,8 @@ class tvgids_JSON(FetchData):
         # We scan every alinea of the description
         try:
             tdict = self.filter_description(htmldata, 'div/p', tdict)
+            if config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
+                tdict['prefered description'] = tdict['description']
 
         except:
             log(['Error processing the description from: %s\n' % (tdict[self.detail_url]), traceback.format_exc()])
@@ -6625,7 +6701,7 @@ class tvgids_JSON(FetchData):
         try:
             # We first get the json url
             url = 'http://www.tvgids.nl/json/lists/program.php?id=%s' % tdict[self.detail_id][3:]
-            strdata = self.get_page(url)
+            strdata = self.get_page(url, 'utf-8')
             if strdata == None or strdata.replace('\n','') == '{}':
                 return None
 
@@ -6663,8 +6739,12 @@ class tvgids_JSON(FetchData):
                 content = re.sub('\\n\\n', '\\n', content)
                 if tdict['subgenre'].lower().strip() == content[0:len(tdict['subgenre'])].lower().strip():
                     content = content[len(tdict['subgenre'])+1:]
+
                 if content > tdict['description']:
                     tdict['description'] = self.unescape(content)
+
+                if config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
+                    tdict['prefered description'] = tdict['description']
 
             # Parse persons and their roles for credit info
             elif ctype in config.roletrans:
@@ -7052,7 +7132,7 @@ class tvgidstv_HTML(FetchData):
                         try:
                             if htmldata.find('div/a[@class]') == None:
                                 log(["No Programming for channel=%s, day=%d on tvgids.tv!\n" % (config.channels[chanid].chan_name, offset), \
-                                        "We assume further pages to be empty!\n"])
+                                        "   We assume further pages to be empty!\n"])
 
                                 for d in range((offset - 1), config.opt_dict['days']):
                                     self.day_loaded[chanid][d] = None
@@ -7179,6 +7259,8 @@ class tvgidstv_HTML(FetchData):
         # We scan every alinea of the description
         try:
             tdict = self.filter_description(htmldata, 'div/div/div/p', tdict)
+            if config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
+                tdict['prefered description'] = tdict['description']
 
         except:
             log(['Error processing the description from: %s\n' % (tdict[self.detail_url]), traceback.format_exc()])
@@ -7365,12 +7447,12 @@ class rtl_JSON(FetchData):
         channel_url = self.get_url()
 
         # get the raw programming for the day
-        strdata = self.get_page(channel_url)
+        strdata = self.get_page(channel_url, 'utf-8')
 
         if strdata == None or strdata.replace('\n','') == '{}':
             # Wait a while and try again
             time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-            strdata = self.get_page(channel_url)
+            strdata = self.get_page(channel_url, 'utf-8')
             if strdata == None or strdata.replace('\n','') == '{}':
                 log("Error loading rtl json data\n")
                 self.fail_count += 1
@@ -8940,7 +9022,7 @@ class horizon_JSON(FetchData):
         """
 
         # download the json feed
-        total = self.get_page(self.get_url())
+        total = self.get_page(self.get_url(), 'utf-8')
         if total == None:
             log("Don't write configuration file\n")
             return 69  # EX_UNAVAILABLE
@@ -8953,7 +9035,7 @@ class horizon_JSON(FetchData):
             for schedule in channel['stationSchedules']:
                 chanid = schedule['station']['id']
                 self.all_channels[chanid] = {}
-                self.all_channels[chanid]['group'] = 11
+                self.all_channels[chanid]['group'] = 10
                 self.all_channels[chanid]['name'] = self.unescape(schedule['station']['title']).strip()
                 if self.all_channels[chanid]['name'][-3:] == ' HD':
                     self.all_channels[chanid]['name'] = self.all_channels[chanid]['name'][:-3].strip()
@@ -8966,13 +9048,6 @@ class horizon_JSON(FetchData):
                         break
 
     def load_pages(self):
-        feature_list = []
-        mediatype = []
-        cats = []
-        def get_datetime(val):
-            stime = time.localtime(int(val)/1000)
-            return datetime.datetime(stime[0], stime[1], stime[2], stime[3], stime[4], stime[5],tzinfo = CET_CEST)
-
         if config.opt_dict['offset'] > 7:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -8993,16 +9068,19 @@ class horizon_JSON(FetchData):
 
                 channel = self.channels[chanid]
                 # Maximum 100 programs are returned. So we try to get all and reset start to the endtime of the last
-                start = datetime.date.fromordinal(self.current_date + config.opt_dict['offset'])
-                start = int(time.mktime((start.year,start.month,start.day,0,0,0,0,0,-1)))*1000
+                #~ start = datetime.date.fromordinal(self.current_date + config.opt_dict['offset'])
+                #~ start = int(time.mktime((start.year,start.month,start.day,0,0,0,0,0,-1)))*1000
+                start = int(time.mktime(datetime.date.fromordinal(self.current_date + config.opt_dict['offset']).timetuple()))*1000
                 end = start + (86400000 * config.opt_dict['days'])
+                last_start = 0
                 while True:
                     if self.quit:
                         return
 
-                    if end <= start:
+                    if end <= start or last_start == start:
                         break
 
+                    last_start = start
                     page_count += 1
                     log(['\n', 'Now fetching %s(xmltvid=%s%s) from horizon.tv\n' % \
                         (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
@@ -9012,10 +9090,15 @@ class horizon_JSON(FetchData):
                     channel_url = self.get_url('day', channel, start, end)
 
                     # get the raw programming for the day
-                    strdata = self.get_page(channel_url)
+                    strdata = self.get_page(channel_url, 'utf-8')
                     if strdata == None or strdata.replace('\n','') == '{}':
-                        log("No data on horizon.tv channel%s page=%d\n" % (config.channels[chanid].chan_name, page_count))
+                        log("No data on horizon.tv channel %s page=%d\n" % (config.channels[chanid].chan_name, page_count))
                         self.fail_count += 1
+                        last_start = start-1
+                        if self.fail_count == 3:
+                            break
+
+                        page_count -= 1
                         continue
 
                     # Just let the json library parse it.
@@ -9029,16 +9112,9 @@ class horizon_JSON(FetchData):
                             start = end
                             break
 
-                        for f in item['program']:
-                            if f not in ('id', 'mediaGroupId', 'listingId', 'currentProductIds', 'currentTvodProductIds', \
-                              'entitlements', 'languageCode', 'countryCode', 'deviceCode', 'medium','images', 'videoStreams', 'videos', \
-                              'title', 'secondaryTitle', 'seriesEpisodeNumber', 'description',  'shortDescription',  'longDescription', \
-                              'duration', 'year', 'airDate', 'latestBroadcastStartTime', 'latestBroadcastEndTime', 'isReplayTv', \
-                              'mediaType', 'categories', 'cast', 'directors', 'isAdult', 'parentalRating') and not f in feature_list:
-                                feature_list.append(f)
-
-                        if 'mediaType' in item['program'] and not item['program']['mediaType'] in mediatype:
-                            mediatype.append(item['program']['mediaType'])
+                        if item['stationId'] != channel:
+                            # Wrong channel
+                            continue
 
                         tdict = self.checkout_program_dict()
                         if (item['imi'] != '') and (item['imi'] != None):
@@ -9049,7 +9125,6 @@ class horizon_JSON(FetchData):
                         tdict['source'] = self.source
                         tdict['channelid'] = chanid
                         tdict['channel']  = config.channels[chanid].chan_name
-                        #~ tdict[self.detail_url] = self.get_url(type= 'detail', id = item['db_id'])
 
                         # The Title
                         tdict['name'] = self.unescape(item['program']['title'])
@@ -9059,8 +9134,8 @@ class horizon_JSON(FetchData):
                             continue
 
                         # The timing
-                        tdict['start-time'] = get_datetime(item['startTime'])
-                        tdict['stop-time']  = get_datetime(item['endTime'])
+                        tdict['start-time'] = datetime.datetime.fromtimestamp(int(item['startTime'])/1000, CET_CEST)
+                        tdict['stop-time']  = datetime.datetime.fromtimestamp(int(item['endTime'])/1000, CET_CEST)
                         if tdict['start-time'] == None or tdict['stop-time'] == None:
                             continue
 
@@ -9072,56 +9147,75 @@ class horizon_JSON(FetchData):
 
                         shortdesc = item['program']['shortDescription'] if 'shortDescription' in item['program'] else ''
                         tdict['description'] = item['program']['description'] if 'description' in item['program'] else shortdesc
-                        tdict['airdate'] = get_datetime(item['program']['airdate']) if 'airdate' in item['program'] else ''
+                        tdict['airdate'] = datetime.datetime.fromtimestamp(int(item['program']['airdate'])/1000, CET_CEST) if 'airdate' in item['program'] else ''
                         tdict['jaar van premiere'] = item['program']['year'] if 'year' in item['program'] else ''
+                        tdict['rerun'] = ('latestBroadcastStartTime' in item['program'] and item['startTime'] != item['program']['latestBroadcastStartTime'])
+                        if 'IMDb rating:' in tdict['description']:
+                            d = re.split('IMDb rating:', tdict['description'])
+                            tdict['description'] = d[0].strip()
+                            tdict['star-rating'] = re.split('/', d[1])[0].strip()
+
                         if 'cast' in item['program'] and item['program']['cast'] != []:
                             tdict['credits']['actor'] = item['program']['cast']
 
                         if 'directors' in item['program'] and item['program']['directors'] != []:
                             tdict['credits']['director'] = item['program']['directors']
 
-                        if 'IMDb rating:' in tdict['description']:
-                            d = re.split('IMDb rating:', tdict['description'])
-                            tdict['description'] = d[0].strip()
-                            tdict['star-rating'] = re.split('/', d[1])[0].strip()
+                        cats = item['program']['categories']
+                        if 'mediaType' in item['program'] and item['program']['mediaType'] == 'FeatureFilm':
+                            tdict['genre'] = 'film'
 
-                        tdict['rerun'] = True if 'latestBroadcastStartTime' in item['program'] and item['startTime'] != item['program']['latestBroadcastStartTime'] else False
+                            if len(cats) > 0:
+                                tdict['subgenre'] = cats[-1]['title'].capitalize()
 
-                        #~ for c in item['program']['categories']:
-                            #~ c = {c['id']: c['title']}
-                            #~ if not c in cats:
-                                #~ cats.append(c)
+                        elif len(cats) == 0:
+                            tdict['genre'] = 'overige'
 
-                        if config.write_info_files:
-                            for c in item['program']['categories']:
-                                infofiles.addto_detail_list(unicode('new horizon categorie => ' + c['id'] + ': ' + c['title']))
+                        elif len(cats) == 1 and cats[0]['id'] in config.horizoncattrans.keys():
+                            tdict['genre'] = config.horizoncattrans[cats[0]['id']][0]
+                            tdict['subgenre'] = config.horizoncattrans[cats[0]['id']][1]
 
-                       #mediaType: Episode, FeatureFilm
-                        #~ if 'categories' in item['program']:
-                            #~ tdict[''] = item['program']['']
+                        elif len(cats) == 2 and (cats[0]['id'], cats[1]['id']) in config.horizoncattrans.keys():
+                            tdict['genre'] = config.horizoncattrans[(cats[0]['id'], cats[1]['id'])][0]
+                            tdict['subgenre'] = config.horizoncattrans[(cats[0]['id'],cats[1]['id'])][1]
 
-                        #~ if '' in item['program']:
-                            #~ tdict[''] = item['program']['']
+                        elif len(cats) == 2 and cats[0]['id'] in config.horizoncattrans.keys():
+                            tdict['genre'] = config.horizoncattrans[cats[0]['id']][0]
+                            if config.horizoncattrans[cats[0]['id']][1] == '':
+                                tdict['subgenre'] = cats[1]['title'].capitalize()
+                                if config.write_info_files:
+                                    ids ="("
+                                    titles = "("
+                                    for c in cats:
+                                        ids = "%s'%s', " % (ids, c['id'])
+                                        titles = "%s'%s', " % (titles, c['title'].capitalize())
+                                    ids = ids[:-2] + ")"
+                                    titles = titles[:-2] + ")"
+                                    infofiles.addto_detail_list(unicode('new horizon subcategorie => ' + ids + ': ' + titles + ', '))
 
+                            else:
+                                tdict['subgenre'] = config.horizoncattrans[cats[0]['id']][1]
 
-
-                        #~ tdict['genre'] = self.unescape(item['genre']) if ('genre' in item and item['genre'] != None) else ''
-                        #~ tdict['subgenre'] = self.unescape(item['soort']) if ('soort' in item and item['soort'] != None) else ''
-                        #~ if  ('kijkwijzer' in item and not (item['kijkwijzer'] == None or item['kijkwijzer'] == '')):
-                            #~ for k in item['kijkwijzer']:
-                                #~ if k in config.kijkwijzer.keys() and k not in tdict['kijkwijzer']:
-                                    #~ tdict['kijkwijzer'].append(k)
+                        else:
+                            tdict['genre'] = 'overige'
+                            if config.write_info_files:
+                                ids ="("
+                                titles = "("
+                                for c in cats:
+                                    ids = "%s'%s', " % (ids, c['id'])
+                                    titles = "%s'%s', " % (titles, c['title'].capitalize())
+                                ids = ids[:-2] + ")"
+                                titles = titles[:-2] + ")"
+                                infofiles.addto_detail_list(unicode('new horizon categorie => ' + ids + ': ' + titles + ', '))
 
                         self.program_by_id[tdict[self.detail_id]] = tdict
                         with self.source_lock:
                             self.program_data[chanid].append(tdict)
 
-                        #~ config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
-
-
-
                     # be nice to teveblad.be
                     time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                    if int(program_list['entryCount']) < 100:
+                        break
 
                 with self.source_lock:
                     for tdict in self.program_data[chanid]:
@@ -9138,10 +9232,6 @@ class horizon_JSON(FetchData):
 
                 except:
                     pass
-
-            print feature_list
-            print mediatype
-            print cats
 
         except:
             log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source), traceback.format_exc()], 0)
@@ -9196,6 +9286,7 @@ class Channel_Config(Thread):
         self.counters['fetched'][1] = 0
         # This will contain the final fetcheddata
         self.all_programs = []
+        self.current_prime = ''
 
         self.opt_dict = {}
         self.opt_dict['disable_source'] = []
@@ -9263,10 +9354,14 @@ class Channel_Config(Thread):
                     xml_data = True
                     with xml_output.channelsource[index].source_lock:
                         self.all_programs = xml_output.channelsource[index].program_data[self.chanid][:]
+                        self.current_prime = xml_output.channelsource[index].source
 
                 elif self.source_data[index].is_set():
                     xml_data = True
-                    xml_output.channelsource[index].merge_sources(self.chanid, ((self.opt_dict['prime_source'] == index) or (index == 4)), self.counter)
+                    if self.opt_dict['prime_source'] == index:
+                        self.current_prime = xml_output.channelsource[index].source
+
+                    xml_output.channelsource[index].merge_sources(self.chanid, (self.opt_dict['prime_source'] == index), self.counter)
                     xml_output.channelsource[index].parse_programs(self.chanid, 1, 'None')
                     for i in range(0, len(self.all_programs)):
                         self.all_programs[i] = xml_output.channelsource[index].checkout_program_dict(self.all_programs[i])
@@ -9384,7 +9479,7 @@ class Channel_Config(Thread):
         if tdict['prefered description'] > cached['prefered description']:
             cached['prefered description'] = tdict['prefered description']
 
-        for fld in ('name', 'titel aflevering', 'jaar van premiere', 'country', 'star-rating', 'omroep'):
+        for fld in ('name', 'titel aflevering', 'originaltitle', 'jaar van premiere', 'airdate', 'country', 'star-rating', 'omroep'):
             if tdict[fld] != '':
                 cached[fld] = tdict[fld]
 
@@ -9786,7 +9881,7 @@ class XMLoutput:
 
         self.source_count = 6
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl', 5: 'horizon.tv'}
-        self.source_order = (0, 1, 5, 2, 3, 4)
+        self.source_order = (0, 1, 5, 3, 2, 4)
         self.detail_sources = (0, 1)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
@@ -9936,7 +10031,10 @@ class XMLoutput:
                 xml.append(self.add_endtag('credits', 4))
 
             # Original Air-Date
-            if program['jaar van premiere'] != '':
+            if isinstance(program['airdate'], datetime.datetime):
+                xml.append(self.add_starttag('date', 4, '', program['airdate'].year,True))
+
+            elif program['jaar van premiere'] != '':
                 xml.append(self.add_starttag('date', 4, '', program['jaar van premiere'],True))
 
             # Genre
@@ -10173,31 +10271,6 @@ def main():
         x = config.validate_commandline()
         if x != None:
             return(x)
-
-        #~ start = int(time.time() * 1000)
-        #~ print time.ctime()
-        #~ print start
-        #~ print datetime.date.today().toordinal()
-        #~ print datetime.datetime.fromordinal( datetime.date.today().toordinal() +1)
-        #~ print start + (86400 * 7 * 1000)
-        #~ print start + (86400 * 8 * 1000)
-        #~ current_date = datetime.date.today().toordinal()
-        #~ start = datetime.date.fromordinal(current_date )
-        #~ start = int(time.mktime((start.year,start.month,start.day,0,0,0,0,0,-1)))*1000
-        #~ end = start + 86400000
-        #~ print start
-        #~ stime = time.gmtime(1439559000)
-        #~ print stime
-        #~ print datetime.datetime(stime[0], stime[1], stime[2], stime[3], stime[4], stime[5],tzinfo = UTC).astimezone(CET_CEST)
-        #~ stime = time.localtime(1356998400)
-        #~ print stime
-        #~ print datetime.datetime(stime[0], stime[1], stime[2], stime[3], stime[4], stime[5],tzinfo = CET_CEST)
-        #~ print end
-        #~ print int(start+86400*1000)
-        #~ test = horizon_JSON(5, 'horizon.tv', 'horizon-ID', 'horizon-url', True)
-        #~ test.init_channels()
-        #~ test.get_channels()
-        #~ return
 
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
