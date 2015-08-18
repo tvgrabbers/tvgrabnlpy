@@ -1760,7 +1760,7 @@ class Configure:
 
             else:
                 # unknown chanid or channelname
-                log('Channel section "%s" ignored. Unknown channel/n' % section)
+                log('Channel section "%s" ignored. Unknown channel\n' % section)
                 continue
 
             for line in values:
@@ -6580,7 +6580,7 @@ class tvgids_JSON(FetchData):
         # We scan every alinea of the description
         try:
             tdict = self.filter_description(htmldata, 'div/p', tdict)
-            if config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
+            if config.channels[tdict['channelid']].opt_dict['prefered_description'] == self.proc_id:
                 tdict['prefered description'] = tdict['description']
 
         except:
@@ -6743,7 +6743,7 @@ class tvgids_JSON(FetchData):
                 if content > tdict['description']:
                     tdict['description'] = self.unescape(content)
 
-                if config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
+                if config.channels[tdict['channelid']].opt_dict['prefered_description'] == self.proc_id:
                     tdict['prefered description'] = tdict['description']
 
             # Parse persons and their roles for credit info
@@ -7259,7 +7259,7 @@ class tvgidstv_HTML(FetchData):
         # We scan every alinea of the description
         try:
             tdict = self.filter_description(htmldata, 'div/div/div/p', tdict)
-            if config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
+            if config.channels[tdict['channelid']].opt_dict['prefered_description'] == self.proc_id:
                 tdict['prefered description'] = tdict['description']
 
         except:
