@@ -273,8 +273,8 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 1
-        self.patch = 10
-        self.patchdate = u'20150817'
+        self.patch = 11
+        self.patchdate = u'20150820'
         self.alfa = False
         self.beta = False
 
@@ -5536,7 +5536,7 @@ class tvgids_JSON(FetchData):
             return ''
 
         elif type == 'detail':
-            return u'%sprogramma/%s/' % (tvgids, id)
+            return u'%sprogramma/%s/?cookieoptin=true' % (tvgids, id)
 
         elif type == 'json_detail':
             return u'%sprogram.php?id=%s/' % (tvgids_json, id)
