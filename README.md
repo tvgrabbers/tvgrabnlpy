@@ -11,7 +11,7 @@
 
 ###Samenvatting
 
-tv_grab_nl_py is een [XMLTV](http://xmltv.org)-compatibele grabber voor Nederlandse en Vlaamse televisie die [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be), [RTL.nl](http://www.rtl.nl) en [NPO.nl](http://www.npo.nl) als bron gebruikt.
+tv_grab_nl_py is een [XMLTV](http://xmltv.org)-compatibele grabber voor Nederlandse en Vlaamse televisie die [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl) en [horizon.tv](http://www.horizon.tv) als bron gebruikt.
 
 Prettige eigenschappen zijn:
   * detailinformatie wordt gecached
@@ -25,6 +25,12 @@ Sinds versie 2:
   * meer configuratie mogelijkheden
   * tot 14 dagen programma informatie!
   * deels seizoen/episode informatie
+
+Sinds versie 2.2:
+  * sqlite als cache format
+  * nog meer bronnen
+  * bijna complete seizoen/episode informatie mede dankzij [thetvdb.com](http://www.thetvdb.com lookup.
+  * nog betere configurabiliteit
 
 ###English Summary
 
