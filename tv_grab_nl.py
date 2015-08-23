@@ -126,7 +126,7 @@ description_text = """
 
 # Modules we need
 import re, sys, codecs, locale, argparse
-import time, random, io, json, shutil
+import time, datetime, random, io, json, shutil
 import os, os.path, curses, pickle
 import traceback, socket, sqlite3
 try:
@@ -141,11 +141,7 @@ from copy import deepcopy
 from threading import Thread, Lock, Event, active_count
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
-from lxml import etree as etree
 from Queue import Queue, Empty
-#~ import MythTV.ttvdb.tvdb_ui as tvdb_ui
-#~ import MythTV.ttvdb.tvdb_api as tvdb_api
-#~ from MythTV.ttvdb.tvdb_exceptions import (tvdb_error, tvdb_shownotfound, tvdb_seasonnotfound, tvdb_episodenotfound, tvdb_episodenotfound, tvdb_attributenotfound, tvdb_userabort)
 try:
     unichr(42)
 except NameError:
@@ -155,8 +151,6 @@ except NameError:
 if sys.version_info[:2] < (2,7):
     sys.stderr.write("tv_grab_nl_py requires Pyton 2.7 or higher\n")
     sys.exit(2)
-
-import datetime
 
 if sys.version_info[:2] >= (3,0):
     sys.stderr.write("tv_grab_nl_py does not yet support Pyton 3 or higher.\nExpect errors while we proceed\n")
@@ -504,6 +498,9 @@ class Configure:
         self.opt_dict['use_utc'] = False
 
         # The values for the Kijkwijzer
+        self.opt_dict['kijkwijzerstijl'] = 'short'
+        # Possible styles are
+        # long, short, single and none
         self.kijkwijzer = {'1': {'code': 'AL','text': 'Voor alle leeftijden',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/al_transp.png'},
                         '2': {'code': '6+','text': 'Afgeraden voor kinderen jonger dan 6 jaar',
@@ -1695,7 +1692,12 @@ class Configure:
                         else:
                             self.opt_dict[cfg_option] = 'none'
 
-                    # Integer Values
+                    elif cfg_option == 'kijkwijzerstijl':
+                        if cfg_value in ('long', 'short', 'single'):
+                            self.opt_dict[cfg_option] = cfg_value
+
+                        else:
+                            self.opt_dict[cfg_option] = 'none'                    # Integer Values
                     elif cfg_option in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', \
                       'tevedays', 'max_overlap', 'desc_length', 'disable_source', 'disable_detail_source'):
                         try:
@@ -2674,6 +2676,7 @@ class Configure:
         log_array.append(u'logos = %s' % (self.opt_dict['logos']))
         log_array.append(u'desc_length = %s' % (self.opt_dict['desc_length']))
         log_array.append(u'cattrans = %s' % (self.opt_dict['cattrans']))
+        log_array.append(u'kijkwijzerstijl = %s' % (self.opt_dict['kijkwijzerstijl']))
         log_array.append(u'mark_hd = %s' % (self.opt_dict['mark_hd']))
         log_array.append(u'use_utc = %s' % (self.opt_dict['use_utc']))
         for index in range(xml_output.source_count):
@@ -2838,6 +2841,12 @@ class Configure:
         f.write(u'overlap_strategy = %s\n' % self.opt_dict['overlap_strategy'] )
         f.write(u'max_overlap = %s\n' % self.opt_dict['max_overlap'])
         f.write(u'desc_length = %s\n' % self.opt_dict['desc_length'])
+        f.write(u'# Possible values for kijkwijzerstijl are:\n')
+        f.write(u'#   long  : add the long descriptions and the icons\n')
+        f.write(u'#   short : add the one word descriptions and the icons\n')
+        f.write(u'#   single: add a single string (mythtv only reads the first item)\n')
+        f.write(u'#   none  : don add any\n')
+        f.write(u'kijkwijzerstijl = %s\n' % self.opt_dict['kijkwijzerstijl'])
         f.write(u'\n')
 
         f.write(u'# These are the channeldefinitions. You can disable a channel by placing\n')
@@ -10912,22 +10921,42 @@ class XMLoutput:
                 xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
 
             # Add any Kijkwijzer items
-            # First only one age limit from high to low
-            for k in ('4', '3', '9', '2', '1'):
-                if k in program['kijkwijzer']:
-                    xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
-                    xml.append(self.add_starttag('value', 6, '', config.kijkwijzer[k]['code'], True))
-                    xml.append(self.add_starttag('icon', 6, 'src="%s"' % config.kijkwijzer[k]['icon'], '', True))
-                    xml.append(self.add_endtag('rating', 4))
-                    break
+            if config.opt_dict['kijkwijzerstijl'] in ('long', 'short', 'single'):
+                kstring = ''
+                # First only one age limit from high to low
+                for k in ('4', '3', '9', '2', '1'):
+                    if k in program['kijkwijzer']:
+                        if config.opt_dict['kijkwijzerstijl'] == 'single':
+                            kstring += (config.kijkwijzer[k]['code'] + ': ')
 
-            # And only one of any of the others
-            for k in ('g', 'a', 's', 't', 'h', 'd'):
-                if k in program['kijkwijzer']:
-                    xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
-                    xml.append(self.add_starttag('value', 6, '', config.kijkwijzer[k]['code'], True))
-                    xml.append(self.add_starttag('icon', 6, 'src="%s"' % config.kijkwijzer[k]['icon'], '', True))
-                    xml.append(self.add_endtag('rating', 4))
+                        else:
+                            xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
+                            if config.opt_dict['kijkwijzerstijl'] == 'long':
+                                xml.append(self.add_starttag('value', 6, '', config.kijkwijzer[k]['text'], True))
+
+                            else:
+                                xml.append(self.add_starttag('value', 6, '', config.kijkwijzer[k]['code'], True))
+
+                            xml.append(self.add_starttag('icon', 6, 'src="%s"' % config.kijkwijzer[k]['icon'], '', True))
+                            xml.append(self.add_endtag('rating', 4))
+                        break
+
+                # And only one of any of the others
+                for k in ('g', 'a', 's', 't', 'h', 'd'):
+                    if k in program['kijkwijzer']:
+                        if config.opt_dict['kijkwijzerstijl'] == 'single':
+                            kstring += k.upper()
+
+                        else:
+                            xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
+                            if config.opt_dict['kijkwijzerstijl'] == 'long':
+                                xml.append(self.add_starttag('value', 6, '', config.kijkwijzer[k]['text'], True))
+
+                            else:
+                                xml.append(self.add_starttag('value', 6, '', config.kijkwijzer[k]['code'], True))
+
+                            xml.append(self.add_starttag('icon', 6, 'src="%s"' % config.kijkwijzer[k]['icon'], '', True))
+                            xml.append(self.add_endtag('rating', 4))
 
             # Set star-rating if applicable
             if program['star-rating'] != '':
