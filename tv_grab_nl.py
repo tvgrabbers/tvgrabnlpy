@@ -550,6 +550,7 @@ class Configure:
         self.titlerename = {'navy ncis': 'NCIS',
                                         'inspector banks': 'DCI Banks'}
 
+        self.ttvdb_aliasses = {'castle': 'castle (2009)'}
         # Create a category translation dictionary
         # Look in mythtv/themes/blue/ui.xml for all category names
         # The keys are the categories used by tvgids.nl (lowercase please)
@@ -4897,6 +4898,9 @@ class FetchData(Thread):
             return
 
         # First we look for an ID in the database
+        if series_name in config.ttvdb_aliasses.keys():
+            series_name = config.ttvdb_aliasses[series_name]
+
         xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb': {'title': series_name}})
         tid = self.cache_return.get(True)
         if tid != None:
@@ -11020,71 +11024,6 @@ class XMLoutput:
 # end XMLoutput
 xml_output = XMLoutput()
 
-def get_brt1_channel(days):
-    """
-    Get the channel info from the BRT1
-    """
-    brt1_zoeken ='http://www.een.be/tv-gids/day'
-    programs = []
-    onedata = re.compile('<li.*?id="([0-9]+?)">.*?<div class="(.*?)">(.*?)</li>',re.DOTALL)
-    startdata = re.compile('<span title="begintijd">(.*?)</span>',re.DOTALL)
-    contentdata = re.compile('<div class="content">.*?<h5>(.*?)</h5>(.*?)</div>',re.DOTALL)
-    urldata = re.compile('(.*?)<a href="(.*?)" title="',re.DOTALL)
-    extradata = re.compile('(.*?)p style=(.*?)</p>',re.DOTALL)
-    descrline = re.compile('<p>(.*?)</p>',re.DOTALL)
-
-    # een.be shows programs per day, so we loop over the number of days
-    # we are required to grab
-    for offset in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
-
-        channel_url = brt1_zoeken +  unicode(offset + 1)
-
-        if offset > 0:
-            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-
-        # get the raw programming for the day
-        strdata = xml_output.channelsource[0].get_page(channel_url)
-        prog_list = onedata.finditer(strdata)
-        for v in prog_list:
-            id = v.group(1)
-            type = v.group(2)
-            start = startdata.search(v.group(3)).group(1)
-            content = contentdata.search(v.group(3))
-            titel = content.group(1)
-            data =content.group(2)
-            #print id + ': ' + type + ': ' + start + ': ' + titel
-            #print data
-            try:
-                url = urldata.search(data)
-                data = url.group(1)
-                url = url.group(2)
-            except:
-                url = ''
-            try:
-                details = extradata.search(data)
-                data = details.group(1)
-                details = details.group(2)
-            except:
-                details = ''
-            teletext = ('Ondertiteling via T888' in details)
-            #~ actua = ('Beschikbaar in ACTUA' in details)
-            #~ ooitgemist = ('Beschikbaar in OOIT GEMIST' in details)
-            #~ netgemist = ('Beschikbaar in NET GEMIST' in details)
-            data = data.replace('\n','')
-            data = data.replace(' <br/> ',' ')
-            data = data.replace(' <br/>',' ')
-            data = data.replace('<br/> ',' ')
-            data = data.replace('<br/>',' ')
-            #descriptions = ()
-            descriptions = descrline.finditer(data)
-            #~ print ''
-            #~ print titel
-            #~ for descr in descriptions:
-                #~ if descr.group(1) != '':
-                    #~ print descr.group(1)
-
-#end get_brt1_channel()
-
 def main():
     # We want to handle unexpected errors nicely. With a message to the log
     try:
@@ -11097,7 +11036,6 @@ def main():
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
 
-        #~ return
         # Start the seperate fetching threads
         for source in xml_output.channelsource.values():
             x = source.start()
