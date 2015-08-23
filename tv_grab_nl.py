@@ -345,7 +345,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150820'
+        self.patchdate = u'20150822'
         self.alfa = True
         self.beta = True
 
@@ -1465,7 +1465,7 @@ class Configure:
                         metavar = '<source ID>', type = int,
                         help = 'disable a numbered source for detailfetches.\nSee "--show-detail-sources" for a list.')
 
-        parser.add_argument('--disable-ttvdb', action = 'store_false', default = True, dest = 'enable_ttvdb',
+        parser.add_argument('--disable-ttvdb', action = 'store_false', default = None, dest = 'enable_ttvdb',
                         help = 'disable fetching extra data from ttvdb.com.')
 
         parser.add_argument('-N', '--nouse-NPO', action = 'store_false', default = None, dest = 'use_npo',
@@ -1500,7 +1500,10 @@ class Configure:
                         help = 'clean the cache of outdated data before fetching')
 
         parser.add_argument('--clear_cache', action = 'store_true', default = self.clear_cache, dest = 'clear_cache',
-                        help = 'empties the cache file before fetching data')
+                        help = 'empties the program table before fetching data')
+
+        parser.add_argument('--clear_ttvdb', action = 'store_true', default = self.clear_cache, dest = 'clear_ttvdb',
+                        help = 'empties the ttvdb table before fetching data')
 
         parser.add_argument('-W', '--output', type = str, default = None, dest = 'output_file',
                         metavar = '<file>',
@@ -2174,9 +2177,6 @@ class Configure:
         if x != None:
             return(x)
 
-        if self.args.enable_ttvdb != None:
-            self.opt_dict['enable_ttvdb'] = self.args.enable_ttvdb
-
         if self.args.quiet != None:
             self.opt_dict['quiet'] = self.args.quiet
 
@@ -2186,6 +2186,12 @@ class Configure:
         #check for cache
         if self.validate_option('program_cache_file') != None:
             return(2)
+
+        if self.args.enable_ttvdb != None:
+            self.opt_dict['enable_ttvdb'] = self.args.enable_ttvdb
+
+        if self.opt_dict['enable_ttvdb']:
+            self.init_ttvdb()
 
         # Check a possible output file
         if self.args.output_file != None:
@@ -2564,11 +2570,14 @@ class Configure:
 
             xml_output.program_cache = ProgramCache(self.program_cache_file)
             xml_output.program_cache.start()
-            if self.args.clean_cache:
-                xml_output.program_cache.cache_request.put({'task':'clean'})
-
             if self.args.clear_cache:
                 xml_output.program_cache.cache_request.put({'task':'clear'})
+
+            elif self.args.clean_cache:
+                xml_output.program_cache.cache_request.put({'task':'clean'})
+
+            if self.args.clear_ttvdb:
+                xml_output.program_cache.cache_request.put({'task':'clear', 'table':['ttvdb', 'episodes']})
 
         elif option == 'slowdays':
             if channel == None:
@@ -3808,7 +3817,14 @@ class ProgramCache(Thread):
                     continue
 
             if crequest['task'] == 'clear':
-                self.clear()
+                if 'table' in crequest:
+                    for t in crequest['table']:
+                        self.clear(t)
+
+                else:
+                    self.clear('programs')
+                    self.clear('credits')
+
                 continue
 
             if crequest['task'] == 'clean':
@@ -3888,36 +3904,27 @@ class ProgramCache(Thread):
             log('Verifying the database\n')
             pcursor.execute("PRAGMA main.integrity_check")
             for t in ( 'programs',  'credits', 'channels', 'channelsource', 'iconsource', 'ttvdb', 'episodes'):
-                try:
-                    #~ print t
-                    # (cid, Name, Type, Nullable = 0, Default, Pri_key index)
-                    pcursor.execute("PRAGMA main.table_info('%s')" % (t,))
-                    trows = pcursor.fetchall()
-                    if len(trows) == 0:
-                        # Table does not exist
-                        self.create_table(t)
-                        continue
-
-                    else:
-                        clist = {}
-                        for r in trows:
-                            #~ print r
-                            clist[r[1].lower()] = r
-
-                        self.check_collumns(t, clist)
-
-                    # (id, Name, Type, Nullable = 0, Default, Pri_key index)
-                    #~ pcursor.execute("PRAGMA main.index_list(%s)" % (t,))
-                    #~ for r in pcursor.fetchall():
-                        #~ print r
-
-                except:
-                    traceback.format_exc()
+                # (cid, Name, Type, Nullable = 0, Default, Pri_key index)
+                pcursor.execute("PRAGMA main.table_info('%s')" % (t,))
+                trows = pcursor.fetchall()
+                if len(trows) == 0:
+                    # Table does not exist
+                    self.create_table(t)
                     continue
 
+                else:
+                    clist = {}
+                    for r in trows:
+                        clist[r[1].lower()] = r
+
+                    self.check_collumns(t, clist)
+
+                self.check_indexes(t)
+
         except:
-            log(['Error loading cache db: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
+            log(['Error loading the database: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
             self.filename = None
+            config.opt_dict['enable_ttvdb'] = False
 
     def create_table(self, table):
         if table == 'programs':
@@ -3941,8 +3948,6 @@ class ProgramCache(Thread):
                 create_string = u"%s, '%s' boolean DEFAULT 'False'" % (create_string, key)
 
             create_string = u"%s, 'kijkwijzer' kijkwijzer DEFAULT '')" % create_string
-            create_index = []
-            create_index.append(u"CREATE INDEX 'stoptime' on %s ('stop-time')" % table)
 
         elif table == 'credits':
             create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
@@ -3953,37 +3958,34 @@ class ProgramCache(Thread):
             if (sqlite3.sqlite_version_info >= (3, 8, 2)):
                 create_string += u" WITHOUT ROWID"
 
-            create_index = []
-            create_index.append(u"CREATE INDEX 'title' on %s ('pid', 'title')" % table)
 
         elif table == 'ttvdb':
             create_string = u"CREATE TABLE IF NOT EXISTS %s "  % table
-            create_string += u"('tid' INTEGER PRIMARY KEY ON CONFLICT REPLACE"
-            create_string += u", 'title' TEXT UNIQUE ON CONFLICT REPLACE"
+            create_string += u"('title' TEXT PRIMARY KEY ON CONFLICT REPLACE"
+            create_string += u", 'tid' INTEGER"
             create_string += u", 'tdate' date)"
-            create_index = []
+            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
+                create_string += u" WITHOUT ROWID"
+
 
         elif table == 'episodes':
             create_string = u"CREATE TABLE IF NOT EXISTS %s "  % table
             create_string += u"('tid' INTEGER"
             create_string += u", 'sid' INTEGER"
             create_string += u", 'eid' INTEGER"
+            create_string += u", 'lang' TEXT DEFAULT 'nl'"
             create_string += u", 'title' TEXT"
             create_string += u", 'airdate' date"
-            create_string += u", PRIMARY KEY ('tid', 'sid', 'eid') ON CONFLICT REPLACE)"
+            create_string += u", PRIMARY KEY ('tid', 'sid', 'eid', 'lang') ON CONFLICT REPLACE)"
             if (sqlite3.sqlite_version_info >= (3, 8, 2)):
                 create_string += u" WITHOUT ROWID"
 
-            create_index = []
 
         elif table == 'channels':
             create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
             create_string += u"('chanid' TEXT PRIMARY KEY ON CONFLICT REPLACE"
             create_string += u", 'cgroup' INTEGER DEFAULT 10"
             create_string += u", 'name' TEXT)"
-            create_index = []
-            create_index.append(u"CREATE INDEX 'chan_name' on %s ('name')" % table)
-            create_index.append(u"CREATE INDEX 'cgroup' on %s ('cgroup')" % table)
 
         elif table == 'channelsource':
             create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
@@ -3997,8 +3999,6 @@ class ProgramCache(Thread):
             if (sqlite3.sqlite_version_info >= (3, 8, 2)):
                 create_string += u" WITHOUT ROWID"
 
-            create_index = []
-            create_index.append(u"CREATE INDEX 'scid' on %s ('scid')" % table)
 
         elif table == 'iconsource':
             create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
@@ -4009,14 +4009,11 @@ class ProgramCache(Thread):
             if (sqlite3.sqlite_version_info >= (3, 8, 2)):
                 create_string += u" WITHOUT ROWID"
 
-            create_index = []
 
-        elif table == '':
+        #~ elif table == '':
             #~ create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
             #~ create_string += u""
             #~ create_string += u""
-            create_index = []
-            #~ create_index.append(u"CREATE INDEX '' on %s ('')" % table)
 
         else:
             return
@@ -4024,140 +4021,177 @@ class ProgramCache(Thread):
         with self.pconn:
             try:
                 self.pconn.execute(create_string)
-                for i in create_index:
-                    self.pconn.execute(i)
 
             except:
                 log(['Error creating the %s table!\n' % table, traceback.format_exc()])
 
     def check_collumns(self, table, clist):
         def add_collumn(table, collumn):
-            with self.pconn:
-                self.pconn.execute(u"ALTER TABLE %s ADD %s" % (table, collumn))
+            try:
+                with self.pconn:
+                    self.pconn.execute(u"ALTER TABLE %s ADD %s" % (table, collumn))
+
+            except:
+                log('Error updating the %s table with collumn "%s"!\n' % (table, collumn))
 
         def drop_table(table):
             with self.pconn:
                 self.pconn.execute(u"DROP TABLE IF EXISTS %s" % (table,))
 
-        try:
-            if table == 'programs':
-                if 'pid' not in clist.keys():
+        if table == 'programs':
+            if 'pid' not in clist.keys():
+                drop_table(table)
+                self.create_table(table)
+                return
+
+            if 'genre' not in clist.keys():
+                add_collumn(table, u"'genre' TEXT DEFAULT 'overige'")
+
+            if 'kijkwijzer' not in clist.keys():
+                add_collumn(table, u"'kijkwijzer' kijkwijzer DEFAULT ''")
+
+            for c in xml_output.channelsource[0].text_values:
+                if c.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' TEXT DEFAULT ''" % c)
+
+            for c in xml_output.channelsource[0].date_values:
+                if c.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' date" % c)
+
+            for c in xml_output.channelsource[0].datetime_values:
+                if c.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' datetime" % c)
+
+            for c in xml_output.channelsource[0].bool_values:
+                if c.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' boolean DEFAULT 'False'" % c)
+
+            for c in xml_output.channelsource[0].num_values:
+                if c.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' INTEGER DEFAULT 0" % c)
+
+            for c in xml_output.channelsource[0].video_values:
+                if c.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' boolean DEFAULT 'False'" % c)
+
+        elif table == 'credits':
+            for c in ('pid', 'title', 'name'):
+                if c.lower() not in clist.keys():
                     drop_table(table)
                     self.create_table(table)
                     return
 
-                if 'genre' not in clist.keys():
-                    add_collumn(table, u"'genre' TEXT DEFAULT 'overige'")
+        elif table == 'ttvdb':
+            for c in ('title', ):
+                if c.lower() not in clist.keys():
+                    drop_table(table)
+                    self.create_table(table)
+                    drop_table('episodes')
+                    self.create_table('episodes')
+                    return
 
-                if 'kijkwijzer' not in clist.keys():
-                    add_collumn(table, u"'kijkwijzer' kijkwijzer DEFAULT ''")
+            if 'tid' not in clist.keys():
+                add_collumn(table, u"'tid' INTEGER")
 
-                for c in xml_output.channelsource[0].text_values:
-                    if c.lower() not in clist.keys():
-                        add_collumn(table, u"'%s' TEXT DEFAULT ''" % c)
+            if 'tdate' not in clist.keys():
+                add_collumn(table, u"'tdate' date")
 
-                for c in xml_output.channelsource[0].date_values:
-                    if c.lower() not in clist.keys():
-                        add_collumn(table, u"'%s' date" % c)
-
-                for c in xml_output.channelsource[0].datetime_values:
-                    if c.lower() not in clist.keys():
-                        add_collumn(table, u"'%s' datetime" % c)
-                        if c.lower() == 'stop-time':
-                            with self.pconn:
-                                self.pconn.execute(u"CREATE INDEX 'stoptime' on %s ('stop-time')" % table)
-
-                for c in xml_output.channelsource[0].bool_values:
-                    if c.lower() not in clist.keys():
-                        add_collumn(table, u"'%s' boolean DEFAULT 'False'" % c)
-
-                for c in xml_output.channelsource[0].num_values:
-                    if c.lower() not in clist.keys():
-                        add_collumn(table, u"'%s' INTEGER DEFAULT 0" % c)
-
-                for c in xml_output.channelsource[0].video_values:
-                    if c.lower() not in clist.keys():
-                        add_collumn(table, u"'%s' boolean DEFAULT 'False'" % c)
-
-            elif table == 'credits':
-                for c in ('pid', 'title', 'name'):
-                    if c.lower() not in clist.keys():
-                        drop_table(table)
-                        self.create_table(table)
-                        return
-
-            elif table == 'ttvdb':
-                for c in ('tid', 'title', 'tdate'):
-                    if c.lower() not in clist.keys():
-                        drop_table(table)
-                        self.create_table(table)
-                        drop_table('episodes')
-                        self.create_table('episodes')
-                        return
-
-            elif table == 'episodes':
-                for c in ('tid', 'sid', 'eid'):
-                    if c.lower() not in clist.keys():
-                        drop_table(table)
-                        self.create_table(table)
-                        return
-
-                if 'title' not in clist.keys():
-                    add_collumn(table, u"'title' TEXT")
-
-                if 'airdate' not in clist.keys():
-                    add_collumn(table, u"'airdate' date")
-
-            elif table == 'channels':
-                if 'chanid' not in clist.keys():
+        elif table == 'episodes':
+            for c in ('tid', 'sid', 'eid', 'lang'):
+                if c.lower() not in clist.keys():
                     drop_table(table)
                     self.create_table(table)
                     return
 
-                if 'cgroup' not in clist.keys():
-                    add_collumn(table, u"'cgroup' INTEGER")
-                    with self.pconn:
-                        self.pconn.execute(u"CREATE INDEX 'cgroup' on %s ('cgroup')" % table)
+            if 'title' not in clist.keys():
+                add_collumn(table, u"'title' TEXT")
 
-                if 'name' not in clist.keys():
-                    add_collumn(table, u"'name' TEXT")
-                    with self.pconn:
-                        self.pconn.execute(u"CREATE INDEX 'chan_name' on %s ('name')" % table)
+            if 'airdate' not in clist.keys():
+                add_collumn(table, u"'airdate' date")
 
-            elif table == 'channelsource':
-                for c in ('chanid', 'sourceid'):
-                    if c.lower() not in clist.keys():
-                        drop_table(table)
-                        self.create_table(table)
-                        return
+        elif table == 'channels':
+            if 'chanid' not in clist.keys():
+                drop_table(table)
+                self.create_table(table)
+                return
 
-                for c in ('scid', 'name'):
-                    if c.lower() not in clist.keys():
-                        add_collumn(table, u"'%s' TEXT" % c)
-                        if c.lower() == 'scid':
-                            with self.pconn:
-                                self.pconn.execute(u"CREATE INDEX 'scid' on %s ('scid')" % table)
+            if 'cgroup' not in clist.keys():
+                add_collumn(table, u"'cgroup' INTEGER")
 
-                if 'hd' not in clist.keys():
-                    add_collumn(table, u"'hd' boolean DEFAULT 'False'")
+            if 'name' not in clist.keys():
+                add_collumn(table, u"'name' TEXT")
 
-                if 'emptycount' not in clist.keys():
-                    add_collumn(table, u"'emptycount' INTEGER DEFAULT 0")
+        elif table == 'channelsource':
+            for c in ('chanid', 'sourceid'):
+                if c.lower() not in clist.keys():
+                    drop_table(table)
+                    self.create_table(table)
+                    return
 
-            elif table == 'iconsource':
-                for c in ('chanid', 'sourceid'):
-                    if c.lower() not in clist.keys():
-                        drop_table(table)
-                        self.create_table(table)
-                        return
+            for c in ('scid', 'name'):
+                if c.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' TEXT" % c)
 
-                if 'icon' not in clist.keys():
-                    add_collumn(table, u"'icon' TEXT")
-                #~ if '' not in clist.keys():
-                    #~ add_collumn(table, u"'' ")
+            if 'hd' not in clist.keys():
+                add_collumn(table, u"'hd' boolean DEFAULT 'False'")
 
-        except:
-            log('Error updating the %s table with collumn "%s"!\n' % (table, collumn))
+            if 'emptycount' not in clist.keys():
+                add_collumn(table, u"'emptycount' INTEGER DEFAULT 0")
+
+        elif table == 'iconsource':
+            for c in ('chanid', 'sourceid'):
+                if c.lower() not in clist.keys():
+                    drop_table(table)
+                    self.create_table(table)
+                    return
+
+            if 'icon' not in clist.keys():
+                add_collumn(table, u"'icon' TEXT")
+            #~ if '' not in clist.keys():
+                #~ add_collumn(table, u"'' ")
+
+    def check_indexes(self, table):
+        def add_index(table, i, clist):
+            try:
+                with self.pconn:
+                    self.pconn.execute(u"CREATE INDEX IF NOT EXISTS '%s' ON %s %s" % (i, table, clist))
+
+            except:
+                log('Error updating the %s table with Index "%s"!\n' % (table, i))
+
+        pcursor = self.pconn.cursor()
+        # (id, Name, Type, Nullable = 0, Default, Pri_key index)
+        pcursor.execute("PRAGMA main.index_list(%s)" % (table,))
+        ilist = {}
+        for r in pcursor.fetchall():
+            ilist[r[1].lower()] = r
+
+        if table == 'programs':
+            if 'stoptime' not in ilist:
+                add_index( table, 'stoptime', "('stop-time')")
+
+        elif table == 'credits':
+            if 'credtitle' not in ilist:
+                add_index( table, 'credtitle', "('pid', 'title')")
+
+        elif table == 'ttvdb':
+            if 'ttvdbtid' not in ilist:
+                add_index( table, 'ttvdbtid', "('tid')")
+
+        elif table == 'episodes':
+            if 'eptitle' not in ilist:
+                add_index( table, 'eptitle', "('title')")
+
+        elif table == 'channels':
+            if 'cgroup' not in ilist:
+                add_index( table, 'cgroup', "('cgroup')")
+
+            if 'chan_name' not in ilist:
+                add_index( table, 'chan_name', "('name')")
+
+        elif table == 'channelsource':
+            if 'scid' not in ilist:
+                add_index( table, 'scid', "('scid')")
 
     def load_old(self):
         """
@@ -4280,7 +4314,7 @@ class ProgramCache(Thread):
             return None
 
         elif table == 'ttvdb':
-            pcursor.execute(u"SELECT tid, tdate FROM ttvdb WHERE lower(title) = ?", (item.lower(),))
+            pcursor.execute(u"SELECT tid, tdate FROM ttvdb WHERE lower(title) = ?", (item['title'].lower(), ))
             r = pcursor.fetchone()
             if r == None:
                 return
@@ -4388,8 +4422,8 @@ class ProgramCache(Thread):
                     item = item[0]
 
                 with self.pconn:
-                    self.pconn.execute(u"INSERT INTO episodes ('tid', 'sid', 'eid', 'title', 'airdate') VALUES (?, ?, ?, ?, ?)", \
-                        (int(item['tid']), int(item['sid']), int(item['eid']), item['title'], item['airdate']))
+                    self.pconn.execute(u"INSERT INTO episodes ('tid', 'sid', 'eid', 'title', 'airdate', 'lang') VALUES (?, ?, ?, ?, ?, ?)", \
+                        (int(item['tid']), int(item['sid']), int(item['eid']), item['title'], item['airdate'], item['lang']))
 
             elif isinstance(item, list) and len(item) > 1:
                 eps = []
@@ -4407,31 +4441,34 @@ class ProgramCache(Thread):
                 with self.pconn:
                     self.pconn.executemany(u"INSERT INTO episodes ('tid', 'sid', 'eid', 'title', 'airdate') VALUES (?, ?, ?, ?, ?)", eps)
 
-    def clear(self):
+    def clear(self, table):
         """
         Clears the cache (i.e. empties it)
         """
         with self.pconn:
-            self.pconn.execute(u"DROP TABLE IF EXISTS programs")
-            self.pconn.execute(u"DROP TABLE IF EXISTS credits")
+            self.pconn.execute(u"DROP TABLE IF EXISTS %s" % table)
 
         with self.pconn:
             self.pconn.execute(u"VACUUM")
 
-        self.create_table('programs')
-        self.create_table('credits')
+        self.create_table(table)
+        self.check_indexes(table)
 
     def clean(self):
         """
         Removes all cached programming before today.
-        Also removes erroneously cached programming.
+        And ttvdb ids older then 30 days
         """
-        dnow = datetime.date.today().isoformat()
+        dnow = int(time.mktime(datetime.date.today().timetuple())*1000)
         with self.pconn:
             self.pconn.execute(u"DELETE FROM programs WHERE 'stop-time' < ?", (dnow,))
 
         with self.pconn:
             self.pconn.execute(u"DELETE FROM credits WHERE NOT EXISTS (SELECT * FROM programs WHERE programs.pid = credits.pid)")
+
+        dnow = datetime.date.today().toordinal()
+        with self.pconn:
+            self.pconn.execute(u"DELETE FROM ttvdb WHERE tdate < ?", (dnow - 30,))
 
         with self.pconn:
             self.pconn.execute(u"VACUUM")
@@ -4838,15 +4875,16 @@ class FetchData(Thread):
         return tdict
 
     # ttvdb functions
-    def get_ttvdb_id(self, series_name, renew_data=False):
+    def get_ttvdb_id(self, series_name, lang='nl', renew_data=False):
         if not config.opt_dict['enable_ttvdb']:
             return
 
-        xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb': series_name})
+        # First we look for an ID in the database
+        xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb': {'title': series_name}})
         tid = self.cache_return.get(True)
         if tid != None:
             if  renew_data or (datetime.date.today() - tid['tdate']).days > 30:
-                log('Renewing ttvdb data for %s' % series_name)
+                log('Renewing ttvdb data for %s\n' % series_name)
 
             elif tid['tid'] == '' or int(tid['tid']) == 0:
                 return
@@ -4854,49 +4892,84 @@ class FetchData(Thread):
             else:
                 return tid['tid']
 
-        try:
-            t = tvdb_api.Tvdb(interactive = False,
-                            select_first = False,
-                            cache = config.ttvdb_dir,
-                            language = 'nl',
-                            apikey="0BB856A59C51D607")  # thetvdb.com API key requested by MythTV
+        # If not found or the data is expired we look for several languages
+        if lang == 'nl':
+            langs = ('nl', 'en', 'all')
 
-            tid = t._getSeries(series_name)
+        else:
+            langs = (lang, 'nl', 'en', 'all')
 
-        except tvdb_exceptions.tvdb_shownotfound:
+        tfound = False
+        for l in langs:
+            try:
+                if l == 'all':
+                    t = tvdb_api.Tvdb(interactive = False,
+                                    select_first = True,
+                                    cache = config.ttvdb_dir,
+                                    search_all_languages = True,
+                                    apikey="0BB856A59C51D607")
+
+                else:
+                    t = tvdb_api.Tvdb(interactive = False,
+                                    select_first = True,
+                                    cache = config.ttvdb_dir,
+                                    language = l,
+                                    apikey="0BB856A59C51D607")
+
+                tid = t._getSeries(series_name)
+                if tid == None:
+                    continue
+
+                tfound = True
+                # And fill the database with the episodes
+                xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': int(tid['sid']), 'title': tid['name']}})
+                t._getShowData(tid['sid'])
+                eps = []
+                for sid, s in t.shows[tid['sid']].items():
+                    for eid, e in  s.items():
+                        en = unicode(e['episodename']) if isinstance( e['episodename'], (str, unicode)) else u''
+                        ed = datetime.datetime.strptime(e['firstaired'], '%Y-%m-%d').date() if isinstance( e['firstaired'], (str, unicode)) else None
+                        eps.append({'tid': int(tid['sid']), 'sid': int(sid), 'eid': int(eid), 'title': en, 'airdate': ed, 'lang': l})
+
+                xml_output.program_cache.cache_request.put({'task':'add', 'episode': eps})
+
+            except tvdb_exceptions.tvdb_shownotfound:
+                tid = None
+                continue
+
+        if tfound == False:
             xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': 0, 'title': series_name}})
             return
-
-        if tid == None:
-            xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': 0, 'title': series_name}})
-            return
-
-        xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': int(tid['sid']), 'title': tid['name']}})
-        t._getShowData(tid['sid'])
-        eps = []
-        for sid, s in t.shows[tid['sid']].items():
-            for eid, e in  s.items():
-                en = unicode(e['episodename']) if isinstance( e['episodename'], (str, unicode)) else u''
-                ed = datetime.datetime.strptime(e['firstaired'], '%Y-%m-%d').date() if isinstance( e['firstaired'], (str, unicode)) else None
-                eps.append({'tid': int(tid['sid']), 'sid': int(sid), 'eid': int(eid), 'title': en, 'airdate': ed})
-
-        xml_output.program_cache.cache_request.put({'task':'add', 'episode': eps})
 
         return tid['sid']
 
     def get_season_episode(self, parent = None, data = None):
-        if not config.opt_dict['enable_ttvdb'] or not parent.config.opt_dict['enable_ttvdb']:
+        if not config.opt_dict['enable_ttvdb'] or not parent.opt_dict['enable_ttvdb']:
             return data
 
         if data == None:
             return
+
+        if data['titel aflevering'][0:27].lower() == 'geen informatie beschikbaar':
+            return data
+
+        if parent != None:
+            # We do not lookup for regional channels
+            if parent.group == 6:
+                return data
+
+            if parent.group == 4:
+                tid = self.get_ttvdb_id(data['name'], 'de')
+
+            if parent.group == 5:
+                tid = self.get_ttvdb_id(data['name'], 'fr')
 
         tid = self.get_ttvdb_id(data['name'])
         if tid == None:
             if parent != None:
                 parent.update_counter('ttvdb_fail')
 
-            log('No ttvdb id for %s on channel %s\n' % (data['name'], data['channel']), 128)
+            log("No ttvdb id for '%s' on channel %s\n" % (data['name'], data['channel']), 128)
             return data
 
         xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, \
@@ -4934,7 +5007,7 @@ class FetchData(Thread):
         if parent != None:
             parent.update_counter('ttvdb_fail')
 
-        log('ttvdb failure for %s: %s on channel %s\n' % (data['name'], data['titel aflevering'], data['channel']), 128)
+        log("ttvdb failure for '%s': '%s' on channel %s\n" % (data['name'], data['titel aflevering'], data['channel']), 128)
         return data
 
     # Helper functions
@@ -5188,6 +5261,10 @@ class FetchData(Thread):
         psubtitle = program['titel aflevering']
         if  ptitle == None or ptitle == '':
             return program
+
+        if re.sub('[-,. ]', '', ptitle) == re.sub('[-,. ]', '', psubtitle):
+            program['titel aflevering'] = ''
+            psubtitle = ''
 
         # Remove a groupname if in the list
         for group in config.groupnameremove:
@@ -7635,6 +7712,10 @@ class tvgidstv_HTML(FetchData):
                         break
 
     def match_genre(self, dtext, tdict):
+        if len(dtext) > 20:
+            tdict['genre'] = u'overige'
+            return tdict
+
         if dtext.lower() in config.tvtvcattrans.keys():
             tdict['genre'] = config.tvtvcattrans[dtext.lower()].capitalize()
             tdict['subgenre'] = dtext
@@ -9808,12 +9889,16 @@ class horizon_JSON(FetchData):
 
                         tdict['offset'] = self.get_offset(tdict['start-time'])
                         start = item['endTime']
-                        tdict['titel aflevering'] = item['program']['secondaryTitle'] if 'secondaryTitle' in item['program'] else ''
+                        if 'secondaryTitle' in item['program'] \
+                          and item['program']['secondaryTitle'][:27].lower() != 'geen informatie beschikbaar' \
+                          and item['program']['secondaryTitle'] not in (item['program']['title']):
+                            tdict['titel aflevering'] = self.unescape(item['program']['secondaryTitle'])
+
                         ep = int(item['program']['seriesEpisodeNumber']) if 'seriesEpisodeNumber' in item['program'] else 0
                         tdict['episode'] =  u'0' if ep > 1000 else str(ep)
 
-                        shortdesc = item['program']['shortDescription'] if 'shortDescription' in item['program'] else ''
-                        tdict['description'] = item['program']['description'] if 'description' in item['program'] else shortdesc
+                        shortdesc = self.unescape(item['program']['shortDescription']) if 'shortDescription' in item['program'] else ''
+                        tdict['description'] = self.unescape(item['program']['description']) if 'description' in item['program'] else shortdesc
                         tdict['airdate'] = datetime.datetime.fromtimestamp(int(item['program']['airdate'])/1000, CET_CEST) if 'airdate' in item['program'] else ''
                         tdict['jaar van premiere'] = item['program']['year'] if 'year' in item['program'] else ''
                         tdict['rerun'] = ('latestBroadcastStartTime' in item['program'] and item['startTime'] != item['program']['latestBroadcastStartTime'])
@@ -9986,6 +10071,8 @@ class Channel_Config(Thread):
         config.validate_option('max_overlap', self)
         config.validate_option('desc_length', self)
         config.validate_option('slowdays', self)
+        if self.group == 6:
+            self.opt_dict['enable_ttvdb'] = False
 
     def run(self):
 
@@ -10160,6 +10247,9 @@ class Channel_Config(Thread):
         for fld in ('name', 'titel aflevering', 'originaltitle', 'jaar van premiere', 'airdate', 'country', 'star-rating', 'omroep'):
             if tdict[fld] != '':
                 cached[fld] = tdict[fld]
+
+        if re.sub('[-,. ]', '', cached['name']) == re.sub('[-,. ]', '', cached['titel aflevering']):
+            cached['titel aflevering'] = ''
 
         for fld in ('season', 'episode'):
             if tdict[fld] != 0:
@@ -10970,9 +11060,6 @@ def main():
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
 
-        config.init_ttvdb()
-        #~ xml_output.channelsource[0].get_ttvdb_id('NCIS', True)
-        #~ print xml_output.channelsource[0].get_season_episode('ncis', 'See no Evil')
         #~ return
         # Start the seperate fetching threads
         for source in xml_output.channelsource.values():
