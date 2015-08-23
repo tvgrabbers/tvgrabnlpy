@@ -29,7 +29,7 @@ Sinds versie 2:
 Sinds versie 2.2:
   * sqlite als cache format
   * nog meer bronnen
-  * bijna complete seizoen/episode informatie mede dankzij [thetvdb.com](http://www.thetvdb.com lookup.
+  * bijna complete seizoen/episode informatie mede dankzij [thetvdb.com](http://www.thetvdb.com) lookup.
   * nog betere configurabiliteit
 
 ###English Summary
