@@ -339,7 +339,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150822'
+        self.patchdate = u'20150823'
         self.alfa = True
         self.beta = True
 
@@ -364,7 +364,7 @@ class Configure:
         # 32 include matchlogging (see below)
         # 64 Title renames
         # 128 ttvdb.com lookup failures
-        self.opt_dict['log_level'] = 47
+        self.opt_dict['log_level'] = 175
         # The log filehandler, gets set later
         self.log_output = None
 
@@ -459,7 +459,7 @@ class Configure:
 
         self.opt_dict['disable_source'] = []
         self.opt_dict['disable_detail_source'] = []
-        self.opt_dict['enable_ttvdb'] = True
+        self.opt_dict['disable_ttvdb'] = False
         # enable this option if you were using tv_grab_nl, it adjusts the generated
         # xmltvid's so that everything works.
         self.opt_dict['compat'] = False
@@ -1244,7 +1244,7 @@ class Configure:
     # end Init()
 
     def init_ttvdb(self):
-        if not self.opt_dict['enable_ttvdb']:
+        if self.opt_dict['disable_ttvdb']:
             return
 
         try:
@@ -1255,13 +1255,13 @@ class Configure:
 
             # verify version of tvdbapi to make sure it is at least 1.0
             if tvdb_api.__version__ < '1.0':
-                self.opt_dict['enable_ttvdb'] = False
+                self.opt_dict['disable_ttvdb'] = True
                 log(['Your current installed tvdb_api.py version is (%s).\n' % tvdb_api.__version__, \
                         'You need at least 1.0, ttvdb.com lookup disable.\n'])
                 return
 
         except Exception, e:
-            self.opt_dict['enable_ttvdb'] = False
+            self.opt_dict['disable_ttvdb'] = True
             log(['Unable to load tvdb_api.py from the MythTV bindings.\n', 'ttvdb.com lookup disable.\n'])
             return
 
@@ -1462,7 +1462,7 @@ class Configure:
                         metavar = '<source ID>', type = int,
                         help = 'disable a numbered source for detailfetches.\nSee "--show-detail-sources" for a list.')
 
-        parser.add_argument('--disable-ttvdb', action = 'store_false', default = None, dest = 'enable_ttvdb',
+        parser.add_argument('--disable-ttvdb', action = 'store_true', default = None, dest = 'disable_ttvdb',
                         help = 'disable fetching extra data from ttvdb.com.')
 
         parser.add_argument('-N', '--nouse-NPO', action = 'store_false', default = None, dest = 'use_npo',
@@ -1665,7 +1665,7 @@ class Configure:
                 a = re.split('=',line)
                 cfg_option = a[0].lower().strip()
                 # Boolean Values
-                if cfg_option in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc', 'enable_ttvdb'):
+                if cfg_option in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc', 'disable_ttvdb'):
                     if len(a) == 1:
                         self.opt_dict[cfg_option] = True
 
@@ -1811,7 +1811,7 @@ class Configure:
                     a = re.split('=',line)
                     cfg_option = a[0].lower().strip()
                     # Boolean Values
-                    if cfg_option in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv', 'enable_ttvdb'):
+                    if cfg_option in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv', 'disable_ttvdb'):
                         if len(a) == 1:
                             self.channels[chanid].opt_dict[cfg_option] = True
 
@@ -2189,10 +2189,13 @@ class Configure:
         if self.validate_option('program_cache_file') != None:
             return(2)
 
-        if self.args.enable_ttvdb != None:
-            self.opt_dict['enable_ttvdb'] = self.args.enable_ttvdb
+        if self.args.clear_cache or self.args.clear_ttvdb:
+            return(0)
 
-        if self.opt_dict['enable_ttvdb']:
+        if self.args.disable_ttvdb != None:
+            self.opt_dict['disable_ttvdb'] = self.args.disable_ttvdb
+
+        if self.opt_dict['disable_ttvdb'] == False:
             self.init_ttvdb()
 
         # Check a possible output file
@@ -2661,7 +2664,7 @@ class Configure:
         log_array.append(u'program_cache_file = %s' % (self.args.program_cache_file))
         log_array.append(u'clean_cache = %s' % (self.args.clean_cache))
         log_array.append(u'clear_cache = %s' % (self.args.clear_cache))
-        log_array.append(u'enable_ttvdb = %s' % (self.opt_dict['enable_ttvdb']))
+        log_array.append(u'disable_ttvdb = %s' % (self.opt_dict['disable_ttvdb']))
         log_array.append(u'quiet = %s' % (self.opt_dict['quiet']))
         log_array.append(u'output_file = %s' % (self.opt_dict['output_file']))
         log_array.append(u'fast = %s' % (self.opt_dict['fast']))
@@ -2756,7 +2759,7 @@ class Configure:
 
                 log_array.append(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']))
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'enable_ttvdb'):
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'disable_ttvdb'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
@@ -2826,7 +2829,7 @@ class Configure:
             elif index in self.opt_dict['disable_detail_source']:
                 f.write(u'disable_detail_source = %s\n' % index)
 
-        f.write(u'enable_ttvdb = %s\n' % self.opt_dict['enable_ttvdb'])
+        f.write(u'disable_ttvdb = %s\n' % self.opt_dict['disable_ttvdb'])
         f.write(u'compat = %s\n' % self.opt_dict['compat'])
         f.write(u'logos = %s\n' % self.opt_dict['logos'])
         f.write(u'use_utc = %s\n' % self.opt_dict['use_utc'])
@@ -2865,7 +2868,7 @@ class Configure:
         f.write(u'# You can use the following tags:\n')
         f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
         f.write(u'#   fast, compat, logos, cattrans, mark_hd, add_hd_id, append_tvgidstv\n')
-        f.write(u'#   enable_ttvdb\n')
+        f.write(u'#   disable_ttvdb\n')
         f.write(u'#     append_tvgidstv is True by default, which means: \'Don\'t get data\n')
         f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
         f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
@@ -3252,7 +3255,7 @@ class Configure:
 
                 f.write(u'slowdays = %s\n' % (chan_def.opt_dict['slowdays']))
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'enable_ttvdb'):
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'disable_ttvdb'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         f.write(u'\n')
@@ -3933,7 +3936,7 @@ class ProgramCache(Thread):
         except:
             log(['Error loading the database: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
             self.filename = None
-            config.opt_dict['enable_ttvdb'] = False
+            config.opt_dict['disable_ttvdb'] = True
 
     def create_table(self, table):
         if table == 'programs':
@@ -4017,12 +4020,6 @@ class ProgramCache(Thread):
             create_string += u", PRIMARY KEY ('chanid', 'sourceid') ON CONFLICT REPLACE)"
             if (sqlite3.sqlite_version_info >= (3, 8, 2)):
                 create_string += u" WITHOUT ROWID"
-
-
-        #~ elif table == '':
-            #~ create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
-            #~ create_string += u""
-            #~ create_string += u""
 
         else:
             return
@@ -4156,8 +4153,6 @@ class ProgramCache(Thread):
 
             if 'icon' not in clist.keys():
                 add_collumn(table, u"'icon' TEXT")
-            #~ if '' not in clist.keys():
-                #~ add_collumn(table, u"'' ")
 
     def check_indexes(self, table):
         def add_index(table, i, clist):
@@ -4532,7 +4527,6 @@ class FetchURL(Thread):
         txtheaders = {'Keep-Alive' : '300',
                       'User-Agent' : config.user_agents[random.randint(0, len(config.user_agents)-1)] }
         try:
-            #fp = urllib.urlopen(url)
             rurl = urllib.Request(url, txtdata, txtheaders)
             fp = urllib.urlopen(rurl)
             bytes = fp.read()
@@ -4707,15 +4701,19 @@ class FetchData(Thread):
                         continue
 
                     parent = tdict['parent']
+                    # Is this the closing item for the channel?
                     if ('last_one' in tdict) and tdict['last_one']:
+                        # If it is source 1 then signal that everything is ready
                         if self.proc_id == 1 or parent.counters['fetch'][1] == 0:
                             parent.detail_data.set()
                             continue
 
+                        # Or pass it over to source 1
                         else:
                             xml_output.channelsource[1].detail_request.put(tdict)
                             continue
 
+                    # This is just a ttvdb lookup request
                     elif ('ttvdb' in tdict) and tdict['ttvdb']:
                         tdict = self.get_season_episode(parent, tdict['tdict'])
                         parent.update_counter('fetch', self.proc_id, False)
@@ -4728,6 +4726,7 @@ class FetchData(Thread):
                     chanid = tdict['channelid']
                     # be nice to the source site
                     time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                    # First if the cookyblock is not encountered try the html detail page
                     if not self.cookyblock:
                         try:
                             detailed_program = self.load_detailpage(tdict)
@@ -4742,7 +4741,7 @@ class FetchData(Thread):
                     else:
                         detailed_program = None
 
-                    # It failed! If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the json page and if that failes the cache again
+                    # It failed! If this is tvgids.nl we check the json page
                     if detailed_program == None and (self.proc_id == 0):
                         try:
                             detailed_program = self.load_json_detailpage(tdict)
@@ -4755,8 +4754,11 @@ class FetchData(Thread):
                             log(['Error processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\n' \
                                 % tdict[self.detail_id][3:], traceback.print_exc()], 1)
 
+                    # It failed!
                     if detailed_program == None:
+                        # If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the cache again
                         if (self.proc_id == 0) and (cache_id != None):
+                            # Check the cache again
                             xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': tdict[cache_id]})
                             cached_program = self.cache_return.get(True)
                             if cached_program == 'quit':
@@ -4768,6 +4770,7 @@ class FetchData(Thread):
                                 tdict= parent.use_cache(tdict, cached_program)
                                 if tdict['genre'].lower() == u'serie/soap' and tdict['titel aflevering'] != '' \
                                   and tdict['season'] == 0:
+                                    # We do a ttvdb lookup
                                     tdict = self.get_season_episode(parent, tdict)
 
                                 parent.detailed_programs.append(tdict)
@@ -4775,6 +4778,7 @@ class FetchData(Thread):
                                 parent.update_counter('fetch', self.proc_id, False)
                                 continue
 
+                            # If there is an url we'll try tvgids.tv
                             elif xml_output.channelsource[1].detail_processor and \
                                     1 not in parent.opt_dict['disable_detail_source'] and \
                                     tdict[xml_output.channelsource[1].detail_url] != '':
@@ -4783,16 +4787,19 @@ class FetchData(Thread):
                                 parent.update_counter('fetch', self.proc_id, False)
                                 continue
 
+                        # It failed!
                         else:
                             log(u'[fetch failed or timed out] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
                             if tdict['genre'].lower() == u'serie/soap' and tdict['titel aflevering'] != '' \
                               and tdict['season'] == 0:
+                                # We do a ttvdb lookup
                                 tdict = self.get_season_episode(parent, tdict)
                             parent.detailed_programs.append(tdict)
                             parent.update_counter('fail')
                             parent.update_counter('fetch', self.proc_id, False)
                             continue
 
+                    # Success
                     else:
                         # If this is the prefered description source for this channel, set its value
                         if config.channels[detailed_program['channelid']].opt_dict['prefered_description'] == self.proc_id:
@@ -4802,6 +4809,7 @@ class FetchData(Thread):
                         detailed_program['ID'] = detailed_program[xml_output.channelsource[self.proc_id].detail_id]
                         if detailed_program['genre'].lower() == u'serie/soap' and detailed_program['titel aflevering'] != '' \
                           and detailed_program['season'] == 0:
+                            # We do a ttvdb lookup
                             detailed_program = self.get_season_episode(parent, detailed_program)
 
                         parent.detailed_programs.append(detailed_program)
@@ -4855,7 +4863,7 @@ class FetchData(Thread):
         pass
 
     def init_json(self):
-        """The specifig initiation code if the source is json before starting with grabbing"""
+        """The specific initiation code if the source is json before starting with grabbing"""
         if not self.isjson:
             return
 
@@ -4885,7 +4893,7 @@ class FetchData(Thread):
 
     # ttvdb functions
     def get_ttvdb_id(self, series_name, lang='nl', renew_data=False):
-        if not config.opt_dict['enable_ttvdb']:
+        if config.opt_dict['disable_ttvdb']:
             return
 
         # First we look for an ID in the database
@@ -4953,7 +4961,7 @@ class FetchData(Thread):
         return tid['sid']
 
     def get_season_episode(self, parent = None, data = None):
-        if not config.opt_dict['enable_ttvdb'] or not parent.opt_dict['enable_ttvdb']:
+        if config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']:
             return data
 
         if data == None:
@@ -10054,7 +10062,7 @@ class Channel_Config(Thread):
         self.opt_dict = {}
         self.opt_dict['disable_source'] = []
         self.opt_dict['disable_detail_source'] = []
-        self.opt_dict['enable_ttvdb'] = True
+        self.opt_dict['disable_ttvdb'] = False
         self.opt_dict['prime_source'] = -1
         self.opt_dict['prefered_description'] = -1
         self.opt_dict['append_tvgidstv'] = True
@@ -10081,7 +10089,7 @@ class Channel_Config(Thread):
         config.validate_option('desc_length', self)
         config.validate_option('slowdays', self)
         if self.group == 6:
-            self.opt_dict['enable_ttvdb'] = False
+            self.opt_dict['disable_ttvdb'] = True
 
     def run(self):
 
@@ -10384,7 +10392,7 @@ class Channel_Config(Thread):
                         log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                         self.update_counter('cache')
                         p = self.use_cache(p, cached_program)
-                        if config.opt_dict['enable_ttvdb'] and self.opt_dict['enable_ttvdb']:
+                        if not config.opt_dict['disable_ttvdb'] and not self.opt_dict['disable_ttvdb']:
                             if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
                                 self.update_counter('fetch', 0)
                                 xml_output.channelsource[0].detail_request.put({'tdict':p, 'parent': self, 'ttvdb': True})
@@ -10399,7 +10407,7 @@ class Channel_Config(Thread):
             if no_detail_fetch:
                 log(u'    [no fetch] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                 self.update_counter('none')
-                if config.opt_dict['enable_ttvdb'] and self.opt_dict['enable_ttvdb']:
+                if not config.opt_dict['disable_ttvdb'] and not self.opt_dict['disable_ttvdb']:
                     if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
                         self.update_counter('fetch', 0)
                         xml_output.channelsource[0].detail_request.put({'tdict':p, 'parent': self, 'ttvdb': True})
