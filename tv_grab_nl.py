@@ -4038,9 +4038,10 @@ class ProgramCache(Thread):
                     self.check_collumns(t, clist)
 
                 self.check_indexes(t)
-                for a, t in config.ttvdb_aliasses.items():
-                    if not self.query_id('ttvdb_alias', {'title': t, 'alias': a}):
-                        self.add('ttvdb_alias', {'title': t, 'alias': a})
+
+            for a, t in config.ttvdb_aliasses.items():
+                if not self.query_id('ttvdb_alias', {'title': t, 'alias': a}):
+                    self.add('ttvdb_alias', {'title': t, 'alias': a})
 
         except:
             log(['Error loading the database: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
@@ -4619,7 +4620,7 @@ class ProgramCache(Thread):
 
                     elif ep[0]['title'].lower() != e['title'].lower() or ep[0]['airdate'] != e['airdate']:
 
-                        eps_upd.append((e['title'], e['airdate'], int(e['tid']), int(e['sid']), int(e['eid'], e['lang'])))
+                        eps_upd.append((e['title'], e['airdate'], int(e['tid']), int(e['sid']), int(e['eid']), e['lang']))
 
                 with self.pconn:
                     self.pconn.executemany(u"UPDATE episodes SET title = ?, airdate = ? WHERE tid = ? and sid = ? and eid = ? and lang = ?", eps_upd)
