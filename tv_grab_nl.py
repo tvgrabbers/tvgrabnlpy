@@ -128,7 +128,7 @@ description_text = """
 import re, sys, codecs, locale, argparse
 import time, datetime, random, io, json, shutil
 import os, os.path, curses, pickle
-import traceback, socket, sqlite3
+import traceback, socket, sqlite3, difflib
 try:
     import urllib.request as urllib
 except ImportError:
@@ -339,7 +339,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150824'
+        self.patchdate = u'20150825'
         self.alfa = True
         self.beta = True
 
@@ -5200,6 +5200,7 @@ class FetchData(Thread):
             log("No ttvdb id for '%s' on channel %s\n" % (data['name'], data['channel']), 128)
             return data
 
+        # First we just look for a matching subtitle
         xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, \
                 'ep_by_title': {'tid': tid, 'title': data['titel aflevering']}})
         eid = self.cache_return.get(True)
@@ -5215,10 +5216,15 @@ class FetchData(Thread):
             log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 8)
             return data
 
+        # Now we get a list of episodes matching what we already know and compare with confusing characters removed
         xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, \
                 'ep_by_id': {'tid': tid, 'sid': data['season'], 'eid': data['episode']}})
         eps = self.cache_return.get(True)
+        ep_dict = {}
+        ep_list = []
         for ep in eps:
+            ep_list.append(ep['title'])
+            ep_dict[ep['title']] = {'sid': ep['sid'], 'eid': ep['eid'], 'airdate': ep['airdate'], 'title': ep['title']}
             if re.sub('[-,. ]', '', ep['title'].lower()) == re.sub('[-,. ]', '', data['titel aflevering'].lower()):
                 if parent != None:
                     parent.update_counter('ttvdb')
@@ -5231,6 +5237,22 @@ class FetchData(Thread):
 
                 log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 8)
                 return data
+
+        # And finally we try a difflib match
+        match_list = difflib.get_close_matches(data['titel aflevering'], ep_list, 1, 0.9)
+        if len(match_list) > 0:
+            if parent != None:
+                parent.update_counter('ttvdb')
+
+            ep = ep_dict[match_list[0]]
+            data['titel aflevering'] = ep['title']
+            data['season'] = ep['sid']
+            data['episode'] = ep['eid']
+            if isinstance(ep['airdate'], (datetime.date)):
+                data['airdate'] = ep['airdate']
+
+            log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 8)
+            return data
 
         if parent != None:
             parent.update_counter('ttvdb_fail')
