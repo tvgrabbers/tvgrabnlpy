@@ -127,7 +127,7 @@ description_text = """
 # Modules we need
 import re, sys, codecs, locale, argparse
 import time, datetime, random, io, json, shutil
-import os, os.path, curses, pickle
+import os, os.path
 import traceback, socket, sqlite3, difflib
 try:
     import urllib.request as urllib
@@ -339,7 +339,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150825'
+        self.patchdate = u'20150828'
         self.alfa = True
         self.beta = True
 
@@ -398,10 +398,11 @@ class Configure:
         self.hpath = ''
         if 'HOME' in os.environ:
             self.hpath = os.environ['HOME']
-        # extra test for windows users
         elif 'HOMEPATH' in os.environ:
             self.hpath = os.environ['HOMEPATH']
-
+        # extra test for windows users
+        if os.name == 'nt' and 'USERPROFILE' in os.environ:
+            self.hpath = os.environ['USERPROFILE']
         self.xmltv_dir = u'%s/.xmltv' % self.hpath
         self.config_file = u'%s/tv_grab_nl_py.conf' % self.xmltv_dir
         self.log_file = u'%s/tv_grab_nl_py.log' % self.xmltv_dir
@@ -499,6 +500,8 @@ class Configure:
 
         # The values for the Kijkwijzer
         self.opt_dict['kijkwijzerstijl'] = 'short'
+        # Whether to use the split double episodes regularily seen on teveblad.be
+        self.opt_dict['use_split_episodes'] = True
         # Possible styles are
         # long, short, single and none
         self.kijkwijzer = {'1': {'code': 'AL','text': 'Voor alle leeftijden',
@@ -860,7 +863,9 @@ class Configure:
                                                             "nachtprogramma's",
                                                             "kinderprogramma's",
                                                             "kinder-tv",
-                                                            "pause")
+                                                            "kindertijd",
+                                                            "pause",
+                                                            "geen programmagegevens beschikbaar.")
 
         # teveblad.be genre translation table
         self.tevecattrans = {'amusement'           : (u'Amusement', u''),
@@ -1305,8 +1310,8 @@ class Configure:
             old_tid = -1
 
         # Ask to select the right one
-        t = get_instance(lang)
         try:
+            t = get_instance(lang)
             tid = t._getSeries(series_name)
             if old_tid != int(tid['sid']):
                 print 'Removing old instance'
@@ -1326,6 +1331,9 @@ class Configure:
             return
 
         except tvdb_exceptions.tvdb_userabort:
+            return
+
+        except tvdb_exceptions.tvdb_error:
             return
 
         for l in langs:
@@ -1363,6 +1371,9 @@ class Configure:
 
     def save_oldfile(self, fle):
         """ save the old file to .old if it exists """
+        if os.path.isfile(fle + '.old'):
+            os.remove(fle + '.old')
+
         if os.path.isfile(fle):
             os.rename(fle, fle + '.old')
 
@@ -1743,7 +1754,8 @@ class Configure:
                 a = re.split('=',line)
                 cfg_option = a[0].lower().strip()
                 # Boolean Values
-                if cfg_option in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'use_utc', 'disable_ttvdb'):
+                if cfg_option in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', \
+                  'mark_hd', 'use_utc', 'disable_ttvdb', 'use_split_episodes'):
                     if len(a) == 1:
                         self.opt_dict[cfg_option] = True
 
@@ -1889,7 +1901,8 @@ class Configure:
                     a = re.split('=',line)
                     cfg_option = a[0].lower().strip()
                     # Boolean Values
-                    if cfg_option in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', 'append_tvgidstv', 'disable_ttvdb'):
+                    if cfg_option in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', \
+                      'append_tvgidstv', 'disable_ttvdb', 'use_split_episodes'):
                         if len(a) == 1:
                             self.channels[chanid].opt_dict[cfg_option] = True
 
@@ -2780,6 +2793,7 @@ class Configure:
         log_array.append(u'logos = %s' % (self.opt_dict['logos']))
         log_array.append(u'desc_length = %s' % (self.opt_dict['desc_length']))
         log_array.append(u'cattrans = %s' % (self.opt_dict['cattrans']))
+        log_array.append(u'use_split_episodes = %s' % (self.opt_dict['use_split_episodes']))
         log_array.append(u'kijkwijzerstijl = %s' % (self.opt_dict['kijkwijzerstijl']))
         log_array.append(u'mark_hd = %s' % (self.opt_dict['mark_hd']))
         log_array.append(u'use_utc = %s' % (self.opt_dict['use_utc']))
@@ -2860,7 +2874,8 @@ class Configure:
 
                 log_array.append(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']))
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'disable_ttvdb'):
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', \
+              'cattrans', 'mark_hd', 'disable_ttvdb', 'use_split_episodes'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
@@ -2912,6 +2927,7 @@ class Configure:
         f.write(u'# 16 include detail fetches to the log\n')
         f.write(u'# 32 include matchlogging (see below)\n')
         f.write(u'# 64 Title renames\n')
+        f.write(u'# 128 ttvdb failures\n')
         f.write(u'log_level = %s\n' % self.opt_dict['log_level'])
         f.write(u'\n')
         f.write(u'# What match results go to the log/screen (needs code 32 above)\n')
@@ -2951,6 +2967,7 @@ class Configure:
         f.write(u'#   single: add a single string (mythtv only reads the first item)\n')
         f.write(u'#   none  : don add any\n')
         f.write(u'kijkwijzerstijl = %s\n' % self.opt_dict['kijkwijzerstijl'])
+        f.write(u'use_split_episodes = %s\n' % self.opt_dict['use_split_episodes'])
         f.write(u'\n')
 
         f.write(u'# These are the channeldefinitions. You can disable a channel by placing\n')
@@ -2969,7 +2986,7 @@ class Configure:
         f.write(u'# You can use the following tags:\n')
         f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
         f.write(u'#   fast, compat, logos, cattrans, mark_hd, add_hd_id, append_tvgidstv\n')
-        f.write(u'#   disable_ttvdb\n')
+        f.write(u'#   disable_ttvdb, use_split_episodes\n')
         f.write(u'#     append_tvgidstv is True by default, which means: \'Don\'t get data\n')
         f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
         f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
@@ -3356,7 +3373,8 @@ class Configure:
 
                 f.write(u'slowdays = %s\n' % (chan_def.opt_dict['slowdays']))
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', 'cattrans', 'mark_hd', 'disable_ttvdb'):
+            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', \
+              'cattrans', 'mark_hd', 'disable_ttvdb', 'use_split_episodes'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         f.write(u'\n')
@@ -3697,7 +3715,8 @@ class InfoFiles:
         if self.fetch_list != None:
             for chanid in config.channels.keys():
                 if chanid in self.fetch_strings:
-                    for s in xml_output.source_order:
+                    #~ for s in xml_output.source_order:
+                    for s in config.channels[chanid].merge_order:
                         if xml_output.channelsource[s].source in self.fetch_strings[chanid].keys():
                             self.fetch_list.write(self.fetch_strings[chanid][xml_output.channelsource[s].source])
 
@@ -5130,6 +5149,9 @@ class FetchData(Thread):
                     tid = None
                     continue
 
+                except tvdb_exceptions.tvdb_error:
+                    return
+
             else:
                 if tid == None:
                     t = get_instance('all')
@@ -5140,6 +5162,9 @@ class FetchData(Thread):
 
                     except tvdb_exceptions.tvdb_shownotfound:
                         tid = None
+
+                    except tvdb_exceptions.tvdb_error:
+                        return
 
             if tid == None:
                 xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': 0, 'title': qname, 'langs': langs}})
@@ -5157,15 +5182,22 @@ class FetchData(Thread):
 
         # We look for episodes in several langauges
         for l in langs:
-            t = get_instance(l)
-            # And fill the database with the episodes
-            t._getShowData(tid['sid'])
-            eps = []
-            for sid, s in t.shows[tid['sid']].items():
-                for eid, e in  s.items():
-                    en = unicode(e['episodename']) if isinstance( e['episodename'], (str, unicode)) else u''
-                    ed = datetime.datetime.strptime(e['firstaired'], '%Y-%m-%d').date() if isinstance( e['firstaired'], (str, unicode)) else None
-                    eps.append({'tid': int(tid['sid']), 'sid': int(sid), 'eid': int(eid), 'title': en, 'airdate': ed, 'lang': l})
+            try:
+                t = get_instance(l)
+                # And fill the database with the episodes
+                t._getShowData(tid['sid'])
+                eps = []
+                for sid, s in t.shows[tid['sid']].items():
+                    for eid, e in  s.items():
+                        en = unicode(e['episodename']) if isinstance( e['episodename'], (str, unicode)) else u''
+                        ed = datetime.datetime.strptime(e['firstaired'], '%Y-%m-%d').date() if isinstance( e['firstaired'], (str, unicode)) else None
+                        eps.append({'tid': int(tid['sid']), 'sid': int(sid), 'eid': int(eid), 'title': en, 'airdate': ed, 'lang': l})
+
+            except tvdb_exceptions.tvdb_shownotfound:
+                continue
+
+            except tvdb_exceptions.tvdb_error:
+                return
 
             xml_output.program_cache.cache_request.put({'task':'add', 'episode': eps})
 
@@ -5873,7 +5905,8 @@ class FetchData(Thread):
                 start = good_programs[i+1]['start-time']
                 dt    = stop-start
                 avg   = start + dt // 2
-                overlap = 24*60*60*dt.days + dt.seconds
+                #~ overlap = 24*60*60*dt.days + dt.seconds
+                overlap = dt.total_seconds()
 
                 # check for the size of the overlap
                 if 0 < abs(overlap) <= config.channels[chanid].opt_dict['max_overlap']*60:
@@ -5971,16 +6004,12 @@ class FetchData(Thread):
         elif mode == 1:
             config.channels[chanid].all_programs = good_programs
 
-    def merge_sources(self, chanid, other_is_dominant = False, counter = 0):
+    def merge_sources(self, chanid, prime_source_name, counter = 0):
         """
-        Try to match the source channel info into the tvgids.nl. For all channels except the RTL channels
-        tvgids.nl is the dominant source. It provides the ID', and the best genre info, but only
-        for 4 days.
-        First tvgids.tv provides basic and genre info and for the remainder of their 14 days.
-        For the RTL channels their own timings are better, they provide 14 days and episode info.
-        So tvgids.nl provides the more detailed genre info and the ID.
-        Teveblad, like RTL provides aditional episode info, but only for 7 days. They don't provide
-        the dutch commercial channels. For the Belgium channels we let them be dominant.
+        Try to match the channel info from the sources into the prime source.  If No prime_source is set
+        If available: rtl.nl is used for the rtl channels, npo.nl for the npo and regional channels and teveblad.be
+        for the flemmish channels.
+        Else the first available is used as set in xml_output.source_order
         """
 
         with self.source_lock:
@@ -5994,74 +6023,30 @@ class FetchData(Thread):
                 config.channels[chanid].all_programs = self.program_data[chanid][:]
                 return
 
+            # This is the by this source collected data
             programs = self.program_data[chanid][:]
+            # This is the already collected data to start with the prime source
             info = config.channels[chanid].all_programs[:]
 
-        # 0 = Log Nothing
-        # 1 = log not matched programs
-        # 2 = log left over programs
-        # 4 = Log All
-
-        match_array = []
+        match_array = [   'Match details:\n']
         def matchlog(matchstr, other_prog, tvgids_prog = None, mode = 1):
             if not (mode & config.opt_dict['match_log_level']):
                 return
 
-            if tvgids_prog == None:
-                match_array.append(u'%s: %s: %s: %s Genre: %s.\n' % \
-                        (matchstr.rjust(20), config.channels[chanid].chan_name, other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name'], \
-                        other_prog['genre']))
-            else:
-                match_array.extend([u'%s: %s: %s: %s.\n' % \
-                        (matchstr.rjust(12), config.channels[chanid].chan_name,  other_prog['start-time'].strftime('%d %b %H:%M'), other_prog['name']), \
-                        '%s%s: %s.\n' % \
-                        ('to tvgids.nl: '.rjust(22 + len(other_prog['channel'])), tvgids_prog['start-time'].strftime('%d %b %H:%M'), tvgids_prog['name'])])
+            if mode == 4:
+                match_array.extend([u'%s: %s - %s: %s.\n' % \
+                        ((matchstr+self.source).rjust(25),  other_prog['start-time'].strftime('%d %b %H:%M'),  other_prog['stop-time'].strftime('%H:%M'), other_prog['name']), \
+                        '%s: %s - %s: %s.\n' % \
+                        (('to '+prime_source_name).rjust(25), tvgids_prog['start-time'].strftime('%d %b %H:%M'), tvgids_prog['stop-time'].strftime('%H:%M'), tvgids_prog['name'])])
+            elif tvgids_prog == None:
+                match_array.append(u'%s: %s - %s: %s Genre: %s.\n' % \
+                        ((matchstr+self.source).rjust(25), other_prog['start-time'].strftime('%d %b %H:%M'),  other_prog['stop-time'].strftime('%H:%M'), \
+                        other_prog['name'], other_prog['genre']))
+            elif other_prog == None:
+                match_array.append(u'%s: %s - %s: %s Genre: %s.\n' % \
+                        (matchstr.rjust(25), tvgids_prog['start-time'].strftime('%d %b %H:%M'), tvgids_prog['stop-time'].strftime('%H:%M'), \
+                        tvgids_prog['name'], tvgids_prog['genre']))
         # end matchlog()
-
-        def checkrange(crange = 0):
-            checktimes = []
-            if crange == 0:
-                checktimes.append(0)
-
-            for i in range(1, 6):
-                checktimes.append(crange + i)
-                checktimes.append(-(crange + i))
-
-            return checktimes
-        # end checkrange()
-
-        def get_tvgids_genre(other_genre):
-            genre = other_genre.lower().strip()
-            if genre in ('amusement','film' ,'magazine' ,'muziek' ,'sport', 'jeugd', 'kunst en cultuur', \
-              'nieuws/actualiteiten', 'serie/soap', 'informatief' ):
-                return (other_genre, '')
-
-            elif genre == 'kinderen':
-                return ('jeugd', '')
-
-            elif genre == 'kunst & cultuur':
-                return 'kunst en cultuur'
-
-            elif genre == 'nieuws':
-                return ('nieuws/actualiteiten', '')
-
-            elif genre == 'serie':
-                return ('serie/soap', '')
-
-            elif genre == 'reality':
-                return ('informatief', 'realityprogramma')
-
-            elif genre == 'documentaire':
-                return ('informatief', 'documentaire')
-
-            elif genre == 'kunst & cultuur':
-                return 'kunst en cultuur'
-
-            if config.write_info_files:
-                infofiles.addto_detail_list(unicode('unknown merge genre => ' + other_genre))
-
-            return ('overige', '')
-        # end get_tvgids_genre()
 
         def general_renames(name):
             # Some renaming to cover diferences between the sources
@@ -6069,6 +6054,17 @@ class FetchData(Thread):
             if chanid in ('1', '2', '3'):
                 if mname == 'journaal':
                     return 'NOS Journaal'
+
+                if mname in ('tekst-tv', 'nos tekst tv', 'nos tekst-tv'):
+                    return 'Tekst TV'
+
+            if chanid in ('1', '2'):
+                if mname == 'nieuws':
+                    return 'NOS Journaal'
+
+            if chanid == '3':
+                if mname == 'nieuws':
+                    return 'NOS op 3'
 
             if chanid == '5':
                 if mname == 'Herhalingen':
@@ -6078,6 +6074,13 @@ class FetchData(Thread):
                 if mname == 'herhalingen':
                     return 'Canvaslus'
 
+            if chanid in ('7', '8'):
+                if mname == 'nieuws':
+                    return 'BBC News'
+
+                if mname == 'het weer':
+                    return 'Regional News and Weather'
+
             if chanid == '9':
                 if mname == 'nieuws':
                     return 'Tagesschau'
@@ -6086,37 +6089,7 @@ class FetchData(Thread):
                 if mname == 'nieuws':
                     return 'Heute'
 
-            if self.source == 'tvgids.tv':
-                if chanid in ('1', '2', '3'):
-                    pass
-
-            elif self.source == 'teveblad.be':
-                if chanid in ('1', '2'):
-                    if mname == 'nieuws':
-                        return 'NOS Journaal'
-
-                    if  'sport' in mname:
-                        return 'Studio sport'
-
-                elif chanid == '3':
-                    if mname == 'nieuws':
-                        return 'NOS op 3'
-
-                elif chanid == '5':
-                    pass
-
-                elif chanid == '6':
-                    pass
-
-                elif chanid in ('7', '8'):
-                    if mname == 'nieuws':
-                        return 'BBC News'
-                        #~ return 'Regional News and Weather'
-
-                    if mname == 'het weer':
-                        return 'Regional News and Weather'
-
-            elif self.source == 'horizon.tv':
+            if self.source == 'horizon.tv':
                 if chanid in ('1', '2', '3'):
                     if  'nos journaal' in mname:
                         return 'NOS Journaal'
@@ -6148,6 +6121,18 @@ class FetchData(Thread):
             return name
         # end general_renames()
 
+        def checkrange(crange = 0):
+            checktimes = []
+            if crange == 0:
+                checktimes.append(0)
+
+            for i in range(1, 6):
+                checktimes.append(crange + i)
+                checktimes.append(-(crange + i))
+
+            return checktimes
+        # end checkrange()
+
         def match_name(other_title, tvgids_name, other_subtitle = ''):
             """
             Main process for name matching
@@ -6155,73 +6140,6 @@ class FetchData(Thread):
             Returns 1 if matched on name:episode = name
             Returns None if no match
             """
-            def rename_to_tvgids_name(name):
-                if self.source == 'tvgids.tv':
-                    if chanid in ('1', '2', '3'):
-                        if name[0:4] == 'nos-':
-                            return 'nos ' + name[4:]
-                        #~ if name = 'vandaag de dag':
-
-                if self.source == 'rtl.nl':
-                    if chanid == '4':
-                        if 'name' == 'weddingplanner':
-                            return 'the wedding planner'
-
-                    elif chanid == '31':
-                        pass
-
-                    elif chanid == '46':
-                        pass
-
-                    elif chanid == '92':
-                        if 'name' == 'koala broertjes':
-                            return 'de koalabroertjes'
-
-                    elif chanid == '408':
-                        pass
-
-                    elif chanid == '409':
-                        pass
-
-                    elif chanid == 'rtl-telekids':
-                        pass
-
-                elif self.source == 'teveblad.be':
-                    if chanid == '5':
-                        if name == 'het journaal':
-                            return 'journaallus'
-
-                        if name == 'dagelijkse kerst':
-                            return 'dagelijkse kost'
-
-                        if name == 'winst joker+/lotto':
-                            return 'winst joker+ lotto'
-
-                    elif chanid == '6':
-                        if name == 'terzake':
-                            return 'canvaslus'
-
-                        if name == 'vranckx':
-                            return 'canvaslus'
-
-                    elif chanid in ('1', '2', '3'):
-                        if name == 'nieuws':
-                            return 'nos journaal'
-
-                        if name[0:4] == 'nos-':
-                            return 'nos ' + name[4:]
-
-                    elif chanid in ('7', '8'):
-                        if name == 'regional news and weather':
-                            return 'weather for the week ahead'
-
-                    elif chanid == '9':
-                        if name == 'tagesschau':
-                            return 'tagesthemen'
-
-                return name
-            # end channelname_rename()
-
             def remove_accents(name):
                 name = re.sub('á','a', name)
                 name = re.sub('é','e', name)
@@ -6247,12 +6165,7 @@ class FetchData(Thread):
                 name = re.sub('û','u', name)
                 name = re.sub('ã','a', name)
                 name = re.sub('õ','o', name)
-                name = re.sub('&','and', name)
-                name = re.sub(' - ',' ', name)
-                name = re.sub('\'','', name)
-                name = re.sub('\"','', name)
-                name = re.sub(' +?',' ', name)
-                name = re.sub(' ...','...', name)
+                name = re.sub('@','a', name)
                 return name
             # end remove_accents()
 
@@ -6302,21 +6215,14 @@ class FetchData(Thread):
             other_name = other_title.lower().strip()
             other_subname = other_subtitle.lower().strip()
             tvgids_name = tvgids_name.lower().strip()
-            x = compare(other_name, tvgids_name, other_subname)
-            if x != None:
-                return x
-
             x = compare(remove_accents(other_name), remove_accents(tvgids_name), remove_accents(other_subname))
             if x != None:
                 return x
 
-            x = compare(rename_to_tvgids_name(other_name), tvgids_name)
-            if x != None:
-                return x
-
-            x = compare(remove_accents(rename_to_tvgids_name(other_name)), remove_accents(tvgids_name))
-            if x != None:
-                return x
+            matchobject = difflib.SequenceMatcher(isjunk=lambda x: x in " '\",.-/", autojunk=False)
+            matchobject.set_seqs(other_name, tvgids_name)
+            if matchobject.ratio() > .8:
+                return 0
 
             name_split = False
             lother_name = other_name
@@ -6334,28 +6240,20 @@ class FetchData(Thread):
                 rtvgids_name = tvgids_name.split(':')[1].strip()
 
             if name_split:
-                if compare(rother_name, rtvgids_name) != None:
+                x = compare(remove_accents(rother_name), remove_accents(rtvgids_name))
+                if x != None:
+                    return x
+
+                matchobject.set_seqs(rother_name, rtvgids_name)
+                if matchobject.ratio() > .8:
                     return 0
 
-                if compare(remove_accents(rother_name), remove_accents(rtvgids_name)) != None:
-                    return 0
+                x = compare(remove_accents(lother_name), remove_accents(ltvgids_name))
+                if x != None:
+                    return x
 
-                if compare(rename_to_tvgids_name(rother_name), rtvgids_name) != None:
-                    return 0
-
-                if compare(remove_accents(rename_to_tvgids_name(rother_name)), remove_accents(rtvgids_name)) != None:
-                    return 0
-
-                if compare(lother_name, ltvgids_name) != None:
-                    return 0
-
-                if compare(remove_accents(lother_name), remove_accents(ltvgids_name)) != None:
-                    return 0
-
-                if compare(rename_to_tvgids_name(lother_name), ltvgids_name) != None:
-                    return 0
-
-                if compare(remove_accents(rename_to_tvgids_name(lother_name)), remove_accents(ltvgids_name)) != None:
+                matchobject.set_seqs(lother_name, ltvgids_name)
+                if matchobject.ratio() > .8:
                     return 0
 
             return None
@@ -6412,180 +6310,49 @@ class FetchData(Thread):
 
         def set_main_id(tdict):
 
-            for source in xml_output.channelsource.values():
-                if tdict[source.detail_id] != '':
-                    tdict['ID'] = tdict[source.detail_id]
+            for s in xml_output.source_order:
+                if tdict[xml_output.channelsource[s].detail_id] != '':
+                    tdict['ID'] = tdict[xml_output.channelsource[s].detail_id]
                     break
 
             return tdict
         # end set_main_id()
 
-        # tdict is from info
-        def add_using_tvgids_timing(tdict, tvdict, use_other_title = False, copy_ids = True):
-            """Merge the source into the main data"""
-            if tdict['merge-source'] == '':
-                tdict['merge-source'] = xml_output.channelsource[0].source
-
-            if self.source == 'teveblad.be':
-                if tvdict['titel aflevering'] != '':
-                    tdict['titel aflevering']  = tvdict['titel aflevering']
-
-                if tvdict['season'] != 0:
-                    tdict['season']  = tvdict['season']
-
-                if tvdict['episode'] != 0:
-                    tdict['episode'] = tvdict['episode']
-
-                if tvdict['jaar van premiere'] != '':
-                    if tdict['jaar van premiere'] == '' or int(tvdict['jaar van premiere']) < int(tdict['jaar van premiere']):
-                        tdict['jaar van premiere'] = tvdict['jaar van premiere']
-
-                if tvdict['country'] != '':
-                    tdict['country'] = tvdict['country']
-
-                if tvdict['rerun']:
-                    tdict['rerun']  = True
-
-            elif self.source == 'rtl.nl':
-                if tvdict['titel aflevering']!= '':
-                    tdict['titel aflevering']  = tvdict['titel aflevering']
-
-                if tvdict['season']!= 0:
-                    tdict['season']  = tvdict['season']
-
-                if tvdict['episode']!= 0:
-                    tdict['episode'] = tvdict['episode']
-
-                if tvdict['rerun']:
-                    tdict['rerun']  = True
-
-            elif self.source == 'horizon.tv':
-                if tvdict['titel aflevering']!= '':
-                    tdict['titel aflevering']  = tvdict['titel aflevering']
-
-                if tvdict['episode']!= '0':
-                    tdict['episode'] = tvdict['episode']
-
-                if tvdict['jaar van premiere'] != '':
-                    if tdict['jaar van premiere'] == '' or int(tvdict['jaar van premiere']) < int(tdict['jaar van premiere']):
-                        tdict['jaar van premiere'] = tvdict['jaar van premiere']
-
-                if tvdict['airdate'] != '':
-                    tdict['airdate'] = tvdict['airdate']
-
-                if tvdict['rerun']:
-                    tdict['rerun']  = True
-
-            elif self.source == 'tvgids.tv':
-                if tvdict['jaar van premiere']!= '':
-                    if tdict['jaar van premiere'] == '' or int(tvdict['jaar van premiere']) < int(tdict['jaar van premiere']):
-                        tdict['jaar van premiere'] = tvdict['jaar van premiere']
-
-                if tvdict['infourl']!= '':
-                    tdict['infourl']  = tvdict['infourl']
-
-            if use_other_title:
+        def merge_programs(tdict, tvdict, reverse_match=False, use_other_title = 0, copy_ids = True):
+            if use_other_title != 0:
                 tdict['name']  = tvdict['name']
 
-            if len(tvdict['description']) > len(tdict['description']):
-                tdict['description']  = tvdict['description']
+            if tdict['jaar van premiere'] == '':
+                tdict['jaar van premiere'] = tvdict['jaar van premiere']
 
-            if tvdict['prefered description'] != '':
-                tdict['prefered description']  = tvdict['prefered description']
-
-            if tvdict['star-rating'] != '':
-                tdict['star-rating']  = tvdict['star-rating']
-
-            if len(tvdict['kijkwijzer']) > 0:
-                for item in tvdict['kijkwijzer']:
-                    tdict['kijkwijzer'].append(item)
-
-            if tvdict['video']['HD']:
-                tdict['video']['HD']  = True
-
-            if tvdict['video']['breedbeeld']:
-                tdict['video']['breedbeeld']  = True
-
-            if tvdict['video']['blackwhite']:
-                tdict['video']['blackwhite']  = True
-
-            if tvdict['teletekst']:
-                tdict['teletekst']  = True
-
-            if tvdict['audio'] != '':
-                tdict['audio'] = tvdict['audio']
-
-            if copy_ids:
-                for source in config.sources.values():
-                    if source['ID'] != '':
-                        if tvdict[source['ID']] != '':
-                            tdict[source['ID']]  = tvdict[source['ID']]
-
-                    if source['url'] != '':
-                        if tvdict[source['url']] != '':
-                            tdict[source['url']]  = tvdict[source['url']]
-
-            tdict = set_main_id(tdict)
-            matched_programs.append(tdict)
-            if tdict in info: info.remove(tdict)
-
-        # end add_using_tvgids_timing()
-
-        # tdict is from programs
-        def add_using_other_timing(tdict, tvdict, add_episode_info = True, copy_ids = True):
-            """Merge the main data into the source"""
-            matchlog('program match', tdict, tvdict, 4)
-            tdict['merge-source'] = self.source
-            if tdict['stop-time'] in prog_stoptimes:
-                prog_stoptimes[tdict['stop-time']]['matched'] = True
-                prog_stoptimes[tdict['stop-time']]['match'] = tvdict
-
-            tdict['genre'] = tvdict['genre']
-            tdict['subgenre'] = tvdict['subgenre']
-
-            if tvdict[xml_output.channelsource[0].detail_check]:
-                tdict[xml_output.channelsource[0].detail_check]  = True
-
-            if tvdict[xml_output.channelsource[1].detail_check]:
-                tdict[xml_output.channelsource[1].detail_check]  = True
-
-            if tvdict['infourl'] != '':
-                tdict['infourl']  = tvdict['infourl']
-
-            if add_episode_info:
-                if tvdict['titel aflevering'] != '':
-                    tdict['titel aflevering']  = tvdict['titel aflevering']
-
-                if tvdict['season'] != 0:
-                    tdict['season']  = tvdict['season']
-
-                if tvdict['episode'] != 0:
-                    tdict['episode']  = tvdict['episode']
-
-                if tvdict['jaar van premiere'] != '':
-                    if tdict['jaar van premiere'] == '' or int(tvdict['jaar van premiere']) < int(tdict['jaar van premiere']):
-                        tdict['jaar van premiere']  = tvdict['jaar van premiere']
-
-                if tvdict['airdate'] != '':
-                    tdict['airdate']  = tvdict['airdate']
-                if tvdict['country'] != '':
-                    tdict['country']  = tvdict['country']
-
-            if len(tvdict['description']) > len(tdict['description']):
-                tdict['description']  = tvdict['description']
-
-            if tvdict['prefered description'] != '':
-                tdict['prefered description']  = tvdict['prefered description']
-
-            if tvdict['star-rating'] != '':
-                tdict['star-rating']  = tvdict['star-rating']
-
-            if len(tvdict['kijkwijzer']) > 0:
-                for item in tvdict['kijkwijzer']:
-                    tdict['kijkwijzer'].append(item)
+            if tdict['airdate'] == '':
+                tdict['airdate'] = tvdict['airdate']
 
             if tvdict['rerun']:
-                tdict['rerun']  = True
+                tdict['rerun'] = True
+
+            if tdict['country'] == '':
+                tdict['country'] = tvdict['country']
+
+            if tdict['originaltitle'] == '':
+                tdict['originaltitle'] = tvdict['originaltitle']
+
+            if len(tvdict['description']) > len(tdict['description']):
+                tdict['description']  = tvdict['description']
+
+            if tdict['prefered description'] == '':
+                tdict['prefered description'] = tvdict['prefered description']
+
+            if tdict['omroep'] == '':
+                tdict['omroep'] = tvdict['omroep']
+
+            if tdict['star-rating'] == '':
+                tdict['star-rating'] = tvdict['star-rating']
+
+            if len(tvdict['kijkwijzer']) > 0:
+                for item in tvdict['kijkwijzer']:
+                    tdict['kijkwijzer'].append(item)
+
             if tvdict['video']['HD']:
                 tdict['video']['HD']  = True
 
@@ -6598,11 +6365,8 @@ class FetchData(Thread):
             if tvdict['teletekst']:
                 tdict['teletekst']  = True
 
-            if tvdict['audio'] != '':
+            if tdict['audio'] == '':
                 tdict['audio'] = tvdict['audio']
-
-            if 'credits' in tvdict:
-                tdict['credits']  = tvdict['credits']
 
             if copy_ids:
                 for source in config.sources.values():
@@ -6615,31 +6379,66 @@ class FetchData(Thread):
                             tdict[source['url']]  = tvdict[source['url']]
 
             tdict = set_main_id(tdict)
-            matched_programs.append(tdict)
-            if tdict in programs: programs.remove(tdict)
+            if reverse_match:
+                if not self.proc_id in (2, 3, 5) and tdict['titel aflevering'] == '':
+                    tdict['titel aflevering'] = tvdict['titel aflevering']
 
-            try:
-                pstart = tdict['start-time']
-                pname = tdict['name'].lower().strip()
-                prog_names[pname][pstart]['state'] = 'matched'
-                prog_names[pname][pstart][xml_output.channelsource[0].detail_url]  = tvdict[xml_output.channelsource[0].detail_url]
-                prog_names[pname][pstart]['genre'] = tvdict['genre']
-                prog_names[pname][pstart]['subgenre'] = tvdict['subgenre']
+                if self.proc_id != 1:
+                    tdict['genre'] = tvdict['genre']
+                    tdict['subgenre'] = tvdict['subgenre']
 
-            except:
-                pass
+                elif tdict['genre'] in ('', 'overige'):
+                    tdict['genre'] = tvdict['genre']
+                    if tdict['subgenre'] == '':
+                        tdict['subgenre'] = tvdict['subgenre']
 
-        # end add_using_other_timing()
+                tdict['merge-source'] = self.source
+                matched_programs.append(tdict)
+                if tdict in programs: programs.remove(tdict)
+                if tdict['start-time'] in prog_starttimes: del prog_starttimes[tdict['start-time']]
+
+            else:
+                if self.proc_id in (2, 3, 5) and (tvdict['titel aflevering'] != '' or tdict['titel aflevering'] == ''):
+                    tdict['titel aflevering'] = tvdict['titel aflevering']
+
+                if tdict['season'] == 0:
+                    tdict['season'] = tvdict['season']
+
+                if tdict['episode'] == 0:
+                    tdict['episode'] = tvdict['episode']
+
+                if self.proc_id == 1:
+                    tdict['genre'] = tvdict['genre']
+                    tdict['subgenre'] = tvdict['subgenre']
+
+                elif tdict['genre'] in ('', 'overige'):
+                    tdict['genre'] = tvdict['genre']
+                    if tdict['subgenre'] == '':
+                        tdict['subgenre'] = tvdict['subgenre']
+
+                if tdict['merge-source'] == '':
+                    tdict['merge-source'] = prime_source_name
+
+                matched_programs.append(tdict)
+                if tdict in info: info.remove(tdict)
+
+        # merge_programs()
 
         # tdict is from info
-        def check_match_to_info(tdict, pi, mstart, check_overlap = True):
+        def check_match_to_info(tdict, pi, mstart, check_overlap = True, check_genre = True):
 
             x = match_name(pi['name'], tdict['name'], pi['titel aflevering'])
             if x != None:
-                matchlog('program match', tdict, pi, 4)
+                matchlog('title match: ', pi, tdict, 4)
+                retval = 1
+
+            elif check_genre and match_genre(pi['genre'], tdict['genre'], pi['subgenre']):
+                matchlog('genre match: ', pi, tdict, 4)
+                x = 0
+                retval = 2
 
             else:
-                return False
+                return 0
 
             if check_overlap:
                 try:
@@ -6656,67 +6455,23 @@ class FetchData(Thread):
                         if tdict in info: info.remove(tdict)
 
                     else:
-                        add_using_tvgids_timing(tdict, pi, x)
+                        merge_programs(tdict, pi, reverse_match=False, use_other_title = x)
+                        #~ add_using_tvgids_timing(tdict, pi, x)
 
                 except:
                     pass
 
+            if pi in programs: programs.remove(pi)
             if mstart in prog_starttimes: del prog_starttimes[mstart]
-            return True
+            return retval
 
         # end check_match_to_info()
 
-        # tdict is from programs
-        def check_match_to_programs(tdict, pi, mstart, check_overlap = True, add_episode_info = True):
-
-            if match_name(tdict['name'], pi['name'], tdict['titel aflevering']) != None:
-                matchlog('program match', tdict, pi, 4)
-                retval =1
-
-            elif match_genre(tdict['genre'], pi['genre'], pi['subgenre']):
-                matchlog('genre match', tdict, pi, 4)
-                retval =2
-
-            else:
-                return False
-
-            if check_overlap:
-                mduur = (tdict['stop-time'] - tdict['start-time']).total_seconds()
-                pduur = (pi['stop-time'] - pi['start-time']).total_seconds()
-                if pduur * 1.1 > mduur:
-                    # We check for program merging in info
-                    merge_match.append({'type': 1, 'tdict': tdict, 'info': pi})
-                    if tdict in programs: programs.remove(tdict)
-
-                elif mduur * 1.1 > pduur:
-                    # We check for program merging in programs
-                    merge_match.append({'type': 2, 'tdict': tdict, 'info': pi})
-                    if tdict in programs: programs.remove(tdict)
-
-                else:
-                    add_using_other_timing(tdict, pi, add_episode_info)
-
-            if mstart in info_starttimes: del info_starttimes[mstart]
-            return retval
-
-        # end check_match_to_programs()
-
+        log(['\n', 'Now merging %s (channel %s of %s):\n' % (config.channels[chanid].chan_name , counter, config.chan_count), \
+            '  %s programs from %s into %s programs from %s\n' % (len(programs), self.source, len(info), prime_source_name)], 2)
         log_array =['\n']
-        if other_is_dominant:
-            # This goes for the belgium/british channels from teveblad.be (programs) and the rtl channels
-            log(['\n', 'Now merging %s (channel %s of %s):\n' % (config.channels[chanid].chan_name, counter, config.chan_count), \
-                '  %s programs from tvgids.nl into %s programs from %s\n' %  (len(info) , len(programs), self.source)], 2)
-
-            log_array.append('Merg statistics for %s (channel %s of %s) from tvgids.nl into %s\n' % \
-                (config.channels[chanid].chan_name, counter, config.chan_count, self.source))
-
-        else:
-            # this goes for adding tvgids.tv (programs) to tvgids.nl (info) and most channels from teveblad.be (programs)
-            log(['\n', 'Now merging %s (channel %s of %s):\n' % (config.channels[chanid].chan_name , counter, config.chan_count), \
-                '  %s programs from %s into %s programs from tvgids.nl\n' % (len(programs), self.source, len(info))], 2)
-
-            log_array.append('Merg statistics for %s (channel %s of %s) from %s into tvgids.nl\n' % \
-                (config.channels[chanid].chan_name , counter, config.chan_count, self.source))
+        log_array.append('Merg statistics for %s (channel %s of %s) from %s into %s\n' % \
+            (config.channels[chanid].chan_name , counter, config.chan_count, self.source, prime_source_name))
 
         # Do some general renaming to match tvgids.nl naming
         for i in range(0, len(programs)):
@@ -6727,373 +6482,179 @@ class FetchData(Thread):
 
         # Sort both lists on starttime and get their ranges
         info.sort(key=lambda program: (program['start-time'],program['stop-time']))
-        infostarttime = info[0]['start-time'] - datetime.timedelta(0, 0, 0, 0, 30)
-        infoendtime = info[-1]['start-time'] + datetime.timedelta(0, 0, 0, 0, 30)
+        infostarttime = info[0]['start-time'] - datetime.timedelta(0, 0, 0, 0, 10)
+        infoendtime = info[-1]['stop-time'] + datetime.timedelta(0, 0, 0, 0, 10)
 
         programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
-        progstarttime = programs[0]['start-time'] - datetime.timedelta(0, 0, 0, 0, 30)
-        progendtime = programs[-1]['start-time'] + datetime.timedelta(0, 0, 0, 0, 30)
+        progstarttime = programs[0]['start-time'] - datetime.timedelta(0, 0, 0, 0, 10)
+        progendtime = programs[-1]['stop-time'] + datetime.timedelta(0, 0, 0, 0, 10)
 
-        matched_programs = []
-        generic_match = []
+        log_array.append('%6.0f programs in %s for range: %s - %s, \n' % \
+            (len(info), prime_source_name.ljust(11), infostarttime.strftime('%d-%b %H:%M'), infoendtime.strftime('%d-%b %H:%M')))
+        log_array.append('%6.0f programs in %s for range: %s - %s\n' % \
+            (len(programs), self.source.ljust(11), progstarttime.strftime('%d-%b %H:%M'), progendtime.strftime('%d-%b %H:%M')))
+        log_array.append('\n')
 
         # move all programs outside the range of programs to matched_programs
         # count the info names, changing them to lowercase for matching
         # and organise them by name and start-time
+        matched_programs = []
+        info_gaps = []
+        generic_match = []
+        info_groups = []
         info_starttimes = {}
         info_names = {}
-        log_array.append('%6.0f programs in tvgids.nl   for range: %s - %s, \n' % \
-            (len(info), infostarttime.strftime('%d-%b %H:%M:%S'), infoendtime.strftime('%d-%b %H:%M:%S')))
-
-        gcount = 0
+        prog_groups = []
+        prog_names = {}
+        prog_starttimes ={}
         ocount = 0
-        # First parse over some things we for several reasons can not match
+
+        # Get existing gaps in info larger then 'max_overlap'
+        for index in range(1, len(info)):
+            if (info[index]['start-time'] -  info[index -1]['stop-time']).total_seconds()  > config.channels[chanid].opt_dict['max_overlap']*60:
+                info_gaps.append({'start-time': info[index -1]['stop-time'],'stop-time': info[index]['start-time']})
+
         # And we create a list of starttimes and of names for matching
         for tdict in info[:]:
-            # Passing over generic timeslots that maybe detailed in the other
-            if (chanid in ('1', '2', '3') and  tdict['name'].lower() == 'kro kindertijd') \
-              or (tdict['name'].lower() in ('geen programmagegevens beschikbaar.', 'pause')) \
-              or (chanid == 34 and tdict['name'].lower() == 'disney xd'):
-                pcount = 0
-                for tvdict in programs[:]:
-                    if (tvdict['start-time'] >= tdict['start-time']) and (tvdict['stop-time'] <= tdict['stop-time']):
-                        gcount += 1
-                        pcount += 1
-                        tvdict = set_main_id(tvdict)
-                        tvdict['merge-source'] = self.source
-                        matched_programs.append(tvdict)
-                        if tvdict in programs: programs.remove(tvdict)
-
-                # For tvgidstv we asume the details were fetched before, so we remove the slot
-                # For teveblad we only remove if there is alternative content
-                if not ((self.source == 'teveblad.be') and (pcount > 0)) or (self.source == 'tvgids.tv'):
-                    if tdict['merge-source'] == '':
-                        tdict['merge-source'] = xml_output.channelsource[0].source
-
-                    matched_programs.append(tdict)
-
+            if (tdict['name'].lower() in config.teveblad_genericnames) \
+              or (chanid in ('1', '2', '3') and  tdict['name'].lower() == 'kro kindertijd') \
+              or (chanid == '34' and tdict['name'].lower() == 'disney xd'):
+                # These are group names. We move them aside to not get hit by merge_match
+                info_groups.append(tdict)
                 if tdict in info: info.remove(tdict)
                 continue
 
             info_starttimes[tdict['start-time']] = tdict
             iname = tdict['name'].lower().strip()
-            if not iname in info_names:
-                info_names[iname] = tdict
-
-            elif (info_names[iname]['genre'] == '') or (info_names[iname]['genre'] == 'overige'):
+            if not iname in info_names or (info_names[iname]['genre'] in ('', 'overige')):
                 info_names[iname] = tdict
 
             # These do not overlap in time so they cannot be matched
-            if (tdict['start-time'] > progendtime) or (tdict['start-time'] < progstarttime):
+            if (tdict['start-time'] > progendtime) or (tdict['stop-time'] < progstarttime):
                 ocount += 1
                 tdict = set_main_id(tdict)
                 if tdict['merge-source'] == '':
-                    tdict['merge-source'] = xml_output.channelsource[0].source
+                    tdict['merge-source'] = prime_source_name
 
-                matched_programs.append(tdict)
-                if tdict in info: info.remove(tdict)
+                if tdict['genre'] in ('', 'overige'):
+                    # We later try to match them generic to get a genre
+                    generic_match.append(tdict)
 
-        # First parse over some things we for several reasons can not match
-        # count the occurense of the rest and organise by name/start-time and stop-time
-        prog_names = {}
-        prog_stoptimes ={}
-        prog_starttimes ={}
-        log_array.append('%6.0f programs in %s for range: %s - %s\n' % \
-            (len(programs), self.source.ljust(11), progstarttime.strftime('%d-%b %H:%M:%S'), progendtime.strftime('%d-%b %H:%M:%S')))
-
-        log_array.append('\n')
-        for tdict in programs[:]:
-            # Remove generic slots from teveblad.be en move the counterparts to matched
-            if (tdict['name'].lower() in config.teveblad_genericnames) \
-              or (tdict['name'].lower() == 'geen programmagegevens beschikbaar.') \
-              or (chanid == 34 and tdict['name'].lower() == 'disney xd'):
-                pcount = 0
-                for tvdict in info[:]:
-                    if (tvdict['start-time'] >= tdict['start-time']) and (tvdict['stop-time'] <= tdict['stop-time']):
-                        gcount += 1
-                        pcount += 1
-                        tvdict = set_main_id(tvdict)
-                        if tdict['merge-source'] == '':
-                            tdict['merge-source'] = xml_output.channelsource[0].source
-
-                        matched_programs.append(tvdict)
-                        if tvdict in info: info.remove(tvdict)
-
-                # We only remove if there is alternative content
-                if pcount == 0:
-                    tdict['merge-source'] = self.source
+                else:
                     matched_programs.append(tdict)
 
+                matchlog('added from info', None, tdict, 1)
+                if tdict in info: info.remove(tdict)
+
+        # count the occurense of the rest and organise by name/start-time and stop-time
+        for tdict in programs[:]:
+            if (tdict['name'].lower() in config.teveblad_genericnames) \
+              or (chanid in ('1', '2', '3') and  tdict['name'].lower() == 'kro kindertijd') \
+              or (chanid == '34' and tdict['name'].lower() == 'disney xd'):
+                # These are group names. We move them aside to not get hit by merge_match
+                prog_groups.append(tdict)
                 if tdict in programs: programs.remove(tdict)
                 continue
 
-            prog_stoptimes[tdict['stop-time']] = tdict
-            prog_stoptimes[tdict['stop-time']]['matched'] = False
             prog_starttimes[tdict['start-time']] = tdict
             prog_starttimes[tdict['start-time']]['matched'] = False
             rname = tdict['name'].lower().strip()
             if not (rname in prog_names):
                 prog_names[rname] = {}
                 prog_names[rname]['count'] = 0
+                prog_names[rname]['genre'] = tdict['genre']
+                prog_names[rname]['subgenre'] = tdict['subgenre']
 
-            else:
-                prog_names[rname]['count'] = prog_names[rname]['count'] + 1
+            elif prog_names[rname]['genre'] in ('', 'overige'):
+                prog_names[rname]['genre'] = tdict['genre']
+                prog_names[rname]['subgenre'] = tdict['subgenre']
 
+            prog_names[rname]['count'] += 1
             # These do not overlap in time so they cannot be matched
-            if (tdict['start-time'] > infoendtime) or (tdict['start-time'] < infostarttime):
+            if (tdict['start-time'] > infoendtime) or (tdict['stop-time'] < infostarttime):
                 ocount += 1
-                prog_names[rname][tdict['start-time']] = {}
-                prog_names[rname][tdict['start-time']]['state'] = 'to late'
-                # If we are not matching with tvgids.tv we'll try to match generig
-                if self.source == 'tvgids.tv':
-                    tdict = set_main_id(tdict)
-                    tdict['merge-source'] = self.source
-                    matched_programs.append(tdict)
-
-                else:
-                    tdict['merge-source'] = self.source
+                tdict = set_main_id(tdict)
+                tdict['merge-source'] = self.source
+                if tdict['genre'] in ('', 'overige'):
+                    # We later try to match them generic to get a genre
                     generic_match.append(tdict)
 
-                if tdict in programs: programs.remove(tdict)
+                else:
+                    matched_programs.append(tdict)
 
-            else:
-                prog_names[rname][tdict['start-time']] = {}
-                prog_names[rname][tdict['start-time']]['state'] = 'no match'
+                matchlog('added from ', tdict, None, 1)
+                if tdict in programs: programs.remove(tdict)
+                if tdict['start-time'] in prog_starttimes: del prog_starttimes[tdict['start-time']]
+                continue
+
+            # These are missing in info so they cannot be matched
+            for pgap in info_gaps[:]:
+                if (tdict['start-time'] >= pgap['start-time']) and (tdict['stop-time'] <= pgap['stop-time']):
+                    ocount += 1
+                    tdict = set_main_id(tdict)
+                    tdict['merge-source'] = self.source
+                    if tdict['genre'] in ('', 'overige'):
+                        # We later try to match them generic to get a genre
+                        generic_match.append(tdict)
+
+                    else:
+                        matched_programs.append(tdict)
+
+                    matchlog('added from ', tdict, None, 1)
+                    if tdict in programs: programs.remove(tdict)
+                    if tdict['start-time'] in prog_starttimes: del prog_starttimes[tdict['start-time']]
+                    break
 
         log_array.append('%6.0f programs added outside common timerange\n' % ocount)
-        log_array.append('%6.0f details  added from group slots\n' % gcount)
-        log_array.append('%6.0f programs left in tvgids.nl to match\n' % (len(info)))
+        log_array.append('%6.0f programs left in %s to match\n' % (len(info), prime_source_name))
         log_array.append('%6.0f programs left in %s to match\n' % (len(programs), self.source))
         log_array.append('\n')
 
-        # Try to match programs outside the reach of  info to get genre
+        ncount = 0
+        gcount = 0
+        rcount = 0
+        scount = 0
+        # Try to match programs without genre to get genre
         for tdict in generic_match[:]:
             rname = tdict['name'].lower().strip()
-            if rname in info_names.iterkeys():
-                tdict['genre'] = info_names[rname]['genre']
-                tdict['subgenre'] = info_names[rname]['subgenre']
-                tdict = set_main_id(tdict)
-                matched_programs.append(tdict)
-                if tdict in generic_match: generic_match.remove(tdict)
-                continue
+            match_list = difflib.get_close_matches(rname, info_names.iterkeys(), 1, 0.9)
+            if len(match_list) > 0 and not info_names[match_list[0]]['genre'] in ('', 'overige'):
+                tdict['genre'] = info_names[match_list[0]]['genre']
+                tdict['subgenre'] = info_names[match_list[0]]['subgenre']
+                rcount += 1
 
             else:
-                for mname in info_names.iterkeys():
-                    x = match_name( tdict['name'], mname, tdict['titel aflevering'])
-                    if x != None:
-                        tdict['genre'] = info_names[mname]['genre']
-                        tdict['subgenre'] = info_names[mname]['subgenre']
-                        tdict = set_main_id(tdict)
-                        matched_programs.append(tdict)
-                        if tdict in generic_match: generic_match.remove(tdict)
-                        break
+                match_list = difflib.get_close_matches(rname, prog_names.iterkeys(), 1, 0.9)
+                if len(match_list) > 0 and not prog_names[match_list[0]]['genre'] in ('', 'overige'):
+                    tdict['genre'] = prog_names[rname]['genre']
+                    tdict['subgenre'] = prog_names[rname]['subgenre']
+                    rcount += 1
 
-                else:
-                    if 'genre' in tdict:
-                        g = get_tvgids_genre(tdict['genre'])
-                        tdict['genre'] = g[0]
-                        tdict['subgenre'] = g[1]
+            tdict = set_main_id(tdict)
+            matched_programs.append(tdict)
+            if tdict in generic_match: generic_match.remove(tdict)
 
-                    else:
-                        tdict['genre'] ='overige'
-
-                    tdict = set_main_id(tdict)
-                    matched_programs.append(tdict)
-                    if tdict in generic_match: generic_match.remove(tdict)
-
-        # Use the other for the timings and try to match to get genre/description info from tvgids
-        if other_is_dominant:
-            # Fixing a possible wrong last end time in programs
-            if progendtime < infoendtime:
-                last_start = programs[-1]['start-time']
-                last_end = programs[-1]['stop-time']
-                for check in (0, 1, 2, 3, 4, 5):
-                    for i in checkrange(check):
-                        mstart = last_start + datetime.timedelta(0, 0, 0, 0, i)
-                        if mstart in info_starttimes:
-                            pi = info_starttimes[mstart]
-                            if match_name(tdict['name'], pi['name'], tdict['titel aflevering']) != None:
-                                programs[-1]['stop-time'] = pi['stop-time']
-
-            ncount = 0
-            gcount = 0
-            rcount = 0
-            # Parse twice to recheck after generic name matching
-            for checkrun in (0, 1):
-                # first look on matching starttime (+/- 5 min) and similar names or matching genre
-                # extending the range by 5 min to 30
-                merge_match =[]
-                for check in range(0, 30, 5):
-                    if len(programs) == 0:
-                        break
-                    for tdict in programs[:]:
-                        mduur = (tdict['stop-time'] - tdict['start-time']).total_seconds()
-                        for i in checkrange(check):
-                            mstart = tdict['start-time'] + datetime.timedelta(0, 0, 0, 0, i)
-                            if mstart in info_starttimes:
-                                pi = info_starttimes[mstart]
-                                x = check_match_to_programs(tdict, pi, mstart)
-                                if x == 1:
-                                    ncount += 1
-                                    break
-
-                                if x == 2:
-                                    gcount += 1
-                                    break
-
-                # Check for following twins that were merged in the other (teveblad shows following parts often separate)
-                for item in merge_match:
-                    tdict = item['tdict']
-                    pi = item['info']
-                    pset = []
-                    # pi (from info) is the longer one (by 10%+)
-                    if item['type'] == 1:
-                        pset.append(tdict)
-                        for pp in programs:
-                            pduur = (pp['stop-time'] - pp['start-time']).total_seconds()
-                            if (pi['start-time'] < pp['start-time'] < pi['stop-time']) \
-                              and (pi['start-time'] < pp['start-time'] < pi['stop-time']):
-                                # Full overlap
-                                pset.append(pp)
-
-                            elif (pi['start-time'] < pp['start-time'] < pi['stop-time']):
-                                # Starttime overlap more than 50%
-                                if (pi['stop-time'] - pp['start-time']).total_seconds() > (0.5 * pduur):
-                                    pset.append(pp)
-
-                            elif (pi['start-time'] < pp['stop-time'] < pi['stop-time']):
-                                # Stoptime overlap more than 50%
-                                if (pp['stop-time'] - pi['start-time']).total_seconds() > (0.5 * pduur):
-                                    pset.append(pp)
-
-                        if len(pset) > 1:
-                            for pp in pset:
-                                if pp == tdict:
-                                    add_using_other_timing(pp, pi)
-
-                                else:
-                                    x = check_match_to_programs(pp, pi, None, False, False)
-                                    if x == 1:
-                                        add_using_other_timing(pp, pi, True, False)
-                                        ncount += 1
-
-                                    elif x == 2:
-                                        add_using_other_timing(pp, pi, True, False)
-                                        gcount += 1
-
-                                    else:
-                                        pass
-                                        # No match on name or genre
-
-                        else:
-                            add_using_other_timing(tdict, pi)
-
-                    # tdict (from programs) is the longer one (by 10%+)
-                    elif item['type'] == 2:
-                        pset.append(pi)
-                        for pp in info_starttimes.values():
-                            pduur = (pp['stop-time'] - pp['start-time']).total_seconds()
-                            if (tdict['start-time'] < pp['start-time'] < tdict['stop-time']) \
-                              and (tdict['start-time'] < pp['start-time'] < tdict['stop-time']):
-                                # Full overlap
-                                pset.append(pp)
-
-                            elif (tdict['start-time'] < pp['start-time'] < tdict['stop-time']) and \
-                              (tdict['stop-time'] - pp['start-time']).total_seconds() > (0.5 * pduur):
-                                # Starttime overlap more than 50%
-                                    pset.append(pp)
-
-                            elif (tdict['start-time'] < pp['stop-time'] < tdict['stop-time']) and \
-                              (pp['stop-time'] - tdict['start-time']).total_seconds() > (0.5 * pduur):
-                                # Stoptime overlap more than 50%
-                                    pset.append(pp)
-
-                        if len(pset) > 1:
-                            # So we have to use the timings from info
-                            for pp in pset:
-                                if pp == pi:
-                                    add_using_tvgids_timing(pp, tdict, True)
-
-                                else:
-                                    x = check_match_to_programs(tdict, pp, None, False, False)
-                                    if x == 1:
-                                        add_using_tvgids_timing(pp, tdict, True, False)
-                                        ncount += 1
-
-                                    elif x == 2:
-                                        add_using_tvgids_timing(pp, tdict, True, False)
-                                        gcount += 1
-
-                                    else:
-                                        pass
-                                        # No match on name or genre
-
-                        else:
-                            add_using_other_timing(tdict, pi)
-
-                # next for rtl match generic on name to get genre. But only the first run
-                if checkrun > 0:
-                    continue
-
-                for tdict in programs[:]:
-                    rname = tdict['name'].lower().strip()
-                    if rname in info_names.iterkeys():
-                        tdict['genre'] = info_names[rname]['genre']
-                        tdict['subgenre'] = info_names[rname]['subgenre']
-                        rcount += 1
-                        continue
-
-                    else:
-                        for mname in info_names.iterkeys():
-                            if match_name(tdict['name'], mname, tdict['titel aflevering']) != None:
-                                tdict['genre'] = info_names[mname]['genre']
-                                tdict['subgenre'] = info_names[mname]['subgenre']
-                                rcount += 1
-                                break
-
-                log_array.append('%6.0f programs generically matched on name to get genre\n' % rcount)
-                if rcount == 0:
-                    break
-
-            log_array.append('%6.0f programs matched on time and name\n' % ncount)
-            log_array.append('%6.0f programs matched on time and genre\n' % gcount)
-            log_array.append('%6.0f programs added unmatched from %s\n' % (len(programs), self.source))
-
-            # List unmatched items to the log
-            for tdict in programs[:]:
-                matchlog('unmatched in %s' % self.source, tdict, None, 1)
-                tdict = set_main_id(tdict)
-                tdict['merge-source'] = self.source
-                matched_programs.append(tdict)
-
-            p = []
-            for tdict in info_starttimes.itervalues():
-                if progstarttime < tdict['start-time'] < progendtime:
-                    p.append(tdict)
-
-            p.sort(key=lambda program: (program['start-time'],program['stop-time']))
-            for tdict in p:
-                matchlog('left over in info', tdict, None, 2)
-
-        # Use tvgids for the timings and only add extra info
-        else:
-            # Only add extra info to the tvgids info if the title matches  and the start time is in range
-            ncount = 0
+        # Parse twice to recheck after generic name matching
+        for checkrun in (0, 1):
+            # first look on matching starttime (+/- 5 min) and similar names or matching genre
+            # extending the range by 5 min to 30
             merge_match =[]
             for check in range(0, 30, 5):
                 if len(info) == 0:
                     break
 
                 for tdict in info[:]:
-                    pduur = (tdict['stop-time'] - tdict['start-time']).total_seconds()
-                    pstart = tdict['start-time']
-                    pname = tdict['name'].lower().strip()
                     for i in checkrange(check):
-                        mstart = pstart + datetime.timedelta(0, 0, 0, 0, i)
+                        mstart = tdict['start-time'] + datetime.timedelta(0, 0, 0, 0, i)
                         if mstart in prog_starttimes:
                             pi = prog_starttimes[mstart]
-                            if check_match_to_info(tdict, pi, mstart):
+                            x = check_match_to_info(tdict, pi, mstart, check_genre = (checkrun==1))
+                            if x == 1:
                                 ncount += 1
+                                break
+
+                            if x == 2:
+                                gcount += 1
                                 break
 
             # Check for following twins that were merged in the other (teveblad shows following parts often separate)
@@ -7122,26 +6683,28 @@ class FetchData(Thread):
                                 pset.append(pp)
 
                     if len(pset) > 1:
-                        for pp in pset:
-                            if pp == tdict:
-                                add_using_tvgids_timing(pp, pi)
-
-                            else:
-                                x = check_match_to_info(pp, pi, None, False)
-                                if x == 1:
-                                    add_using_tvgids_timing(pp, pi, False, False)
-                                    ncount += 1
-
-                                elif x == 2:
-                                    add_using_tvgids_timing(pp, pi, False, False)
-                                    ncount += 1
+                        if config.channels[chanid].opt_dict['use_split_episodes']:
+                            for pp in pset:
+                                if pp == tdict:
+                                    # The original match
+                                    merge_programs(pp, pi)
 
                                 else:
-                                    pass
-                                    # No match on name or genre
+                                    x = check_match_to_info(pp, pi, None, False)
+                                    if x == 1:
+                                        merge_programs(pp, pi, copy_ids = False)
+                                        ncount += 1
+
+                                    elif x == 2:
+                                        merge_programs(pp, pi, copy_ids = False)
+                                        gcount += 1
+
+                        else:
+                            # So we have to use the timings from programs
+                            merge_programs(pi, tdict, reverse_match = True, use_other_title = item['match'])
 
                     else:
-                        add_using_tvgids_timing(tdict, pi, item['match'])
+                        merge_programs(tdict, pi, use_other_title = item['match'])
 
                 # tdict (from info) is the longer one (by 10%+)
                 elif item['type'] == 2:
@@ -7163,49 +6726,124 @@ class FetchData(Thread):
                             # Stoptime overlap more than 50%
                                 pset.append(pp)
 
-                    if len(pset) > 1:
+                    if len(pset) > 1 and config.channels[chanid].opt_dict['use_split_episodes']:
                         # So we have to use the timings from programs
                         for pp in pset:
                             if pp == pi:
-                                add_using_other_timing(pp, tdict, True)
+                                # The original match
+                                merge_programs(pp, tdict, reverse_match = True)
 
                             else:
                                 x = check_match_to_info(tdict, pp, None, False)
                                 if x == 1:
-                                    add_using_other_timing(pp, tdict, True, False)
+                                    merge_programs(pp, tdict, reverse_match = True, copy_ids = False)
                                     ncount += 1
 
                                 elif x == 2:
-                                    add_using_other_timing(pp, tdict, True, False)
-                                    ncount += 1
-
-                                else:
-                                    pass
-                                    # No match on name or genre
+                                    merge_programs(pp, tdict, reverse_match = True, copy_ids = False)
+                                    gcount += 1
 
                     else:
-                        add_using_tvgids_timing(tdict, pi, True)
+                        merge_programs(tdict, pi)
 
-            log_array.append('%6.0f programs matched on time and name\n' % ncount)
-            log_array.append('%6.0f programs added unmatched from info\n' % len(info))
+            # next mainly for rtl match generic on name to get genre. But only the first run
+            if checkrun > 0:
+                break
 
-            # List unmatched items to the log
             for tdict in info[:]:
-                matchlog('unmatched in info', tdict, None, 1)
+                rname = tdict['name'].lower().strip()
+                match_list = difflib.get_close_matches(rname, info_names.iterkeys(), 1, 0.9)
+                if len(match_list) > 0 and not info_names[match_list[0]]['genre'] in ('', 'overige'):
+                    tdict['genre'] = info_names[match_list[0]]['genre']
+                    tdict['subgenre'] = info_names[match_list[0]]['subgenre']
+                    rcount += 1
+
+                else:
+                    match_list = difflib.get_close_matches(rname, prog_names.iterkeys(), 1, 0.9)
+                    if len(match_list) > 0 and not prog_names[match_list[0]]['genre'] in ('', 'overige'):
+                        tdict['genre'] = prog_names[rname]['genre']
+                        tdict['subgenre'] = prog_names[rname]['subgenre']
+                        rcount += 1
+
+            log_array.append('%6.0f programs generically matched on name to get genre\n' % rcount)
+            if rcount == 0:
+                break
+
+        # Passing over generic timeslots that maybe detailed in the other
+        delta_10 =  datetime.timedelta(minutes = 10)
+        info.extend(info_groups)
+        for tdict in prog_groups[:]:
+            pcount = 0
+            for tvdict in info[:]:
+                if (tvdict['start-time'] >= (tdict['start-time'] - delta_10)) and (tvdict['stop-time'] <= (tdict['stop-time'] + delta_10)):
+                    scount += 1
+                    pcount += 1
+                    tvdict = set_main_id(tvdict)
+                    if tvdict['merge-source'] == '':
+                        tvdict['merge-source'] = prime_source_name
+
+                    matched_programs.append(tvdict)
+                    if pcount == 1:
+                        matchlog('groupslot in ', tdict, None, 1)
+
+                    matchlog('', None, tvdict, 1)
+                    if tvdict in info: info.remove(tvdict)
+                    if tvdict in info_groups: info_groups.remove(tvdict)
+
+            if pcount == 0:
+                programs.append(tdict)
+
+            #~ if tdict in programs: programs.remove(tdict)
+            if tdict['start-time'] in prog_starttimes: del prog_starttimes[tdict['start-time']]
+
+        for tdict in info_groups[:]:
+            pcount = 0
+            for tvdict in programs[:]:
+                if (tvdict['start-time'] >= (tdict['start-time'] - delta_10)) and (tvdict['stop-time'] <= (tdict['stop-time'] + delta_10)):
+                    scount += 1
+                    pcount += 1
+                    tvdict = set_main_id(tvdict)
+                    tvdict['merge-source'] = self.source
+                    matched_programs.append(tvdict)
+                    if pcount == 1:
+                        matchlog('groupslot in info', None, tdict, 1)
+
+                    matchlog('', tvdict, None, 1)
+                    if tvdict in programs: programs.remove(tvdict)
+                    if tvdict['start-time'] in prog_starttimes: del prog_starttimes[tvdict['start-time']]
+
+            if pcount == 0:
                 tdict = set_main_id(tdict)
                 if tdict['merge-source'] == '':
-                    tdict['merge-source'] = xml_output.channelsource[0].source
+                    tdict['merge-source'] = prime_source_name
 
+                matchlog('added from info', None, tdict, 1)
                 matched_programs.append(tdict)
 
-            p = []
-            for tdict in prog_starttimes.itervalues():
-                if infostarttime < tdict['start-time'] < infoendtime:
-                    p.append(tdict)
+            if tdict in info: info.remove(tdict)
 
-            p.sort(key=lambda program: (program['start-time'],program['stop-time']))
-            for tdict in p:
-                matchlog('left over in %s' % self.source, tdict, None , 2)
+        log_array.append('%6.0f programs matched on time and name\n' % ncount)
+        log_array.append('%6.0f programs matched on time and genre\n' % gcount)
+        log_array.append('%6.0f details  added from group slots\n' % scount)
+        log_array.append('%6.0f programs added unmatched from info\n' % len(info))
+
+        # List unmatched items to the log
+        for tdict in info[:]:
+            matchlog('added from info', None, tdict, 1)
+            tdict = set_main_id(tdict)
+            if tdict['merge-source'] == '':
+                tdict['merge-source'] = prime_source_name
+
+            matched_programs.append(tdict)
+
+        p = []
+        for tdict in prog_starttimes.itervalues():
+            if infostarttime < tdict['start-time'] < infoendtime:
+                p.append(tdict)
+
+        p.sort(key=lambda program: (program['start-time'],program['stop-time']))
+        for tdict in p:
+            matchlog('left over in ', tdict, None , 2)
 
         log_array.append('\n')
         log(log_array, 4, 3)
@@ -9646,8 +9284,32 @@ class npo_HTML(FetchData):
                             infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
 
                     # and append the program to the list of programs
-                    with self.source_lock:
-                        self.program_data[chanid].append(tdict)
+                    if last_added[chanid] != None:
+                        if last_added[chanid]['name'] == tdict['name']:
+                            with self.source_lock:
+                                self.program_data[chanid][-1]['stop-time'] = tdict['stop-time']
+
+                        elif last_added[chanid]['name'] == 'Tekst-TV':
+                            with self.source_lock:
+                                self.program_data[chanid][-1]['stop-time'] = tdict['start-time']
+                                self.program_data[chanid].append(tdict)
+
+                        elif tdict['name'] == 'Tekst-TV':
+                            tdict['start-time'] = last_added[chanid]['stop-time']
+                            with self.source_lock:
+                                self.program_data[chanid].append(tdict)
+
+                        else:
+                            with self.source_lock:
+                                self.program_data[chanid].append(tdict)
+
+                        last_added[chanid] = None
+
+                    else:
+                        with self.source_lock:
+                            self.program_data[chanid].append(tdict)
+
+                last_added[chanid] = tdict
 
             except:
                 log(traceback.format_exc())
@@ -9662,6 +9324,7 @@ class npo_HTML(FetchData):
         if len(self.channels) == 0 :
             return
 
+        last_added = {}
         for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 7)):
             if self.quit:
                 return
@@ -9734,6 +9397,9 @@ class npo_HTML(FetchData):
                     channel_cnt += 1
                     if str(channel_cnt) in self.fetch_list.keys():
                         chanid = self.fetch_list[str(channel_cnt)]
+                        if not chanid in last_added:
+                            last_added[chanid] = None
+
                         get_programs(c, chanid)
                         self.day_loaded[chanid][offset] = True
 
@@ -9742,6 +9408,9 @@ class npo_HTML(FetchData):
                     channel_cnt += 1
                     if str(channel_cnt) in self.fetch_list.keys():
                         chanid = self.fetch_list[str(channel_cnt)]
+                        if not chanid in last_added:
+                            last_added[chanid] = None
+
                         get_programs(c, chanid)
                         self.day_loaded[chanid][offset] = True
 
@@ -9750,6 +9419,9 @@ class npo_HTML(FetchData):
                     channel_cnt += 1
                     if str(channel_cnt) in self.fetch_list.keys():
                         chanid = self.fetch_list[str(channel_cnt)]
+                        if not chanid in last_added:
+                            last_added[chanid] = None
+
                         get_programs(c, chanid, False)
                         self.day_loaded[chanid][offset] = True
 
@@ -10307,6 +9979,7 @@ class Channel_Config(Thread):
         self.opt_dict['overlap_strategy'] = config.opt_dict['overlap_strategy']
         self.opt_dict['logos'] = config.opt_dict['logos']
         self.opt_dict['desc_length'] = config.opt_dict['desc_length']
+        self.opt_dict['use_split_episodes'] = config.opt_dict['use_split_episodes']
         self.opt_dict['cattrans'] = config.opt_dict['cattrans']
         self.opt_dict['mark_hd'] = config.opt_dict['mark_hd']
         self.opt_dict['add_hd_id'] = False
@@ -10336,14 +10009,27 @@ class Channel_Config(Thread):
             return
 
         try:
+            # Create the merge order
+            self.merge_order = []
+            if self.opt_dict['prime_source'] in xml_output.source_order \
+              and (self.source_id[self.opt_dict['prime_source']] != '') \
+              and not (self.opt_dict['prime_source'] in self.opt_dict['disable_source']) \
+              and not (self.opt_dict['prime_source'] in config.opt_dict['disable_source']):
+                self.merge_order.append(self.opt_dict['prime_source'])
+
+            for index in xml_output.source_order:
+                if (self.source_id[index] != '') \
+                  and index != self.opt_dict['prime_source'] \
+                  and not (index in self.opt_dict['disable_source']) \
+                  and not (index in config.opt_dict['disable_source']):
+                    self.merge_order.append(index)
+
+                elif index != self.opt_dict['prime_source']:
+                    self.source_data[index].set()
+
             xml_data = False
             # Retrieve and merge the data from the available sources.
-            for index in xml_output.source_order:
-                if (self.source_id[index] == '') or (index in self.opt_dict['disable_source']) or (index in config.opt_dict['disable_source']):
-                    # There is no ID for this source
-                    self.source_data[index].set()
-                    continue
-
+            for index in self.merge_order:
                 while not self.source_data[index].is_set():
                     # Wait till the event is set by the source, but check every 5 seconds for an unexpected break or wether the source is still alive
                     self.source_data[index].wait(5)
@@ -10358,21 +10044,22 @@ class Channel_Config(Thread):
                 if len(xml_output.channelsource[index].program_data[self.chanid]) == 0:
                     log('No Data from %s for channel: %s\n'% (xml_output.channelsource[index].source, self.chan_name))
 
-                if xml_data == False and self.source_data[index].is_set():
-                    xml_data = True
-                    with xml_output.channelsource[index].source_lock:
-                        self.all_programs = xml_output.channelsource[index].program_data[self.chanid][:]
-                        self.current_prime = xml_output.channelsource[index].source
-
                 elif self.source_data[index].is_set():
-                    xml_data = True
-                    if self.opt_dict['prime_source'] == index:
-                        self.current_prime = xml_output.channelsource[index].source
+                    if xml_data == False:
+                        # This is the first source with data, so we just take in the data
+                        xml_data = True
+                        prime_source = xml_output.channelsource[index].source
+                        with xml_output.channelsource[index].source_lock:
+                            self.all_programs = xml_output.channelsource[index].program_data[self.chanid][:]
 
-                    xml_output.channelsource[index].merge_sources(self.chanid, (self.opt_dict['prime_source'] == index), self.counter)
-                    xml_output.channelsource[index].parse_programs(self.chanid, 1, 'None')
-                    for i in range(0, len(self.all_programs)):
-                        self.all_programs[i] = xml_output.channelsource[index].checkout_program_dict(self.all_programs[i])
+                    else:
+                        # There is already data, so we merge the incomming data into that
+                        xml_data = True
+                        #~ xml_output.channelsource[index].merge_sources(self.chanid, (self.opt_dict['prime_source'] == index), self.counter)
+                        xml_output.channelsource[index].merge_sources(self.chanid,  prime_source, self.counter)
+                        xml_output.channelsource[index].parse_programs(self.chanid, 1, 'None')
+                        for i in range(0, len(self.all_programs)):
+                            self.all_programs[i] = xml_output.channelsource[index].checkout_program_dict(self.all_programs[i])
 
             # And get the detailpages
             if len(self.all_programs) == 0:
@@ -10492,7 +10179,7 @@ class Channel_Config(Thread):
         if not 'prefered description' in cached.keys():
             cached['prefered description'] = tdict['prefered description']
 
-        if tdict['prefered description'] > cached['prefered description']:
+        elif tdict['prefered description'] > cached['prefered description']:
             cached['prefered description'] = tdict['prefered description']
 
         for fld in ('name', 'titel aflevering', 'originaltitle', 'jaar van premiere', 'airdate', 'country', 'star-rating', 'omroep'):
