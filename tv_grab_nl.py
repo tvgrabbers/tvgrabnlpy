@@ -339,7 +339,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150828'
+        self.patchdate = u'20150829'
         self.alfa = True
         self.beta = True
 
@@ -5230,7 +5230,7 @@ class FetchData(Thread):
             if parent != None:
                 parent.update_counter('ttvdb_fail')
 
-            log("No ttvdb id for '%s' on channel %s\n" % (data['name'], data['channel']), 128)
+            log("  No ttvdb id for '%s' on channel %s\n" % (data['name'], data['channel']), 128)
             return data
 
         # First we just look for a matching subtitle
@@ -5256,9 +5256,10 @@ class FetchData(Thread):
         ep_dict = {}
         ep_list = []
         for ep in eps:
-            ep_list.append(ep['title'])
-            ep_dict[ep['title']] = {'sid': ep['sid'], 'eid': ep['eid'], 'airdate': ep['airdate'], 'title': ep['title']}
-            if re.sub('[-,. ]', '', ep['title'].lower()) == re.sub('[-,. ]', '', data['titel aflevering'].lower()):
+            s = re.sub('[-,. ]', '', self.remove_accents(ep['title']).lower())
+            ep_list.append(s)
+            ep_dict[s] = {'sid': ep['sid'], 'eid': ep['eid'], 'airdate': ep['airdate'], 'title': ep['title']}
+            if s == re.sub('[-,. ]', '', self.remove_accents(data['titel aflevering']).lower()):
                 if parent != None:
                     parent.update_counter('ttvdb')
 
@@ -5589,6 +5590,34 @@ class FetchData(Thread):
         program['name'] = ptitle
         program['titel aflevering'] = psubtitle
         return program
+
+    def remove_accents(name):
+        name = re.sub('á','a', name)
+        name = re.sub('é','e', name)
+        name = re.sub('í','i', name)
+        name = re.sub('ó','o', name)
+        name = re.sub('ú','u', name)
+        name = re.sub('ý','y', name)
+        name = re.sub('à','a', name)
+        name = re.sub('è','e', name)
+        name = re.sub('ì','i', name)
+        name = re.sub('ò','o', name)
+        name = re.sub('ù','u', name)
+        name = re.sub('ä','a', name)
+        name = re.sub('ë','e', name)
+        name = re.sub('ï','i', name)
+        name = re.sub('ö','o', name)
+        name = re.sub('ü','u', name)
+        name = re.sub('ÿ','y', name)
+        name = re.sub('â','a', name)
+        name = re.sub('ê','e', name)
+        name = re.sub('î','i', name)
+        name = re.sub('ô','o', name)
+        name = re.sub('û','u', name)
+        name = re.sub('ã','a', name)
+        name = re.sub('õ','o', name)
+        name = re.sub('@','a', name)
+        return name
 
     def filter_description(self,ETitem, ETfind, tdict):
         """
@@ -6140,35 +6169,6 @@ class FetchData(Thread):
             Returns 1 if matched on name:episode = name
             Returns None if no match
             """
-            def remove_accents(name):
-                name = re.sub('á','a', name)
-                name = re.sub('é','e', name)
-                name = re.sub('í','i', name)
-                name = re.sub('ó','o', name)
-                name = re.sub('ú','u', name)
-                name = re.sub('ý','y', name)
-                name = re.sub('à','a', name)
-                name = re.sub('è','e', name)
-                name = re.sub('ì','i', name)
-                name = re.sub('ò','o', name)
-                name = re.sub('ù','u', name)
-                name = re.sub('ä','a', name)
-                name = re.sub('ë','e', name)
-                name = re.sub('ï','i', name)
-                name = re.sub('ö','o', name)
-                name = re.sub('ü','u', name)
-                name = re.sub('ÿ','y', name)
-                name = re.sub('â','a', name)
-                name = re.sub('ê','e', name)
-                name = re.sub('î','i', name)
-                name = re.sub('ô','o', name)
-                name = re.sub('û','u', name)
-                name = re.sub('ã','a', name)
-                name = re.sub('õ','o', name)
-                name = re.sub('@','a', name)
-                return name
-            # end remove_accents()
-
             def compare(nother, ntvgids, nsub = ''):
                 if nother == ntvgids:
                     return 0
@@ -6215,12 +6215,12 @@ class FetchData(Thread):
             other_name = other_title.lower().strip()
             other_subname = other_subtitle.lower().strip()
             tvgids_name = tvgids_name.lower().strip()
-            x = compare(remove_accents(other_name), remove_accents(tvgids_name), remove_accents(other_subname))
+            x = compare(self.remove_accents(other_name), self.remove_accents(tvgids_name), self.remove_accents(other_subname))
             if x != None:
                 return x
 
             matchobject = difflib.SequenceMatcher(isjunk=lambda x: x in " '\",.-/", autojunk=False)
-            matchobject.set_seqs(other_name, tvgids_name)
+            matchobject.set_seqs(self.remove_accents(other_name), self.remove_accents(tvgids_name))
             if matchobject.ratio() > .8:
                 return 0
 
@@ -6240,19 +6240,19 @@ class FetchData(Thread):
                 rtvgids_name = tvgids_name.split(':')[1].strip()
 
             if name_split:
-                x = compare(remove_accents(rother_name), remove_accents(rtvgids_name))
+                x = compare(self.remove_accents(rother_name), self.remove_accents(rtvgids_name))
                 if x != None:
                     return x
 
-                matchobject.set_seqs(rother_name, rtvgids_name)
+                matchobject.set_seqs(self.remove_accents(rother_name), self.remove_accents(rtvgids_name))
                 if matchobject.ratio() > .8:
                     return 0
 
-                x = compare(remove_accents(lother_name), remove_accents(ltvgids_name))
+                x = compare(self.remove_accents(lother_name), self.remove_accents(ltvgids_name))
                 if x != None:
                     return x
 
-                matchobject.set_seqs(lother_name, ltvgids_name)
+                matchobject.set_seqs(self.remove_accents(lother_name), self.remove_accents(ltvgids_name))
                 if matchobject.ratio() > .8:
                     return 0
 
@@ -6626,8 +6626,8 @@ class FetchData(Thread):
             else:
                 match_list = difflib.get_close_matches(rname, prog_names.iterkeys(), 1, 0.9)
                 if len(match_list) > 0 and not prog_names[match_list[0]]['genre'] in ('', 'overige'):
-                    tdict['genre'] = prog_names[rname]['genre']
-                    tdict['subgenre'] = prog_names[rname]['subgenre']
+                    tdict['genre'] = prog_names[match_list[0]]['genre']
+                    tdict['subgenre'] = prog_names[match_list[0]]['subgenre']
                     rcount += 1
 
             tdict = set_main_id(tdict)
@@ -6761,8 +6761,8 @@ class FetchData(Thread):
                 else:
                     match_list = difflib.get_close_matches(rname, prog_names.iterkeys(), 1, 0.9)
                     if len(match_list) > 0 and not prog_names[match_list[0]]['genre'] in ('', 'overige'):
-                        tdict['genre'] = prog_names[rname]['genre']
-                        tdict['subgenre'] = prog_names[rname]['subgenre']
+                        tdict['genre'] = prog_names[match_list[0]]['genre']
+                        tdict['subgenre'] = prog_names[match_list[0]]['subgenre']
                         rcount += 1
 
             log_array.append('%6.0f programs generically matched on name to get genre\n' % rcount)
@@ -9216,6 +9216,7 @@ class npo_HTML(FetchData):
 
         def get_programs(xml, chanid, omroep = True):
             try:
+                tdict = None
                 day_offset = 0
                 for p in xml.findall('a'):
                     ptext = p.find('i[@class="np"]')
@@ -9818,7 +9819,7 @@ class horizon_JSON(FetchData):
                             tdict['titel aflevering'] = self.unescape(item['program']['secondaryTitle'])
 
                         ep = int(item['program']['seriesEpisodeNumber']) if 'seriesEpisodeNumber' in item['program'] else 0
-                        tdict['episode'] =  u'0' if ep > 1000 else str(ep)
+                        tdict['episode'] =  0 if ep > 1000 else str(ep)
 
                         shortdesc = self.unescape(item['program']['shortDescription']) if 'shortDescription' in item['program'] else ''
                         tdict['description'] = self.unescape(item['program']['description']) if 'description' in item['program'] else shortdesc
