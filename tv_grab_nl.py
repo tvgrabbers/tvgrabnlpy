@@ -5591,7 +5591,7 @@ class FetchData(Thread):
         program['titel aflevering'] = psubtitle
         return program
 
-    def remove_accents(name):
+    def remove_accents(self, name):
         name = re.sub('á','a', name)
         name = re.sub('é','e', name)
         name = re.sub('í','i', name)
