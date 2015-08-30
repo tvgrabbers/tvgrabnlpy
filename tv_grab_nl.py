@@ -212,11 +212,12 @@ class Logging(Thread):
     def __init__(self):
         Thread.__init__(self)
         self.quit = False
-        self.log_level = 47
+        self.log_level = 175
         self.quiet = False
         self.graphic_frontend = False
         self.log_queue = Queue()
         self.log_output = None
+        self.local_encoding = locale.getpreferredencoding()
 
     def run(self):
         self.log_output = config.log_output
@@ -276,8 +277,8 @@ class Logging(Thread):
 
             # If config is not yet available
             if (config == None) and (log_target & 1):
-                sys.stderr.write('Error writing to log. Not (yet) available?\n')
-                sys.stderr.write(message.encode("utf-8"))
+                sys.stderr.write(('Error writing to log. Not (yet) available?\n').encode(self.local_encoding))
+                sys.stderr.write(message.encode(self.local_encoding))
                 return
 
             # Log to the Frontend. To set-up later.
@@ -286,7 +287,7 @@ class Logging(Thread):
 
             # Log to the screen
             elif log_level == 0 or ((not self.quiet) and (log_level & self.log_level) and (log_target & 1)):
-                sys.stderr.write(message.encode("utf-8"))
+                sys.stderr.write(message.encode(self.local_encoding))
 
             # Log to the log-file
             if (log_level == 0 or ((log_level & self.log_level) and (log_target & 2))) and self.log_output != None:
@@ -303,7 +304,7 @@ class Logging(Thread):
                 self.log_output.flush()
 
         except:
-            sys.stderr.write(now() + 'An error ocured while logging!\n')
+            sys.stderr.write((now() + 'An error ocured while logging!\n').encode(self.local_encoding))
             traceback.print_exc()
 
 # end Logging
@@ -313,11 +314,11 @@ def log(message, log_level = 1, log_target = 3):
     # If logging not (jet) available, make sure important messages go to the screen
     if (logging.log_output == None) and (log_level < 2) and (log_target & 1):
         if isinstance(message, (str, unicode)):
-            sys.stderr.write(message.encode("utf-8"))
+            sys.stderr.write(message.encode(logging.local_encoding))
 
         elif isinstance(message, (list ,tuple)):
             for m in message:
-                sys.stderr.write(m.encode("utf-8"))
+                sys.stderr.write(m.encode(logging.local_encoding))
 
         if log_target & 2:
             logging.log_queue.put([message, log_level, 2])
@@ -339,7 +340,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150829'
+        self.patchdate = u'20150830'
         self.alfa = True
         self.beta = True
 
@@ -373,7 +374,7 @@ class Configure:
         # 1 = log not matched programs
         # 2 = log left over programs
         # 4 = Log matches
-        self.opt_dict['match_log_level'] = 1
+        self.opt_dict['match_log_level'] = 11
 
         # A selection of user agents we will impersonate, in an attempt to be less
         # conspicuous to the tvgids.nl police.
@@ -1268,7 +1269,7 @@ class Configure:
 
         except Exception, e:
             self.opt_dict['disable_ttvdb'] = True
-            log(['Unable to load tvdb_api.py from the MythTV bindings.\n', 'ttvdb.com lookup disable.\n'])
+            log(['Unable to load tvdb_api.py from the MythTV bindings.\n', 'ttvdb.com lookup disabled.\n'])
             return
 
         self.ttvdb_dir = u'%s/ttvdb_cache' % self.xmltv_dir
@@ -1675,7 +1676,8 @@ class Configure:
         self.config_dict = {1:[], 2:[], 3:[], 9:{}}
         f = self.open_file(self.config_file)
         if f == None:
-            log('Re-run me with the --configure flag.\n')
+            if not self.args.configure:
+                log('Re-run me with the --configure flag.\n')
             return False
 
         if not self.check_encoding(f, None, True):
@@ -2775,9 +2777,8 @@ class Configure:
         log_array.append(u'log level = %s' % (self.opt_dict['log_level']))
         log_array.append(u'match log level = %s' % (self.opt_dict['match_log_level']))
         log_array.append(u'config_file = %s' % (self.config_file))
-        log_array.append(u'program_cache_file = %s' % (self.args.program_cache_file))
+        log_array.append(u'program_cache_file = %s.db' % (self.args.program_cache_file))
         log_array.append(u'clean_cache = %s' % (self.args.clean_cache))
-        log_array.append(u'clear_cache = %s' % (self.args.clear_cache))
         log_array.append(u'disable_ttvdb = %s' % (self.opt_dict['disable_ttvdb']))
         log_array.append(u'quiet = %s' % (self.opt_dict['quiet']))
         log_array.append(u'output_file = %s' % (self.opt_dict['output_file']))
@@ -2932,9 +2933,10 @@ class Configure:
         f.write(u'\n')
         f.write(u'# What match results go to the log/screen (needs code 32 above)\n')
         f.write(u'# 0 = Log Nothing (just the overview)\n')
-        f.write(u'# 1 = log not matched programs\n')
+        f.write(u'# 1 = log not matched programs added\n')
         f.write(u'# 2 = log left over programs\n')
         f.write(u'# 4 = Log matches\n')
+        f.write(u'# 8 = Log group slots\n')
         f.write(u'match_log_level = %s\n' % self.opt_dict['match_log_level'])
         f.write(u'\n')
         f.write(u'quiet = %s\n' % self.opt_dict['quiet'])
@@ -2965,7 +2967,7 @@ class Configure:
         f.write(u'#   long  : add the long descriptions and the icons\n')
         f.write(u'#   short : add the one word descriptions and the icons\n')
         f.write(u'#   single: add a single string (mythtv only reads the first item)\n')
-        f.write(u'#   none  : don add any\n')
+        f.write(u"#   none  : don't add any\n")
         f.write(u'kijkwijzerstijl = %s\n' % self.opt_dict['kijkwijzerstijl'])
         f.write(u'use_split_episodes = %s\n' % self.opt_dict['use_split_episodes'])
         f.write(u'\n')
@@ -3373,8 +3375,17 @@ class Configure:
 
                 f.write(u'slowdays = %s\n' % (chan_def.opt_dict['slowdays']))
 
+            if self.opt_dict['disable_ttvdb'] == False and chan_def.opt_dict['disable_ttvdb'] == True:
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
+
+                f.write(u'disable_ttvdb = True\n')
+
             for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', \
-              'cattrans', 'mark_hd', 'disable_ttvdb', 'use_split_episodes'):
+              'cattrans', 'mark_hd', 'use_split_episodes'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         f.write(u'\n')
@@ -6784,16 +6795,15 @@ class FetchData(Thread):
 
                     matched_programs.append(tvdict)
                     if pcount == 1:
-                        matchlog('groupslot in ', tdict, None, 1)
+                        matchlog('groupslot in ', tdict, None, 8)
 
-                    matchlog('', None, tvdict, 1)
+                    matchlog('', None, tvdict, 8)
                     if tvdict in info: info.remove(tvdict)
                     if tvdict in info_groups: info_groups.remove(tvdict)
 
             if pcount == 0:
                 programs.append(tdict)
 
-            #~ if tdict in programs: programs.remove(tdict)
             if tdict['start-time'] in prog_starttimes: del prog_starttimes[tdict['start-time']]
 
         for tdict in info_groups[:]:
@@ -6806,9 +6816,9 @@ class FetchData(Thread):
                     tvdict['merge-source'] = self.source
                     matched_programs.append(tvdict)
                     if pcount == 1:
-                        matchlog('groupslot in info', None, tdict, 1)
+                        matchlog('groupslot in info', None, tdict, 8)
 
-                    matchlog('', tvdict, None, 1)
+                    matchlog('', tvdict, None, 8)
                     if tvdict in programs: programs.remove(tvdict)
                     if tvdict['start-time'] in prog_starttimes: del prog_starttimes[tvdict['start-time']]
 
@@ -6951,6 +6961,7 @@ class tvgids_JSON(FetchData):
 
         self.channels = {}
         self.url_channels = ''
+        self.cooky_cnt = 0
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
@@ -7169,8 +7180,11 @@ class tvgids_JSON(FetchData):
                 return
 
             if re.search('<div class="cookie-backdrop">', strdata):
-                self.cookyblock = True
-                log('Cooky block page encountered. Falling back to json\n', 1)
+                self.cooky_cnt += 1
+                if self.cooky_cnt >= 3:
+                    self.cookyblock = True
+                    log('Cooky block page encountered. Falling back to json\n', 1)
+
                 return
 
             strdata = '<div>\n' +  self.tvgidsnlprog.search(strdata).group(1)
@@ -10395,19 +10409,13 @@ class XMLoutput:
     '''
     def __init__(self):
 
-        xmlencoding = 'UTF-8'
+        self.xmlencoding = 'UTF-8'
         # This will contain the cache
         self.program_cache = None
         # Thes will contain the seperate XML strings
-        self.startstring = []
         self.xml_channels = {}
         self.xml_programs = {}
         self.progress_counter = 0
-
-        self.startstring.append(u'<?xml version="1.0" encoding="%s"?>\n' % xmlencoding)
-        self.startstring.append(u'<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
-        self.startstring.append(u'<tv generator-info-name="%s" generator-info-url="https://github.com/tvgrabbers/tvgrabnlpy">\n' % config.version(True))
-        self.closestring = u'</tv>\n'
 
         # We have several sources of logos, the first provides the nice ones, but is not
         # complete. We use the tvgids logos to fill the missing bits.
@@ -10906,8 +10914,18 @@ class XMLoutput:
         '''
         Compound the compleet XML output and return it
         '''
+        if config.output == None:
+            startstring =[u'<?xml version="1.0" encoding="%s"?>\n' % logging.local_encoding]
+
+        else:
+            startstring =[u'<?xml version="1.0" encoding="%s"?>\n' % self.xmlencoding]
+
+        startstring.append(u'<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
+        startstring.append(u'<tv generator-info-name="%s" generator-info-url="https://github.com/tvgrabbers/tvgrabnlpy">\n' % config.version(True))
+        closestring = u'</tv>\n'
+
         xml = []
-        xml.append(u"".join(self.startstring))
+        xml.append(u"".join(startstring))
 
         for chanid in config.channels.keys():
             if config.channels[chanid].active and chanid in self.xml_channels:
@@ -10924,7 +10942,7 @@ class XMLoutput:
                     for program in self.xml_programs['%s-hd' % chanid]:
                         xml.append(u"".join(program))
 
-        xml.append(self.closestring)
+        xml.append(closestring)
 
         return u"".join(xml)
 
@@ -10936,7 +10954,7 @@ class XMLoutput:
 
         if xml != None:
             if config.output == None:
-                print(xml.encode(config.file_encoding))
+                sys.stdout.write(xml.encode(logging.local_encoding))
 
             else:
                 config.output.write(xml)
