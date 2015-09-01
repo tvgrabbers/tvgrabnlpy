@@ -277,8 +277,8 @@ class Logging(Thread):
 
             # If config is not yet available
             if (config == None) and (log_target & 1):
-                sys.stderr.write(('Error writing to log. Not (yet) available?\n').encode(self.local_encoding))
-                sys.stderr.write(message.encode(self.local_encoding))
+                sys.stderr.write(('Error writing to log. Not (yet) available?\n').encode(self.local_encoding, 'replace'))
+                sys.stderr.write(message.encode(self.local_encoding, 'replace'))
                 return
 
             # Log to the Frontend. To set-up later.
@@ -287,7 +287,7 @@ class Logging(Thread):
 
             # Log to the screen
             elif log_level == 0 or ((not self.quiet) and (log_level & self.log_level) and (log_target & 1)):
-                sys.stderr.write(message.encode(self.local_encoding))
+                sys.stderr.write(message.encode(self.local_encoding, 'replace'))
 
             # Log to the log-file
             if (log_level == 0 or ((log_level & self.log_level) and (log_target & 2))) and self.log_output != None:
@@ -304,7 +304,7 @@ class Logging(Thread):
                 self.log_output.flush()
 
         except:
-            sys.stderr.write((now() + 'An error ocured while logging!\n').encode(self.local_encoding))
+            sys.stderr.write((now() + 'An error ocured while logging!\n').encode(self.local_encoding, 'replace'))
             traceback.print_exc()
 
 # end Logging
@@ -314,11 +314,11 @@ def log(message, log_level = 1, log_target = 3):
     # If logging not (jet) available, make sure important messages go to the screen
     if (logging.log_output == None) and (log_level < 2) and (log_target & 1):
         if isinstance(message, (str, unicode)):
-            sys.stderr.write(message.encode(logging.local_encoding))
+            sys.stderr.write(message.encode(logging.local_encoding, 'replace'))
 
         elif isinstance(message, (list ,tuple)):
             for m in message:
-                sys.stderr.write(m.encode(logging.local_encoding))
+                sys.stderr.write(m.encode(logging.local_encoding, 'replace'))
 
         if log_target & 2:
             logging.log_queue.put([message, log_level, 2])
@@ -5264,13 +5264,14 @@ class FetchData(Thread):
         xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, \
                 'ep_by_id': {'tid': tid, 'sid': data['season'], 'eid': data['episode']}})
         eps = self.cache_return.get(True)
+        subt = re.sub('[-,. ]', '', self.remove_accents(data['titel aflevering']).lower())
         ep_dict = {}
         ep_list = []
         for ep in eps:
             s = re.sub('[-,. ]', '', self.remove_accents(ep['title']).lower())
             ep_list.append(s)
             ep_dict[s] = {'sid': ep['sid'], 'eid': ep['eid'], 'airdate': ep['airdate'], 'title': ep['title']}
-            if s == re.sub('[-,. ]', '', self.remove_accents(data['titel aflevering']).lower()):
+            if s == subt:
                 if parent != None:
                     parent.update_counter('ttvdb')
 
@@ -5284,7 +5285,7 @@ class FetchData(Thread):
                 return data
 
         # And finally we try a difflib match
-        match_list = difflib.get_close_matches(data['titel aflevering'], ep_list, 1, 0.9)
+        match_list = difflib.get_close_matches(subt, ep_list, 1, 0.7)
         if len(match_list) > 0:
             if parent != None:
                 parent.update_counter('ttvdb')
@@ -10954,7 +10955,7 @@ class XMLoutput:
 
         if xml != None:
             if config.output == None:
-                sys.stdout.write(xml.encode(logging.local_encoding))
+                sys.stdout.write(xml.encode(logging.local_encoding, 'replace'))
 
             else:
                 config.output.write(xml)
@@ -10976,6 +10977,11 @@ def main():
 
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
+        #~ matchobject = difflib.SequenceMatcher(isjunk=lambda x: x in " '\",.-/", autojunk=False)
+        #~ matchobject.set_seqs('Enemies Foreign', '	enemiesforeign(1)')
+        #~ matchobject.set_seqs('enemies domestic', '	enemies domestic (2)')
+        #~ print matchobject.ratio()
+        #~ return
 
         # Start the seperate fetching threads
         for source in xml_output.channelsource.values():
