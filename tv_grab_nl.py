@@ -273,7 +273,7 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 1
-        self.patch = 11
+        self.patch = 12
         self.patchdate = u'20150820'
         self.alfa = False
         self.beta = False
@@ -1632,7 +1632,8 @@ class Configure:
                     self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.gif'
 
         # Get the other sources
-        for index in (1, 3, 2):
+        #~ for index in (1, 3, 2):
+        for index in (1, 2):
             xml_output.channelsource[index].init_channels()
             xml_output.channelsource[index].get_channels()
             reverse_channels = {}
@@ -1684,8 +1685,8 @@ class Configure:
             if channel.chan_name[-3:].lower() == ' hd':
                 channel.opt_dict['mark_hd'] = True
 
-            if channel.source_id[3] != '' and xml_output.channelsource[3].all_channels[channel.source_id[3]]['HD']:
-                channel.opt_dict['mark_hd'] = True
+            #~ if channel.source_id[3] != '' and xml_output.channelsource[3].all_channels[channel.source_id[3]]['HD']:
+                #~ channel.opt_dict['mark_hd'] = True
 
             # set the default prime_source
             if channel.source_id[2] != '':
@@ -8290,6 +8291,9 @@ class Channel_Config(Thread):
                 if not (self.source_id[index] != '') and ((index != 4) or (index == 4 and self.opt_dict['use_npo'])):
                     # There is no ID for this source
                     self.source_data[index].set()
+                    continue
+
+                if index == 3:
                     continue
 
                 while not self.source_data[index].is_set():
