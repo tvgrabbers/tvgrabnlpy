@@ -217,7 +217,16 @@ class Logging(Thread):
         self.graphic_frontend = False
         self.log_queue = Queue()
         self.log_output = None
-        self.local_encoding = locale.getpreferredencoding()
+        try:
+            codecs.lookup(locale.getpreferredencoding())
+            self.local_encoding = locale.getpreferredencoding()
+
+        except LookupError:
+            if os.name == 'nt':
+                self.local_encoding = 'windows-1252'
+
+            else:
+                self.local_encoding = 'utf-8'
 
     def run(self):
         self.log_output = config.log_output
@@ -404,6 +413,7 @@ class Configure:
         # extra test for windows users
         if os.name == 'nt' and 'USERPROFILE' in os.environ:
             self.hpath = os.environ['USERPROFILE']
+
         self.xmltv_dir = u'%s/.xmltv' % self.hpath
         self.config_file = u'%s/tv_grab_nl_py.conf' % self.xmltv_dir
         self.log_file = u'%s/tv_grab_nl_py.log' % self.xmltv_dir
@@ -1929,8 +1939,7 @@ class Configure:
                                 self.channels[chanid].opt_dict[cfg_option] = 'none'
 
                         # Integer Values
-                        elif cfg_option in ('slowdays', 'max_overlap', 'desc_length', 'prime_source', \
-                          'prefered_description', 'disable_source', 'disable_detail_source'):
+                        elif cfg_option in ('slowdays', 'max_overlap', 'desc_length'):
                             try:
                                 cfg_value = int(cfg_value)
 
@@ -1939,11 +1948,18 @@ class Configure:
                                     self.channels[chanid].opt_dict[cfg_option] = None
 
                             else:
-                                if cfg_option in ('disable_source', 'disable_detail_source', 'prime_source', 'prefered_description'):
-                                    self.validate_option(cfg_option, self.channels[chanid], cfg_value)
+                                self.channels[chanid].opt_dict[cfg_option] = cfg_value
 
-                                else:
-                                    self.channels[chanid].opt_dict[cfg_option] = cfg_value
+                        # Source Values
+                        elif cfg_option in ('prime_source', 'prefered_description', 'disable_source', 'disable_detail_source'):
+                            try:
+                                cfg_value = int(cfg_value)
+
+                            except ValueError:
+                                continue
+
+                            else:
+                                self.validate_option(cfg_option, self.channels[chanid], cfg_value)
 
                 except:
                     log(['Invalid line in %s section of config file %s:' % (section, self.config_file),'%r\n' % (line), traceback.format_exc()])
@@ -2547,12 +2563,12 @@ class Configure:
                 and not (4 in self.opt_dict['disable_source'] or 4 in channel.opt_dict['disable_source']):
                     channel.opt_dict['prime_source'] = 4
 
-            elif (channel.source_id[3] != '') and ((channel.group == 2) or (channel.group == 8))  \
-                and not (3 in self.opt_dict['disable_source'] or 3 in channel.opt_dict['disable_source']):
-                channel.opt_dict['prime_source'] = 3
+            #~ elif (channel.source_id[3] != '') and ((channel.group == 2) or (channel.group == 8))  \
+                #~ and not (3 in self.opt_dict['disable_source'] or 3 in channel.opt_dict['disable_source']):
+                #~ channel.opt_dict['prime_source'] = 3
 
             else:
-                for value in (0, 1, 3):
+                for value in (0, 1):
                     if channel.source_id[value] != '' \
                         and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
                             channel.opt_dict['prime_source'] = value
@@ -2798,7 +2814,7 @@ class Configure:
         log_array.append(u'kijkwijzerstijl = %s' % (self.opt_dict['kijkwijzerstijl']))
         log_array.append(u'mark_hd = %s' % (self.opt_dict['mark_hd']))
         log_array.append(u'use_utc = %s' % (self.opt_dict['use_utc']))
-        for index in range(xml_output.source_count):
+        for index in xml_output.source_order:
             if index in self.opt_dict['disable_source']:
                 log_array.append(u'Source %s (%s) disabled' % (index, xml_output.channelsource[index].source))
 
@@ -2840,7 +2856,7 @@ class Configure:
 
             src_id = chan_def.opt_dict['prime_source']
             if src_id != -1:
-                for index in range(xml_output.source_count):
+                for index in xml_output.source_order:
                     if chan_def.source_id[index] != '':
                         if src_id != index:
                             if not chan_name_written:
@@ -2941,7 +2957,7 @@ class Configure:
         f.write(u'\n')
         f.write(u'quiet = %s\n' % self.opt_dict['quiet'])
         f.write(u'output_file = %s\n' % self.opt_dict['output_file'])
-        for index in range(xml_output.source_count):
+        for index in xml_output.source_order:
             if index in self.opt_dict['disable_source']:
                 f.write(u'disable_source = %s\n' % index)
 
@@ -4135,6 +4151,7 @@ class ProgramCache(Thread):
             create_string += u", 'eid' INTEGER"
             create_string += u", 'lang' TEXT DEFAULT 'nl'"
             create_string += u", 'title' TEXT"
+            create_string += u", 'description' TEXT"
             create_string += u", 'airdate' date"
             create_string += u", PRIMARY KEY ('tid', 'sid', 'eid', 'lang') ON CONFLICT REPLACE)"
             if (sqlite3.sqlite_version_info >= (3, 8, 2)):
@@ -4270,8 +4287,9 @@ class ProgramCache(Thread):
                     self.create_table(table)
                     return
 
-            if 'title' not in clist.keys():
-                add_collumn(table, u"'title' TEXT")
+            for c in ('title', 'description'):
+                if c.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' TEXT" % c)
 
             if 'airdate' not in clist.keys():
                 add_collumn(table, u"'airdate' date")
@@ -4773,6 +4791,67 @@ class FetchURL(Thread):
             return None
 
 # end FetchURL
+
+class theTVDB(Thread):
+    def __init__(self):
+        Thread.__init__(self)
+        self.quit = False
+        self.ready = False
+        self.active = True
+        self.api_key = "0629B785CE550C8D"
+        self.detail_request = Queue()
+        self.cache_return = Queue()
+        self.source_lock = Lock()
+
+    def get_url(self, title=None, lang='all'):
+        base_url = "http://www.thetvdb.com"
+        if title != None:
+            if lang in ('all', 'cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
+                                'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
+                return "%s/api/GetSeries.php?seriesname=%s&language=%s" % (base_url, title, lang)
+
+    def get_id(self, title, lang='nl', search_db=True):
+        if search_db:
+            xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb': {'title': title}})
+            tid = self.cache_return.get(True)
+            if tid != None:
+                if (tid['tid'] == '' or int(tid['tid']) == 0) and ((datetime.date.today() - tid['tdate']).days <= 30):
+                    return 0
+
+                else:
+                    return tid['tid']
+
+        xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb_alias': {'alias': title}})
+        alias = self.cache_return.get(True)
+        if alias != None:
+            series_name = alias['title']
+
+        else:
+            series_name = title
+
+        if lang in ('nl', 'en'):
+            langs = ('nl', 'en')
+
+        else:
+            langs = (lang, 'nl', 'en')
+
+        try:
+            strdata = self.get_page(self.get_url(series_name))
+            if strdata != None:
+                xmldata=ET.fromstring(strdata)
+                tid = xmldata.findtext('Series/seriesid')
+                if tid == None:
+                    return 0
+
+                #~ for s in xmldata.findall('Series'):
+
+                xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': int(tid), 'title': tid['name'], 'langs': langs}})
+
+        except:
+            log('Error retreiving data from theTVdb.com')
+            return 0
+
+# end theTVDB()
 
 class FetchData(Thread):
     """
@@ -9961,7 +10040,7 @@ class Channel_Config(Thread):
         self.icon_source = -1
         self.icon = ''
 
-        for index in range(xml_output.source_count):
+        for index in xml_output.source_order:
             self.source_id[index] = ''
             self.source_data[index] = Event()
 
@@ -10605,17 +10684,18 @@ class XMLoutput:
 
         self.source_count = 6
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl', 5: 'horizon.tv'}
-        self.source_order = (0, 1, 5, 3, 2, 4)
+        self.source_order = (0, 1, 5, 2, 4)
         self.detail_sources = (0, 1)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
         self.channelsource[2] = rtl_JSON(2, 'rtl.nl', 'rtl-ID', 'rtl-url', True)
-        self.channelsource[3] = teveblad_HTML(3, 'teveblad.be', 'be-ID', 'be-url')
+        #self.channelsource[3] = teveblad_HTML(3, 'teveblad.be', 'be-ID', 'be-url')
         self.channelsource[4] = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
         self.channelsource[5] = horizon_JSON(5, 'horizon.tv', 'horizon-ID', 'horizon-url', True)
         self.output_lock = Lock()
         self.cache_return = Queue()
+        self.ttvdb = theTVDB()
         self.cache_count = 0
         self.fetch_count = 0
         self.fail_count = 0
