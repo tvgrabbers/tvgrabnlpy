@@ -349,7 +349,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150830'
+        self.patchdate = u'20150904'
         self.alfa = True
         self.beta = True
 
@@ -369,8 +369,8 @@ class Configure:
         # 1 include Errors and Warnings
         # 2 include page fetches
         # 4 include summaries
-        # 8 include detail fetches to the screen
-        # 16 include detail fetches to the log
+        # 8 include detail fetches and ttvdb lookups to the screen
+        # 16 include detail fetches and ttvdb lookups to the log
         # 32 include matchlogging (see below)
         # 64 Title renames
         # 128 ttvdb.com lookup failures
@@ -383,6 +383,7 @@ class Configure:
         # 1 = log not matched programs
         # 2 = log left over programs
         # 4 = Log matches
+        # 8 = Added from Groupslots
         self.opt_dict['match_log_level'] = 11
 
         # A selection of user agents we will impersonate, in an attempt to be less
@@ -646,108 +647,108 @@ class Configure:
         self.source_channels ={}
         self.source_channels[0] = {}
         # link to tvgids.nl for channels on tvgids.tv': '
-        self.source_channels[1] = {'1': 'nederland-1',
-                                           '2': 'nederland-2',
-                                           '3': 'nederland-3',
-                                           '4': 'rtl-4',
-                                           '31': 'rtl-5',
-                                           '46': 'rtl-7',
-                                           '92': 'rtl-8',
-                                           '36': 'sbs-6',
-                                           '37': 'net-5',
-                                           '34': 'veronica',
-                                           '460': 'sbs-9',
-                                           '440': 'fox',
-                                           '29': 'discovery-channel',
-                                           '305': 'discovery-world',
-                                           '306': 'discovery-science',
-                                           '414': 'investigation-discovery',
-                                           '94': 'syfy',
-                                           '439': 'animal-planet',
-                                           '438': 'tlc',
-                                           '18': 'national-geographic',
-                                           '416': 'nat-geo-wild',
-                                           '413': 'history',
-                                           '25': 'mtv',
-                                           '404': 'foxlife',
-                                           '408': 'rtl-lounge',
-                                           '99': 'sport1',
-                                           '419': 'sport-1-3',
-                                           '420': 'sport-1-extra',
-                                           '19': 'eurosport',
-                                           '436': 'eurosport-2',
-                                           '148': 'eredivisie-live',
-                                           '417': 'extreme-sports',
-                                           '418': 'espn-classic',
-                                           '24': 'film1.1',
-                                           '411': 'film1-action',
-                                           '39': 'film1-familiy',
-                                           '107': 'film1-festival',
-                                           '430': 'film1-series',
-                                           '93': '13th-street',
-                                           '409': 'rtl-crime',
-                                           '311': 'disney-xd',
-                                           '424': 'disney-channel',
-                                           '21': 'cartoon-network',
-                                           '317': 'comedy-family',
-                                           '91': 'comedy-central',
-                                           '89': 'nickelodeon',
-                                           '312': 'nick-jr',
-                                           '410': '101-tv',
-                                           '66': 'humortv-24',
-                                           '316': 'best-24',
-                                           '70': 'cultura-24',
-                                           '81': 'hollanddoc-24',
-                                           '90': 'bvn',
-                                           '403': 'goed-tv',
-                                           '431': 'hbo',
-                                           '432': 'hbo-2',
-                                           '433': 'hbo-3',
-                                           '435': '24kitchen',
-                                           '428': 'bravatv',
-                                           '407': 'out-tv',
-                                           '461': 'pebble-tv',
-                                           '304': 'mgm',
-                                           '5': 'een',
-                                           '6': 'ketnet-canvas',
-                                           '49': 'vtm',
-                                           '59': '2be',
-                                           '60': 'vt4',
-                                           '40': 'at-5',
-                                           '115': 'l1-tv',
-                                           '114': 'omroep-brabant',
-                                           '113': 'omroep-flevoland',
-                                           '109': 'omrop-fryslan',
-                                           '112': 'omroep-gelderland',
-                                           '116': 'omroep-zeeland',
-                                           '110': 'rtv-drenthe',
-                                           '108': 'rtv-noord',
-                                           '103': 'rtv-noord-holland',
-                                           '111': 'rtv-oost',
-                                           '102': 'rtv-rijnmond',
-                                           '100': 'rtv-utrecht',
-                                           '101': 'rtv-west',
-                                           '7': 'bbc-1',
-                                           '8': 'bbc-2',
-                                           '300': 'bbc-3',
-                                           '301': 'bbc-4',
-                                           '104': 'bbc-prime',
-                                           '86': 'bbc-world',
-                                           '26': 'cnn',
-                                           '9': 'ard',
-                                           '10': 'zdf',
-                                           '11': 'rtl',
-                                           '12': 'wdr-fernsehen',
-                                           '13': 'ndr-fernsehen',
-                                           '50': '3sat',
-                                           '38': 'arte',
-                                           '58': 'pro-7',
-                                           '28': 'sat-1',
-                                           '17': 'tv-5',
-                                           '15': 'rtbf-la-1',
-                                           '16': 'rtbf-la-2',
-                                           '32': 'trt-international',
-                                           '20': 'tcm'}
+        self.source_channels[1] = {'0-1': 'nederland-1',
+                                           '0-2': 'nederland-2',
+                                           '0-3': 'nederland-3',
+                                           '0-4': 'rtl-4',
+                                           '0-31': 'rtl-5',
+                                           '0-46': 'rtl-7',
+                                           '0-92': 'rtl-8',
+                                           '0-36': 'sbs-6',
+                                           '0-37': 'net-5',
+                                           '0-34': 'veronica',
+                                           '0-460': 'sbs-9',
+                                           '0-440': 'fox',
+                                           '0-29': 'discovery-channel',
+                                           '0-305': 'discovery-world',
+                                           '0-306': 'discovery-science',
+                                           '0-414': 'investigation-discovery',
+                                           '0-94': 'syfy',
+                                           '0-439': 'animal-planet',
+                                           '0-438': 'tlc',
+                                           '0-18': 'national-geographic',
+                                           '0-416': 'nat-geo-wild',
+                                           '0-413': 'history',
+                                           '0-25': 'mtv',
+                                           '0-404': 'foxlife',
+                                           '0-408': 'rtl-lounge',
+                                           '0-99': 'sport1',
+                                           '0-419': 'sport-1-3',
+                                           '0-420': 'sport-1-extra',
+                                           '0-19': 'eurosport',
+                                           '0-436': 'eurosport-2',
+                                           '0-148': 'eredivisie-live',
+                                           '0-417': 'extreme-sports',
+                                           '0-418': 'espn-classic',
+                                           '0-24': 'film1.1',
+                                           '0-411': 'film1-action',
+                                           '0-39': 'film1-familiy',
+                                           '0-107': 'film1-festival',
+                                           '0-430': 'film1-series',
+                                           '0-93': '13th-street',
+                                           '0-409': 'rtl-crime',
+                                           '0-311': 'disney-xd',
+                                           '0-424': 'disney-channel',
+                                           '0-21': 'cartoon-network',
+                                           '0-317': 'comedy-family',
+                                           '0-91': 'comedy-central',
+                                           '0-89': 'nickelodeon',
+                                           '0-312': 'nick-jr',
+                                           '0-410': '101-tv',
+                                           '0-66': 'humortv-24',
+                                           '0-316': 'best-24',
+                                           '0-70': 'cultura-24',
+                                           '0-81': 'hollanddoc-24',
+                                           '0-90': 'bvn',
+                                           '0-403': 'goed-tv',
+                                           '0-431': 'hbo',
+                                           '0-432': 'hbo-2',
+                                           '0-433': 'hbo-3',
+                                           '0-435': '24kitchen',
+                                           '0-428': 'bravatv',
+                                           '0-407': 'out-tv',
+                                           '0-461': 'pebble-tv',
+                                           '0-304': 'mgm',
+                                           '0-5': 'een',
+                                           '0-6': 'ketnet-canvas',
+                                           '0-49': 'vtm',
+                                           '0-59': '2be',
+                                           '0-60': 'vt4',
+                                           '0-40': 'at-5',
+                                           '0-115': 'l1-tv',
+                                           '0-114': 'omroep-brabant',
+                                           '0-113': 'omroep-flevoland',
+                                           '0-109': 'omrop-fryslan',
+                                           '0-112': 'omroep-gelderland',
+                                           '0-116': 'omroep-zeeland',
+                                           '0-110': 'rtv-drenthe',
+                                           '0-108': 'rtv-noord',
+                                           '0-103': 'rtv-noord-holland',
+                                           '0-111': 'rtv-oost',
+                                           '0-102': 'rtv-rijnmond',
+                                           '0-100': 'rtv-utrecht',
+                                           '0-101': 'rtv-west',
+                                           '0-7': 'bbc-1',
+                                           '0-8': 'bbc-2',
+                                           '0-300': 'bbc-3',
+                                           '0-301': 'bbc-4',
+                                           '0-104': 'bbc-prime',
+                                           '0-86': 'bbc-world',
+                                           '0-26': 'cnn',
+                                           '0-9': 'ard',
+                                           '0-10': 'zdf',
+                                           '0-11': 'rtl',
+                                           '0-12': 'wdr-fernsehen',
+                                           '0-13': 'ndr-fernsehen',
+                                           '0-50': '3sat',
+                                           '0-38': 'arte',
+                                           '0-58': 'pro-7',
+                                           '0-28': 'sat-1',
+                                           '0-17': 'tv-5',
+                                           '0-15': 'rtbf-la-1',
+                                           '0-16': 'rtbf-la-2',
+                                           '0-32': 'trt-international',
+                                           '0-20': 'tcm'}
 
         # tvgids.tv subgenre to genre translation table
         self.tvtvcattrans = {'euromillions': 'Amusement',
@@ -789,84 +790,84 @@ class Configure:
 
         # channels for which to look on rtl.nl
         # RTLL = RTL Lounge, RTLT = RTL Telekids, RTCR = RTL Crime
-        self.source_channels[2] = {'4': 'RTL4',
-                                    '31': 'RTL5',
-                                    '46': 'RTL7',
-                                    '92': 'RTL8',
-                                    '408': 'RTLL',
-                                    '409': 'RTCR',
-                                    'rtl-telekids': 'RTLT'}
+        self.source_channels[2] = {'0-4': 'RTL4',
+                                    '0-31': 'RTL5',
+                                    '0-46': 'RTL7',
+                                    '0-92': 'RTL8',
+                                    '0-408': 'RTLL',
+                                    '0-409': 'RTCR',
+                                    '1-rtl-telekids': 'RTLT'}
 
         # channels for which to look on teveblad.be
         self.source_channels[3] = {'5': 'een',
-                                            '6': 'canvas',
-                                            '1': 'npo-1',
-                                            '2': 'npo-2',
-                                            '3': 'npo-3',
-                                            '49': 'vtm',
-                                            '60': 'vier',
-                                            '59': '2be',
-                                            '18': 'national-geographic',
-                                            '4': 'rtl4',
-                                            '31': 'rtl5',
-                                            '36': 'sbs6',
-                                            '20': 'tcm',
-                                            '21': 'cartoon-network',
-                                            '19': 'eurosport',
-                                            '89': 'nickelodeonnl',
-                                            '90': 'bvn-tv',
-                                            '15': 'la-une',
-                                            '16': 'la-deux',
-                                            '17': 'tv5',
-                                            '7': 'bbc1-nl',
-                                            '8': 'bbc2-nl',
-                                            '300': 'bbc3-nl',
-                                            '301': 'bbc4-nl',
-                                            '104': 'bbc-entertainment',
-                                            '26': 'cnn',
-                                            '86': 'bbc-world',
-                                            '9': 'ard',
-                                            '10': 'zdf',
-                                            '12': 'wdr',
-                                            '11': 'rtl',
-                                            '305': 'discovery-world',
-                                            '306': 'discovery-science',
-                                            '438': 'tlc',
-                                            '439': 'animal',
-                                            '413': 'historychannel',
-                                            '417': 'extreme',
-                                            '461': 'pebbletv',
-                                            '424': 'disneychannel',
-                                            '94': 'syfy',
-                                            '93': '13th-street',
-                                            '304': 'mgmmoviechannel',
-                                            '404': 'foxlife',
-                                            '436': 'eurosport-2',
-                                            '38': 'arte',
-                                            '25': 'mtv',
-                                            'ketnet-canvas-2': 'ketnet',
-                                            'discovery-vlaanderen': 'discovery',
-                                            'vijftv': 'vijf',
-                                            'op12': 'op12',
-                                            'vitaya': 'vitaya',
-                                            'acht': 'acht',
-                                            'jim': 'jim',
-                                            'tmf': 'tmf',
-                                            'njam': 'njam',
-                                            'life-tv': 'life!tv',
-                                            'france-2': 'france-2',
-                                            'france-3': 'france-3',
-                                            'tf1': 'tf1',
-                                            'sudwest-fernsehen': 'swr',
-                                            'rai-uno': 'rai',
-                                            'tv-e': 'tve',
-                                            'espn-america': 'espn',
-                                            'espn-classic': 'espn-america',
-                                            'prime-star': 'primestar',
-                                            'prime-action': 'primeaction',
-                                            'prime-fezztival': 'primefezztival',
-                                            'prime-series': 'primeseries',
-                                            'vtmkzoom': 'vtm-kzoom'}
+                                            '0-6': 'canvas',
+                                            '0-1': 'npo-1',
+                                            '0-2': 'npo-2',
+                                            '0-3': 'npo-3',
+                                            '0-49': 'vtm',
+                                            '0-60': 'vier',
+                                            '0-59': '2be',
+                                            '0-18': 'national-geographic',
+                                            '0-4': 'rtl4',
+                                            '0-31': 'rtl5',
+                                            '0-36': 'sbs6',
+                                            '0-20': 'tcm',
+                                            '0-21': 'cartoon-network',
+                                            '0-19': 'eurosport',
+                                            '0-89': 'nickelodeonnl',
+                                            '0-90': 'bvn-tv',
+                                            '0-15': 'la-une',
+                                            '0-16': 'la-deux',
+                                            '0-17': 'tv5',
+                                            '0-7': 'bbc1-nl',
+                                            '0-8': 'bbc2-nl',
+                                            '0-300': 'bbc3-nl',
+                                            '0-301': 'bbc4-nl',
+                                            '0-104': 'bbc-entertainment',
+                                            '0-26': 'cnn',
+                                            '0-86': 'bbc-world',
+                                            '0-9': 'ard',
+                                            '0-10': 'zdf',
+                                            '0-12': 'wdr',
+                                            '0-11': 'rtl',
+                                            '0-305': 'discovery-world',
+                                            '0-306': 'discovery-science',
+                                            '0-438': 'tlc',
+                                            '0-439': 'animal',
+                                            '0-413': 'historychannel',
+                                            '0-417': 'extreme',
+                                            '0-461': 'pebbletv',
+                                            '0-424': 'disneychannel',
+                                            '0-94': 'syfy',
+                                            '0-93': '13th-street',
+                                            '0-304': 'mgmmoviechannel',
+                                            '0-404': 'foxlife',
+                                            '0-436': 'eurosport-2',
+                                            '0-38': 'arte',
+                                            '0-25': 'mtv',
+                                            '1-ketnet-canvas-2': 'ketnet',
+                                            '1-discovery-vlaanderen': 'discovery',
+                                            '1-vijftv': 'vijf',
+                                            '1-op12': 'op12',
+                                            '1-vitaya': 'vitaya',
+                                            '1-acht': 'acht',
+                                            '1-jim': 'jim',
+                                            '1-tmf': 'tmf',
+                                            '1-njam': 'njam',
+                                            '1-life-tv': 'life!tv',
+                                            '1-france-2': 'france-2',
+                                            '1-france-3': 'france-3',
+                                            '1-tf1': 'tf1',
+                                            '1-sudwest-fernsehen': 'swr',
+                                            '1-rai-uno': 'rai',
+                                            '1-tv-e': 'tve',
+                                            '1-espn-america': 'espn',
+                                            '1-espn-classic': 'espn-america',
+                                            '1-prime-star': 'primestar',
+                                            '1-prime-action': 'primeaction',
+                                            '1-prime-fezztival': 'primefezztival',
+                                            '1-prime-series': 'primeseries',
+                                            '1-vtmkzoom': 'vtm-kzoom'}
 
         # Program group names to exclude from teveblad.be if the counterpart contains details
         self.teveblad_genericnames = ("ochtend- en dagprogramma's",
@@ -895,30 +896,30 @@ class Configure:
         self.tevecat = {}
 
         # channels for which to look on npo.nl
-        self.source_channels[4] = {'1': u'1',
-                                           '2': u'2',
-                                           '3': u'3',
-                                           'journaal-24': u'4',
-                                           '70': u'5',
-                                           '410': u'6',
-                                           'politiek-24': u'7',
-                                           '316': u'8',
-                                           '81': u'9',
-                                           'zappelin': u'10',
-                                           '66': u'11',
-                                           '109': u'12',
-                                           '108': u'13',
-                                           '110': u'14',
-                                           '111': u'15',
-                                           '112': u'16',
-                                           '113': u'17',
-                                           '114': u'18',
-                                           '100': u'19',
-                                           '103': u'20',
-                                           '101': u'21',
-                                           '102': u'22',
-                                           '115': u'23',
-                                           '116': u'24'}
+        self.source_channels[4] = {'0-1': u'1',
+                                           '0-2': u'2',
+                                           '0-3': u'3',
+                                           '1-journaal-24': u'4',
+                                           '0-70': u'5',
+                                           '0-410': u'6',
+                                           '1-politiek-24': u'7',
+                                           '0-316': u'8',
+                                           '0-81': u'9',
+                                           '1-zappelin': u'10',
+                                           '0-66': u'11',
+                                           '0-109': u'12',
+                                           '0-108': u'13',
+                                           '0-110': u'14',
+                                           '0-111': u'15',
+                                           '0-112': u'16',
+                                           '0-113': u'17',
+                                           '0-114': u'18',
+                                           '0-100': u'19',
+                                           '0-103': u'20',
+                                           '0-101': u'21',
+                                           '0-102': u'22',
+                                           '0-115': u'23',
+                                           '0-116': u'24'}
 
         self.npocattrans = {'nieuws-actualiteiten': (u'nieuws/actualiteiten', u''),
                                      'amusement': (u'amusement', u''),
@@ -1007,121 +1008,121 @@ class Configure:
         self.npo_fill = 'Programmainfo en Reclame'
 
         # channels for which to look on horizon.tv
-        self.source_channels[5] = {'1': u'24443942983',
-                                           '2': u'24443942987',
-                                           '3': u'24443943037',
-                                           '66': u'24443943064',
-                                           '70': u'24443943108',
-                                           '81': u'24443943160',
-                                           '316': u'24443943102',
-                                           '410': u'24443943148',
-                                           'journaal-24': u'24443943149',
-                                           'politiek-24': u'24443943152',
-                                           'zappelin': u'564193831242',
-                                           '4': u'24443943096',
-                                           '31': u'24443943146',
-                                           '46': u'24443943014',
-                                           '92': u'24443943182',
-                                           '408': u'24443943060',
-                                           '409': u'24443943033',
-                                           'rtl-telekids': u'24443943100',
-                                           '36': u'24443943184',
-                                           '37': u'24443943091',
-                                           '34': u'24443943190',
-                                           '460': u'566369831211',
-                                           '440': u'120746535305',
-                                           '5': u'24443943058',
-                                           '6': u'555680807173',
-                                           'ketnet-canvas-2': u'24443943087',
-                                           '40': u'24443943004',
-                                           '100': u'24443943078',
-                                           '101': u'24443943071',
-                                           '102': u'24443943075',
-                                           '103': u'24443943063',
-                                           '108': u'24443943192',
-                                           '109': u'24443943144',
-                                           '110': u'24443943187',
-                                           '111': u'24443943043',
-                                           '112': u'24443943141',
-                                           '113': u'24443943001',
-                                           '114': u'24443943069',
-                                           '115': u'24443943061',
-                                           '116': u'24443943178',
-                                           '7': u'24443942999',
-                                           '8': u'560453158983',
-                                           '26': u'561138215261',
-                                           '86': u'24443943049',
-                                           '104': u'24443943099',
-                                           '300': u'24443943013',
-                                           '301': u'24443943080',
-                                           '9': u'429332519216',
-                                           '10': u'429332519214',
-                                           '11': u'555680807174',
-                                           '12': u'24443943112',
-                                           '13': u'24443943105',
-                                           '28': u'24443942986',
-                                           '38': u'24443943121',
-                                           '435': u'540738087345',
-                                           'amc': u'563391527030',
-                                           '439': u'24443943106',
-                                           '428': u'24443943156',
-                                           '21': u'24443943186',
-                                           '317': u'565790759340',
-                                           '91': u'24443943012',
-                                           '306': u'24443943097',
-                                           '305': u'24443943084',
-                                           '29': u'24443943009',
-                                           '424': u'24443942993',
-                                           'disney-junior': u'541838374997',
-                                           '311': u'24443943086',
-                                           '413': u'540738087343',
-                                           '404': u'560453158985',
-                                           '414': u'24443943110',
-                                           'jimjam': u'24443942995',
-                                           '25': u'24443943006',
-                                           '416': u'540738087344',
-                                           '18': u'24443943035',
-                                           '312': u'24443942992',
-                                           '89': u'542836775318',
-                                           '461': u'560453158987',
-                                           '438': u'562458663437',
-                                           '17': u'24443943054',
-                                           '19': u'24443943029',
-                                           '436': u'561138215257',
-                                           '417': u'24443943122',
-                                           '148': u'119414823233',
-                                           'eredivisie-live-2': u'119414823227',
-                                           'eredivisie-live-3': u'119414823235',
-                                           'eredivisie-live-4': u'119414823230',
-                                           'fox-sports-5-eredivisie': u'555680807172',
-                                           '99': u'24443943161',
-                                           '419': u'24443943140',
-                                           'sport-1-2': u'24443943164',
-                                           'sport-1-extra-1': u'40301607426',
-                                           'sport1-extra-2': u'24443943189',
-                                           'sport1-racing': u'24443943143',
-                                           '411': u'24443943173',
-                                           '39': u'540738087342',
-                                           '24': u'562458663436',
-                                           '430': u'153935399225',
-                                           '107': u'185866791162',
-                                           '431': u'540738087341',
-                                           '432': u'555680807176',
-                                           '433': u'560453158986',
-                                           '32': u'24443943081',
-                                           '313': u'24443943095',
-                                           '315': u'24443943111',
-                                           '406': u'24443943124',
-                                           '407': u'545453607330',
-                                           '415': u'564193831244',
-                                           '422': u'24443943027',
-                                           '423': u'561138215259',
-                                           '427': u'24443943136',
-                                           '429': u'24443943188',
-                                           '434': u'24443943019',
-                                           '437': u'24443943077',
-                                           '462': u'24443943072',
-                                           'tv-e': u'24443942991'}
+        self.source_channels[5] = {'0-1': u'24443942983',
+                                           '0-2': u'24443942987',
+                                           '0-3': u'24443943037',
+                                           '0-66': u'24443943064',
+                                           '0-70': u'24443943108',
+                                           '0-81': u'24443943160',
+                                           '0-316': u'24443943102',
+                                           '0-410': u'24443943148',
+                                           '1-journaal-24': u'24443943149',
+                                           '1-politiek-24': u'24443943152',
+                                           '1-zappelin': u'564193831242',
+                                           '0-4': u'24443943096',
+                                           '0-31': u'24443943146',
+                                           '0-46': u'24443943014',
+                                           '0-92': u'24443943182',
+                                           '0-408': u'24443943060',
+                                           '0-409': u'24443943033',
+                                           '1-rtl-telekids': u'24443943100',
+                                           '0-36': u'24443943184',
+                                           '0-37': u'24443943091',
+                                           '0-34': u'24443943190',
+                                           '0-460': u'566369831211',
+                                           '0-440': u'120746535305',
+                                           '0-5': u'24443943058',
+                                           '0-6': u'555680807173',
+                                           '1-ketnet-canvas-2': u'24443943087',
+                                           '0-40': u'24443943004',
+                                           '0-100': u'24443943078',
+                                           '0-101': u'24443943071',
+                                           '0-102': u'24443943075',
+                                           '0-103': u'24443943063',
+                                           '0-108': u'24443943192',
+                                           '0-109': u'24443943144',
+                                           '0-110': u'24443943187',
+                                           '0-111': u'24443943043',
+                                           '0-112': u'24443943141',
+                                           '0-113': u'24443943001',
+                                           '0-114': u'24443943069',
+                                           '0-115': u'24443943061',
+                                           '0-116': u'24443943178',
+                                           '0-7': u'24443942999',
+                                           '0-8': u'560453158983',
+                                           '0-26': u'561138215261',
+                                           '0-86': u'24443943049',
+                                           '0-104': u'24443943099',
+                                           '0-300': u'24443943013',
+                                           '0-301': u'24443943080',
+                                           '0-9': u'429332519216',
+                                           '0-10': u'429332519214',
+                                           '0-11': u'555680807174',
+                                           '0-12': u'24443943112',
+                                           '0-13': u'24443943105',
+                                           '0-28': u'24443942986',
+                                           '0-38': u'24443943121',
+                                           '0-435': u'540738087345',
+                                           '1-amc': u'563391527030',
+                                           '0-439': u'24443943106',
+                                           '0-428': u'24443943156',
+                                           '0-21': u'24443943186',
+                                           '0-317': u'565790759340',
+                                           '0-91': u'24443943012',
+                                           '0-306': u'24443943097',
+                                           '0-305': u'24443943084',
+                                           '0-29': u'24443943009',
+                                           '0-424': u'24443942993',
+                                           '1-disney-junior': u'541838374997',
+                                           '0-311': u'24443943086',
+                                           '0-413': u'540738087343',
+                                           '0-404': u'560453158985',
+                                           '0-414': u'24443943110',
+                                           '1-jimjam': u'24443942995',
+                                           '0-25': u'24443943006',
+                                           '0-416': u'540738087344',
+                                           '0-18': u'24443943035',
+                                           '0-312': u'24443942992',
+                                           '0-89': u'542836775318',
+                                           '0-461': u'560453158987',
+                                           '0-438': u'562458663437',
+                                           '0-17': u'24443943054',
+                                           '0-19': u'24443943029',
+                                           '0-436': u'561138215257',
+                                           '0-417': u'24443943122',
+                                           '0-148': u'119414823233',
+                                           '1-eredivisie-live-2': u'119414823227',
+                                           '1-eredivisie-live-3': u'119414823235',
+                                           '1-eredivisie-live-4': u'119414823230',
+                                           '1-fox-sports-5-eredivisie': u'555680807172',
+                                           '0-99': u'24443943161',
+                                           '0-419': u'24443943140',
+                                           '1-sport-1-2': u'24443943164',
+                                           '1-sport-1-extra-1': u'40301607426',
+                                           '1-sport1-extra-2': u'24443943189',
+                                           '1-sport1-racing': u'24443943143',
+                                           '0-411': u'24443943173',
+                                           '0-39': u'540738087342',
+                                           '0-24': u'562458663436',
+                                           '0-430': u'153935399225',
+                                           '0-107': u'185866791162',
+                                           '0-431': u'540738087341',
+                                           '0-432': u'555680807176',
+                                           '0-433': u'560453158986',
+                                           '0-32': u'24443943081',
+                                           '0-313': u'24443943095',
+                                           '0-315': u'24443943111',
+                                           '0-406': u'24443943124',
+                                           '0-407': u'545453607330',
+                                           '0-415': u'564193831244',
+                                           '0-422': u'24443943027',
+                                           '0-423': u'561138215259',
+                                           '0-427': u'24443943136',
+                                           '0-429': u'24443943188',
+                                           '0-434': u'24443943019',
+                                           '0-437': u'24443943077',
+                                           '0-462': u'24443943072',
+                                           '1-tv-e': u'24443942991'}
                                            #~ '': u'100% NL TV 606274087100',
                                            #~ '': u'192TV 24443943155',
                                            #~ '': u'2M 606274087098',
@@ -1216,7 +1217,126 @@ class Configure:
                                      ('13948023', '13948026'): ('serie/soap', 'sciencefictionserie'),
                                      ('13948023', '13948027'): ('serie/soap', 'comedyserie'),
                                      ('13948023', '13948033'): ('serie/soap', 'detectiveserie')}
-        #Channel group names as used in tvgids.tv
+        # channels for which to look on humo.be
+        self.source_channels[6] = {'0-5': '7',
+                                            '0-6': '41',
+                                            '0-60': '25',
+                                            '0-49': '23',
+                                            '0-59': '47',
+                                            '1-vijftv': '31',
+                                            '0-18': '129',
+                                            '1-discovery-vlaanderen': '370',
+                                            '1-vitaya': '27',
+                                            '1-acht': '107',
+                                            '0-1': '37',
+                                            '0-2': '35',
+                                            '0-3': '33',
+                                            '0-19': '267',
+                                            '1-njam': '265',
+                                            '0-438': '389',
+                                            '0-7': '275',
+                                            '0-8': '277',
+                                            '0-300': '345',
+                                            '0-301': '347',
+                                            '0-38': '57',
+                                            '0-15': '6',
+                                            '0-16': '51',
+                                            '1-france-2': '55',
+                                            '1-france-3': '53',
+                                            '0-9': '109',
+                                            '0-10': '19',
+                                            '1-jim': '123',
+                                            '1-tmf': '372',
+                                            '0-25': '378',
+                                            '1-ketnet-canvas-2': '39',
+                                            '1-vtmkzoom': '157',
+                                            '0-424': '179',
+                                            '0-89': '281',
+                                            '0-413': '191',
+                                            '0-417': '187',
+                                            '1-espn-america': '183',
+                                            '1-espn-classic': '181',
+                                            '1-discovery-hd': '177',
+                                            '0-305': '173',
+                                            '0-306': '169',
+                                            '0-21': '167',
+                                            '0-439': '163',
+                                            '1-life-tv': '193',
+                                            '0-304': '195',
+                                            '1-prime-action': '199',
+                                            '0-20': '269',
+                                            '0-94': '253',
+                                            '1-e-entertainment': '239',
+                                            '1-prime-star': '205',
+                                            '1-prime-series': '203',
+                                            '1-prime-fezztival': '201',
+                                            '0-93': '159',
+                                            '0-32': '151',
+                                            '1-rtl-tvi': '89',
+                                            '1-france-4': '71',
+                                            '0-26': '15',
+                                            '0-86': '17',
+                                            '0-12': '21',
+                                            '1-tf1': '49',
+                                            '0-17': '97',
+                                            '1-sudwest-fernsehen': '147',
+                                            '0-36': '145',
+                                            '0-31': '143',
+                                            '0-4': '141',
+                                            '0-11': '139',
+                                            '0-37': '127',
+                                            '0-436': '119',
+                                            '0-90': '111',
+                                            '1-tv-e': '101'}
+                                            #~ 211 AB3
+                                            #~ 213 AB4
+                                            #~ 161 Actua TV
+                                             #~ 67 BE1
+                                             #~ 59 BE cine1
+                                             #~ 61 BE series
+                                             #~ 63 BE sport1
+                                             #~ 65 BE sport2
+                                            #~ 113 canvas+
+                                            #~ 171 discovery travel
+                                            #~ 115 een+
+                                            #~ 263 france 5
+                                             #~ 73 La Trois
+                                            #~ 299 play sports 1
+                                            #~ 297 play sports 2
+                                             #~ 91 RTP Internacional
+                                            #~ 207 studio100 tv
+                                            #~ 319 Sundance
+                                            #~ 359 TNT
+                                             #~ 95 TV5 europe
+                                             #~ 99 TVbreizh
+                                            #~ 257 ushuaia
+
+         #Channel group names as used in tvgids.tv
+        self.humocattrans = {'nieuws'       : (u'Nieuws/Actualiteiten', u''),
+                                 'current-affairs': (u'Nieuws/Actualiteiten', u'Actualiteiten'),
+                                 'magazine'              : (u'Magazine', u''),
+                                 'reportage'            : (u'Informatief', u'Reportage'),
+                                 'documentaire'      : (u'Informatief', u'Documentaire'),
+                                 'talkshow'              : (u'Talkshow', u''),
+                                 'reality'                : (u'Amusement', u'Realityserie'),
+                                 'kinderen'              : (u'jeugd', u''),
+                                 'serie'                    : (u'Serie/Soap', u''),
+                                 'miniserie'            : (u'Serie/Soap', u''),
+                                 'soap'                      : (u'Serie/Soap', u'Soap'),
+                                 'film'                      : (u'Film', u''),
+                                 'tv-film'                : (u'Film', u'TV Film'),
+                                 'movie-short'        : (u'Film', u'Korte Film'),
+                                 'quiz'                      : (u'Amusement', u'Quiz'),
+                                 'amusement'            : (u'Amusement', u''),
+                                 'religion'              : (u'Religieus', u''),
+                                 'muziek'                  : (u'Muziek', u''),
+                                 'kunst-cultuur'    : (u'kunst en cultuur', u''),
+                                 'sports-football': (u'Sports', u'Voetbal'),
+                                 'sports-cycling'  : (u'Sport', u'Wielrennen'),
+                                 'sports-formula-1-racing'  : (u'Sport', u'Formule-1'),
+                                 'sport'                    : (u'Sport', u''),
+                                 'andere'                  : (u'Overige', u'')}
+
         self.chan_groups = {1: 'Nederlands',
                                           2: 'Vlaams',
                                           3: 'Engels',
@@ -1844,24 +1964,23 @@ class Configure:
                         active = True
 
                     channel = re.split(';', line)
-                    if (self.configversion == 2.1) and (len(channel) != 8):
+                    if ((self.configversion == 2.1) and (len(channel) != 8)) or len(channel) < 6:
                         # A 2.1  configuration line must contain 8 items
                         continue
 
-                    # We look for the first source to have an ID. This will be the general chanid
-                    for index in range(min(xml_output.source_count,len(channel) - 4)):
+                    for index in range(min(xml_output.source_count,len(channel) - 5)):
                         if channel[index + 2].strip() != '':
-                            chanid = unicode(channel[index + 2]).strip()
-                            channel_names[unicode(channel[0]).strip().lower()] = chanid
                             break
 
                     else:
                         # No sources!
                         continue
 
+                    chanid = unicode(channel[2])
+                    channel_names[unicode(channel[0]).strip().lower()] = chanid
                     self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]).strip(), int(channel[1]))
-                    for index in range(min(xml_output.source_count,len(channel) - 4)):
-                        self.channels[chanid].source_id[index] = unicode(channel[index + 2]).strip()
+                    for index in range(min(xml_output.source_count,len(channel) - 5)):
+                        self.channels[chanid].source_id[index] = unicode(channel[index + 3]).strip()
 
                     # The icon defenition
                     self.channels[chanid].icon_source = int(channel[-2])
@@ -1872,18 +1991,7 @@ class Configure:
                             self.channels[chanid].opt_dict[i] = v
 
                     # set the default prime_source
-                    if channel [4] != '':
-                        self.channels[chanid].opt_dict['prime_source'] = 2
-
-                    elif (channel [5] != '') and ((int(channel[1]) == 2) or (int(channel[1]) == 8)):
-                        self.channels[chanid].opt_dict['prime_source'] = 3
-
-                    else:
-                        for index in (0, 1, 3):
-                            if self.channels[chanid].source_id[index] != '':
-                                self.channels[chanid].opt_dict['prime_source'] = index
-                                break
-
+                    self.validate_option('prime_source', self.channels[chanid], -1)
                     # Set active if not remarked out
                     self.channels[chanid].active = active
                     if active:
@@ -2093,6 +2201,8 @@ class Configure:
         in a file.
         """
         # These channels contain no data!
+        source_keys = {}
+        reverse_channels = {}
         empty_channels = {}
         empty_channels[0] = ('83','308','309','310','20','65','401','403','412')
         empty_channels[1] = ('eurosport-hd', 'la-une-hd', 'tf1-hd', 'vtm-hd', 'nat-geo-hd', 'tmf', 'life-tv', \
@@ -2109,6 +2219,7 @@ class Configure:
             '123063846982', '614261799193', '624196647052', '635928103346', '635928103347', '635928103348', \
             '635928103349', '635928103351', '112676391039', '155550759273', '24443942974', '24443942980', \
             '635928103350', '635928103352']
+        empty_channels[6] = []
         # download the json feed
         xml_output.channelsource[0].init_channels()
         xml_output.channelsource[0].get_channels()
@@ -2118,116 +2229,108 @@ class Configure:
         for chanid, icon in xml_output.logo_names.items():
             xml_output.program_cache.cache_request.put({'task':'add', 'icon': {'sourceid': icon[0], 'chanid': str(chanid),'icon': icon[1]}})
 
-        for chanid in xml_output.channelsource[0].all_channels.keys():
-            if (chanid.lower() in empty_channels[0]):
+        source_keys[0] = []
+        for chan_scid in xml_output.channelsource[0].all_channels.keys():
+            if (chan_scid.lower() in empty_channels[0]):
                 continue
 
+            source_keys[0].append(chan_scid)
+            chanid = '0-%s' % chan_scid
             chan ={}
             chan['chanid'] = chanid
             chan['sourceid'] = 0
-            chan['scid'] = chanid
+            chan['scid'] = chan_scid
             chan['cgroup'] = 10
-            chan['name'] = xml_output.channelsource[0].all_channels[chanid]['name']
+            chan['name'] = xml_output.channelsource[0].all_channels[chan_scid]['name']
             chan['hd'] = False
             xml_output.program_cache.cache_request.put({'task':'add', 'channel': chan})
             if not chanid in self.channels.keys():
-                self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chanid]['name'])
+                self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chan_scid]['name'])
 
-            self.channels[chanid].source_id[0] = chanid
-            if int(chanid) in xml_output.logo_names:
-                self.channels[chanid].icon_source = xml_output.logo_names[int(chanid)][0]
-                if xml_output.logo_names[int(chanid)][0] == 4:
-                    self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.png'
+            self.channels[chanid].source_id[0] = chan_scid
+            if int(chan_scid) in xml_output.logo_names:
+                self.channels[chanid].icon_source = xml_output.logo_names[int(chan_scid)][0]
+                if xml_output.logo_names[int(chan_scid)][0] == 4:
+                    self.channels[chanid].icon = xml_output.logo_names[int(chan_scid)][1] + '.png'
 
                 else:
-                    self.channels[chanid].icon = xml_output.logo_names[int(chanid)][1] + '.gif'
+                    self.channels[chanid].icon = xml_output.logo_names[int(chan_scid)][1] + '.gif'
 
         # Get the other sources
-        for index in (1, 3, 5, 2, 4):
+        for index in (1, 6, 5, 2, 4):
             xml_output.channelsource[index].init_channels()
             xml_output.channelsource[index].get_channels()
-            reverse_channels = {}
+            reverse_channels[index] = {}
+            source_keys[index] = []
             for i, v in self.source_channels[index].items():
-                reverse_channels[v] = unicode(i)
+                reverse_channels[index][v] = {}
+                reverse_channels[index][v]['chanid'] = unicode(i)
+                i =i.split('-',1)
+                reverse_channels[index][v]['source'] = int(i[0])
+                reverse_channels[index][v]['chan_scid'] = unicode(i[1])
 
-            for chanid in xml_output.channelsource[index].all_channels.keys():
+            for chan_scid in xml_output.channelsource[index].all_channels.keys():
+                if not (chan_scid in empty_channels[index]):
+                    source_keys[index].append(chan_scid)
+
+        for index in (1, 6, 5, 2, 4):
+            for chan_scid, channel in xml_output.channelsource[index].all_channels.items():
+                if chan_scid in reverse_channels[index].keys() and \
+                  reverse_channels[index][chan_scid]['chan_scid'] in source_keys[reverse_channels[index][chan_scid]['source']]:
+                    chanid = reverse_channels[index][chan_scid]['chanid']
+
+                else:
+                    chanid = '%s-%s' % (index, chan_scid)
+
                 chan ={}
+                chan['chanid'] = chanid
                 chan['sourceid'] = index
-                chan['scid'] = chanid
-                chan['cgroup'] = xml_output.channelsource[index].all_channels[chanid]['group']
-                chan['name'] = xml_output.channelsource[index].all_channels[chanid]['name']
-                if 'HD' in xml_output.channelsource[index].all_channels[chanid]:
-                    chan['hd'] = xml_output.channelsource[index].all_channels[chanid]['HD']
+                chan['scid'] = chan_scid
+                chan['cgroup'] = channel['group'] if 'group' in channel else 10
+                chan['name'] = channel['name']
+                if 'HD' in channel:
+                    chan['hd'] = channel['HD']
 
-                elif xml_output.channelsource[index].all_channels[chanid]['name'][-3:].lower() == ' hd':
+                elif channel['name'][-3:].lower() == ' hd':
                     chan['hd'] = True
 
                 else:
                     chan['hd'] = False
 
-                icon ={}
-                icon['sourceid'] = -1
-                if chanid in self.source_channels[index].values() and reverse_channels[chanid] in self.channels.keys():
-                    chan['chanid'] = reverse_channels[chanid]
-                    # These channels are for show, but we like the icons from source 2, 3 and 5!
-                    if (chanid in empty_channels[index]):
-                        chan['scid'] = ''
+                # These channels are for show, but we like the icons from source 2, 6 and 5!
+                if (chan_scid in empty_channels[index]):
+                    chan['scid'] = ''
 
-                    self.channels[reverse_channels[chanid]].source_id[index] = chan['scid']
-                    # Set the group
-                    if self.channels[reverse_channels[chanid]].group == 10:
-                        self.channels[reverse_channels[chanid]].group = chan['cgroup']
-
-                    # Set the Icon
-                    icon['chanid'] = reverse_channels[chanid]
-                    if index == 3:
-                        icon['sourceid'] = 2
-                        icon['icon'] = xml_output.channelsource[index].all_channels[chanid]['icon']
-                        self.channels[reverse_channels[chanid]].icon_source = 2
-                        self.channels[reverse_channels[chanid]].icon = icon['icon']
-
-                    elif index == 5:
-                        icon['sourceid'] = 5
-                        icon['icon'] = xml_output.channelsource[index].all_channels[chanid]['icon']
-                        if self.channels[reverse_channels[chanid]].icon_source <= 1:
-                            self.channels[reverse_channels[chanid]].icon_source = 5
-                            self.channels[reverse_channels[chanid]].icon = icon['icon']
-
-                    elif index == 2:
-                        icon['sourceid'] = 3
-                        icon['icon'] = xml_output.channelsource[index].all_channels[chanid]['icon']
-                        if (self.channels[reverse_channels[chanid]].icon_source == -1 or self.channels[reverse_channels[chanid]].icon_source == 1):
-                            self.channels[reverse_channels[chanid]].icon_source = 3
-                            self.channels[reverse_channels[chanid]].icon = icon['icon']
-
-                else:
-                    if (chanid in empty_channels[index]):
+                if not chanid in self.channels:
+                    if (chan_scid in empty_channels[index]):
                         continue
 
                     self.channels[chanid] = Channel_Config(chanid, chan['name'] )
-                    self.channels[chanid].source_id[index] = chanid
-                    # Set the group
-                    self.channels[chanid].group = chan['cgroup']
-                    chan['chanid'] = chanid
-                    # Set the Icon
-                    icon['chanid'] = chanid
-                    if index == 3:
-                        icon['sourceid'] = 2
-                        icon['icon'] = xml_output.channelsource[index].all_channels[chanid]['icon']
-                        self.channels[chanid].icon_source = 2
-                        self.channels[chanid].icon = icon['icon']
 
-                    elif index == 5:
-                        icon['sourceid'] = 5
-                        icon['icon'] = xml_output.channelsource[index].all_channels[chanid]['icon']
-                        self.channels[chanid].icon_source = 5
-                        self.channels[chanid].icon = icon['icon']
+                self.channels[chanid].source_id[index] = chan_scid
+                # Set the group
+                if self.channels[chanid].group >= 10:
+                    self.channels[chanid].group = channel['group'] if 'group' in channel else 10
 
-                    elif index == 2:
-                        icon['sourceid'] = 3
-                        icon['icon'] = xml_output.channelsource[index].all_channels[chanid]['icon']
-                        self.channels[chanid].icon_source = 3
-                        self.channels[chanid].icon = icon['icon']
+                # Set the Icon
+                icon ={}
+                icon['sourceid'] = -1
+                icon['chanid'] = chanid
+                if 'icon' in channel:
+                    icon['sourceid'] = 3 if index == 2 else index
+                    icon['icon'] = channel['icon']
+
+                if index == 6:
+                    self.channels[chanid].icon_source = 6
+                    self.channels[chanid].icon = channel['icon']
+
+                elif index == 5 and self.channels[chanid].icon_source <= 1:
+                    self.channels[chanid].icon_source = 5
+                    self.channels[chanid].icon = channel['icon']
+
+                elif index == 2 and (self.channels[chanid].icon_source == -1 or self.channels[chanid].icon_source == 1):
+                    self.channels[chanid].icon_source = 3
+                    self.channels[chanid].icon = channel['icon']
 
                 xml_output.program_cache.cache_request.put({'task':'add', 'channel': chan, 'icon': icon})
 
@@ -2246,9 +2349,9 @@ class Configure:
               and xml_output.channelsource[5].all_channels[channel.source_id[5]]['HD']:
                 channel.opt_dict['mark_hd'] = True
 
-            if channel.source_id[3] != '' and channel.source_id[3] in xml_output.channelsource[3].all_channels \
-              and xml_output.channelsource[3].all_channels[channel.source_id[3]]['HD']:
-                channel.opt_dict['mark_hd'] = True
+            #~ if channel.source_id[3] != '' and channel.source_id[3] in xml_output.channelsource[3].all_channels \
+              #~ and xml_output.channelsource[3].all_channels[channel.source_id[3]]['HD']:
+                #~ channel.opt_dict['mark_hd'] = True
 
             # set the default prime_source
             self.validate_option('prime_source', channel, -1)
@@ -2563,12 +2666,12 @@ class Configure:
                 and not (4 in self.opt_dict['disable_source'] or 4 in channel.opt_dict['disable_source']):
                     channel.opt_dict['prime_source'] = 4
 
-            #~ elif (channel.source_id[3] != '') and ((channel.group == 2) or (channel.group == 8))  \
-                #~ and not (3 in self.opt_dict['disable_source'] or 3 in channel.opt_dict['disable_source']):
-                #~ channel.opt_dict['prime_source'] = 3
+            elif (channel.source_id[6] != '') and ((channel.group == 2) or (channel.group == 8))  \
+                and not (6 in self.opt_dict['disable_source'] or 6 in channel.opt_dict['disable_source']):
+                channel.opt_dict['prime_source'] = 6
 
             else:
-                for value in (0, 1):
+                for value in (0, 1, 5, 6):
                     if channel.source_id[value] != '' \
                         and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
                             channel.opt_dict['prime_source'] = value
@@ -2940,8 +3043,8 @@ class Configure:
         f.write(u'# 1 include Errors and Warnings\n')
         f.write(u'# 2 include page fetches\n')
         f.write(u'# 4 include (merge) summaries\n')
-        f.write(u'# 8 include detail fetches to the screen\n')
-        f.write(u'# 16 include detail fetches to the log\n')
+        f.write(u'# 8 include detail fetches and ttvdb lookups to the screen\n')
+        f.write(u'# 16 include detail fetches and ttvdb lookups to the log\n')
         f.write(u'# 32 include matchlogging (see below)\n')
         f.write(u'# 64 Title renames\n')
         f.write(u'# 128 ttvdb failures\n')
@@ -3035,7 +3138,7 @@ class Configure:
                 active = chan.active
 
             if chan_string == None:
-                chan_string = '%s;%s' % (chan.chan_name, chan.group)
+                chan_string = '%s;%s;%s' % (chan.chan_name, chan.group, chanid)
 
             for index in range(xml_output.source_count):
                 chan_string = '%s;%s' % (chan_string, chan.source_id[index])
@@ -3190,7 +3293,8 @@ class Configure:
 
                         if chan[0].strip() in self.channels.keys():
                             chanid = chan[0].strip()
-                            chan_list[unicode(self.channels[chanid].group)].append(get_channel_string(chanid, True, '%s;%s' % (chan[1], self.channels[chanid].group)))
+                            chan_list[unicode(self.channels[chanid].group)].append(get_channel_string(chanid, True, '%s;%s;%s' % \
+                                (chan[1], self.channels[chanid].group, chanid)))
                             chan_added.append(chanid)
 
                         else:
@@ -3205,7 +3309,8 @@ class Configure:
 
                         if chan[0].strip() in self.channels.keys():
                             chanid = chan[0].strip()
-                            chan_list[unicode(self.channels[chanid].group)].append(get_channel_string(chanid, False, '%s;%s' % (chan[1], self.channels[chanid].group)))
+                            chan_list[unicode(self.channels[chanid].group)].append(get_channel_string(chanid, False, '%s;%s;%s' % \
+                                (chan[1], self.channels[chanid].group, chanid)))
                             chan_added.append(chanid)
 
                         else:
@@ -3223,7 +3328,8 @@ class Configure:
                             for index in range(min(xml_output.source_count,len(chan) - 4)):
                                 if (chan[index + 2].strip() !='') and (chan[index + 2].strip() == channel.source_id[index]):
                                     chan_found = True
-                                    chan_list[chan[1]].append(get_channel_string(chanid, True, '%s;%s' % (chan[0], chan[1]), '%s;%s' % (chan[-2], chan[-1])))
+                                    chan_list[chan[1]].append(get_channel_string(chanid, True, '%s;%s;%s' % \
+                                        (chan[0], chan[1], chanid), '%s;%s' % (chan[-2], chan[-1])))
                                     chan_added.append(chanid)
                                     chan_found = True
                                     break
@@ -3248,7 +3354,8 @@ class Configure:
                         for chanid, channel in self.channels.items():
                             for index in range(min(xml_output.source_count,len(chan) - 4)):
                                 if (chan[index + 2].strip() !='') and (chan[index + 2].strip() == channel.source_id[index]):
-                                    chan_list[chan[1]].append(get_channel_string(chanid, False, '%s;%s' % (chan[0], chan[1]), '%s;%s' % (chan[-2], chan[-1])))
+                                    chan_list[chan[1]].append(get_channel_string(chanid, False, '%s;%s;%s' % \
+                                        (chan[0], chan[1], chanid), '%s;%s' % (chan[-2], chan[-1])))
                                     chan_added.append(chanid)
                                     chan_found = True
                                     break
@@ -3741,7 +3848,7 @@ class InfoFiles:
 
         if self.fetch_list != None:
             for chanid in config.channels.keys():
-                if chanid in self.fetch_strings:
+                if config.channels[chanid].active and chanid in self.fetch_strings:
                     #~ for s in xml_output.source_order:
                     for s in config.channels[chanid].merge_order:
                         if xml_output.channelsource[s].source in self.fetch_strings[chanid].keys():
@@ -4748,6 +4855,7 @@ class FetchURL(Thread):
         m = re.search(r'\bcharset=([A-Za-z0-9\-]+)\b', httphead.info().getheader('Content-Type'))
         if m:
             return m.group(1)
+
         if default_encoding == "default encoding":
             return config.httpencoding
 
@@ -4772,7 +4880,7 @@ class FetchURL(Thread):
             encoding = self.find_html_encoding(fp, bytes, encoding)
 
             try:
-                # log ('parse %s as %s' % (url, encoding))
+                #~ log ('parse %s as %s\n' % (url, encoding))
                 page = bytes.decode(encoding, 'replace')
 
             except:
@@ -4851,7 +4959,7 @@ class theTVDB(Thread):
             log('Error retreiving data from theTVdb.com')
             return 0
 
-# end theTVDB()
+# end theTVDB
 
 class FetchData(Thread):
     """
@@ -5336,7 +5444,7 @@ class FetchData(Thread):
             if isinstance(eid['airdate'], (datetime.date)):
                 data['airdate'] = eid['airdate']
 
-            log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 8)
+            log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 24)
             return data
 
         # Now we get a list of episodes matching what we already know and compare with confusing characters removed
@@ -5376,7 +5484,7 @@ class FetchData(Thread):
             if isinstance(ep['airdate'], (datetime.date)):
                 data['airdate'] = ep['airdate']
 
-            log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 8)
+            log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 24)
             return data
 
         if parent != None:
@@ -5446,9 +5554,9 @@ class FetchData(Thread):
 
         self.text_values = ('channelid', 'source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
-              'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', \
-              'rtl-ID', 'npo-ID', 'horizon-ID', 'nl-url', 'tv-url', 'rtl-url', 'be-url', 'npo-url',  \
-              'horizon-url', 'infourl', 'audio', 'star-rating', 'country', 'omroep')
+              'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', 'rtl-ID', \
+              'npo-ID', 'horizon-ID', 'humo-ID', 'nl-url', 'tv-url', 'rtl-url', 'be-url', 'npo-url',  \
+              'horizon-url', 'humo-url', 'infourl', 'audio', 'star-rating', 'country', 'omroep')
         self.datetime_values = ('start-time', 'stop-time')
         self.date_values = ('airdate', )
         self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst', \
@@ -6946,7 +7054,7 @@ class FetchData(Thread):
         except:
             pass
 
-# end FetchData
+# end FetchData()
 
 class tvgids_JSON(FetchData):
     """
@@ -7120,12 +7228,11 @@ class tvgids_JSON(FetchData):
 
         dl = {}
         dd = {}
-        for chanid in self.channels.keys():
+        for chanid in self.channels.values():
             dl[chanid] =[]
             dd[chanid] =[]
 
         first_fetched = False
-        channel_cnt = 0
 
         for retry in (0, 1):
             for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 4)):
@@ -7136,7 +7243,6 @@ class tvgids_JSON(FetchData):
                 if self.day_loaded[0][offset]:
                     continue
 
-                channel_cnt += 1
                 log(['\n', 'Now fetching %s channels from tvgids.nl\n' % len(self.channels), \
                     '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
@@ -7174,14 +7280,14 @@ class tvgids_JSON(FetchData):
                             dd[chanid].append(p)
 
                 self.day_loaded[0][offset] = True
-                for chanid in self.channels.keys():
+                for chanid, chan_scid in self.channels.items():
                     if len(dd) > 0:
                         self.day_loaded[chanid][offset] = True
-                        dl[chanid].extend(dd[chanid])
-                        dd[chanid] =[]
+                        dl[chan_scid].extend(dd[chan_scid])
+                        dd[chan_scid] =[]
 
-        for chanid in self.channels.keys():
-            if len(dl[chanid]) == 0:
+        for chanid, chan_scid in self.channels.items():
+            if len(dl[chan_scid]) == 0:
                 config.channels[chanid].source_data[self.proc_id].set()
                 continue
 
@@ -7201,7 +7307,7 @@ class tvgids_JSON(FetchData):
             # }
 
             # parse the list to adjust to what we want
-            for item in dl[chanid]:
+            for item in dl[chan_scid]:
                 tdict = self.checkout_program_dict()
                 if (item['db_id'] != '') and (item['db_id'] != None):
                     tdict[self.detail_id] = u'nl-%s' % (item['db_id'])
@@ -7822,7 +7928,7 @@ class tvgidstv_HTML(FetchData):
                             continue
 
                         log(['\n', 'Now fetching %s(xmltvid=%s%s) from tvgids.tv\n' % \
-                            (config.channels[chanid].chan_name, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), chanid ), \
+                            (config.channels[chanid].chan_name, config.channels[chanid].xmltvid , (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
                             '    (channel %s of %s) for day %s of %s.\n' % \
                             (channel_cnt, len(self.channels), offset, config.opt_dict['days'])], 2)
                         # get the raw programming for the day
@@ -8102,7 +8208,7 @@ class tvgidstv_HTML(FetchData):
 
         return tdict
 
-# end tvgidstv_HTML()
+# end tvgidstv_HTML
 
 class rtl_JSON(FetchData):
     """
@@ -8930,7 +9036,7 @@ class teveblad_HTML(FetchData):
                         continue
 
                     log(['\n', 'Now fetching %s(xmltvid=%s%s) from teveblad.be\n' % \
-                        (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                        (config.channels[chanid].chan_name, config.channels[chanid].xmltvid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
                         '    (channel %s of %s) for day %s of %s days.\n' % \
                         ( channel_cnt, len(self.channels), offset, config.opt_dict['tevedays'])], 2)
 
@@ -9748,7 +9854,7 @@ class npo_HTML(FetchData):
             except:
                 pass
 
-# end npo_HTML()
+# end npo_HTML
 
 class horizon_JSON(FetchData):
     """
@@ -9801,7 +9907,7 @@ class horizon_JSON(FetchData):
             for schedule in channel['stationSchedules']:
                 chanid = schedule['station']['id']
                 self.all_channels[chanid] = {}
-                self.all_channels[chanid]['group'] = 10
+                #~ self.all_channels[chanid]['group'] = 10
                 self.all_channels[chanid]['name'] = self.unescape(schedule['station']['title']).strip()
                 if self.all_channels[chanid]['name'][-3:] == ' HD':
                     self.all_channels[chanid]['name'] = self.all_channels[chanid]['name'][:-3].strip()
@@ -9849,7 +9955,7 @@ class horizon_JSON(FetchData):
                     last_start = start
                     page_count += 1
                     log(['\n', 'Now fetching %s(xmltvid=%s%s) from horizon.tv\n' % \
-                        (config.channels[chanid].chan_name, chanid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                        (config.channels[chanid].chan_name, config.channels[chanid].xmltvid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
                         '    (channel %s of %s) for %s days, page %s.\n' % \
                         ( channel_cnt, len(self.channels), config.opt_dict['days'], page_count)], 2)
 
@@ -9967,7 +10073,9 @@ class horizon_JSON(FetchData):
                                 tdict['subgenre'] = config.horizoncattrans[cats[0]['id']][1]
 
                         else:
-                            tdict['genre'] = 'overige'
+                            tdict['genre'] = cats[0]['title'].capitalize()
+                            if len(cats) == 2:
+                                tdict['subgenre'] = cats[1]['title'].capitalize()
                             if config.write_info_files:
                                 ids ="("
                                 titles = "("
@@ -10013,6 +10121,374 @@ class horizon_JSON(FetchData):
 
 # end horizon_JSON
 
+class humo_JSON(FetchData):
+    """
+    Get all available days of programming for the requested channels
+    from the tvgids.nl json pages. Based on FetchData
+    """
+    def init_channels(self):
+
+        self.channels = {}
+        self.chanids = {}
+
+        for chanid, channel in config.channels.iteritems():
+            self.program_data[chanid] = []
+            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
+                self.channels[chanid] = channel.source_id[self.proc_id]
+                self.chanids[channel.source_id[self.proc_id]] = chanid
+
+    def init_json(self):
+
+        self.json_by_id = {}
+        self.jsondata = {}
+        self.jsondict = {}
+
+    def get_url(self, channels = 'channels', offset = 0):
+
+        base_url = 'http://www.humo.be'
+        base_json = base_url + '/api/epg/humosite'
+        scan_day = datetime.date.fromordinal(self.current_date + offset).strftime("%Y-%m-%d")
+
+        if channels == 'channels':
+            return  u'%s/channels' % (base_json)
+
+        elif channels == 'main':
+            return '%s/schedule/main/%s/full' % (base_json, scan_day)
+
+        elif channels == 'rest':
+            return '%s/schedule/rest/%s/full' % (base_json, scan_day)
+
+        else:
+            return '%s/schedule/%s/%s/full' % (base_json, channels, scan_day)
+
+    def get_channels(self):
+        """
+        Get a list of all available channels and store these
+        in all_channels.
+        """
+
+        # download the json feed
+        total = self.get_page(self.get_url(), 'unicode')
+        if total == None:
+            log("Don't write configuration file\n")
+            return 69  # EX_UNAVAILABLE
+
+        channel_list = json.loads(total)
+
+        # and create a file with the channels
+        self.all_channels ={}
+        for chan_grp in channel_list['groups']:
+            grp_name = chan_grp['name']
+            grp_code = chan_grp['code']
+            for channel in chan_grp['broadcasters']:
+                chanid = unicode(channel['id'])
+                icon = channel['media'][0]['resized_urls']['small']
+                icon = icon.split('/')
+                self.all_channels[chanid] = {}
+                self.all_channels[chanid]['name'] = channel['display_name']
+                self.all_channels[chanid]['icon'] = '%s/%s' % (icon[-2], icon[-1])
+                self.all_channels[chanid]['fetch_grp'] = grp_code
+                #~ self.all_channels[chanid]['group'] = 10
+                #~ print '%4.0f: %s' % (chanid,channel['display_name'])
+
+    def load_pages(self):
+
+        if config.opt_dict['offset'] > 7:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+
+            return
+
+        if len(self.channels) == 0 :
+            return
+
+        first_fetched = False
+
+        for retry in (0, 1):
+            for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 8)):
+                if self.quit:
+                    return
+
+                # Check if it is already loaded
+                if self.day_loaded[0][offset]:
+                    continue
+
+                log(['\n', 'Now fetching main channels from humo.be\n', \
+                    '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
+
+                channel_url = self.get_url('main', offset)
+
+                if first_fetched:
+                    # be nice to tvgids.nl
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                    first_fetched = True
+
+                # get the raw programming for the day
+                strdata = self.get_page(channel_url, 'utf-8')
+                if strdata == None or strdata.replace('\n','') == '{}':
+                    log("No data on humo.be for day=%d\n" % (offset))
+                    self.fail_count += 1
+                    continue
+
+                # Just let the json library parse it.
+                self.base_count += 1
+                self.day_loaded[0][offset] = True
+                jsondata = json.loads(strdata)
+                for channel in jsondata["broadcasters"]:
+                    chan_scid = unicode(channel['id'])
+                    if not chan_scid in self.chanids.keys():
+                        continue
+
+                    chanid = self.chanids[chan_scid]
+                    for item in channel['events']:
+                        tdict = self.checkout_program_dict()
+                        if (item['id'] != '') and (item['id'] != None):
+                            tdict[self.detail_id] = u'humo-%s' % (item['id'])
+                            self.json_by_id[tdict[self.detail_id]] = item
+                            tdict['ID'] = tdict[self.detail_id]
+
+                        tdict['source'] = self.source
+                        tdict['channelid'] = chanid
+                        tdict['channel']  = config.channels[chanid].chan_name
+                        tdict[self.detail_url] = item['url']
+
+                        # The Title
+                        tdict['name'] = self.unescape(item['program']['title'])
+                        tdict = self.check_title_name(tdict)
+                        if  tdict['name'] == None or tdict['name'] == '':
+                            log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                            continue
+
+                        # The timing
+                        tdict['start-time'] = datetime.datetime.fromtimestamp(item['starttime'], CET_CEST)
+                        tdict['stop-time']  = datetime.datetime.fromtimestamp(item['endtime'], CET_CEST)
+                        if tdict['start-time'] == None or tdict['stop-time'] == None:
+                            continue
+
+                        tdict['offset'] = self.get_offset(tdict['start-time'])
+                        if 'content_long' in item['program'].keys():
+                            tdict['description'] = item['program']['content_long']
+
+                        elif 'content_short' in item['program'].keys():
+                            tdict['description'] = item['program']['content_short']
+
+                        elif 'description' in item['program'].keys():
+                            tdict['description'] = item['program']['description']
+
+                        if 'episodetitle' in item['program'].keys():
+                            tdict['titel aflevering'] = item['program']['episodetitle']
+
+                        if 'episodenumber' in item['program'].keys():
+                            tdict['episode'] = item['program']['episodenumber']
+
+                        if 'episodeseason' in item['program'].keys():
+                            tdict['season'] = item['program']['episodeseason']
+
+                        if 'year' in item['program'].keys():
+                            tdict['jaar van premiere'] = item['program']['year']
+
+                        if 'countries' in item['program'].keys():
+                            #~ tdict[''] = item['program']['countries']
+                            if config.write_info_files:
+                                pstr = u'new humo county => '
+                                for cstr in item['program']['countries']:
+                                    pstr = pstr + u', ' + cstr
+                                infofiles.addto_detail_list(pstr)
+
+                        if 'credits' in item['program'].keys():
+                            for role in item['program']['credits']:
+                                if not role['role'] in tdict['credits']:
+                                    tdict['credits'][role['role']] = []
+
+                                if not self.unescape(role['name']) in tdict['credits'][role['role']]:
+                                    tdict['credits'][role['role']].append(self.unescape(role['name']))
+
+                        if 'genres' in item['program'].keys():
+                            if item['program']['genres'][0] in config.humocattrans.keys():
+                                tdict['genre'] = config.humocattrans[item['program']['genres'][0]][0]
+                                tdict['subgenre'] = config.humocattrans[item['program']['genres'][0]][1]
+
+                            else:
+                                tdict['genre'] = 'Overige'
+                                if config.write_info_files:
+                                    for gstr in item['program']['genres']:
+                                        infofiles.addto_detail_list('new humo genre => ' + gstr)
+
+                        if 'teletext' in item['properties'].keys() and item['properties']['teletext'] == 1:
+                            tdict['teletekst']  = True
+
+                        if 'hd' in item['properties'].keys() and item['properties']['hd'] == 1:
+                            tdict['video']['HD'] = True
+
+                        if 'repeat' in item['properties'].keys() and item['properties']['repeat'] == 1:
+                            tdict['rerun']  = True
+
+                        if 'final' in item['properties'].keys() and item['properties']['final'] == 1:
+                            tdict['last-chance']  = True
+
+                        if 'new' in item['properties'].keys() and item['properties']['new'] == 1:
+                            tdict['new']  = True
+
+                        if config.write_info_files:
+                            for key in item['properties'].keys():
+                                if not key in ('pdc', 'eventduration', 'teletext', 'part_of_series', 'series_id', 'hd', 'live', \
+                                  'repeat', 'final', 'new', 'selection', 'maintitle', 'issub'):
+
+                                    infofiles.addto_detail_list('new humo property => %s=%s'  % (key, item['properties'][key]))
+
+                            for key in item['program'].keys():
+                                if not key in ('id', 'external_id', 'title', 'media', 'twitterhashtag', 'youtubeid', 'website', \
+                                  'programduration', 'episodetitle', 'episodenumber', 'episodeseason', 'episodetotal', \
+                                  'description', 'content_short', 'content_long', 'year', 'countries', 'credits', 'genres', \
+                                  'opinion', 'appreciation'):
+                                    infofiles.addto_detail_list('new humo programitem => %s=%s' % (key, item['program'][key]))
+
+                        self.program_by_id[tdict[self.detail_id]] = tdict
+                        with self.source_lock:
+                            self.program_data[chanid].append(tdict)
+
+        for chanid in self.program_data:
+            self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+            self.parse_programs(chanid, 0, 'None')
+            self.channel_loaded[chanid] = True
+            config.channels[chanid].source_data[self.proc_id].set()
+            try:
+                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+            except:
+                pass
+
+# end humo_JSON
+
+class nieuwsblad_HTML(FetchData):
+    """
+    Get all available days of programming for the requested channels
+    from the npo.nl page. Based on FetchData Class
+    """
+    def init_channels(self):
+        """ General Site layout
+            <html class="no-js " dir="ltr" lang="nl-BE">
+                <head>
+                <body class="theme-default" itemscope itemtype="http://schema.org/WebPage">
+                    <div class="body-wrapper">
+                        <div class="site-container">
+                            <div class="site-container__inner">
+                                <main role="main">
+                                    <!-- start zone Zone_0 -->
+                                    <section class="l-zone">
+                                        <div class="grid">
+                                            # Datedefinition
+                                            <div class="grid__col">
+                                                <div class="grid__col__inner">
+                                                <!-- start block 'tvgids-top' -->
+                                                    <div data-mht-block="zone_0__tvgids-top">
+                                                        <div class="grid__col size-2-3--bp4">
+                                                            <div class="grid__col__inner">
+                                                                <h1>
+                                                                    TV-Gids vandaag</h1>
+                                                            </div>
+                                                        </div>
+                                                        <div class="grid__col size-1-3--bp4">
+                                                            <div class="grid__col__inner">
+                                                                <p>
+                                                                    dinsdag, 01 september 2015</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                <!-- end block 'tvgids-top' -->
+                                                </div>
+                                            </div>
+                                            # Program list
+                                            <div class="grid__col size-4-5">
+                                                <div class="grid__col__inner">
+                                                <!-- start block 'tvgids-left-center' -->
+                                                    <div data-mht-block="zone_0__tvgids-left-center">
+                                                        <div class="grid channel-block">
+                                                            <div class="grid__col size-1-3--bp4">
+                                                                <div class="grid__col__inner">
+                                                                    <div class="tv-guide__channel">
+                                                                        <h6>
+                                                                            <img src="http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/een.png" class="channelLogo" alt="EEN"
+                                                                                  ><a href="http://www.nieuwsblad.be/tv-gids/een/gisteren">EEN</a>
+                                                                        </h6>
+                                                                    </div>
+                                                                    <div class="program">
+                                                                        <div class="time">09:00</div>
+                                                                        <div class="title"><a href="http://www.nieuwsblad.be/tv-gids/een/gisteren/zomerbeelden">Zomerbeelden</a></div>
+                                                                    </div>
+                                                                        ...
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                <!-- end block 'tvgids-left-center' -->
+                                                </div>
+                                            </div>
+                                            # Channel list
+                                            <div class="grid__col size-1-5--bp4">
+                                                <div class="grid__col__inner">
+                                                <!-- start block 'tvgids-right-center' -->
+                                                    <div data-mht-block="zone_0__tvgids-right-center">
+                                                        <h3 class="heading">
+                                                            Alle zenders</h3>
+                                                        <div id="accordion" class="accordion" data-accordion data-jq-plugin="accordion">
+                                                            <div class="accordion__header">
+                                                                Vlaams</div>
+                                                            <div class="accordion__content">
+                                                                <a href="http://www.nieuwsblad.be/tv-gids/vandaag/0"><div class="channel-row">
+
+                                                                    <img class="tv-icon" data-slug="EEN" src="http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/een.png" onerror="this.onerror=null;this.src='http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/dummy-channel.png';" data-lang="Vlaams" title="EEN">
+
+                                                                    <img class="tv-icon" data-slug="VTM" src="http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/vtm.png" onerror="this.onerror=null;this.src='http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/dummy-channel.png';" data-lang="Vlaams" title="VTM">
+
+                                                                    <img class="tv-icon" data-slug="VIER" src="http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/vier.png" onerror="this.onerror=null;this.src='http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/dummy-channel.png';" data-lang="Vlaams" title="VIER">
+                                                                    </div>
+                                                                </a>
+                                                                    ...
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                <!-- end block 'tvgids-right-center' -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                    <!-- end zone Zone_0 -->
+                                </main>
+                            </div>
+                        </div>
+                    </div>
+                </body>
+            </html>
+        """
+
+        # These regexes fetch the relevant data out of thetvgids.tv pages, which then will be parsed to the ElementTree
+        self.getheader = re.compile("<!-- start block 'tvgids-top' -->(.*?)<!-- end block 'tvgids-top' -->",re.DOTALL)
+        self.getprograms = re.compile("<!-- start block 'tvgids-left-center' -->(.*?)<!-- end block 'tvgids-left-center' -->",re.DOTALL)
+        self.getchannels = re.compile("<!-- start block 'tvgids-right-center' -->(.*?)<!-- end block 'tvgids-right-center' -->",re.DOTALL)
+
+        for chanid, channel in config.channels.iteritems():
+            self.program_data[chanid] = []
+            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
+                self.channels[chanid] = channel.source_id[self.proc_id]
+
+    def get_url(self, offset = 0, chan_group = 0):
+
+        base_url = 'http://www.nieuwsblad.be/tv-gids'
+        scan_day = datetime.date.fromordinal(self.current_date + offset).strftime("%A")
+        return u'%s/%s/%s' % (base_url,  scan_day, chan_group)
+
+    def get_channels(self):
+        self.channel_names = {}
+        for chanid, channel in self.all_channels.items():
+            self.channel_names[channel['name']] = chanid
+            if 'alt_name' in channel:
+                self.channel_names[channel['alt_name']] = chanid
+
+
+# end nieuwsblad_HTML
+
 class Channel_Config(Thread):
     """
     Class that holds the Channel definitions and manages the data retrieval and processing
@@ -10034,13 +10510,15 @@ class Channel_Config(Thread):
         self.active = False
         self.counter = 0
         self.chanid = chanid
+        self.xmltvid = chanid.split('-',1)
+        self.xmltvid = self.xmltvid[1] if int(self.xmltvid[0]) < 4 else chanid
         self.chan_name = name
         self.group = group
         self.source_id = {}
         self.icon_source = -1
         self.icon = ''
 
-        for index in xml_output.source_order:
+        for index in range(xml_output.source_count):
             self.source_id[index] = ''
             self.source_data[index] = Event()
 
@@ -10347,12 +10825,12 @@ class Channel_Config(Thread):
 
         if self.opt_dict['fast']:
             log(['\n', 'Now Checking cache for %s programs on %s(xmltvid=%s%s)\n' % \
-                (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
+                (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
                 '    (channel %s of %s) for %s days.\n' % (self.counter, config.chan_count, config.opt_dict['days'])], 2)
 
         else:
             log(['\n', 'Now fetching details for %s programs on %s(xmltvid=%s%s)\n' % \
-                (len(programs), self.chan_name, self.chanid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
+                (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
                 '    (channel %s of %s) for %s days.\n' % (self.counter, config.chan_count, config.opt_dict['days'])], 2)
 
         # randomize detail requests
@@ -10481,7 +10959,7 @@ class Channel_Config(Thread):
 
         return program
 
-# end Channel_Config()
+# end Channel_Config
 
 class XMLoutput:
     '''
@@ -10504,7 +10982,8 @@ class XMLoutput:
                                         'http://s4.cdn.sanomamedia.be/a/epg/q100/w60/h/',
                                         'http://staticfiles.rtl.nl/styles/img/logos/',
                                         'http://212.142.41.211/ChannelLogos/02/',
-                                        'https://www.horizon.tv/static-images/']
+                                        'https://www.horizon.tv/static-images/',
+                                        'http://img.humo.be/q100/w100/h100/']
 
                                     #~ 1 : [0, 'ned1'],
                                     #~ 2 : [0, 'ned2'],
@@ -10682,9 +11161,9 @@ class XMLoutput:
                                     'sky-sports-news' : [4, 'sky_news'],
                                     'bbc-hd' : [4, 'bbc_hd']}
 
-        self.source_count = 6
-        self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl', 5: 'horizon.tv'}
-        self.source_order = (0, 1, 5, 2, 4)
+        self.source_count = 7
+        self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl', 5: 'horizon.tv', 6: 'humo.be'}
+        self.source_order = (0, 1, 5, 6, 2, 4)
         self.detail_sources = (0, 1)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
@@ -10693,6 +11172,7 @@ class XMLoutput:
         #self.channelsource[3] = teveblad_HTML(3, 'teveblad.be', 'be-ID', 'be-url')
         self.channelsource[4] = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
         self.channelsource[5] = horizon_JSON(5, 'horizon.tv', 'horizon-ID', 'horizon-url', True)
+        self.channelsource[6] = humo_JSON(6, 'humo.be', 'humo-ID', 'humo-url', True)
         self.output_lock = Lock()
         self.cache_return = Queue()
         self.ttvdb = theTVDB()
@@ -10748,39 +11228,39 @@ class XMLoutput:
         Create the strings for the channels we fetched info about
         '''
         if add_HD == True:
-            chanidhd = '%s-hd' % chanid
+            xmltvid = '%s-hd' % config.channels[chanid].xmltvid
 
         else:
-            chanidhd = chanid
+            xmltvid = config.channels[chanid].xmltvid
 
-        self.xml_channels[chanidhd] = []
-        self.xml_channels[chanidhd].append(self.add_starttag('channel', 2, 'id="%s%s"' % \
-            (chanidhd, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
-        self.xml_channels[chanidhd].append(self.add_starttag('display-name', 4, 'lang="nl"', \
+        self.xml_channels[xmltvid] = []
+        self.xml_channels[xmltvid].append(self.add_starttag('channel', 2, 'id="%s%s"' % \
+            (xmltvid, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
+        self.xml_channels[xmltvid].append(self.add_starttag('display-name', 4, 'lang="nl"', \
             config.channels[chanid].chan_name, True))
         if (config.channels[chanid].opt_dict['logos']):
             if -1 < config.channels[chanid].icon_source < 5:
                 full_logo_url = self.logo_provider[config.channels[chanid].icon_source] + config.channels[chanid].icon
-                self.xml_channels[chanidhd].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
+                self.xml_channels[xmltvid].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
 
             elif config.channels[chanid].icon_source == 99:
-                self.xml_channels[chanidhd].append(self.add_starttag('icon', 4, 'src="%s"' % config.channels[chanid].icon, '', True))
+                self.xml_channels[xmltvid].append(self.add_starttag('icon', 4, 'src="%s"' % config.channels[chanid].icon, '', True))
 
-        self.xml_channels[chanidhd].append(self.add_endtag('channel', 2))
+        self.xml_channels[xmltvid].append(self.add_endtag('channel', 2))
 
     def create_program_string(self, chanid, add_HD = None):
         '''
         Create all the program strings
         '''
         if add_HD == True:
-            chanidhd = '%s-hd' % chanid
+            xmltvid = '%s-hd' % config.channels[chanid].xmltvid
 
         else:
-            chanidhd = chanid
+            xmltvid = config.channels[chanid].xmltvid
             with self.output_lock:
                 self.program_count += len(config.channels[chanid].all_programs)
 
-        self.xml_programs[chanidhd] = []
+        self.xml_programs[xmltvid] = []
         config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
         for program in config.channels[chanid].all_programs[:]:
             xml = []
@@ -10789,7 +11269,7 @@ class XMLoutput:
             attribs = 'start="%s" stop="%s" channel="%s%s"' % \
                 (self.format_timezone(program['start-time'], config.opt_dict['use_utc']), \
                 self.format_timezone(program['stop-time'], config.opt_dict['use_utc']), \
-                chanidhd, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')
+                xmltvid, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')
 
             if 'clumpidx' in program and program['clumpidx'] != '':
                 attribs += 'clumpidx="%s"' % program['clumpidx']
@@ -10989,7 +11469,7 @@ class XMLoutput:
                 xml.append(self.add_endtag('star-rating', 4))
 
             xml.append(self.add_endtag('programme', 2))
-            self.xml_programs[chanidhd].append(xml)
+            self.xml_programs[xmltvid].append(xml)
 
     def get_xmlstring(self):
         '''
@@ -11008,19 +11488,19 @@ class XMLoutput:
         xml = []
         xml.append(u"".join(startstring))
 
-        for chanid in config.channels.keys():
-            if config.channels[chanid].active and chanid in self.xml_channels:
-                xml.append(u"".join(self.xml_channels[chanid]))
-                if config.channels[chanid].opt_dict['add_hd_id'] and '%s-hd' % (chanid) in self.xml_channels:
-                    xml.append(u"".join(self.xml_channels['%s-hd' % chanid]))
+        for channel in config.channels.values():
+            if channel.active and channel.xmltvid in self.xml_channels:
+                xml.append(u"".join(self.xml_channels[channel.xmltvid]))
+                if channel.opt_dict['add_hd_id'] and '%s-hd' % (channel.xmltvid) in self.xml_channels:
+                    xml.append(u"".join(self.xml_channels['%s-hd' % channel.xmltvid]))
 
-        for chanid in config.channels.keys():
-            if config.channels[chanid].active and chanid in self.xml_programs:
-                for program in self.xml_programs[chanid]:
+        for channel in config.channels.values():
+            if channel.active and channel.xmltvid in self.xml_programs:
+                for program in self.xml_programs[channel.xmltvid]:
                     xml.append(u"".join(program))
 
-                if config.channels[chanid].opt_dict['add_hd_id']:
-                    for program in self.xml_programs['%s-hd' % chanid]:
+                if channel.opt_dict['add_hd_id'] and '%s-hd' % (channel.xmltvid) in self.xml_channels:
+                    for program in self.xml_programs['%s-hd' % channel.xmltvid]:
                         xml.append(u"".join(program))
 
         xml.append(closestring)
@@ -11061,6 +11541,7 @@ def main():
         #~ matchobject.set_seqs('Enemies Foreign', '	enemiesforeign(1)')
         #~ matchobject.set_seqs('enemies domestic', '	enemies domestic (2)')
         #~ print matchobject.ratio()
+        #~ xml_output.channelsource[6].get_channels()
         #~ return
 
         # Start the seperate fetching threads
