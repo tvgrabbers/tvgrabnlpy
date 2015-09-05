@@ -1214,8 +1214,13 @@ class Configure:
                                      '13946438': ('informatief', ''),
                                      '13946472': ('informatief', ''),
                                      '13948023': ('serie/soap', ''),
+                                     ('13948023', '13948024'): ('serie/soap', 'thriller'),
+                                     ('13948023', '13948025'): ('serie/soap', 'actieserie'),
                                      ('13948023', '13948026'): ('serie/soap', 'sciencefictionserie'),
                                      ('13948023', '13948027'): ('serie/soap', 'comedyserie'),
+                                     ('13948023', '13948028'): ('serie/soap', 'melodrama'),
+                                     ('13948023', '13948031'): ('serie/soap', 'historisch'),
+                                     ('13948023', '13948032'): ('serie/soap', 'waar gebeurt'),
                                      ('13948023', '13948033'): ('serie/soap', 'detectiveserie')}
         # channels for which to look on humo.be
         self.source_channels[6] = {'0-5': '7',
@@ -1320,6 +1325,7 @@ class Configure:
                                  'talkshow'              : (u'Talkshow', u''),
                                  'reality'                : (u'Amusement', u'Realityserie'),
                                  'kinderen'              : (u'jeugd', u''),
+                                 'animated-cartoon': (u'serie/soap', u'animatieserie'),
                                  'serie'                    : (u'Serie/Soap', u''),
                                  'miniserie'            : (u'Serie/Soap', u''),
                                  'soap'                      : (u'Serie/Soap', u'Soap'),
@@ -1327,6 +1333,7 @@ class Configure:
                                  'tv-film'                : (u'Film', u'TV Film'),
                                  'movie-short'        : (u'Film', u'Korte Film'),
                                  'quiz'                      : (u'Amusement', u'Quiz'),
+                                 'spel'                      : (u'amusement', u'spelshow'),
                                  'amusement'            : (u'Amusement', u''),
                                  'religion'              : (u'Religieus', u''),
                                  'muziek'                  : (u'Muziek', u''),
@@ -1334,6 +1341,7 @@ class Configure:
                                  'sports-football': (u'Sports', u'Voetbal'),
                                  'sports-cycling'  : (u'Sport', u'Wielrennen'),
                                  'sports-formula-1-racing'  : (u'Sport', u'Formule-1'),
+                                 'sports-tennis'    : (u'Sport', u'Tennis'),
                                  'sport'                    : (u'Sport', u''),
                                  'andere'                  : (u'Overige', u'')}
 
@@ -4913,8 +4921,7 @@ class theTVDB(Thread):
 
     def get_url(self, title=None, lang='all'):
         base_url = "http://www.thetvdb.com"
-        if title != None:
-            if lang in ('all', 'cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
+        if title != None and lang in ('all', 'cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
                                 'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
                 return "%s/api/GetSeries.php?seriesname=%s&language=%s" % (base_url, title, lang)
 
@@ -10204,160 +10211,177 @@ class humo_JSON(FetchData):
             return
 
         first_fetched = False
-
-        for retry in (0, 1):
+        try:
             for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 8)):
-                if self.quit:
-                    return
+                rest_channels = self.chanids.keys()
+                for retry in ('main', 'rest', 'main', 'rest'):
+                    if self.quit:
+                        return
 
-                # Check if it is already loaded
-                if self.day_loaded[0][offset]:
-                    continue
+                    # Check if it is already loaded
+                    log(['\n', 'Now fetching %s channels from humo.be\n' % retry, \
+                        '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
-                log(['\n', 'Now fetching main channels from humo.be\n', \
-                    '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
-
-                channel_url = self.get_url('main', offset)
-
-                if first_fetched:
-                    # be nice to tvgids.nl
-                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-                    first_fetched = True
-
-                # get the raw programming for the day
-                strdata = self.get_page(channel_url, 'utf-8')
-                if strdata == None or strdata.replace('\n','') == '{}':
-                    log("No data on humo.be for day=%d\n" % (offset))
-                    self.fail_count += 1
-                    continue
-
-                # Just let the json library parse it.
-                self.base_count += 1
-                self.day_loaded[0][offset] = True
-                jsondata = json.loads(strdata)
-                for channel in jsondata["broadcasters"]:
-                    chan_scid = unicode(channel['id'])
-                    if not chan_scid in self.chanids.keys():
+                    channel_url = self.get_url(retry, offset)
+                    if len(rest_channels) == 0:
                         continue
 
-                    chanid = self.chanids[chan_scid]
-                    for item in channel['events']:
-                        tdict = self.checkout_program_dict()
-                        if (item['id'] != '') and (item['id'] != None):
-                            tdict[self.detail_id] = u'humo-%s' % (item['id'])
-                            self.json_by_id[tdict[self.detail_id]] = item
-                            tdict['ID'] = tdict[self.detail_id]
+                    if first_fetched:
+                        # be nice to tvgids.nl
+                        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                        first_fetched = True
 
-                        tdict['source'] = self.source
-                        tdict['channelid'] = chanid
-                        tdict['channel']  = config.channels[chanid].chan_name
-                        tdict[self.detail_url] = item['url']
+                    # get the raw programming for the day
+                    strdata = self.get_page(channel_url, 'utf-8')
+                    if strdata == None or strdata.replace('\n','') == '{}':
+                        log("No data on humo.be for day=%d\n" % (offset))
+                        self.fail_count += 1
+                        continue
 
-                        # The Title
-                        tdict['name'] = self.unescape(item['program']['title'])
-                        tdict = self.check_title_name(tdict)
-                        if  tdict['name'] == None or tdict['name'] == '':
-                            log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                    # Just let the json library parse it.
+                    self.base_count += 1
+                    self.day_loaded[0][offset] = True
+                    jsondata = json.loads(strdata)
+                    for channel in jsondata["broadcasters"]:
+                        chan_scid = unicode(channel['id'])
+                        if chan_scid in rest_channels:
+                            chanid = self.chanids[chan_scid]
+                            rest_channels.remove(chan_scid)
+
+                        else:
                             continue
 
-                        # The timing
-                        tdict['start-time'] = datetime.datetime.fromtimestamp(item['starttime'], CET_CEST)
-                        tdict['stop-time']  = datetime.datetime.fromtimestamp(item['endtime'], CET_CEST)
-                        if tdict['start-time'] == None or tdict['stop-time'] == None:
-                            continue
+                        for item in channel['events']:
+                            tdict = self.checkout_program_dict()
+                            if (item['id'] != '') and (item['id'] != None):
+                                tdict[self.detail_id] = u'humo-%s' % (item['id'])
+                                self.json_by_id[tdict[self.detail_id]] = item
+                                tdict['ID'] = tdict[self.detail_id]
 
-                        tdict['offset'] = self.get_offset(tdict['start-time'])
-                        if 'content_long' in item['program'].keys():
-                            tdict['description'] = item['program']['content_long']
+                            tdict['source'] = self.source
+                            tdict['channelid'] = chanid
+                            tdict['channel']  = config.channels[chanid].chan_name
+                            tdict[self.detail_url] = item['url']
 
-                        elif 'content_short' in item['program'].keys():
-                            tdict['description'] = item['program']['content_short']
+                            # The Title
+                            tdict['name'] = self.unescape(item['program']['title'])
+                            tdict = self.check_title_name(tdict)
+                            if  tdict['name'] == None or tdict['name'] == '':
+                                log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                                continue
 
-                        elif 'description' in item['program'].keys():
-                            tdict['description'] = item['program']['description']
+                            # The timing
+                            tdict['start-time'] = datetime.datetime.fromtimestamp(item['starttime'], CET_CEST)
+                            tdict['stop-time']  = datetime.datetime.fromtimestamp(item['endtime'], CET_CEST)
+                            if tdict['start-time'] == None or tdict['stop-time'] == None:
+                                continue
 
-                        if 'episodetitle' in item['program'].keys():
-                            tdict['titel aflevering'] = item['program']['episodetitle']
+                            tdict['offset'] = self.get_offset(tdict['start-time'])
+                            if 'content_long' in item['program'].keys():
+                                tdict['description'] = item['program']['content_long']
 
-                        if 'episodenumber' in item['program'].keys():
-                            tdict['episode'] = item['program']['episodenumber']
+                            elif 'content_short' in item['program'].keys():
+                                tdict['description'] = item['program']['content_short']
 
-                        if 'episodeseason' in item['program'].keys():
-                            tdict['season'] = item['program']['episodeseason']
+                            elif 'description' in item['program'].keys():
+                                tdict['description'] = item['program']['description']
 
-                        if 'year' in item['program'].keys():
-                            tdict['jaar van premiere'] = item['program']['year']
+                            if 'episodetitle' in item['program'].keys():
+                                tdict['titel aflevering'] = item['program']['episodetitle']
 
-                        if 'countries' in item['program'].keys():
-                            #~ tdict[''] = item['program']['countries']
-                            if config.write_info_files:
-                                pstr = u'new humo county => '
-                                for cstr in item['program']['countries']:
-                                    pstr = pstr + u', ' + cstr
-                                infofiles.addto_detail_list(pstr)
+                            if 'episodenumber' in item['program'].keys():
+                                tdict['episode'] = item['program']['episodenumber']
 
-                        if 'credits' in item['program'].keys():
-                            for role in item['program']['credits']:
-                                if not role['role'] in tdict['credits']:
-                                    tdict['credits'][role['role']] = []
+                            if 'episodeseason' in item['program'].keys():
+                                tdict['season'] = item['program']['episodeseason']
 
-                                if not self.unescape(role['name']) in tdict['credits'][role['role']]:
-                                    tdict['credits'][role['role']].append(self.unescape(role['name']))
+                            if 'year' in item['program'].keys():
+                                tdict['jaar van premiere'] = item['program']['year']
 
-                        if 'genres' in item['program'].keys():
-                            if item['program']['genres'][0] in config.humocattrans.keys():
-                                tdict['genre'] = config.humocattrans[item['program']['genres'][0]][0]
-                                tdict['subgenre'] = config.humocattrans[item['program']['genres'][0]][1]
-
-                            else:
-                                tdict['genre'] = 'Overige'
+                            if 'countries' in item['program'].keys():
+                                #~ tdict[''] = item['program']['countries']
                                 if config.write_info_files:
-                                    for gstr in item['program']['genres']:
-                                        infofiles.addto_detail_list('new humo genre => ' + gstr)
+                                    pstr = u'new humo county => '
+                                    for cstr in item['program']['countries']:
+                                        pstr = pstr + u', ' + cstr
+                                    infofiles.addto_detail_list(pstr)
 
-                        if 'teletext' in item['properties'].keys() and item['properties']['teletext'] == 1:
-                            tdict['teletekst']  = True
+                            if 'credits' in item['program'].keys():
+                                for role in item['program']['credits']:
+                                    if not role['role'] in tdict['credits']:
+                                        tdict['credits'][role['role']] = []
 
-                        if 'hd' in item['properties'].keys() and item['properties']['hd'] == 1:
-                            tdict['video']['HD'] = True
+                                    if not self.unescape(role['name']) in tdict['credits'][role['role']]:
+                                        tdict['credits'][role['role']].append(self.unescape(role['name']))
 
-                        if 'repeat' in item['properties'].keys() and item['properties']['repeat'] == 1:
-                            tdict['rerun']  = True
+                            if 'genres' in item['program'].keys():
+                                if item['program']['genres'][0] in config.humocattrans.keys():
+                                    tdict['genre'] = config.humocattrans[item['program']['genres'][0]][0]
+                                    tdict['subgenre'] = config.humocattrans[item['program']['genres'][0]][1]
 
-                        if 'final' in item['properties'].keys() and item['properties']['final'] == 1:
-                            tdict['last-chance']  = True
+                                else:
+                                    tdict['genre'] = 'Overige'
+                                    if config.write_info_files:
+                                        for gstr in item['program']['genres']:
+                                            infofiles.addto_detail_list('new humo genre => ' + gstr)
 
-                        if 'new' in item['properties'].keys() and item['properties']['new'] == 1:
-                            tdict['new']  = True
+                            if 'teletext' in item['properties'].keys() and item['properties']['teletext'] == 1:
+                                tdict['teletekst']  = True
 
-                        if config.write_info_files:
-                            for key in item['properties'].keys():
-                                if not key in ('pdc', 'eventduration', 'teletext', 'part_of_series', 'series_id', 'hd', 'live', \
-                                  'repeat', 'final', 'new', 'selection', 'maintitle', 'issub'):
+                            if 'dolby' in item['properties'].keys() and item['properties']['dolby'] == 1:
+                                tdict['audio']  = 'dolby'
 
-                                    infofiles.addto_detail_list('new humo property => %s=%s'  % (key, item['properties'][key]))
+                            if 'prop_16_9' in item['properties'].keys() and item['properties']['prop_16_9'] == 1:
+                                tdict['video']['breedbeeld']  = True
 
-                            for key in item['program'].keys():
-                                if not key in ('id', 'external_id', 'title', 'media', 'twitterhashtag', 'youtubeid', 'website', \
-                                  'programduration', 'episodetitle', 'episodenumber', 'episodeseason', 'episodetotal', \
-                                  'description', 'content_short', 'content_long', 'year', 'countries', 'credits', 'genres', \
-                                  'opinion', 'appreciation'):
-                                    infofiles.addto_detail_list('new humo programitem => %s=%s' % (key, item['program'][key]))
+                            if 'hd' in item['properties'].keys() and item['properties']['hd'] == 1:
+                                tdict['video']['HD'] = True
 
-                        self.program_by_id[tdict[self.detail_id]] = tdict
-                        with self.source_lock:
-                            self.program_data[chanid].append(tdict)
+                            if 'repeat' in item['properties'].keys() and item['properties']['repeat'] == 1:
+                                tdict['rerun']  = True
 
-        for chanid in self.program_data:
-            self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
-            self.parse_programs(chanid, 0, 'None')
-            self.channel_loaded[chanid] = True
-            config.channels[chanid].source_data[self.proc_id].set()
-            try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                            if 'final' in item['properties'].keys() and item['properties']['final'] == 1:
+                                tdict['last-chance']  = True
 
-            except:
-                pass
+                            if 'new' in item['properties'].keys() and item['properties']['new'] == 1:
+                                tdict['new']  = True
+
+                            if config.write_info_files:
+                                for key in item['properties'].keys():
+                                    if not key in ('live', 'repeat', 'final', 'new', 'hd', 'prop_16_9', 'teletext', 'issub', 'dolby', \
+                                      'part_of_series', 'series_id', 'maintitle', 'pdc', 'eventduration', 'selection'):
+                                        infofiles.addto_detail_list('new humo property => %s=%s'  % (key, item['properties'][key]))
+
+                                for key in item['program'].keys():
+                                    if not key in ('id', 'external_id', 'title', 'media', 'twitterhashtag', 'youtubeid', 'website', \
+                                      'programduration', 'episodetitle', 'episodenumber', 'episodeseason', 'episodetotal', \
+                                      'description', 'content_short', 'content_long', 'year', 'countries', 'credits', 'genres', \
+                                      'opinion'):
+                                      #~ 'opinion', 'appreciation'):
+                                        infofiles.addto_detail_list('new humo programitem => %s=%s' % (key, item['program'][key]))
+
+                            self.program_by_id[tdict[self.detail_id]] = tdict
+                            with self.source_lock:
+                                self.program_data[chanid].append(tdict)
+
+            for chanid in self.program_data:
+                self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+                self.parse_programs(chanid, 0, 'None')
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+                try:
+                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+                except:
+                    pass
+
+        except:
+            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source), traceback.format_exc()], 0)
+
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+            return None
 
 # end humo_JSON
 
