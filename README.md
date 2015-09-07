@@ -31,6 +31,12 @@ Sinds versie 2:
 tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be), [RTL.nl](http://www.rtl.nl) and [NPO.nl](http://www.npo.nl) as a source.
 
 ###Release Notes Versie 2
+**p20150907**   version 2.1.13  
+Fix on previous  
+
+**p20150901**   version 2.1.12  
+Disabled no longer existing teveblad.be source 
+
 **p20150820**   version 2.1.11  
 Fix for the tvgids.nl cookie block  
 
