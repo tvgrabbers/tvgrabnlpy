@@ -11,7 +11,7 @@
 
 ###Samenvatting
 
-tv_grab_nl_py is een [XMLTV](http://xmltv.org)-compatibele grabber voor Nederlandse en Vlaamse televisie die [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl) en [horizon.tv](http://www.horizon.tv) als bron gebruikt.
+tv_grab_nl_py is een [XMLTV](http://xmltv.org)-compatibele grabber voor Nederlandse en Vlaamse televisie die [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [horizon.tv](http://www.horizon.tv) en [Humo.be](http://www.humo.be) als bron gebruikt.
 
 Prettige eigenschappen zijn:
   * detailinformatie wordt gecached
@@ -34,7 +34,7 @@ Sinds versie 2.2:
 
 ###English Summary
 
-tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl) and [horizon.tv](http://www.horizon.tv) as a source.
+tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [horizon.tv](http://www.horizon.tv) and [Humo.be](http://www.humo.be) as a source.
 
 ###Release Notes Versie 2
 **p20150907**   version 2.2.0 beta
