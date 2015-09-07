@@ -8839,7 +8839,7 @@ class XMLoutput:
         self.channelsource[0] = tvgids_JSON(0, 'tvgidsnl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgidstv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
         self.channelsource[2] = rtl_JSON(2, 'rtl.nl', 'rtl-ID', '', True)
-        self.channelsource[3] = teveblad_HTML(3, 'teveblad', 'be-ID', 'be-url')
+        #self.channelsource[3] = teveblad_HTML(3, 'teveblad', 'be-ID', 'be-url')
         self.channelsource[4] = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
 
     def xmlescape(self, s):
