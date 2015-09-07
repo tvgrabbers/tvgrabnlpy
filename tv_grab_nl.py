@@ -351,7 +351,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150906'
+        self.patchdate = u'20150907'
         self.alfa = False
         self.beta = True
 
@@ -466,12 +466,6 @@ class Configure:
         # Setting it to a value sets 'fast' always to False (i.e. to slow-mode)
         self.opt_dict['slowdays'] = None
 
-        # the total number of days to fetch basic info for the RTL channels
-        self.opt_dict['rtldays'] = 14
-
-        # the total number of days to fetch basic info through belgium teveblad.be
-        self.opt_dict['tevedays'] = 8
-
         self.opt_dict['disable_source'] = []
         self.opt_dict['disable_detail_source'] = []
         self.opt_dict['disable_ttvdb'] = False
@@ -512,12 +506,14 @@ class Configure:
         # (TimeOffset in Settings table)
         self.opt_dict['use_utc'] = False
 
-        # The values for the Kijkwijzer
-        self.opt_dict['kijkwijzerstijl'] = 'short'
         # Whether to use the split double episodes regularily seen on teveblad.be
         self.opt_dict['use_split_episodes'] = True
+
+        # The values for the Kijkwijzer
         # Possible styles are
         # long, short, single and none
+        self.opt_dict['kijkwijzerstijl'] = 'short'
+
         self.kijkwijzer = {'1': {'code': 'AL','text': 'Voor alle leeftijden',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/al_transp.png'},
                         '2': {'code': '6+','text': 'Afgeraden voor kinderen jonger dan 6 jaar',
@@ -566,12 +562,12 @@ class Configure:
         # Titles to rename
         self.titlerename = {'navy ncis': 'NCIS',
                                         'inspector banks': 'DCI Banks'}
-
+        # Sometimes titles were already taken in theTVDB
         self.ttvdb_aliasses = {'Castle': 'Castle (2009)'}
         # Create a category translation dictionary
         # Look in mythtv/themes/blue/ui.xml for all category names
         # The keys are the categories used by tvgids.nl (lowercase please)
-        # See the file ~/.xmltv/genre_translation created after the first run and edit there!
+        # See the file ~/.xmltv/tv_grab_nl_py.set created after the first run and edit there!
         self.cattrans = { (u'', u'')                                                 : u'Unknown',
                              (u'amusement', u'')                                      : u'Talk',
                              (u'amusement', u'quiz')                              : u'Game',
@@ -646,7 +642,20 @@ class Configure:
 
         self.genre_list = []
 
+        # Program group names to exclude from teveblad.be if the counterpart contains details
+        self.groupslot_names = ("ochtend- en dagprogramma's",
+                                                            "ochtend - en dagprogramma's",
+                                                            "nachtprogramma's",
+                                                            "kinderprogramma's",
+                                                            "kinder-tv",
+                                                            "kindertijd",
+                                                            "pause",
+                                                            "geen programmagegevens beschikbaar.")
+
+        # These ara all dicts used in merging the sources
         self.source_channels ={}
+        self.source_cattrans = {}
+        self.new_cattrans = {}
         self.source_channels[0] = {}
         # link to tvgids.nl for channels on tvgids.tv': '
         self.source_channels[1] = {'0-1': 'nederland-1',
@@ -753,7 +762,7 @@ class Configure:
                                            '0-20': 'tcm'}
 
         # tvgids.tv subgenre to genre translation table
-        self.tvtvcattrans = {'euromillions': 'Amusement',
+        self.source_cattrans[1] = {'euromillions': 'Amusement',
                                  'erotisch magazine': 'Amusement',
                                  'reality-reeks': 'Amusement',
                                  'keno': 'Amusement',
@@ -788,7 +797,7 @@ class Configure:
                                  'docusoap': 'Informatief',
                                  'sitcom': 'Serie/Soap'}
 
-        self.tvtvcat = []
+        self.new_cattrans[1] = []
 
         # channels for which to look on rtl.nl
         # RTLL = RTL Lounge, RTLT = RTL Telekids, RTCR = RTL Crime
@@ -871,18 +880,8 @@ class Configure:
                                             '1-prime-series': 'primeseries',
                                             '1-vtmkzoom': 'vtm-kzoom'}
 
-        # Program group names to exclude from teveblad.be if the counterpart contains details
-        self.teveblad_genericnames = ("ochtend- en dagprogramma's",
-                                                            "ochtend - en dagprogramma's",
-                                                            "nachtprogramma's",
-                                                            "kinderprogramma's",
-                                                            "kinder-tv",
-                                                            "kindertijd",
-                                                            "pause",
-                                                            "geen programmagegevens beschikbaar.")
-
         # teveblad.be genre translation table
-        self.tevecattrans = {'amusement'           : (u'Amusement', u''),
+        self.source_cattrans[3] = {'amusement'           : (u'Amusement', u''),
                                  'documentaire'      : (u'Informatief', u'Documentaire'),
                                  'film'                      : (u'Film', u''),
                                  'kinderen'              : (u'Jeugd', u''),
@@ -895,7 +894,7 @@ class Configure:
                                  'sport'                    : (u'Sport', u''),
                                  'andere'                  : (u'Overige', u'')}
 
-        self.tevecat = {}
+        self.new_cattrans[3] = {}
 
         # channels for which to look on npo.nl
         self.source_channels[4] = {'0-1': u'1',
@@ -923,63 +922,38 @@ class Configure:
                                            '0-115': u'23',
                                            '0-116': u'24'}
 
-        self.npocattrans = {'nieuws-actualiteiten': (u'nieuws/actualiteiten', u''),
-                                     'amusement': (u'amusement', u''),
-                                     'amusement,komisch': (u'amusement', u'komedie'),
-                                     'amusement,spel-quiz': (u'amusement', u'quiz'),
-                                     'amusement,cabaret': (u'amusement', u'cabaret'),
-                                     'informatief': (u'informatief', u''),
-                                     'informatief,nieuws-actualiteiten': (u'nieuws/actualiteiten', u''),
-                                     'informatief,religieus': (u'informatief', u'religieus'),
-                                     'informatief,kunst-cultuur': (u'informatief', u'kunst/cultuur'),
-                                     'informatief,natuur': (u'informatief', u'natuur'),
-                                     'informatief,wetenschap': (u'informatief', u'wetenschap'),
-                                     'informatief,reizen': (u'informatief', u'reizen'),
-                                     'informatief,gezondheid-opvoeding': (u'informatief', u'gezondheid'),
-                                     'informatief,consumenten-informatie': (u'informatief', u'consument'),
-                                     'informatief,wonen-tuin': (u'informatief', u'wonen-tuin'),
-                                     'informatief,spel-quiz': (u'informatief', u'quiz'),
-                                     'informatief,koken-eten': (u'informatief', u'kookprogramma'),
-                                     'informatief,geschiedenis': (u'informatief', u'geschiedenis'),
-                                     'religieus': (u'religieus', u''),
-                                     'jeugd': (u'jeugd', u''),
-                                     'jeugd,amusement': (u'jeugd', u'amusement'),
-                                     'jeugd,informatief': (u'jeugd', u'informatief'),
-                                     'jeugd,documentaire': (u'jeugd', u'documentaire'),
-                                     'jeugd,sport': (u'jeugd', u'sport'),
-                                     'jeugd,animatie': (u'jeugd', u'animatieserie'),
-                                     'jeugd,natuur': (u'jeugd', u'natuur'),
-                                     'jeugd,muziek': (u'jeugd', u'muziek'),
-                                     'jeugd,film': (u'jeugd', u'film'),
-                                     'jeugd,serie': (u'jeugd', u'serie'),
-                                     'jeugd,spel-quiz': (u'jeugd', u'quiz'),
-                                     'documentaire': (u'documentaire', u''),
-                                     'documentaire,religieus': (u'documentaire', u'religieus'),
-                                     'documentaire,kunst-cultuur': (u'documentaire', u'kunst/cultuur'),
-                                     'documentaire,natuur': (u'documentaire', u'natuur'),
-                                     'documentaire,wetenschap': (u'documentaire', u'wetenschap'),
-                                     'documentaire,reizen': (u'documentaire', u'reizen'),
-                                     'documentaire,geschiedenis': (u'documentaire', u'geschiedenis'),
-                                     'sport': (u'sport', u''),
-                                     'sport,sport-informatie': (u'sport', u'journaal'),
-                                     'animatie': (u'serie/soap', u'animatieserie'),
-                                     'natuur': (u'natuur', u''),
-                                     'muziek': (u'muziek', u''),
-                                     'muziek,muziek-populair': (u'muziek', u'populair'),
-                                     'muziek,muziek-klassiek': (u'muziek', u'klassiek'),
-                                     'film': (u'film', u''),
-                                     'film,animatie': (u'film', u'animatieserie'),
-                                     'film,drama': (u'film', u'drama'),
-                                     'film,komisch': (u'film', u'komisch'),
-                                     'film,spanning': (u'film', u'thriller'),
-                                     'wetenschap': (u'wetenschap', u''),
-                                     'drama': (u'serie/soap', u'drama'),
-                                     'reizen': (u'reizen', u''),
-                                     'serie': (u'serie/soap', u''),
-                                     'serie,drama': (u'serie/soap', u'drama'),
-                                     'serie,komisch': (u'serie/soap', u'komisch'),
-                                     'serie,spanning': (u'serie/soap', u'spanning'),
-                                     'serie,soap-serie': (u'serie/soap', u'soap')}
+        self.source_cattrans[4] = {('nieuws-actualiteiten', ): (u'nieuws/actualiteiten', u''),
+                                     ('amusement', ): (u'amusement', u''),
+                                     ('amusement', 'komisch', ): (u'amusement', u'komedie'),
+                                     ('amusement', 'spel-quiz', ): (u'amusement', u'quiz'),
+                                     ('informatief', ): (u'informatief', u''),
+                                     ('informatief', 'nieuws-actualiteiten', ): (u'nieuws/actualiteiten', u''),
+                                     ('informatief', 'kunst-cultuur', ): (u'informatief', u'kunst/cultuur'),
+                                     ('informatief', 'gezondheid-opvoeding', ): (u'informatief', u'gezondheid'),
+                                     ('informatief', 'consumenten-informatie', ): (u'informatief', u'consument'),
+                                     ('informatief', 'spel-quiz', ): (u'informatief', u'quiz'),
+                                     ('informatief', 'koken-eten', ): (u'informatief', u'kookprogramma'),
+                                     ('religieus', ): (u'religieus', u''),
+                                     ('jeugd', ): (u'jeugd', u''),
+                                     ('jeugd', 'animatie', ): (u'jeugd', u'animatieserie'),
+                                     ('jeugd', 'spel-quiz', ): (u'jeugd', u'quiz'),
+                                     ('documentaire', ): (u'documentaire', u''),
+                                     ('documentaire', 'kunst-cultuur', ): (u'documentaire', u'kunst/cultuur'),
+                                     ('sport', ): (u'sport', u''),
+                                     ('sport', 'sport-informatie', ): (u'sport', u'journaal'),
+                                     ('animatie', ): (u'serie/soap', u'animatieserie'),
+                                     ('natuur', ): (u'natuur', u''),
+                                     ('muziek', ): (u'muziek', u''),
+                                     ('muziek', 'muziek-populair', ): (u'muziek', u'populair'),
+                                     ('muziek', 'muziek-klassiek', ): (u'muziek', u'klassiek'),
+                                     ('film', ): (u'film', u''),
+                                     ('film', 'animatie', ): (u'film', u'animatieserie'),
+                                     ('film', 'spanning', ): (u'film', u'thriller'),
+                                     ('wetenschap', ): (u'wetenschap', u''),
+                                     ('drama', ): (u'serie/soap', u'drama'),
+                                     ('reizen', ): (u'reizen', u''),
+                                     ('serie', ): (u'serie/soap', u''),
+                                     ('serie', 'soap-serie', ): (u'serie/soap', u'soap')}
                                      #~ '14': (u'serie/soap', u''),
                                      #~ '15': (u'overige', u''),
                                      #~ '18': (u'serie/soap', u'misdaadserie'),
@@ -1007,6 +981,7 @@ class Configure:
                                      #~ '90': (u'sport-wedstrijd', u''),
                                      #~ '91': (u'soap-serie', u'')}
 
+        self.new_cattrans[4] = {}
         self.npo_fill = 'Programmainfo en Reclame'
 
         # channels for which to look on horizon.tv
@@ -1200,22 +1175,22 @@ class Configure:
                                            #~ '': u'Ziggo Live Events Sport1 24443942980',
                                            #~ '': u'Ziggo Live Events Sport1 635928103350',
                                            #~ '': u'Ziggo Live Events Sport1 635928103352',
-        self.horizoncattrans ={'13946319': ('nieuws/actualiteiten',''),
+        self.source_cattrans[5] ={('13946319', ): ('nieuws/actualiteiten',''),
                                      ('13946319', '13946323'): ('informatief', 'Documentaire'),
                                      ('13946319', '13946324'): ('informatief', 'Discussie'),
-                                     '13946336': ('amusement',''),
+                                     ('13946336', ): ('amusement',''),
                                      ('13946336', '13946338'): ('kunst en cultuur', 'Variété'),
                                      ('13946336', '13946340'): ('talkshow', ''),
-                                     '13946352': ('sport',''),
-                                     '13946369': ('jeugd', ''),
-                                     '13946386': ('muziek', ''),
-                                     '13946404': ('kunst en cultuur', ''),
+                                     ('13946352', ): ('sport',''),
+                                     ('13946369', ): ('jeugd', ''),
+                                     ('13946386', ): ('muziek', ''),
+                                     ('13946404', ): ('kunst en cultuur', ''),
                                      ('13946404', '13946407'): ('religieus', ''),
-                                     '13946455': ('informatief', ''),
-                                     '13946420': ('informatief', ''),
-                                     '13946438': ('informatief', ''),
-                                     '13946472': ('informatief', ''),
-                                     '13948023': ('serie/soap', ''),
+                                     ('13946455', ): ('informatief', ''),
+                                     ('13946420', ): ('informatief', ''),
+                                     ('13946438', ): ('informatief', ''),
+                                     ('13946472', ): ('informatief', ''),
+                                     ('13948023', ): ('serie/soap', ''),
                                      ('13948023', '13948024'): ('serie/soap', 'thriller'),
                                      ('13948023', '13948025'): ('serie/soap', 'actieserie'),
                                      ('13948023', '13948026'): ('serie/soap', 'sciencefictionserie'),
@@ -1224,6 +1199,8 @@ class Configure:
                                      ('13948023', '13948031'): ('serie/soap', 'historisch'),
                                      ('13948023', '13948032'): ('serie/soap', 'waar gebeurt'),
                                      ('13948023', '13948033'): ('serie/soap', 'detectiveserie')}
+        self.new_cattrans[5] = {}
+
         # channels for which to look on humo.be
         self.source_channels[6] = {'0-5': '7',
                                             '0-6': '41',
@@ -1319,7 +1296,7 @@ class Configure:
                                             #~ 257 ushuaia
 
          #Channel group names as used in tvgids.tv
-        self.humocattrans = {'nieuws'       : (u'Nieuws/Actualiteiten', u''),
+        self.source_cattrans[6] = {'nieuws'       : (u'Nieuws/Actualiteiten', u''),
                                  'current-affairs': (u'Nieuws/Actualiteiten', u'Actualiteiten'),
                                  'magazine'              : (u'Magazine', u''),
                                  'reportage'            : (u'Informatief', u'Reportage'),
@@ -1346,6 +1323,8 @@ class Configure:
                                  'sports-tennis'    : (u'Sport', u'Tennis'),
                                  'sport'                    : (u'Sport', u''),
                                  'andere'                  : (u'Overige', u'')}
+
+        self.new_cattrans[6] = {}
 
         self.chan_groups = {1: 'Nederlands',
                                           2: 'Vlaams',
@@ -1383,7 +1362,10 @@ class Configure:
                                                              4: u'rename title list',
                                                              5: u'teveblad.be genres',
                                                              6: u'tvgids.tv genres',
-                                                             7: u'role translation'}
+                                                             7: u'role translation',
+                                                             8: u'npo.nl genres',
+                                                             9: u'horizon.tv genres',
+                                                             10: u'humo.be genres'}
 
         self.sources = {}
         self.detail_ids = []
@@ -1594,7 +1576,7 @@ class Configure:
                                     ' ko, nl, no, pl, pt, ru, sl, sv, tr, zh>')
 
         parser.add_argument('-N', '--nouse-NPO', action = 'store_false', default = None, dest = 'use_npo',
-                        help = 'do not use NPO.nl for more acurate timing,\nThis argument is deprecated, use "--disable-source 4".\n')
+                        help = 'This argument is deprecated, use "--disable-source 4".')
 
         parser.add_argument('-x', '--compat', action = 'store_true', default = None, dest = 'compat',
                         help = 'append tvgids.nl to the xmltv id\n(use this if you were using tv_grab_nl)')
@@ -1618,8 +1600,7 @@ class Configure:
                         help = 'cache descriptions and use the file to store\n<default = \'%s\'>' % self.program_cache_file)
 
         parser.add_argument('-S', '--cache-save-interval', type = int, default = None, dest = 'cache_save_interval',
-                        metavar = '<number>',
-                        help = 'This option is deprecated>')
+                        metavar = '<number>', help = 'This option is deprecated')
 
         parser.add_argument('--clean_cache', action = 'store_true', default = self.clean_cache, dest = 'clean_cache',
                         help = 'clean the cache of outdated data before fetching')
@@ -1652,20 +1633,19 @@ class Configure:
 
         parser.add_argument('-g', '--days', type = int, default = None, dest = 'days',
                         metavar = '<days>',
-                        help = '# number of days to grab from tvgids.nl/tvgids.tv\nstarting from offset. <max 14 = default>\n' +
-                                     'The first 4 are grabed from tvgids.nl.\nThe rest plus failures from tvgids.tv\n')
+                        help = '# number of days to grab from the several sources. <max 14 = default>\n' +
+                                     'Where every source has itś own max.\n')
 
         parser.add_argument('-G', '--slowdays', type = int, default = None, dest = 'slowdays',
                         metavar = '<days>',
                         help = 'number of days to grab slow and the rest in fast mode\nDefaults to all days (tvgids.nl/tv)')
 
         parser.add_argument('-r', '--rtldays', type = int, default = None, dest = 'rtldays',
-                        metavar = '<days>',
-                        help = '# number of days to grab from rtl.nl\nstarting from offset. (max 14 = default)')
+                        metavar = '<days>', help = 'This option is deprecated and no longer used')
 
         parser.add_argument('-b', '--tevedays', type = int, default = None, dest = 'tevedays',
                         metavar = '<days>',
-                        help = '# number of days to grab from teveblad.be\nstarting from offset. (max 7 = default)')
+                        help = 'This option is deprecated and no longer used')
 
         parser.add_argument('--logos', action = 'store_true', default = None, dest = 'logos',
                         help = '<default> insert urls to channel icons\n(mythfilldatabase will then use these)')
@@ -1828,8 +1808,8 @@ class Configure:
 
                         else:
                             self.opt_dict[cfg_option] = 'none'                    # Integer Values
-                    elif cfg_option in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'rtldays', \
-                      'tevedays', 'max_overlap', 'desc_length', 'disable_source', 'disable_detail_source'):
+                    elif cfg_option in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', \
+                      'max_overlap', 'desc_length', 'disable_source', 'disable_detail_source'):
                         try:
                             cfg_value = int(cfg_value)
 
@@ -2069,23 +2049,23 @@ class Configure:
                     # split of the translation (if present) or supply an empty one
                     a = re.split('=',line)
                     if len(a) == 1:
-                        self.tevecattrans[a[0].lower().strip()] = (u'Overige', u'')
+                        self.source_cattrans[3][a[0].lower().strip()] = (u'Overige', u'')
                         continue
 
                     # split main and sub-genre (if present) and add or overwrite the default
                     g = re.split(':', a[1].lower() )
                     if len(g) == 2:
-                        self.tevecattrans[a[0].lower().strip()] = (g[0].strip(), g[1].strip())
+                        self.source_cattrans[3][a[0].lower().strip()] = (g[0].strip(), g[1].strip())
                         continue
 
-                    self.tevecattrans[a[0].lower().strip()] = (g[0].strip(), u'')
+                    self.source_cattrans[3][a[0].lower().strip()] = (g[0].strip(), u'')
 
                 elif type == 6:
                     # split of the translation (if present) or supply an empty one
                     a = re.split('=',line)
                     if len(a) == 1:
                         continue
-                    self.tvtvcattrans[a[1].lower().strip()] = a[0].strip()
+                    self.source_cattrans[1][a[1].lower().strip()] = a[0].strip()
 
                 elif type == 7:
                     # split of the translation (if present) or supply an empty one
@@ -2093,6 +2073,29 @@ class Configure:
                     if len(a) == 1:
                         continue
                     self.roletrans[a[0].lower().strip()] = a[1].strip()
+                elif type in (8, 9, 10):
+                    source = type - 4
+                    # split of the translation (if present) or supply an empty one
+                    a = line.split('=',1)
+                    # split the source in main and sub
+                    s = a[0].lower().strip()
+                    if type in (8, 9):
+                        s = s.split(':', 1)
+                        if len(s) == 2:
+                            s = (s[0].strip(), s[1].strip())
+
+                    if len(a) == 1:
+                        self.source_cattrans[source][s] = (u'Overige', u'')
+                        continue
+
+                    # split main and sub-genre (if present) and add or overwrite the default
+                    g = a[1].lower().split(':', 1)
+                    if len(g) == 2:
+                        self.source_cattrans[source][s] = (g[0].strip(), g[1].strip())
+                        continue
+
+                    self.source_cattrans[source][s] = (g[0].strip(), u'')
+
 
             except:
                 log(['Error reading Defaults\n', traceback.format_exc()])
@@ -2356,14 +2359,12 @@ class Configure:
         self.offset = self.opt_dict['offset']
         for (a, o) in ((self.args.use_utc, 'use_utc'), \
                               (self.args.offset, 'offset'), \
-                              (self.args.days, 'days'), \
-                              (self.args.tevedays, 'tevedays'), \
-                              (self.args.rtldays, 'rtldays')):
+                              (self.args.days, 'days')):
             if a != None:
                 self.opt_dict[o] = a
 
         # limit days to maximum supported by the several sites
-        for o in ('offset', 'days', 'tevedays', 'rtldays'):
+        for o in ('offset', 'days'):
             self.validate_option(o)
 
         # Continue validating the settings for the individual channels
@@ -2619,22 +2620,6 @@ class Configure:
             if self.opt_dict['slowdays'] == None:
                 self.opt_dict['slowdays'] = config.opt_dict['days']
 
-        elif option == 'tevedays':
-            if self.opt_dict['tevedays'] > (8 - self.opt_dict['offset']):
-                log("teveblad.be kan maximaal 7 dagen vooruit kijken. Resetting\n",1,1)
-
-            self.opt_dict['tevedays'] = min(self.opt_dict['tevedays'],(8 - self.opt_dict['offset']))
-            self.opt_dict['tevedays'] = min(self.opt_dict['days'], self.opt_dict['tevedays'])
-            if self.opt_dict['tevedays'] < 0:
-                self.opt_dict['tevedays'] = 0
-
-        elif option == 'rtldays':
-            if self.opt_dict['rtldays'] > (14 - self.opt_dict['offset']):
-                log("rtl.nl kan maximaal 14 dagen vooruit kijken.\n",1,1)
-
-            self.opt_dict['rtldays'] = min(self.opt_dict['rtldays'],(14 - self.opt_dict['offset']))
-            self.opt_dict['rtldays'] = min(self.opt_dict['days'], self.opt_dict['rtldays'])
-
         elif option == 'output_file':
             if self.opt_dict['output_file'] != None:
                 try:
@@ -2813,8 +2798,6 @@ class Configure:
         log_array.append(u'offset = %s' % (self.opt_dict['offset']))
         log_array.append(u'days = %s' % (self.opt_dict['days']))
         log_array.append(u'slowdays = %s' % (self.opt_dict['slowdays']))
-        log_array.append(u'rtldays = %s' % (self.opt_dict['rtldays']))
-        log_array.append(u'tevedays = %s' % (self.opt_dict['tevedays']))
         log_array.append(u'compat = %s' % (self.opt_dict['compat']))
         log_array.append(u'max_overlap = %s' % (self.opt_dict['max_overlap']))
         log_array.append(u'overlap_strategy = %s' % (self.opt_dict['overlap_strategy']))
@@ -2983,8 +2966,6 @@ class Configure:
         f.write(u'offset = %s\n' % self.opt_dict['offset'])
         f.write(u'days = %s\n' % self.opt_dict['days'])
         f.write(u'slowdays = %s\n' % self.opt_dict['slowdays'])
-        f.write(u'rtldays = %s\n' % self.opt_dict['rtldays'])
-        f.write(u'tevedays = %s\n' % self.opt_dict['tevedays'])
         f.write(u'cattrans = %s\n' % self.opt_dict['cattrans'])
         f.write(u'mark_hd = %s\n' % self.opt_dict['mark_hd'])
         f.write(u'overlap_strategy = %s\n' % self.opt_dict['overlap_strategy'] )
@@ -3492,28 +3473,43 @@ class Configure:
             f.write(u'%s\n' % string)
 
         f.write(u'\n')
-        f.write(u'# This is the translation list for teveblad.be genres to tvgids.nl\n')
-        f.write(u'# genre:subgenre. If you have cattrans enabled, they will next be converted\n')
-        f.write(u'# according to the list further down.\n')
+        f.write(u'# These are the translation lists for npo.nl, horizon.tv and humo.be genres\n')
+        f.write(u'# to tvgids.nl genre:subgenre. If you have cattrans enabled, they will next be\n')
+        f.write(u'# converted according to the list further down.\n')
+        f.write(u"# Notice you don't see any Movie category in the horizon list. This is ruled by\n")
+        f.write(u'# a separate flag\n')
+        for index in (4, 5, 6):
+            f.write(u'\n')
+            f.write(u'[%s]\n' % self.__DEFAULT_SECTIONS__[index+4])
+
+            # remove doubles and sort
+            for k in self.new_cattrans[index].keys():
+                if not (k in self.source_cattrans[index].keys()):
+                    self.source_cattrans[index][k] = self.new_cattrans[index][k]
+
+            # format for export
+            gl1 = []
+            gl = []
+            for k, (v1, v2) in self.source_cattrans[index].iteritems():
+                if isinstance(k, (str, unicode)):
+                    gl1.append('%s = %s: %s' % (k, v1, v2))
+
+                elif isinstance(k, (list, tuple)) and len(k) == 1:
+                    gl1.append('%s: = %s: %s' % (k[0], v1, v2))
+
+                elif isinstance(k, (list, tuple)) and len(k) == 2 and k[1] != '':
+                    gl.append('%s: %s = %s: %s' % (k[0], k[1], v1, v2))
+
+            gl1.sort()
+            for string in gl1:
+                f.write(u'%s\n' % string)
+
+            gl.sort()
+            for string in gl:
+                f.write(u'%s\n' % string)
+
         f.write(u'\n')
-        f.write(u'[%s]\n' % self.__DEFAULT_SECTIONS__[5])
-
-        # remove doubles and sort
-        for k in self.tevecat.keys():
-            if not (k in self.tevecattrans.keys()):
-                self.tevecattrans[k] = self.tevecat[k]
-
-        # format for export
-        gl = []
-        for k, (v1, v2) in self.tevecattrans.iteritems():
-            gl.append('%s = %s: %s' % (k, v1, v2))
-        gl.sort()
-
-        for string in gl:
-            f.write(u'%s\n' % string)
-
-        f.write(u'\n')
-        f.write(u'# This is the list of genres to add the tvgidstv genres to as subgenre\n')
+        f.write(u'# This is the list of genres to add the tvgidstv genres as subgenre\n')
         f.write(u'# tvgids.tv genres are like tvgids.nl subgenres. This is a list of what\n')
         f.write(u'# genre to add to a subgenre. Available genres are:\n')
         f.write(u'#   Amusement             Magazine                Serie/Soap\n')
@@ -3526,14 +3522,14 @@ class Configure:
         f.write(u'[%s]\n' % self.__DEFAULT_SECTIONS__[6])
 
         # remove doubles and sort
-        gs = set(self.tvtvcat)
+        gs = set(self.new_cattrans[1])
         gl = []
         for k, v in gs:
-            if not (k in self.tvtvcattrans):
-                self.tvtvcattrans[k] = v
+            if not (k in self.source_cattrans[1]):
+                self.source_cattrans[1][k] = v
 
         # format for export
-        for k, v in self.tvtvcattrans.iteritems():
+        for k, v in self.source_cattrans[1].iteritems():
             gl.append('%s = %s' % (v, k))
         gl.sort()
 
@@ -4884,8 +4880,11 @@ class theTVDB(Thread):
 
                     if 'tdict' in crequest:
                         qanswer = self.get_season_episode(crequest['parent'], crequest['tdict'])
+                        qanswer = xml_output.channelsource[0].checkout_program_dict(qanswer)
+                        xml_output.program_cache.cache_request.put({'task':'add', 'program': qanswer})
                         with crequest['parent'].channel_lock:
                             crequest['parent'].detailed_programs.append(qanswer)
+
 
                     crequest['parent'].update_counter('fetch', -1, False)
                     continue
@@ -6823,7 +6822,7 @@ class FetchData(Thread):
 
         # And we create a list of starttimes and of names for matching
         for tdict in info[:]:
-            if (tdict['name'].lower() in config.teveblad_genericnames) \
+            if (tdict['name'].lower() in config.groupslot_names) \
               or (chanid in ('1', '2', '3') and  tdict['name'].lower() == 'kro kindertijd') \
               or (chanid == '34' and tdict['name'].lower() == 'disney xd'):
                 # These are group names. We move them aside to not get hit by merge_match
@@ -6855,7 +6854,7 @@ class FetchData(Thread):
 
         # count the occurense of the rest and organise by name/start-time and stop-time
         for tdict in programs[:]:
-            if (tdict['name'].lower() in config.teveblad_genericnames) \
+            if (tdict['name'].lower() in config.groupslot_names) \
               or (chanid in ('1', '2', '3') and  tdict['name'].lower() == 'kro kindertijd') \
               or (chanid == '34' and tdict['name'].lower() == 'disney xd'):
                 # These are group names. We move them aside to not get hit by merge_match
@@ -7913,11 +7912,11 @@ class tvgidstv_HTML(FetchData):
             tdict['genre'] = u'overige'
             return tdict
 
-        if dtext.lower() in config.tvtvcattrans.keys():
-            tdict['genre'] = config.tvtvcattrans[dtext.lower()].capitalize()
+        if dtext.lower() in config.source_cattrans[self.proc_id].keys():
+            tdict['genre'] = config.source_cattrans[self.proc_id][dtext.lower()].capitalize()
             tdict['subgenre'] = dtext
 
-        # Now we try to match the genres not found in tvtvcattrans
+        # Now we try to match the genres not found in source_cattrans[self.proc_id]
         else:
             if 'jeugd' in dtext.lower():
                 tdict['genre'] = u'Jeugd'
@@ -7991,10 +7990,10 @@ class tvgidstv_HTML(FetchData):
                     infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
 
             tdict['subgenre'] = dtext
-            # And add them to tvtvcattrans (and tv_grab_nl_py.set for later reference
+            # And add them to source_cattrans[self.proc_id] (and tv_grab_nl_py.set for later reference
             # But not for Discovery Channel or TLC as that is garbage
             if not (tdict['genre'] == u'overige' and tdict['channelid'] in ('29', '438',)):
-                config.tvtvcat.append((dtext.lower().strip(), tdict['genre']))
+                config.new_cattrans[self.proc_id].append((dtext.lower().strip(), tdict['genre']))
 
         return tdict
 
@@ -8382,7 +8381,7 @@ class rtl_JSON(FetchData):
                     channels = '%s,%s' % (channels, chanid)
 
             return '%s&days_ahead=%s&days_back=%s&station=%s' % \
-                ( rtl_general, (config.opt_dict['offset'] + config.opt_dict['rtldays'] -1), - config.opt_dict['offset'], channels)
+                ( rtl_general, (config.opt_dict['offset'] + config.opt_dict['days'] -1), - config.opt_dict['offset'], channels)
 
         else:
             return '%s&abstract_key=%s&days_ahead=%s' % ( rtl_abstract, abstract, days)
@@ -8402,7 +8401,7 @@ class rtl_JSON(FetchData):
         if len(self.channels) == 0 :
             return
 
-        log(['\n', 'Now fetching %s channels from rtl.nl for %s days.\n' %  (len(self.channels), config.opt_dict['rtldays'])], 2)
+        log(['\n', 'Now fetching %s channels from rtl.nl for %s days.\n' %  (len(self.channels), config.opt_dict['days'])], 2)
 
         channel_url = self.get_url()
 
@@ -8515,7 +8514,7 @@ class rtl_JSON(FetchData):
 
             self.parse_programs(chanid, 0, 'None')
             self.channel_loaded[chanid] = True
-            for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['rtldays'])):
+            for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
                 self.day_loaded[chanid][day] = True
 
             config.channels[chanid].source_data[self.proc_id].set()
@@ -8854,7 +8853,8 @@ class teveblad_HTML(FetchData):
 
                     # teeveeblad.be shows programs per day, so we loop over the number of days
                     # we are required to grab
-                    for offset in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
+                    days = min((config.opt_dict['offset'] + config.opt_dict['days']), 8)
+                    for offset in range(config.opt_dict['offset'], days):
                         if self.day_loaded[group_page][offset] != False:
                             continue
 
@@ -8877,7 +8877,7 @@ class teveblad_HTML(FetchData):
                                 # All channels processed for this day
                                 continue
 
-                        log(['\n', 'Now fetching GroupPage: %s from teveblad.be for day %s of %s.\n' % (group_page, offset, config.opt_dict['tevedays'])], 2)
+                        log(['\n', 'Now fetching GroupPage: %s from teveblad.be for day %s of %s.\n' % (group_page, offset, days-config.opt_dict['offset'])], 2)
 
                         date_offset = offset
                         scan_date = datetime.date.fromordinal(self.current_date + offset)
@@ -9068,12 +9068,12 @@ class teveblad_HTML(FetchData):
                                         if genre == '' or genre == None:
                                             continue
 
-                                        if genre.lower() in config.tevecattrans.keys():
-                                            tdict['genre'] = config.tevecattrans[genre.lower()][0].capitalize()
-                                            tdict['subgenre'] = config.tevecattrans[genre.lower()][1].capitalize()
+                                        if genre.lower() in config.source_cattrans[self.proc_id].keys():
+                                            tdict['genre'] = config.source_cattrans[self.proc_id][genre.lower()][0].capitalize()
+                                            tdict['subgenre'] = config.source_cattrans[self.proc_id][genre.lower()][1].capitalize()
 
                                         else:
-                                            config.tevecat[genre] = (u'Overige', u'')
+                                            config.new_cattrans[self.proc_id][genre] = (u'Overige', u'')
 
                                 for d in p.iterfind('span[@class]'):
                                     if 'genre' in d.get('class').lower():
@@ -9081,12 +9081,12 @@ class teveblad_HTML(FetchData):
                                         if genre == '' or genre == None:
                                             continue
 
-                                        if genre.lower() in config.tevecattrans.keys():
-                                            tdict['genre'] = config.tevecattrans[genre.lower()][0].capitalize()
-                                            tdict['subgenre'] = config.tevecattrans[genre.lower()][1].capitalize()
+                                        if genre.lower() in config.source_cattrans[self.proc_id].keys():
+                                            tdict['genre'] = config.source_cattrans[self.proc_id][genre.lower()][0].capitalize()
+                                            tdict['subgenre'] = config.source_cattrans[self.proc_id][genre.lower()][1].capitalize()
 
                                         else:
-                                            config.tevecat[genre] = (u'Overige', u'')
+                                            config.new_cattrans[self.proc_id][genre] = (u'Overige', u'')
 
                                 # and append the program to the list of programs
                                 tdict = self.check_title_name(tdict)
@@ -9139,14 +9139,15 @@ class teveblad_HTML(FetchData):
 
                 # teeveeblad.be shows programs per day, so we loop over the number of days
                 # we are required to grab
-                for offset in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
+                days = min((config.opt_dict['offset'] + config.opt_dict['days']), 8)
+                for offset in range(config.opt_dict['offset'], days):
                     if self.day_loaded[chanid][offset] != False:
                         continue
 
                     log(['\n', 'Now fetching %s(xmltvid=%s%s) from teveblad.be\n' % \
                         (config.channels[chanid].chan_name, config.channels[chanid].xmltvid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
                         '    (channel %s of %s) for day %s of %s days.\n' % \
-                        ( channel_cnt, len(self.channels), offset, config.opt_dict['tevedays'])], 2)
+                        ( channel_cnt, len(self.channels), offset, days-config.opt_dict['offset'])], 2)
 
                     date_offset = offset
                     scan_date = datetime.date.fromordinal(self.current_date + offset)
@@ -9176,7 +9177,7 @@ class teveblad_HTML(FetchData):
                         htmldata = ET.fromstring(strdata.encode('utf-8'))
                         if htmldata.findtext('div/p') == "We don't have any events for this broadcaster":
                             config.channels[chanid].source_data[self.proc_id].set()
-                            for i in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['tevedays'])):
+                            for i in range(config.opt_dict['offset'], days):
                                 self.day_loaded[chanid][i] = None
                             break
 
@@ -9305,12 +9306,12 @@ class teveblad_HTML(FetchData):
                                 if genre == '' or genre == None:
                                     continue
 
-                                if genre.lower() in config.tevecattrans.keys():
-                                    tdict['genre'] = config.tevecattrans[genre.lower()][0].capitalize()
-                                    tdict['subgenre'] = config.tevecattrans[genre.lower()][1].capitalize()
+                                if genre.lower() in config.source_cattrans[self.proc_id].keys():
+                                    tdict['genre'] = config.source_cattrans[self.proc_id][genre.lower()][0].capitalize()
+                                    tdict['subgenre'] = config.source_cattrans[self.proc_id][genre.lower()][1].capitalize()
 
                                 else:
-                                    config.tevecat[genre] = (u'Overige', u'')
+                                    config.new_cattrans[self.proc_id][genre] = (u'Overige', u'')
 
                         # and append the program to the list of programs
                         tdict = self.check_title_name(tdict)
@@ -9576,21 +9577,39 @@ class npo_HTML(FetchData):
                         tdict['omroep'] = p.findtext('span', '')
 
                     pgenre = p.get('data-genre','')
-                    if pgenre in config.npocattrans.keys():
-                        tdict['genre'] = config.npocattrans[pgenre][0].capitalize()
-                        tdict['subgenre'] = config.npocattrans[pgenre][1].capitalize()
+                    if pgenre != None and pgenre !=  '':
+                        pgenre = pgenre.lower()
+                        pg = pgenre.split(',', 1)
+                        if len(pg) == 1:
+                            pg = (pg[0].strip(), )
 
-                    else:
-                        p = pgenre.split(',')
-                        if len(p) > 1 and p[0] in config.npocattrans.keys():
-                            tdict['genre'] = config.npocattrans[p[0]][0].capitalize()
-                            tdict['subgenre'] = config.npocattrans[p[0]][1].capitalize()
+                        elif len(pg) == 2:
+                            pg = (pg[0].strip(), pg[1].strip())
+
+                        if pg in config.source_cattrans[self.proc_id].keys():
+                            tdict['genre'] = config.source_cattrans[self.proc_id][pg][0].capitalize()
+                            tdict['subgenre'] = config.source_cattrans[self.proc_id][pg][1].capitalize()
 
                         else:
-                            tdict['genre'] = u'overige'
+                            if len(pg) > 1 and (pg[0].lower(), ) in config.source_cattrans[self.proc_id].keys():
+                                tdict['genre'] = config.source_cattrans[self.proc_id][(pg[0].lower(), )][0].capitalize()
+                                tdict['subgenre'] = config.source_cattrans[self.proc_id][(pg[0].lower(), )][1].capitalize()
+                                config.new_cattrans[self.proc_id][(pg[0], pg[1])] = config.source_cattrans[self.proc_id][(pg[0].lower(), )]
 
-                        if config.write_info_files and pgenre != '':
-                            infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
+                            else:
+                                tdict['genre'] = u'overige'
+                                if len(pg) == 2:
+                                    tdict['subgenre'] = pg[1].capitalize()
+                                    config.new_cattrans[self.proc_id][pg] = (u'Overige', pg[1])
+
+                                else:
+                                    config.new_cattrans[self.proc_id][pg] = (u'Overige', u'')
+
+                            if config.write_info_files and pgenre != '':
+                                infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
+
+                    else:
+                        tdict['genre'] = u'overige'
 
                     # and append the program to the list of programs
                     if last_added[chanid] != None:
@@ -9911,15 +9930,15 @@ class npo_HTML(FetchData):
                                     tdict['stop-time'] = datetime.datetime.combine(startdate, prog_time)
 
                                 pgenre = p.get('data-genre','')
-                                if pgenre in config.npocattrans.keys():
-                                    tdict['genre'] = config.npocattrans[pgenre][0].capitalize()
-                                    tdict['subgenre'] = config.npocattrans[pgenre][1].capitalize()
+                                if pgenre in config.source_cattrans[self.proc_id].keys():
+                                    tdict['genre'] = config.source_cattrans[self.proc_id][pgenre][0].capitalize()
+                                    tdict['subgenre'] = config.source_cattrans[self.proc_id][pgenre][1].capitalize()
 
                                 else:
                                     p = pgenre.split(',')
-                                    if len(p) > 1 and p[0] in config.npocattrans.keys():
-                                        tdict['genre'] = config.npocattrans[p[0]][0].capitalize()
-                                        tdict['subgenre'] = config.npocattrans[p[0]][1].capitalize()
+                                    if len(p) > 1 and p[0] in config.source_cattrans[self.proc_id].keys():
+                                        tdict['genre'] = config.source_cattrans[self.proc_id][p[0]][0].capitalize()
+                                        tdict['subgenre'] = config.source_cattrans[self.proc_id][p[0]][1].capitalize()
 
                                     else:
                                         tdict['genre'] = u'overige'
@@ -10155,18 +10174,19 @@ class horizon_JSON(FetchData):
                         elif len(cats) == 0:
                             tdict['genre'] = 'overige'
 
-                        elif len(cats) == 1 and cats[0]['id'] in config.horizoncattrans.keys():
-                            tdict['genre'] = config.horizoncattrans[cats[0]['id']][0]
-                            tdict['subgenre'] = config.horizoncattrans[cats[0]['id']][1]
+                        elif len(cats) == 1 and (cats[0]['id'], ) in config.source_cattrans[self.proc_id].keys():
+                            tdict['genre'] = config.source_cattrans[self.proc_id][(cats[0]['id'], )][0]
+                            tdict['subgenre'] = config.source_cattrans[self.proc_id][(cats[0]['id'], )][1]
 
-                        elif len(cats) == 2 and (cats[0]['id'], cats[1]['id']) in config.horizoncattrans.keys():
-                            tdict['genre'] = config.horizoncattrans[(cats[0]['id'], cats[1]['id'])][0]
-                            tdict['subgenre'] = config.horizoncattrans[(cats[0]['id'],cats[1]['id'])][1]
+                        elif len(cats) == 2 and (cats[0]['id'], cats[1]['id']) in config.source_cattrans[self.proc_id].keys():
+                            tdict['genre'] = config.source_cattrans[self.proc_id][(cats[0]['id'], cats[1]['id'])][0]
+                            tdict['subgenre'] = config.source_cattrans[self.proc_id][(cats[0]['id'],cats[1]['id'])][1]
 
-                        elif len(cats) == 2 and cats[0]['id'] in config.horizoncattrans.keys():
-                            tdict['genre'] = config.horizoncattrans[cats[0]['id']][0]
-                            if config.horizoncattrans[cats[0]['id']][1] == '':
+                        elif len(cats) == 2 and (cats[0]['id'], ) in config.source_cattrans[self.proc_id].keys():
+                            tdict['genre'] = config.source_cattrans[self.proc_id][(cats[0]['id'], )][0]
+                            if config.source_cattrans[self.proc_id][(cats[0]['id'], )][1] == '':
                                 tdict['subgenre'] = cats[1]['title'].capitalize()
+                                config.new_cattrans[self.proc_id][(cats[0]['id'], cats[1]['id'])] = (config.source_cattrans[self.proc_id][(cats[0]['id'], )][0], cats[1]['title'].capitalize())
                                 if config.write_info_files:
                                     ids ="("
                                     titles = "("
@@ -10178,12 +10198,17 @@ class horizon_JSON(FetchData):
                                     infofiles.addto_detail_list(unicode('new horizon subcategorie => ' + ids + ': ' + titles + ', '))
 
                             else:
-                                tdict['subgenre'] = config.horizoncattrans[cats[0]['id']][1]
+                                tdict['subgenre'] = config.source_cattrans[self.proc_id][(cats[0]['id'], )][1]
 
                         else:
                             tdict['genre'] = cats[0]['title'].capitalize()
                             if len(cats) == 2:
                                 tdict['subgenre'] = cats[1]['title'].capitalize()
+                                config.new_cattrans[self.proc_id][(cats[0]['id'], cats[1]['id'])] = (cats[0]['title'].capitalize(), cats[1]['title'].capitalize())
+
+                            else:
+                                config.new_cattrans[self.proc_id][(cats[0]['id'],)] = (cats[0]['title'].capitalize(), u'')
+
                             if config.write_info_files:
                                 ids ="("
                                 titles = "("
@@ -10193,6 +10218,10 @@ class horizon_JSON(FetchData):
                                 ids = ids[:-2] + ")"
                                 titles = titles[:-2] + ")"
                                 infofiles.addto_detail_list(unicode('new horizon categorie => ' + ids + ': ' + titles + ', '))
+
+                        if config.write_info_files:
+                            for cat in cats:
+                                infofiles.addto_detail_list(u'horizon categorie: %s => %s' %(cat['id'], cat['title'].capitalize()))
 
                         self.program_by_id[tdict[self.detail_id]] = tdict
                         with self.source_lock:
@@ -10414,15 +10443,25 @@ class humo_JSON(FetchData):
                                         tdict['credits'][role['role']].append(self.unescape(role['name']))
 
                             if 'genres' in item['program'].keys():
-                                if item['program']['genres'][0] in config.humocattrans.keys():
-                                    tdict['genre'] = config.humocattrans[item['program']['genres'][0]][0]
-                                    tdict['subgenre'] = config.humocattrans[item['program']['genres'][0]][1]
+                                if item['program']['genres'][0] in config.source_cattrans[self.proc_id].keys():
+                                    tdict['genre'] = config.source_cattrans[self.proc_id][item['program']['genres'][0]][0]
+                                    tdict['subgenre'] = config.source_cattrans[self.proc_id][item['program']['genres'][0]][1]
+
+                                elif 'sports-' in item['program']['genres'][0]:
+                                    tdict['genre'] = 'Sport'
+                                    sub = item['program']['genres'][0].split('-',1)[1].capitalize()
+                                    tdict['subgenre'] = sub
+                                    config.new_cattrans[self.proc_id][item['program']['genres'][0]] = (u'Sport', sub)
 
                                 else:
                                     tdict['genre'] = 'Overige'
+                                    config.new_cattrans[self.proc_id][item['program']['genres'][0]] = (u'Overige', u'')
                                     if config.write_info_files:
                                         for gstr in item['program']['genres']:
                                             infofiles.addto_detail_list('new humo genre => ' + gstr)
+
+                            else:
+                                tdict['genre'] = 'Overige'
 
                             if 'teletext' in item['properties'].keys() and item['properties']['teletext'] == 1:
                                 tdict['teletekst']  = True
