@@ -247,6 +247,8 @@ class Logging(Thread):
                 if isinstance(message, (str, unicode)):
                     if message == 'Closing down\n':
                         self.quit=True
+                        self.writelog('Closing down. Finishing DB operations can sometimes take a minute or so!\n')
+                        continue
 
                     self.writelog(message)
                     continue
@@ -349,8 +351,8 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150904'
-        self.alfa = True
+        self.patchdate = u'20150906'
+        self.alfa = False
         self.beta = True
 
         self.cache_return = Queue()
@@ -1388,108 +1390,6 @@ class Configure:
 
     # end Init()
 
-    def init_ttvdb(self):
-        if self.opt_dict['disable_ttvdb']:
-            return
-
-        try:
-            global tvdb_ui, tvdb_api, tvdb_exceptions
-            #tvdb_error, tvdb_shownotfound, tvdb_seasonnotfound, tvdb_episodenotfound, tvdb_attributenotfound, tvdb_userabor
-            # thetvdb.com specific modules
-            from MythTV.ttvdb import tvdb_ui, tvdb_api, tvdb_exceptions
-
-            # verify version of tvdbapi to make sure it is at least 1.0
-            if tvdb_api.__version__ < '1.0':
-                self.opt_dict['disable_ttvdb'] = True
-                log(['Your current installed tvdb_api.py version is (%s).\n' % tvdb_api.__version__, \
-                        'You need at least 1.0, ttvdb.com lookup disable.\n'])
-                return
-
-        except Exception, e:
-            self.opt_dict['disable_ttvdb'] = True
-            log(['Unable to load tvdb_api.py from the MythTV bindings.\n', 'ttvdb.com lookup disabled.\n'])
-            return
-
-        self.ttvdb_dir = u'%s/ttvdb_cache' % self.xmltv_dir
-        if not os.path.exists(self.ttvdb_dir):
-            log('Creating %s directory,\n' % self.ttvdb_dir)
-            os.mkdir(self.ttvdb_dir)
-
-    # end init_ttvdb
-
-    def check_ttvdb_title(self, series_name, lang='nl'):
-        if config.opt_dict['disable_ttvdb']:
-            return
-
-        #~ xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'ep_by_id': {'tid': 83462, 'sid': 6, 'eid': 11}})
-        #~ print self.cache_return.get(True)
-        #~ return
-        def get_instance(lang = 'nl', interactive=True):
-            return tvdb_api.Tvdb(interactive = interactive,
-                                select_first = False,
-                                cache = config.ttvdb_dir,
-                                language = lang,
-                                apikey="0BB856A59C51D607")
-
-        if lang in ('nl', 'en', 'de', 'fr'):
-            langs = ('nl', 'en', 'de', 'fr')
-
-        else:
-            langs = ('nl', 'en', 'de', 'fr', lang)
-
-        # Check if a record exists
-        xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb': {'title': series_name}})
-        tid = self.cache_return.get(True)
-        if tid != None:
-            print 'The series "%s" is already saved under ttvdbID: %s\n' % (series_name,  tid['tid'])
-            old_tid = int(tid['tid'])
-
-        else:
-            print 'The series "%s" is not jet known!\n' % (series_name)
-            old_tid = -1
-
-        # Ask to select the right one
-        try:
-            t = get_instance(lang)
-            tid = t._getSeries(series_name)
-            if old_tid != int(tid['sid']):
-                print 'Removing old instance'
-                xml_output.program_cache.cache_request.put({'task':'delete', 'ttvdb': {'tid': old_tid}})
-
-            xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': int(tid['sid']), 'title': tid['name'], 'langs': langs}})
-            if tid['name'].lower() != series_name:
-                # Add an alias record
-                xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb_alias': {'tid': int(tid['sid']), 'title': tid['name'], 'alias': series_name}})
-                print 'Adding "%s" under alias "%s" ttvdbID: %s to the database for lookups!' % (tid['name'], series_name,  tid['sid'])
-
-            else:
-                print 'Adding "%s" ttvdbID: %s to the database for lookups!' % (tid['name'],  tid['sid'])
-
-        except tvdb_exceptions.tvdb_shownotfound:
-            print 'The series "%s" is not found'  % (series_name)
-            return
-
-        except tvdb_exceptions.tvdb_userabort:
-            return
-
-        except tvdb_exceptions.tvdb_error:
-            return
-
-        for l in langs:
-            t = get_instance(l)
-            # And fill the database with the episodes
-            t._getShowData(tid['sid'])
-            eps = []
-            for sid, s in t.shows[tid['sid']].items():
-                for eid, e in  s.items():
-                    en = unicode(e['episodename']) if isinstance( e['episodename'], (str, unicode)) else u''
-                    ed = datetime.datetime.strptime(e['firstaired'], '%Y-%m-%d').date() if isinstance( e['firstaired'], (str, unicode)) else None
-                    eps.append({'tid': int(tid['sid']), 'sid': int(sid), 'eid': int(eid), 'title': en, 'airdate': ed, 'lang': l})
-
-            xml_output.program_cache.cache_request.put({'task':'add', 'episode': eps})
-
-    # end check_ttvdb_title()
-
     def version(self, as_string = False):
         """
         return tuple or string with version info
@@ -1724,10 +1624,10 @@ class Configure:
         parser.add_argument('--clean_cache', action = 'store_true', default = self.clean_cache, dest = 'clean_cache',
                         help = 'clean the cache of outdated data before fetching')
 
-        parser.add_argument('--clear_cache', action = 'store_true', default = self.clear_cache, dest = 'clear_cache',
+        parser.add_argument('--clear_cache', '--clear-cache', action = 'store_true', default = self.clear_cache, dest = 'clear_cache',
                         help = 'empties the program table before fetching data')
 
-        parser.add_argument('--clear_ttvdb', action = 'store_true', default = self.clear_cache, dest = 'clear_ttvdb',
+        parser.add_argument('--clear_ttvdb', '--clear-ttvdb', action = 'store_true', default = self.clear_cache, dest = 'clear_ttvdb',
                         help = 'empties the ttvdb table before fetching data')
 
         parser.add_argument('-W', '--output', type = str, default = None, dest = 'output_file',
@@ -2416,7 +2316,7 @@ class Configure:
             self.opt_dict['disable_ttvdb'] = self.args.disable_ttvdb
 
         if self.opt_dict['disable_ttvdb'] == False:
-            self.init_ttvdb()
+            xml_output.ttvdb.start()
 
         if self.args.ttvdb_title != None :
             self.validate_option('check_ttvdb_title')
@@ -2630,7 +2530,7 @@ class Configure:
                                         'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
                     log("Invalid language code: '%s' supplied falling back to 'nl'\n" % lang)
 
-            self.check_ttvdb_title(series_title, lang)
+            xml_output.ttvdb.check_ttvdb_title(series_title, lang)
 
         elif option == 'disable_source':
             if value in xml_output.channelsource.keys():
@@ -3715,6 +3615,10 @@ class Configure:
             xml_output.program_cache.cache_request.put({'task':'quit'})
             xml_output.program_cache = None
 
+        if xml_output.ttvdb != None and xml_output.ttvdb.is_alive():
+            xml_output.ttvdb.detail_request.put({'task':'quit'})
+            xml_output.ttvdb = None
+
         # close everything neatly
         if self.opt_dict['output_file'] != None:
             try:
@@ -4028,91 +3932,113 @@ class ProgramCache(Thread):
 
     def run(self):
         self.open_db()
-        while True:
-            if self.quit and self.cache_request.empty():
-                self.pconn.close()
-                break
+        try:
+            while True:
+                if self.quit and self.cache_request.empty():
+                    self.pconn.close()
+                    break
 
-            try:
-                crequest = self.cache_request.get(True, 5)
+                try:
+                    crequest = self.cache_request.get(True, 5)
 
-            except Empty:
-                continue
+                except Empty:
+                    continue
 
-            if (not isinstance(crequest, dict)) or (not 'task' in crequest):
-                continue
+                if (not isinstance(crequest, dict)) or (not 'task' in crequest):
+                    continue
 
-            if crequest['task'] == 'query_id':
-                if not 'parent' in crequest:
+                if crequest['task'] == 'query_id':
+                    if not 'parent' in crequest:
+                        continue
+
+                    if self.filename == None:
+                        qanswer = None
+
+                    else:
+                        for t in ('program', 'ttvdb', 'ttvdb_alias', 'tdate'):
+                            if t in crequest:
+                                qanswer = self.query_id(t, crequest[t])
+                                break
+
+                            else:
+                                qanswer = None
+
+                    crequest['parent'].cache_return.put(qanswer)
+                    continue
+
+                if crequest['task'] == 'query':
+                    if not 'parent' in crequest:
+                        continue
+
+                    if self.filename == None:
+                        qanswer = None
+
+                    else:
+                        for t in ('pid', 'ttvdb', 'ep_by_id', 'ep_by_title'):
+                            if t in crequest:
+                                qanswer = self.query(t, crequest[t])
+                                break
+
+                            else:
+                                qanswer = None
+
+                    crequest['parent'].cache_return.put(qanswer)
                     continue
 
                 if self.filename == None:
-                    qanswer = None
-
-                else:
-                    for t in ('program', 'ttvdb', 'ttvdb_alias', 'tdate'):
-                        if t in crequest:
-                            qanswer = self.query_id(t, crequest[t])
-                            break
-
-                        else:
-                            qanswer = None
-
-                crequest['parent'].cache_return.put(qanswer)
-                continue
-
-            if crequest['task'] == 'query':
-                if not 'parent' in crequest:
                     continue
 
-                if self.filename == None:
-                    qanswer = None
-
-                else:
-                    for t in ('pid', 'ttvdb', 'ep_by_id', 'ep_by_title'):
+                if crequest['task'] == 'add':
+                    for t in ('program', 'channel', 'icon', 'ttvdb', 'ttvdb_alias', 'ttvdb_lang', 'episode'):
                         if t in crequest:
-                            qanswer = self.query(t, crequest[t])
-                            break
+                            self.add(t, crequest[t])
+                            continue
 
-                        else:
-                            qanswer = None
+                if crequest['task'] == 'delete':
+                    for t in ('ttvdb', ):
+                        if t in crequest:
+                            self.delete(t, crequest[t])
+                            continue
 
-                crequest['parent'].cache_return.put(qanswer)
-                continue
+                if crequest['task'] == 'clear':
+                    if 'table' in crequest:
+                        for t in crequest['table']:
+                            self.clear(t)
 
-            if self.filename == None:
-                continue
+                    else:
+                        self.clear('programs')
+                        self.clear('credits')
 
-            if crequest['task'] == 'add':
-                for t in ('program', 'channel', 'icon', 'ttvdb', 'ttvdb_alias', 'ttvdb_lang', 'episode'):
-                    if t in crequest:
-                        self.add(t, crequest[t])
-                        continue
+                    continue
 
-            if crequest['task'] == 'delete':
-                for t in ('ttvdb', ):
-                    if t in crequest:
-                        self.delete(t, crequest[t])
-                        continue
+                if crequest['task'] == 'clean':
+                    self.clean()
+                    continue
 
-            if crequest['task'] == 'clear':
-                if 'table' in crequest:
-                    for t in crequest['table']:
-                        self.clear(t)
+                if crequest['task'] == 'quit':
+                    self.quit = True
+                    continue
 
-                else:
-                    self.clear('programs')
-                    self.clear('credits')
+        except:
+            log_list = ['\n', 'An unexpected error has occured in the ProgramCache thread\n']
+            log_list.extend([traceback.print_exc(), '\n', \
+                'If you want assistence, please attach your configuration and log files!\n', \
+                '     %s\n' % (config.config_file), '     %s\n' % (config.log_file)])
 
-                continue
+            log(log_list,0)
 
-            if crequest['task'] == 'clean':
-                self.clean()
-                continue
+            self.ready = True
+            for source in xml_output.channelsource.values():
+                if source.is_alive():
+                    source.cache_return.put('quit')
+                    source.quit = True
 
-            if crequest['task'] == 'quit':
-                self.quit = True
-                continue
+            for channel in config.channels.values():
+                if channel.is_alive():
+                    channel.cache_return.put('quit')
+                    channel.quit = True
+
+            return(98)
 
     def open_db(self):
         if self.filename == None:
@@ -4585,7 +4511,8 @@ class ProgramCache(Thread):
                                           'eid': int(s[str('eid')]),
                                           'title': s[str('title')],
                                           'airdate': s[str('airdate')],
-                                          'lang': s[str('lang')]})
+                                          'lang': s[str('lang')],
+                                          'description': s[str('description')]})
             return series
 
         elif table == 'ep_by_title':
@@ -4600,6 +4527,8 @@ class ProgramCache(Thread):
             serie['eid'] = int(r[str('eid')])
             serie['title'] = r[str('title')]
             serie['airdate'] = r[str('airdate')]
+            serie['lang'] = r[str('lang')]
+            serie['description'] = r[str('description')]
             return serie
 
     def query_id(self, table='program', item=None):
@@ -4617,17 +4546,17 @@ class ProgramCache(Thread):
             return None
 
         elif table == 'ttvdb':
-            pcursor.execute(u"SELECT tid, tdate FROM ttvdb WHERE lower(title) = ?", (item['title'].lower(), ))
+            pcursor.execute(u"SELECT ttvdb.tid, tdate, ttvdb.title, ttvdb.langs FROM ttvdb JOIN ttvdb_alias " + \
+                    "ON lower(ttvdb.title) = lower(ttvdb_alias.title) WHERE lower(alias) = ?", \
+                    (item['title'].lower(), ))
             r = pcursor.fetchone()
             if r == None:
-                pcursor.execute(u"SELECT ttvdb.tid, tdate FROM ttvdb JOIN ttvdb_alias " + \
-                        "ON lower(ttvdb.title) = lower(ttvdb_alias.title) WHERE lower(alias) = ?", \
-                        (item['title'].lower(), ))
+                pcursor.execute(u"SELECT tid, tdate, title, langs FROM ttvdb WHERE lower(title) = ?", (item['title'].lower(), ))
                 r = pcursor.fetchone()
                 if r == None:
                     return
 
-            return {'tid': r[0], 'tdate': r[1]}
+            return {'tid': r[0], 'tdate': r[1], 'title': r[2], 'langs': r[3]}
 
         elif table == 'ttvdb_alias':
             pcursor.execute(u"SELECT title FROM ttvdb_alias WHERE lower(alias) = ?", (item['alias'].lower(), ))
@@ -4761,7 +4690,18 @@ class ProgramCache(Thread):
 
         elif table == 'ttvdb_alias':
             with self.pconn:
-                self.pconn.execute(u"INSERT INTO ttvdb_alias ('title', 'alias') VALUES (?, ?)", \
+                if isinstance(item['alias'], list) and len(item['alias']) > 1:
+                    at = []
+                    for a in item['alias']:
+                        at.append((item['title'], a))
+
+                    self.pconn.executemany(u"INSERT INTO ttvdb_alias ('title', 'alias') VALUES (?, ?)", at)
+
+                else:
+                    if isinstance(item['alias'], list) and len(item['alias']) == 1:
+                        item['alias'] =item['alias'][0]
+
+                    self.pconn.execute(u"INSERT INTO ttvdb_alias ('title', 'alias') VALUES (?, ?)", \
                                                 (item['title'], item['alias']))
 
         elif table == 'episode':
@@ -4779,17 +4719,17 @@ class ProgramCache(Thread):
                 for e in item:
                     ep = self.query('ep_by_id', e)
                     if ep == None or len(ep) == 0:
-                        eps.append((int(e['tid']), int(e['sid']), int(e['eid']), e['title'], e['airdate'], e['lang']))
+                        eps.append((int(e['tid']), int(e['sid']), int(e['eid']), e['title'], e['airdate'], e['lang'], e['description']))
 
                     elif ep[0]['title'].lower() != e['title'].lower() or ep[0]['airdate'] != e['airdate']:
 
-                        eps_upd.append((e['title'], e['airdate'], int(e['tid']), int(e['sid']), int(e['eid']), e['lang']))
+                        eps_upd.append((e['title'], e['airdate'], int(e['tid']), int(e['sid']), int(e['eid']), e['lang'], e['description']))
 
                 with self.pconn:
-                    self.pconn.executemany(u"UPDATE episodes SET title = ?, airdate = ? WHERE tid = ? and sid = ? and eid = ? and lang = ?", eps_upd)
+                    self.pconn.executemany(u"UPDATE episodes SET title = ?, airdate = ?, description = ? WHERE tid = ? and sid = ? and eid = ? and lang = ?", eps_upd)
 
                 with self.pconn:
-                    self.pconn.executemany(u"INSERT INTO episodes ('tid', 'sid', 'eid', 'title', 'airdate', 'lang') VALUES (?, ?, ?, ?, ?, ?)", eps)
+                    self.pconn.executemany(u"INSERT INTO episodes ('tid', 'sid', 'eid', 'title', 'airdate', 'lang', 'description') VALUES (?, ?, ?, ?, ?, ?, ?)", eps)
 
     def delete(self, table='ttvdb', item=None):
         if table == 'ttvdb':
@@ -4918,53 +4858,430 @@ class theTVDB(Thread):
         self.detail_request = Queue()
         self.cache_return = Queue()
         self.source_lock = Lock()
+        self.fetch_count = 0
+        self.fail_count = 0
 
-    def get_url(self, title=None, lang='all'):
+    def run(self):
+        if config.opt_dict['disable_ttvdb']:
+            return
+        try:
+            while True:
+                if self.quit and self.detail_request.empty():
+                    break
+
+                try:
+                    crequest = self.detail_request.get(True, 5)
+
+                except Empty:
+                    continue
+
+                if (not isinstance(crequest, dict)) or (not 'task' in crequest):
+                    continue
+
+                if crequest['task'] == 'update_ep_info':
+                    if not 'parent' in crequest:
+                        continue
+
+                    if 'tdict' in crequest:
+                        qanswer = self.get_season_episode(crequest['parent'], crequest['tdict'])
+                        with crequest['parent'].channel_lock:
+                            crequest['parent'].detailed_programs.append(qanswer)
+
+                    crequest['parent'].update_counter('fetch', -1, False)
+                    continue
+
+                if crequest['task'] == 'last_one':
+                    if not 'parent' in crequest:
+                        continue
+
+                    crequest['parent'].detail_data.set()
+
+                if crequest['task'] == 'quit':
+                    self.quit = True
+                    continue
+
+        except:
+            log_list = ['\n', 'An unexpected error has occured in the ttvdb thread\n']
+            log_list.extend([traceback.print_exc(), '\n', \
+                'If you want assistence, please attach your configuration and log files!\n', \
+                '     %s\n' % (config.config_file), '     %s\n' % (config.log_file)])
+
+            log(log_list,0)
+
+            self.ready = True
+            for source in xml_output.channelsource.values():
+                if source.is_alive():
+                    source.cache_return.put('quit')
+                    source.quit = True
+
+            for channel in config.channels.values():
+                if channel.is_alive():
+                    channel.cache_return.put('quit')
+                    channel.quit = True
+
+            return(98)
+
+    def query_ttvdb(self, type='seriesid', title=None, lang='nl'):
         base_url = "http://www.thetvdb.com"
-        if title != None and lang in ('all', 'cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
-                                'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
-                return "%s/api/GetSeries.php?seriesname=%s&language=%s" % (base_url, title, lang)
+        api_key = '0BB856A59C51D607'
+        if isinstance(title, (int, str)):
+            title = unicode(title)
 
-    def get_id(self, title, lang='nl', search_db=True):
+        title = urllib.quote(title.encode("utf-8"))
+        if type == 'seriesid':
+            if not lang in ('all', 'cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
+                                'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
+                lang = 'en'
+
+            if title != None:
+                data = self.get_page('%s/api/GetSeries.php?seriesname=%s&language=%s' % (base_url, title, lang))
+
+        elif type == 'episodes':
+            if not lang in ('cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
+                                'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
+                lang = 'en'
+
+            if title != None:
+                data= self.get_page("%s/api/%s/series/%s/all/%s.xml" % (base_url, api_key, title, lang))
+
+        elif type == 'seriesname':
+            if title != None:
+                data= self.get_page("%s/api/%s/series/%s/en.xml" % (base_url, api_key, title))
+
+        else:
+            data = None
+
+        # be nice to the source site
+        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+        if data != None:
+            return ET.fromstring(data.encode('utf-8'))
+
+    def get_page(self, url):
+        """
+        Wrapper around get_page_internal to catch the
+        timeout exception
+        """
+        try:
+            fu = FetchURL(url, 'utf-8')
+            fu.start()
+            fu.join(config.global_timeout)
+            page = fu.result
+            if (page == None) or (page.replace('[\n ]','') == ''):
+                self.fail_count += 1
+                with xml_output.output_lock:
+                    xml_output.fail_count += 1
+                    self.fail_coun += 1
+
+                return None
+
+            else:
+                self.fetch_count += 1
+                return page
+
+        except(urllib.URLError, socket.timeout):
+            log('get_page timed out on (>%s s): %s\n' % (config.global_timeout, url), 1, 1)
+            self.fail_count += 1
+            with xml_output.output_lock:
+                xml_output.fail_count += 1
+
+            return None
+
+    def get_all_episodes(self, tid, lang='nl'):
+        xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, \
+                'ep_by_id': {'tid': int(tid), 'sid': 0, 'eid': 0}})
+        eps = self.cache_return.get(True)
+        known_eps = {}
+        for e in eps:
+            if not (e['sid'],e['eid'],e['lang']) in known_eps.keys():
+                known_eps[(e['sid'],e['eid'],e['lang'])] = []
+
+            known_eps[(e['sid'],e['eid'],e['lang'])].append((e['title'],e['description']))
+
+        try:
+            eps = []
+            langs = ('nl', 'en') if lang in ('nl', 'en') else (lang, 'nl', 'en')
+            for l in langs:
+                xmldata = self.query_ttvdb('episodes', tid, l)
+                if xmldata == None:
+                    # No data
+                    continue
+
+                for e in xmldata.findall('Episode'):
+                    sid = e.findtext('SeasonNumber')
+                    if sid == None or sid == '':
+                        continue
+
+                    eid = e.findtext('EpisodeNumber')
+                    if eid == None or eid == '':
+                        continue
+
+                    title = e.findtext('EpisodeName')
+                    if title == None or title == '':
+                        title = 'Episode %s' % eid
+
+                    airdate = e.findtext('FirstAired')
+
+                    desc = e.findtext('Overview')
+                    if desc == None:
+                        desc == ''
+
+                    if not (int(sid), int(eid), l) in known_eps.keys() or (title, desc) not in known_eps[(int(sid), int(eid), l)]:
+                        eps.append({'tid': int(tid), 'sid': int(sid), 'eid': int(eid), 'title': title, 'airdate': airdate, 'lang': l, 'description': desc})
+
+        except:
+            log(['Error retreiving episodes from theTVDB.com\n', traceback.print_exc()])
+            return
+
+        xml_output.program_cache.cache_request.put({'task':'add', 'episode': eps})
+
+    def get_ttvdb_id(self, title, lang='nl', search_db=True):
+        get_id = False
         if search_db:
             xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb': {'title': title}})
             tid = self.cache_return.get(True)
             if tid != None:
-                if (tid['tid'] == '' or int(tid['tid']) == 0) and ((datetime.date.today() - tid['tdate']).days <= 30):
+                if ((datetime.date.today() - tid['tdate']).days > 30):
+                    if (tid['tid'] == '' or int(tid['tid']) == 0):
+                        # we try again to get an ID
+                        get_id = True
+
+                elif (tid['tid'] == '' or int(tid['tid']) == 0):
+                    # Return failure
                     return 0
 
                 else:
-                    return tid['tid']
+                    # We'll  use the episode info in the database
+                    return tid
 
-        xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb_alias': {'alias': title}})
-        alias = self.cache_return.get(True)
-        if alias != None:
-            series_name = alias['title']
+            else:
+                # It's  not jet known
+                get_id = True
 
-        else:
-            series_name = title
-
-        if lang in ('nl', 'en'):
-            langs = ('nl', 'en')
-
-        else:
-            langs = (lang, 'nl', 'en')
-
-        try:
-            strdata = self.get_page(self.get_url(series_name))
-            if strdata != None:
-                xmldata=ET.fromstring(strdata)
-                tid = xmldata.findtext('Series/seriesid')
-                if tid == None:
+        langs = ('nl', 'en') if lang in ('nl', 'en') else (lang, 'nl', 'en')
+        if get_id or not search_db:
+            # First we look for a known alias
+            xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb_alias': {'alias': title}})
+            alias = self.cache_return.get(True)
+            series_name = title if alias == None else alias['title']
+            try:
+                xmldata = self.query_ttvdb('seriesid', series_name, lang)
+                if xmldata == None:
+                    # No data
+                    xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': 0, 'title': series_name, 'langs': langs}})
                     return 0
 
-                #~ for s in xmldata.findall('Series'):
+                tid = xmldata.findtext('Series/seriesid')
+                if tid == None:
+                    # No data
+                    xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': 0, 'title': series_name, 'langs': langs}})
+                    return 0
 
-                xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': int(tid), 'title': tid['name'], 'langs': langs}})
+                xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': int(tid), 'title': series_name, 'langs': langs}})
+                #We look for aliasses
+                xmldata = self.query_ttvdb('seriesid', series_name, 'all')
+                if xmldata!= None:
+                    alias_list = []
+                    for s in xmldata.findall('Series'):
+                        t = s.findtext('SeriesName')
+                        if s.findtext('seriesid') == tid and t.strip().lower()  != series_name.strip().lower() and t not in alias_list:
+                            alias_list.append(s.findtext('SeriesName'))
+
+                    if len(alias_list) > 1:
+                        xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb_alias': {'title':series_name, 'alias': alias_list}})
+
+                    elif len(alias_list) == 1:
+                        xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb_alias': {'title':series_name, 'alias': alias_list[0]}})
+
+            except:
+                log(['Error retreiving an ID from theTVdb.com', traceback.print_exc()])
+                return 0
+
+        # And we retreive the episodes
+        self.get_all_episodes(tid, lang)
+        return {'tid': int(tid), 'tdate': datetime.date.today(), 'title': series_name}
+
+    def get_season_episode(self, parent = None, data = None):
+        if config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']:
+            return data
+
+        if data == None:
+            return
+
+        if data['titel aflevering'][0:27].lower() == 'geen informatie beschikbaar':
+            return data
+
+        if parent != None and parent.group == 6:
+            # We do not lookup for regional channels
+            return data
+
+        elif parent != None and parent.group == 4:
+            tid = self.get_ttvdb_id(data['name'], 'de')
+
+        elif parent != None and parent.group == 5:
+            tid = self.get_ttvdb_id(data['name'], 'fr')
+
+        else:
+            tid = self.get_ttvdb_id(data['name'])
+
+        if tid == None or tid == 0:
+            if parent != None:
+                parent.update_counter('ttvdb_fail')
+
+            log("  No ttvdb id for '%s' on channel %s\n" % (data['name'], data['channel']), 128)
+            return data
+
+        # First we just look for a matching subtitle
+        tid = tid['tid']
+        xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, \
+                'ep_by_title': {'tid': tid, 'title': data['titel aflevering']}})
+        eid = self.cache_return.get(True)
+        if eid != None:
+            if parent != None:
+                parent.update_counter('ttvdb')
+
+            data['season'] = eid['sid']
+            data['episode'] = eid['eid']
+            if isinstance(eid['airdate'], (datetime.date)):
+                data['airdate'] = eid['airdate']
+
+            log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 24)
+            return data
+
+        # Now we get a list of episodes matching what we already know and compare with confusing characters removed
+        xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, \
+                'ep_by_id': {'tid': tid, 'sid': data['season'], 'eid': data['episode']}})
+        eps = self.cache_return.get(True)
+        subt = re.sub('[-,. ]', '', xml_output.remove_accents(data['titel aflevering']).lower())
+        ep_dict = {}
+        ep_list = []
+        for ep in eps:
+            s = re.sub('[-,. ]', '', xml_output.remove_accents(ep['title']).lower())
+            ep_list.append(s)
+            ep_dict[s] = {'sid': ep['sid'], 'eid': ep['eid'], 'airdate': ep['airdate'], 'title': ep['title']}
+            if s == subt:
+                if parent != None:
+                    parent.update_counter('ttvdb')
+
+                data['titel aflevering'] = ep['title']
+                data['season'] = ep['sid']
+                data['episode'] = ep['eid']
+                if isinstance(ep['airdate'], (datetime.date)):
+                    data['airdate'] = ep['airdate']
+
+                log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 24)
+                return data
+
+        # And finally we try a difflib match
+        match_list = difflib.get_close_matches(subt, ep_list, 1, 0.7)
+        if len(match_list) > 0:
+            if parent != None:
+                parent.update_counter('ttvdb')
+
+            ep = ep_dict[match_list[0]]
+            data['titel aflevering'] = ep['title']
+            data['season'] = ep['sid']
+            data['episode'] = ep['eid']
+            if isinstance(ep['airdate'], (datetime.date)):
+                data['airdate'] = ep['airdate']
+
+            log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 24)
+            return data
+
+        if parent != None:
+            parent.update_counter('ttvdb_fail')
+
+        log("ttvdb failure for '%s': '%s' on channel %s\n" % (data['name'], data['titel aflevering'], data['channel']), 128)
+        return data
+
+    def check_ttvdb_title(self, series_name, lang='nl'):
+        if config.opt_dict['disable_ttvdb']:
+            return
+
+        langs = ['nl', 'en', 'de', 'fr']
+        if lang in ('cs', 'da', 'el', 'es', 'fi', 'he', 'hr', 'hu', 'it',
+                                'ja', 'ko', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
+            langs.append(lang)
+
+        # Check if a record exists
+        xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb': {'title': series_name}})
+        tid = self.cache_return.get(True)
+        if tid != None:
+            print 'The series "%s" is already saved under ttvdbID: %s -> %s' % (series_name,  tid['tid'], tid['title'])
+            print '    for the languages: %s\n' % tid['langs']
+            old_tid = int(tid['tid'])
+            for l in tid['langs']:
+                if l not in langs:
+                    langs.append(lang)
+
+        else:
+            print 'The series "%s" is not jet known!\n' % (series_name)
+            old_tid = -1
+
+        try:
+            xmldata = self.query_ttvdb('seriesid', series_name, lang)
+            if xmldata == None or xmldata.find('Series') == None:
+                print 'No match for %s is found on theTVDB.com' % series_name
+                return
+
+            series_list = []
+            for s in xmldata.findall('Series'):
+                if not {'sid': s.findtext('seriesid'), 'name': s.findtext('SeriesName')} in series_list:
+                    series_list.append({'sid': s.findtext('seriesid'), 'name': s.findtext('SeriesName')})
+
+            print "theTVDB Search Results:"
+            for index in range(len(series_list)):
+                print "%3.0f -> %9.0f: %s" % (index+1, int(series_list[index]['sid']), series_list[index]['name'])
+
+            # Ask to select the right one
+            while True:
+                try:
+                    print "Enter choice (first number, q to abort):"
+                    ans = raw_input()
+                    selected_id = int(ans)-1
+                    if 0 <= selected_id < len(series_list):
+                        break
+
+                except ValueError:
+                    if ans.lower() == "q":
+                        return
+
+            tid = series_list[selected_id]
+            # Get the English name
+            xmldata = self.query_ttvdb('seriesname', tid['sid'])
+            ename = xmldata.findtext('Series/SeriesName')
+            if ename == None:
+                ename = tid['name']
+
+            if old_tid != int(tid['sid']):
+                print 'Removing old instance'
+                xml_output.program_cache.cache_request.put({'task':'delete', 'ttvdb': {'tid': old_tid}})
+
+            xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': int(tid['sid']), 'title': ename, 'langs': langs}})
+            aliasses = []
+            if ename.lower() != tid['name'].lower():
+                aliasses.append(tid['name'])
+
+            if ename.lower() != series_name.lower() and tid['name'].lower() != series_name.lower():
+                aliasses.append(series_name)
+
+            if len(aliasses) > 0:
+                # Add an alias record
+                xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb_alias': {'tid': int(tid['sid']), 'title': ename, 'alias': aliasses}})
+                if len(aliasses) == 2:
+                    print 'Adding "%s" under aliasses "%s" and "%s" as ttvdbID: %s to the database for lookups!' \
+                                % (ename, aliasses[0], aliasses[1],  tid['sid'])
+
+                else:
+                    print 'Adding "%s" under alias "%s" as ttvdbID: %s to the database for lookups!' % (ename, aliasses[0],  tid['sid'])
+
+            else:
+                print 'Adding "%s" ttvdbID: %s to the database for lookups!' % (ename,  tid['sid'])
 
         except:
-            log('Error retreiving data from theTVdb.com')
-            return 0
+            traceback.print_exc()
+            return
+
+        self.get_all_episodes(int(tid['sid']), langs)
 
 # end theTVDB
 
@@ -5116,21 +5433,15 @@ class FetchData(Thread):
                     parent = tdict['parent']
                     # Is this the closing item for the channel?
                     if ('last_one' in tdict) and tdict['last_one']:
-                        # If it is source 1 then signal that everything is ready
-                        if self.proc_id == 1 or parent.counters['fetch'][1] == 0:
-                            parent.detail_data.set()
-                            continue
-
-                        # Or pass it over to source 1
-                        else:
+                        if self.proc_id == 0 and parent.counters['fetch'][1] > 0:
                             xml_output.channelsource[1].detail_request.put(tdict)
-                            continue
 
-                    # This is just a ttvdb lookup request
-                    elif ('ttvdb' in tdict) and tdict['ttvdb']:
-                        tdict = self.get_season_episode(parent, tdict['tdict'])
-                        parent.update_counter('fetch', self.proc_id, False)
-                        parent.detailed_programs.append(tdict)
+                        elif parent.counters['fetch'][-1] > 0 and not (config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']):
+                            xml_output.ttvdb.detail_request.put({'task': 'last_one', 'parent': parent})
+
+                        else:
+                            parent.detail_data.set()
+
                         continue
 
                     cache_id = tdict['cache_id']
@@ -5181,12 +5492,16 @@ class FetchData(Thread):
                             if cached_program != None and cached_program[xml_output.channelsource[1].detail_check]:
                                 log(u'      [cached] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
                                 tdict= parent.use_cache(tdict, cached_program)
-                                if tdict['genre'].lower() == u'serie/soap' and tdict['titel aflevering'] != '' \
-                                  and tdict['season'] == 0:
+                                if not (config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']) and \
+                                  tdict['genre'].lower() == u'serie/soap' and tdict['titel aflevering'] != '' and tdict['season'] == 0:
                                     # We do a ttvdb lookup
-                                    tdict = self.get_season_episode(parent, tdict)
+                                    parent.update_counter('fetch', -1)
+                                    xml_output.ttvdb.detail_request.put({'tdict':tdict, 'parent': parent, 'task': 'update_ep_info'})
 
-                                parent.detailed_programs.append(tdict)
+                                else:
+                                    with parent.channel_lock:
+                                        parent.detailed_programs.append(tdict)
+
                                 parent.update_counter('cache')
                                 parent.update_counter('fetch', self.proc_id, False)
                                 continue
@@ -5203,11 +5518,16 @@ class FetchData(Thread):
                         # It failed!
                         else:
                             log(u'[fetch failed or timed out] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
-                            if tdict['genre'].lower() == u'serie/soap' and tdict['titel aflevering'] != '' \
-                              and tdict['season'] == 0:
+                            if not (config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']) and \
+                              tdict['genre'].lower() == u'serie/soap' and tdict['titel aflevering'] != '' and tdict['season'] == 0:
                                 # We do a ttvdb lookup
-                                tdict = self.get_season_episode(parent, tdict)
-                            parent.detailed_programs.append(tdict)
+                                parent.update_counter('fetch', -1)
+                                xml_output.ttvdb.detail_request.put({'tdict':tdict, 'parent': parent, 'task': 'update_ep_info'})
+
+                            else:
+                                with parent.channel_lock:
+                                    parent.detailed_programs.append(tdict)
+
                             parent.update_counter('fail')
                             parent.update_counter('fetch', self.proc_id, False)
                             continue
@@ -5220,12 +5540,17 @@ class FetchData(Thread):
 
                         detailed_program[xml_output.channelsource[self.proc_id].detail_check] = True
                         detailed_program['ID'] = detailed_program[xml_output.channelsource[self.proc_id].detail_id]
-                        if detailed_program['genre'].lower() == u'serie/soap' and detailed_program['titel aflevering'] != '' \
+                        if not (config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']) and \
+                          detailed_program['genre'].lower() == u'serie/soap' and detailed_program['titel aflevering'] != '' \
                           and detailed_program['season'] == 0:
                             # We do a ttvdb lookup
-                            detailed_program = self.get_season_episode(parent, detailed_program)
+                            parent.update_counter('fetch', -1)
+                            xml_output.ttvdb.detail_request.put({'tdict':detailed_program, 'parent': parent, 'task': 'update_ep_info'})
 
-                        parent.detailed_programs.append(detailed_program)
+                        else:
+                            with parent.channel_lock:
+                                parent.detailed_programs.append(detailed_program)
+
                         if self.proc_id == 0:
                             log(u'[normal fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
 
@@ -5303,202 +5628,6 @@ class FetchData(Thread):
     def load_detailpage(self, tdict):
         """The code for retreiving and processing a detail page"""
         return tdict
-
-    # ttvdb functions
-    def get_ttvdb_id(self, series_name, lang='nl', renew_data=False):
-        if config.opt_dict['disable_ttvdb']:
-            return
-
-        def get_instance(lang = 'all'):
-            if lang == 'all':
-                return tvdb_api.Tvdb(interactive = False,
-                                select_first = True,
-                                cache = config.ttvdb_dir,
-                                search_all_languages = True,
-                                apikey="0BB856A59C51D607")
-
-            else:
-                return tvdb_api.Tvdb(interactive = False,
-                                select_first = True,
-                                cache = config.ttvdb_dir,
-                                language = lang,
-                                apikey="0BB856A59C51D607")
-
-
-        if lang == 'nl':
-            langs = ('nl', 'en')
-
-        else:
-            langs = (lang, 'nl', 'en')
-
-        # First we look for an ID in the database
-        xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb': {'title': series_name}})
-        tid = self.cache_return.get(True)
-        # It's not jet stored so we look for several languages
-        if tid == None:
-            qname = series_name
-            xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb_alias': {'alias': series_name}})
-            alias = self.cache_return.get(True)
-            if alias != None:
-                series_name = alias['title']
-
-            for l in langs:
-                t = get_instance(l)
-                try:
-                    tid = t._getSeries(series_name)
-                    if tid != None:
-                        xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': int(tid['sid']), 'title': tid['name'], 'langs': langs}})
-                        break
-
-                except tvdb_exceptions.tvdb_shownotfound:
-                    tid = None
-                    continue
-
-                except tvdb_exceptions.tvdb_error:
-                    return
-
-            else:
-                if tid == None:
-                    t = get_instance('all')
-                    try:
-                        tid = t._getSeries(series_name)
-                        if tid != None:
-                            xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': int(tid['sid']), 'title': tid['name'], 'langs': langs}})
-
-                    except tvdb_exceptions.tvdb_shownotfound:
-                        tid = None
-
-                    except tvdb_exceptions.tvdb_error:
-                        return
-
-            if tid == None:
-                xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': 0, 'title': qname, 'langs': langs}})
-                return
-
-        elif renew_data or (datetime.date.today() - tid['tdate']).days > 30:
-            log('Renewing ttvdb data for %s\n' % series_name)
-
-        # The series was earlier not found
-        elif tid['tid'] == '' or int(tid['tid']) == 0:
-            return
-
-        else:
-            return tid['tid']
-
-        # We look for episodes in several langauges
-        for l in langs:
-            try:
-                t = get_instance(l)
-                # And fill the database with the episodes
-                t._getShowData(tid['sid'])
-                eps = []
-                for sid, s in t.shows[tid['sid']].items():
-                    for eid, e in  s.items():
-                        en = unicode(e['episodename']) if isinstance( e['episodename'], (str, unicode)) else u''
-                        ed = datetime.datetime.strptime(e['firstaired'], '%Y-%m-%d').date() if isinstance( e['firstaired'], (str, unicode)) else None
-                        eps.append({'tid': int(tid['sid']), 'sid': int(sid), 'eid': int(eid), 'title': en, 'airdate': ed, 'lang': l})
-
-            except tvdb_exceptions.tvdb_shownotfound:
-                continue
-
-            except tvdb_exceptions.tvdb_error:
-                return
-
-            xml_output.program_cache.cache_request.put({'task':'add', 'episode': eps})
-
-        return tid['sid']
-
-    def get_season_episode(self, parent = None, data = None):
-        if config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']:
-            return data
-
-        if data == None:
-            return
-
-        if data['titel aflevering'][0:27].lower() == 'geen informatie beschikbaar':
-            return data
-
-        if parent != None and parent.group == 6:
-            # We do not lookup for regional channels
-            return data
-
-        elif parent != None and parent.group == 4:
-            tid = self.get_ttvdb_id(data['name'], 'de')
-
-        elif parent != None and parent.group == 5:
-            tid = self.get_ttvdb_id(data['name'], 'fr')
-
-        else:
-            tid = self.get_ttvdb_id(data['name'])
-
-        if tid == None:
-            if parent != None:
-                parent.update_counter('ttvdb_fail')
-
-            log("  No ttvdb id for '%s' on channel %s\n" % (data['name'], data['channel']), 128)
-            return data
-
-        # First we just look for a matching subtitle
-        xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, \
-                'ep_by_title': {'tid': tid, 'title': data['titel aflevering']}})
-        eid = self.cache_return.get(True)
-        if eid != None:
-            if parent != None:
-                parent.update_counter('ttvdb')
-
-            data['season'] = eid['sid']
-            data['episode'] = eid['eid']
-            if isinstance(eid['airdate'], (datetime.date)):
-                data['airdate'] = eid['airdate']
-
-            log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 24)
-            return data
-
-        # Now we get a list of episodes matching what we already know and compare with confusing characters removed
-        xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, \
-                'ep_by_id': {'tid': tid, 'sid': data['season'], 'eid': data['episode']}})
-        eps = self.cache_return.get(True)
-        subt = re.sub('[-,. ]', '', self.remove_accents(data['titel aflevering']).lower())
-        ep_dict = {}
-        ep_list = []
-        for ep in eps:
-            s = re.sub('[-,. ]', '', self.remove_accents(ep['title']).lower())
-            ep_list.append(s)
-            ep_dict[s] = {'sid': ep['sid'], 'eid': ep['eid'], 'airdate': ep['airdate'], 'title': ep['title']}
-            if s == subt:
-                if parent != None:
-                    parent.update_counter('ttvdb')
-
-                data['titel aflevering'] = ep['title']
-                data['season'] = ep['sid']
-                data['episode'] = ep['eid']
-                if isinstance(ep['airdate'], (datetime.date)):
-                    data['airdate'] = ep['airdate']
-
-                log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 8)
-                return data
-
-        # And finally we try a difflib match
-        match_list = difflib.get_close_matches(subt, ep_list, 1, 0.7)
-        if len(match_list) > 0:
-            if parent != None:
-                parent.update_counter('ttvdb')
-
-            ep = ep_dict[match_list[0]]
-            data['titel aflevering'] = ep['title']
-            data['season'] = ep['sid']
-            data['episode'] = ep['eid']
-            if isinstance(ep['airdate'], (datetime.date)):
-                data['airdate'] = ep['airdate']
-
-            log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 24)
-            return data
-
-        if parent != None:
-            parent.update_counter('ttvdb_fail')
-
-        log("ttvdb failure for '%s': '%s' on channel %s\n" % (data['name'], data['titel aflevering'], data['channel']), 128)
-        return data
 
     # Helper functions
     def checkout_program_dict(self, tdict = None):
@@ -5796,34 +5925,6 @@ class FetchData(Thread):
         program['name'] = ptitle
         program['titel aflevering'] = psubtitle
         return program
-
-    def remove_accents(self, name):
-        name = re.sub('á','a', name)
-        name = re.sub('é','e', name)
-        name = re.sub('í','i', name)
-        name = re.sub('ó','o', name)
-        name = re.sub('ú','u', name)
-        name = re.sub('ý','y', name)
-        name = re.sub('à','a', name)
-        name = re.sub('è','e', name)
-        name = re.sub('ì','i', name)
-        name = re.sub('ò','o', name)
-        name = re.sub('ù','u', name)
-        name = re.sub('ä','a', name)
-        name = re.sub('ë','e', name)
-        name = re.sub('ï','i', name)
-        name = re.sub('ö','o', name)
-        name = re.sub('ü','u', name)
-        name = re.sub('ÿ','y', name)
-        name = re.sub('â','a', name)
-        name = re.sub('ê','e', name)
-        name = re.sub('î','i', name)
-        name = re.sub('ô','o', name)
-        name = re.sub('û','u', name)
-        name = re.sub('ã','a', name)
-        name = re.sub('õ','o', name)
-        name = re.sub('@','a', name)
-        return name
 
     def filter_description(self,ETitem, ETfind, tdict):
         """
@@ -6421,12 +6522,12 @@ class FetchData(Thread):
             other_name = other_title.lower().strip()
             other_subname = other_subtitle.lower().strip()
             tvgids_name = tvgids_name.lower().strip()
-            x = compare(self.remove_accents(other_name), self.remove_accents(tvgids_name), self.remove_accents(other_subname))
+            x = compare(xml_output.remove_accents(other_name), xml_output.remove_accents(tvgids_name), xml_output.remove_accents(other_subname))
             if x != None:
                 return x
 
             matchobject = difflib.SequenceMatcher(isjunk=lambda x: x in " '\",.-/", autojunk=False)
-            matchobject.set_seqs(self.remove_accents(other_name), self.remove_accents(tvgids_name))
+            matchobject.set_seqs(xml_output.remove_accents(other_name), xml_output.remove_accents(tvgids_name))
             if matchobject.ratio() > .8:
                 return 0
 
@@ -6446,19 +6547,19 @@ class FetchData(Thread):
                 rtvgids_name = tvgids_name.split(':')[1].strip()
 
             if name_split:
-                x = compare(self.remove_accents(rother_name), self.remove_accents(rtvgids_name))
+                x = compare(xml_output.remove_accents(rother_name), xml_output.remove_accents(rtvgids_name))
                 if x != None:
                     return x
 
-                matchobject.set_seqs(self.remove_accents(rother_name), self.remove_accents(rtvgids_name))
+                matchobject.set_seqs(xml_output.remove_accents(rother_name), xml_output.remove_accents(rtvgids_name))
                 if matchobject.ratio() > .8:
                     return 0
 
-                x = compare(self.remove_accents(lother_name), self.remove_accents(ltvgids_name))
+                x = compare(xml_output.remove_accents(lother_name), xml_output.remove_accents(ltvgids_name))
                 if x != None:
                     return x
 
-                matchobject.set_seqs(self.remove_accents(lother_name), self.remove_accents(ltvgids_name))
+                matchobject.set_seqs(xml_output.remove_accents(lother_name), xml_output.remove_accents(ltvgids_name))
                 if matchobject.ratio() > .8:
                     return 0
 
@@ -10195,8 +10296,6 @@ class humo_JSON(FetchData):
                 self.all_channels[chanid]['name'] = channel['display_name']
                 self.all_channels[chanid]['icon'] = '%s/%s' % (icon[-2], icon[-1])
                 self.all_channels[chanid]['fetch_grp'] = grp_code
-                #~ self.all_channels[chanid]['group'] = 10
-                #~ print '%4.0f: %s' % (chanid,channel['display_name'])
 
     def load_pages(self):
 
@@ -10214,17 +10313,17 @@ class humo_JSON(FetchData):
         try:
             for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 8)):
                 rest_channels = self.chanids.keys()
-                for retry in ('main', 'rest', 'main', 'rest'):
+                for retry in (('main', 1), ('rest', 1), ('main', 2), ('rest', 2)):
                     if self.quit:
                         return
 
                     # Check if it is already loaded
-                    log(['\n', 'Now fetching %s channels from humo.be\n' % retry, \
-                        '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
-
-                    channel_url = self.get_url(retry, offset)
+                    channel_url = self.get_url(retry[0], offset)
                     if len(rest_channels) == 0:
                         continue
+
+                    log(['\n', 'Now fetching %s channels from humo.be\n' % retry[0], \
+                        '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
                     if first_fetched:
                         # be nice to tvgids.nl
@@ -10234,7 +10333,7 @@ class humo_JSON(FetchData):
                     # get the raw programming for the day
                     strdata = self.get_page(channel_url, 'utf-8')
                     if strdata == None or strdata.replace('\n','') == '{}':
-                        log("No data on humo.be for day=%d\n" % (offset))
+                        log("No data on humo.be %s-page for day=%d attempt %s\n" % (retry[0], offset, retry[1]))
                         self.fail_count += 1
                         continue
 
@@ -10542,7 +10641,7 @@ class Channel_Config(Thread):
         self.icon_source = -1
         self.icon = ''
 
-        for index in range(xml_output.source_count):
+        for index in xml_output.source_order:
             self.source_id[index] = ''
             self.source_data[index] = Event()
 
@@ -10553,11 +10652,13 @@ class Channel_Config(Thread):
         self.counters['ttvdb'] = 0
         self.counters['ttvdb_fail'] = 0
         self.counters['fetch'] = {}
-        self.counters['fetch'][0] = 0
-        self.counters['fetch'][1] = 0
         self.counters['fetched'] = {}
-        self.counters['fetched'][0] = 0
-        self.counters['fetched'][1] = 0
+        self.counters['fetch'][-1] = 0
+        #~ self.counters['fetched'][-1] = 0
+        for index in xml_output.detail_sources:
+            self.counters['fetch'][index] = 0
+            self.counters['fetched'][index] = 0
+
         # This will contain the final fetcheddata
         self.all_programs = []
         self.current_prime = ''
@@ -10910,10 +11011,10 @@ class Channel_Config(Thread):
                         log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                         self.update_counter('cache')
                         p = self.use_cache(p, cached_program)
-                        if not config.opt_dict['disable_ttvdb'] and not self.opt_dict['disable_ttvdb']:
+                        if not (config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
                             if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
-                                self.update_counter('fetch', 0)
-                                xml_output.channelsource[0].detail_request.put({'tdict':p, 'parent': self, 'ttvdb': True})
+                                self.update_counter('fetch', -1)
+                                xml_output.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
                                 continue
 
                         self.detailed_programs.append(p)
@@ -10925,10 +11026,10 @@ class Channel_Config(Thread):
             if no_detail_fetch:
                 log(u'    [no fetch] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                 self.update_counter('none')
-                if not config.opt_dict['disable_ttvdb'] and not self.opt_dict['disable_ttvdb']:
+                if not (config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
                     if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
-                        self.update_counter('fetch', 0)
-                        xml_output.channelsource[0].detail_request.put({'tdict':p, 'parent': self, 'ttvdb': True})
+                        self.update_counter('fetch', -1)
+                        xml_output.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
                         continue
 
                 self.detailed_programs.append(p)
@@ -10950,7 +11051,8 @@ class Channel_Config(Thread):
                 break
 
         else:
-            self.detail_data.set()
+            if not (config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
+                xml_output.ttvdb.detail_request.put({'task': 'last_one', 'parent': self})
 
     def title_split(self,program):
         """
@@ -11210,6 +11312,34 @@ class XMLoutput:
     def xmlescape(self, s):
         """Escape <, > and & characters for use in XML"""
         return saxutils.escape(s)
+
+    def remove_accents(self, name):
+        name = re.sub('á','a', name)
+        name = re.sub('é','e', name)
+        name = re.sub('í','i', name)
+        name = re.sub('ó','o', name)
+        name = re.sub('ú','u', name)
+        name = re.sub('ý','y', name)
+        name = re.sub('à','a', name)
+        name = re.sub('è','e', name)
+        name = re.sub('ì','i', name)
+        name = re.sub('ò','o', name)
+        name = re.sub('ù','u', name)
+        name = re.sub('ä','a', name)
+        name = re.sub('ë','e', name)
+        name = re.sub('ï','i', name)
+        name = re.sub('ö','o', name)
+        name = re.sub('ü','u', name)
+        name = re.sub('ÿ','y', name)
+        name = re.sub('â','a', name)
+        name = re.sub('ê','e', name)
+        name = re.sub('î','i', name)
+        name = re.sub('ô','o', name)
+        name = re.sub('û','u', name)
+        name = re.sub('ã','a', name)
+        name = re.sub('õ','o', name)
+        name = re.sub('@','a', name)
+        return name
 
     def format_timezone(self, td, use_utc=False, only_date=False ):
         """
@@ -11561,11 +11691,9 @@ def main():
 
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
-        #~ matchobject = difflib.SequenceMatcher(isjunk=lambda x: x in " '\",.-/", autojunk=False)
-        #~ matchobject.set_seqs('Enemies Foreign', '	enemiesforeign(1)')
-        #~ matchobject.set_seqs('enemies domestic', '	enemies domestic (2)')
-        #~ print matchobject.ratio()
-        #~ xml_output.channelsource[6].get_channels()
+
+        #~ ttvdb = theTVDB()
+        #~ print ttvdb.get_ttvdb_id('ncis', 'de')
         #~ return
 
         # Start the seperate fetching threads
@@ -11615,6 +11743,8 @@ def main():
         log_array.append( '%6.0f succesful ttvdb.com lookups\n' % (xml_output.ttvdb_count))
         log_array.append( '%6.0f    failed ttvdb.com lookups\n' % (xml_output.ttvdb_fail_count))
         log_array.extend([' Time/fetch: %s seconds\n' % (duration.total_seconds()/xml_output.fetch_count), '\n'])
+        log_array.append('%6.0f page(s) fetched from theTVDB.com\n' % (xml_output.ttvdb.fetch_count))
+        log_array.extend(['%6.0f failure(s) on theTVDB.com\n' % (xml_output.ttvdb.fail_count), '\n'])
         for source in xml_output.channelsource.values():
             log_array.append('%6.0f   base page(s) fetched from %s\n' % (source.base_count, source.source))
             if source.detail_processor:
