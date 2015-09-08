@@ -670,6 +670,7 @@ class Configure:
                                            '0-34': 'veronica',
                                            '0-460': 'sbs-9',
                                            '0-440': 'fox',
+                                           '0-465':'rtl-z',
                                            '0-29': 'discovery-channel',
                                            '0-305': 'discovery-world',
                                            '0-306': 'discovery-science',
@@ -807,6 +808,7 @@ class Configure:
                                     '0-92': 'RTL8',
                                     '0-408': 'RTLL',
                                     '0-409': 'RTCR',
+                                    '0-465':'RTLZ',
                                     '1-rtl-telekids': 'RTLT'}
 
         # channels for which to look on teveblad.be
@@ -1099,6 +1101,7 @@ class Configure:
                                            '0-434': u'24443943019',
                                            '0-437': u'24443943077',
                                            '0-462': u'24443943072',
+                                           '0-465': u'660696615380',
                                            '1-tv-e': u'24443942991'}
                                            #~ '': u'100% NL TV 606274087100',
                                            #~ '': u'192TV 24443943155',
@@ -8394,6 +8397,7 @@ class rtl_JSON(FetchData):
                                          'RTL8': {'name': 'RTL 8', 'icon': 'logo_rtl8.png', 'group': 1},
                                          'RTLL': {'name': 'RTL Lounge', 'icon': 'logo_rtllounge.png', 'group': 7},
                                          'RTCR': {'name': 'RTL Crime', 'icon': 'logo_rtlcrime.png', 'group': 7},
+                                         'RTLZ': {'name': 'RTL Z', 'icon': 'logo_rtlz.png', 'group': 7},
                                          'RTLT': {'name': 'RTL Telekids', 'icon': 'logo_telekids.png', 'group': 7}}
 
     def load_pages(self):
@@ -11781,7 +11785,8 @@ def main():
         log_array.append( '%6.0f cache hits\n' % (xml_output.cache_count))
         log_array.append( '%6.0f succesful ttvdb.com lookups\n' % (xml_output.ttvdb_count))
         log_array.append( '%6.0f    failed ttvdb.com lookups\n' % (xml_output.ttvdb_fail_count))
-        log_array.extend([' Time/fetch: %s seconds\n' % (duration.total_seconds()/xml_output.fetch_count), '\n'])
+        if xml_output.fetch_count > 0:
+            log_array.extend([' Time/fetch: %s seconds\n' % (duration.total_seconds()/xml_output.fetch_count), '\n'])
         log_array.append('%6.0f page(s) fetched from theTVDB.com\n' % (xml_output.ttvdb.fetch_count))
         log_array.extend(['%6.0f failure(s) on theTVDB.com\n' % (xml_output.ttvdb.fail_count), '\n'])
         for source in xml_output.channelsource.values():
