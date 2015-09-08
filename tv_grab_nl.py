@@ -10680,7 +10680,7 @@ class Channel_Config(Thread):
         self.icon_source = -1
         self.icon = ''
 
-        for index in xml_output.source_order:
+        for index in range(xml_output.source_count):
             self.source_id[index] = ''
             self.source_data[index] = Event()
 
