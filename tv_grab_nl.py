@@ -351,7 +351,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150907'
+        self.patchdate = u'20150911'
         self.alfa = False
         self.beta = True
 
@@ -558,7 +558,7 @@ class Configure:
                                 u'law & order: special victims unit']
 
         # Parts to remove from a title
-        self.groupnameremove = ['kro detectives',]
+        self.groupnameremove = ['kro detectives', 'detectives', 'premiére']
         # Titles to rename
         self.titlerename = {'navy ncis': 'NCIS',
                                         'inspector banks': 'DCI Banks'}
@@ -899,30 +899,30 @@ class Configure:
         self.new_cattrans[3] = {}
 
         # channels for which to look on npo.nl
-        self.source_channels[4] = {'0-1': u'1',
-                                           '0-2': u'2',
-                                           '0-3': u'3',
-                                           '1-journaal-24': u'4',
-                                           '0-70': u'5',
-                                           '0-410': u'6',
-                                           '1-politiek-24': u'7',
-                                           '0-316': u'8',
-                                           '0-81': u'9',
-                                           '1-zappelin': u'10',
-                                           '0-66': u'11',
-                                           '0-109': u'12',
-                                           '0-108': u'13',
-                                           '0-110': u'14',
-                                           '0-111': u'15',
-                                           '0-112': u'16',
-                                           '0-113': u'17',
-                                           '0-114': u'18',
-                                           '0-100': u'19',
-                                           '0-103': u'20',
-                                           '0-101': u'21',
-                                           '0-102': u'22',
-                                           '0-115': u'23',
-                                           '0-116': u'24'}
+        self.source_channels[4] = {'0-1': u'263',
+                                           '0-2': u'264',
+                                           '0-3': u'265',
+                                           '1-journaal-24': u'279',
+                                           '0-70': u'280',
+                                           '0-410': u'281',
+                                           '1-politiek-24': u'282',
+                                           '0-316': u'283',
+                                           '0-81': u'284',
+                                           '1-zappelin': u'288',
+                                           '0-66': u'290',
+                                           '0-109': u'266',
+                                           '0-108': u'267',
+                                           '0-110': u'268',
+                                           '0-111': u'269',
+                                           '0-112': u'270',
+                                           '0-113': u'271',
+                                           '0-114': u'272',
+                                           '0-100': u'273',
+                                           '0-103': u'274',
+                                           '0-101': u'275',
+                                           '0-102': u'276',
+                                           '0-115': u'277',
+                                           '0-116': u'278'}
 
         self.source_cattrans[4] = {('nieuws-actualiteiten', ): (u'nieuws/actualiteiten', u''),
                                      ('amusement', ): (u'amusement', u''),
@@ -1338,7 +1338,8 @@ class Configure:
                                           7: 'Nederlands Overig',
                                           8: 'Vlaams Overig',
                                           9: 'Internationaal',
-                                         10: 'Overig'}
+                                         10: 'Overig',
+                                         11: 'Radio Nederlands'}
 
         self.group_names = {1: 'Nederlandse kanalen',
                                           2: 'Vlaamse kanalen',
@@ -1350,6 +1351,7 @@ class Configure:
                                           8: 'Overige Vlaamse kanalen ',
                                           9: 'Internationale kanalen',
                                          10: 'Overig kanalen',
+                                         11: 'Nederlandse Radio',
                                          -1: 'Alleen geselecteerde kanalen'}
 
         # DO NOT CHANGE THIS!
@@ -2231,20 +2233,14 @@ class Configure:
                 icon['sourceid'] = -1
                 icon['chanid'] = chanid
                 if 'icon' in channel:
-                    icon['sourceid'] = 3 if index == 2 else index
+                    icon['sourceid'] = index if 'icongrp' not in channel else channel['icongrp']
                     icon['icon'] = channel['icon']
 
-                if index == 6:
-                    self.channels[chanid].icon_source = 6
-                    self.channels[chanid].icon = channel['icon']
-
-                elif index == 5 and self.channels[chanid].icon_source <= 1:
-                    self.channels[chanid].icon_source = 5
-                    self.channels[chanid].icon = channel['icon']
-
-                elif index == 2 and (self.channels[chanid].icon_source == -1 or self.channels[chanid].icon_source == 1):
-                    self.channels[chanid].icon_source = 3
-                    self.channels[chanid].icon = channel['icon']
+                    if self.channels[chanid].icon_source == -1 \
+                      or (index in (4, 5, 6) and self.channels[chanid].icon_source < 2) \
+                      or (index == 2 and self.channels[chanid].icon_source == 1):
+                        self.channels[chanid].icon_source = icon['sourceid']
+                        self.channels[chanid].icon = icon['icon']
 
                 xml_output.program_cache.cache_request.put({'task':'add', 'channel': chan, 'icon': icon})
 
@@ -8391,14 +8387,14 @@ class rtl_JSON(FetchData):
 
     def get_channels(self):
 
-        self.all_channels = {'RTL4': {'name': 'RTL 4', 'icon': 'logo_rtl4_med_dark.png', 'group': 1},
-                                         'RTL5': {'name': 'RTL 5', 'icon': 'logo_rtl5.png', 'group': 1},
-                                         'RTL7': {'name': 'RTL 7', 'icon': 'logo_rtl7_trans.png', 'group': 1},
-                                         'RTL8': {'name': 'RTL 8', 'icon': 'logo_rtl8.png', 'group': 1},
-                                         'RTLL': {'name': 'RTL Lounge', 'icon': 'logo_rtllounge.png', 'group': 7},
-                                         'RTCR': {'name': 'RTL Crime', 'icon': 'logo_rtlcrime.png', 'group': 7},
-                                         'RTLZ': {'name': 'RTL Z', 'icon': 'logo_rtlz.png', 'group': 7},
-                                         'RTLT': {'name': 'RTL Telekids', 'icon': 'logo_telekids.png', 'group': 7}}
+        self.all_channels = {'RTL4': {'name': 'RTL 4', 'icon': 'logo_rtl4_med_dark.png', 'icongrp': 3, 'group': 1},
+                                         'RTL5': {'name': 'RTL 5', 'icon': 'logo_rtl5.png', 'icongrp': 3, 'group': 1},
+                                         'RTL7': {'name': 'RTL 7', 'icon': 'logo_rtl7_trans.png', 'icongrp': 3, 'group': 1},
+                                         'RTL8': {'name': 'RTL 8', 'icon': 'logo_rtl8.png', 'icongrp': 3, 'group': 1},
+                                         'RTLL': {'name': 'RTL Lounge', 'icon': 'logo_rtllounge.png', 'icongrp': 3, 'group': 7},
+                                         'RTCR': {'name': 'RTL Crime', 'icon': 'logo_rtlcrime.png', 'icongrp': 3, 'group': 7},
+                                         'RTLZ': {'name': 'RTL Z', 'icon': 'logo_rtlz.png', 'icongrp': 3, 'group': 1},
+                                         'RTLT': {'name': 'RTL Telekids', 'icon': 'logo_telekids.png', 'icongrp': 3, 'group': 7}}
 
     def load_pages(self):
 
@@ -9428,22 +9424,29 @@ class npo_HTML(FetchData):
             </div>
         """
 
-        self.get_channels()
+        self.chanids = {}
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and chanid in config.source_channels[self.proc_id].keys():
-                if not self.proc_id in channel.opt_dict['disable_source']:
-                    self.channels[chanid] = config.source_channels[self.proc_id][chanid]
-                    channel.source_id[self.proc_id] = self.channels[chanid]
+            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
+                self.channels[chanid] = channel.source_id[self.proc_id]
+                self.chanids[channel.source_id[self.proc_id]] = chanid
 
-                else:
-                    self.channel_loaded[chanid] = True
-                    config.channels[chanid].source_data[self.proc_id].set()
+        #~ self.get_channels()
+        #~ for chanid, channel in config.channels.iteritems():
+            #~ self.program_data[chanid] = []
+            #~ if channel.active and chanid in config.source_channels[self.proc_id].keys():
+                #~ if not self.proc_id in channel.opt_dict['disable_source']:
+                    #~ self.channels[chanid] = config.source_channels[self.proc_id][chanid]
+                    #~ channel.source_id[self.proc_id] = self.channels[chanid]
 
-            else:
-                channel.source_id[self.proc_id] = ''
+                #~ else:
+                    #~ self.channel_loaded[chanid] = True
+                    #~ config.channels[chanid].source_data[self.proc_id].set()
 
-    def get_url(self, offset = 0, href = None, vertical = True):
+            #~ else:
+                #~ channel.source_id[self.proc_id] = ''
+
+    def get_url(self, offset = 0, href = None, vertical = False):
 
         npo_zoeken = 'http://www.npo.nl'
         if href == None and vertical:
@@ -9461,71 +9464,90 @@ class npo_HTML(FetchData):
             return u'%s%s' % (npo_zoeken,  href)
 
     def get_channels(self):
+        try:
+            strdata = self.get_page(self.get_url())
+            strdata = self.clean_html(strdata)
+            htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
+            self.get_channel_lineup(htmldata)
 
-        self.all_channels = {'1': {'name': 'NPO 1', 'icon': '', 'group': 1},
-                                         '2': {'name': 'NPO 2', 'icon': '', 'group': 1},
-                                         '3': {'name': 'NPO 3', 'alt_name': 'NPO Zapp', 'icon': '', 'group': 1},
-                                         '4': {'name': 'NPO Nieuws', 'icon': '', 'group': 7},
-                                         '5': {'name': 'NPO Cultura', 'icon': '', 'group': 7},
-                                         '6': {'name': 'NPO 101', 'icon': '', 'group': 7},
-                                         '7': {'name': 'NPO Politiek', 'icon': '', 'group': 7},
-                                         '8': {'name': 'NPO Best', 'icon': '', 'group': 7},
-                                         '9': {'name': 'NPO Doc', 'icon': '', 'group': 7},
-                                         '10': {'name': 'NPO Zapp Xtra', 'icon': '', 'group': 7},
-                                         '11': {'name': 'NPO Humor TV', 'icon': '', 'group': 7},
-                                         '12': {'name': 'Omrop Fryslan', 'icon': '', 'group': 6},
-                                         '13': {'name': 'RTV Noord', 'icon': '', 'group': 6},
-                                         '14': {'name': 'RTV Drenthe', 'icon': '', 'group': 6},
-                                         '15': {'name': 'RTV Oost', 'icon': '', 'group': 6},
-                                         '16': {'name': 'Omroep Gelderland', 'icon': '', 'group': 6},
-                                         '17': {'name': 'Omroep Flevoland', 'icon': '', 'group': 6},
-                                         '18': {'name': 'Omroep Brabant', 'icon': '', 'group': 6},
-                                         '19': {'name': 'Regio TV Utrecht', 'icon': '', 'group': 6},
-                                         '20': {'name': 'RTV NH', 'icon': '', 'group': 6},
-                                         '21': {'name': 'Omroep West', 'icon': '', 'group': 6},
-                                         '22': {'name': 'RTV Rijnmond', 'icon': '', 'group': 6},
-                                         '23': {'name': 'L1 TV', 'icon': '', 'group': 6},
-                                         '24': {'name': 'Omroep Zeeland', 'icon': '', 'group': 6}}
+        except:
+            log(['An error ocured while retrieving the NPO channel info page.', traceback.format_exc()])
 
-        self.channel_names = {}
-        for chanid, channel in self.all_channels.items():
-            self.channel_names[channel['name']] = chanid
-            if 'alt_name' in channel:
-                self.channel_names[channel['alt_name']] = chanid
+    def get_channel_lineup(self, htmldata):
+        chan_list = []
+        channel_cnt = 0
+        for c_grp in htmldata.findall('div'):
+            if c_grp.find('div[@class="span12"]') == None:
+                # The list of extra groups
+                continue
 
-    def load_pages(self):
+            g_class = c_grp.get('class')
+            g_id = c_grp.get('id')
+            if  g_class == 'row-fluid':
+                # The NPO base channels
+                cgrp = 1
 
-        def get_channel_name(xml):
-            tag = xml.find('a')
-            tag2 = xml.find('div')
-            if tag != None and tag.get("alt") != None:
-                cname = tag.get("alt")[9:]
+            elif g_id == 'themed-guide':
+                # The NPO theme channels
+                cgrp = 7
 
-            elif tag != None and tag.get("href") != None:
-                cname = tag.get("href").split('/')[-1]
+            elif g_id == 'regional-guide':
+                # The Regional channels
+                cgrp = 6
 
-            elif tag2 != None and tag2.get("title") != None:
-                cname = tag2.get("title")
+            elif g_id == 'radio-guide':
+                # The Radio channels
+                cgrp = 11
 
             else:
-                return
+                # Unknown Group
+                cgrp = 10
 
-            # We add the appropriate channels to the fetch list. Comparing our list with their list
-            if cname in self.channel_names.keys() and self.channel_names[cname] in self.channels.values():
-                for chanid, channel in self.channels.items():
-                    if self.channel_names[cname] == channel:
-                        self.fetch_list[channel] = chanid
-                        break
+            for c in c_grp.findall('div[@class="span12"]/div/div[@class="guide-channel-icons"]/div[@class="channel-icon"]'):
+                try:
+                    if c.find('a') != None:
+                        tag = c.find('a')
+                        c = tag
+                        if tag.get("alt") != None:
+                            cname = tag.get("alt")[9:]
 
-            if config.write_info_files:
-                if not str(channel_cnt) in self.all_channels or cname != self.all_channels[str(channel_cnt)]['name']:
-                    if channel_cnt > 24:
-                        infofiles.addto_detail_list(u'Channel %s is named %s' % (channel_cnt, cname))
+                        else:
+                            cname = tag.get("href").split('/')[-1]
 
-                    elif not ('alt_name' in self.all_channels[str(channel_cnt)] \
-                      and cname != self.all_channels[str(channel_cnt)]['alt_name']):
-                        infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % \
-                            (channel_cnt, self.all_channels[str(channel_cnt)]['name'], cname))
+                    else:
+                        cname = c.find('div').get("title")
+
+                    try:
+                        cicon = c.find('div[@class="larger-image channel-icon-wrapper"]').get('style')
+
+                    except:
+                        cicon = c.find('div[@class="larger-image channel-icon-wrapper no-shadow"]').get('style')
+
+                    cicon = cicon.split('/')
+                    scid = cicon[-3]
+                    cicon = ('%s/%s/%s/%s' % (cicon[-4], cicon[-3], cicon[-2], cicon[-1]))[0:-2]
+                    channel_cnt += 1
+                    if scid == '301':
+                        #301: NPO Zapp = 265: NPO 3
+                        scid = '265'
+                        cname = 'NPO 3'
+                        cicon = 'tv-channel/265/logo/regular_logo-npo3.png'
+
+                    #~ print '%2.0f: %3.0f: %s: %s => %s' % (cgrp, channel_cnt, scid, cname, cicon)
+                    self.all_channels[scid] = {}
+                    self.all_channels[scid]['name'] = cname
+                    self.all_channels[scid]['group'] = cgrp
+                    self.all_channels[scid]['icongrp'] = 7
+                    self.all_channels[scid]['icon'] = cicon
+                    chan_list.append(scid)
+
+                except:
+                    log(['An error ocured while reading NPO channel info.', traceback.format_exc()])
+                    continue
+
+        return chan_list
+
+    def load_pages(self):
 
         def get_programs(xml, chanid, omroep = True):
             try:
@@ -9664,7 +9686,7 @@ class npo_HTML(FetchData):
             log(['\n', 'Now fetching %s channels from npo.nl\n' % (len(self.channels)), \
                 '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
-            channel_url = self.get_url(offset, None, False)
+            channel_url = self.get_url(offset)
 
             # get the raw programming for the day
             strdata = self.get_page(channel_url)
@@ -9686,7 +9708,7 @@ class npo_HTML(FetchData):
 
                 continue
 
-            # First we check for a changed line-up
+            # First we get the line-up and some date checks
             self.base_count += 1
             try:
                 startdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-start')
@@ -9701,22 +9723,7 @@ class npo_HTML(FetchData):
                 d = (nextdate.split(',')[-1].strip()).split(' ')
                 nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
 
-                self.fetch_list = {}
-                channel_cnt = 0
-                # The NPO base channels
-                for c in htmldata.findall('div[@class="row-fluid"]/div[@class="span12"]/div/div/div[@class="channel-icon"]'):
-                    channel_cnt += 1
-                    get_channel_name(c)
-
-                # The NPO theme channels
-                for c in htmldata.findall('div[@id="themed-guide"]/div/div/div/div[@class="channel-icon"]'):
-                    channel_cnt += 1
-                    get_channel_name(c)
-
-                # The Regional channels
-                for c in htmldata.findall('div[@id="regional-guide"]/div/div/div/div[@class="channel-icon"]'):
-                    channel_cnt += 1
-                    get_channel_name(c)
+                lineup = self.get_channel_lineup(htmldata)
 
             except:
                 log(traceback.format_exc())
@@ -9724,38 +9731,19 @@ class npo_HTML(FetchData):
 
             try:
                 channel_cnt = 0
-                # The NPO base channels
-                for c in htmldata.findall('div[@class="row-fluid"]/div[@class="span12"]/div/div/div/div[@class="channels"]/div'):
+                for c in htmldata.findall('div/div[@class="span12"]/div/div[@class="guide-scroller"]/div/div[@class="channels"]/div'):
+
+                    scid = lineup[channel_cnt]
                     channel_cnt += 1
-                    if str(channel_cnt) in self.fetch_list.keys():
-                        chanid = self.fetch_list[str(channel_cnt)]
-                        if not chanid in last_added:
-                            last_added[chanid] = None
+                    if not scid in self.chanids.keys():
+                        continue
 
-                        get_programs(c, chanid)
-                        self.day_loaded[chanid][offset] = True
+                    chanid = self.chanids[scid]
+                    if not chanid in last_added:
+                        last_added[chanid] = None
 
-                # The NPO theme channels
-                for c in htmldata.findall('div[@id="themed-guide"]/div/div/div/div/div[@class="channels"]/div'):
-                    channel_cnt += 1
-                    if str(channel_cnt) in self.fetch_list.keys():
-                        chanid = self.fetch_list[str(channel_cnt)]
-                        if not chanid in last_added:
-                            last_added[chanid] = None
-
-                        get_programs(c, chanid)
-                        self.day_loaded[chanid][offset] = True
-
-                # The Regional channels
-                for c in htmldata.findall('div[@id="regional-guide"]/div/div/div/div/div[@class="channels"]/div'):
-                    channel_cnt += 1
-                    if str(channel_cnt) in self.fetch_list.keys():
-                        chanid = self.fetch_list[str(channel_cnt)]
-                        if not chanid in last_added:
-                            last_added[chanid] = None
-
-                        get_programs(c, chanid, False)
-                        self.day_loaded[chanid][offset] = True
+                    get_programs(c, chanid, self.all_channels[scid]['group'] in (1, 7, 11))
+                    self.day_loaded[chanid][offset] = True
 
             except:
                 log(traceback.format_exc())
@@ -9801,7 +9789,7 @@ class npo_HTML(FetchData):
             log(['\n', 'Now fetching %s channels from npo.nl\n' % len(self.channels), \
             '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
-            channel_url = self.get_url(offset)
+            channel_url = self.get_url(offset, None, True)
 
             # get the raw programming for the day
             strdata = self.get_page(channel_url)
@@ -11152,7 +11140,8 @@ class XMLoutput:
                                         'http://staticfiles.rtl.nl/styles/img/logos/',
                                         'http://212.142.41.211/ChannelLogos/02/',
                                         'https://www.horizon.tv/static-images/',
-                                        'http://img.humo.be/q100/w100/h100/']
+                                        'http://img.humo.be/q100/w100/h100/',
+                                        'http://www-assets.npo.nl/uploads/']
 
                                     #~ 1 : [0, 'ned1'],
                                     #~ 2 : [0, 'ned2'],
@@ -11436,7 +11425,7 @@ class XMLoutput:
         self.xml_channels[xmltvid].append(self.add_starttag('display-name', 4, 'lang="nl"', \
             config.channels[chanid].chan_name, True))
         if (config.channels[chanid].opt_dict['logos']):
-            if -1 < config.channels[chanid].icon_source < 5:
+            if config.channels[chanid].icon_source in range(len(self.logo_provider)):
                 full_logo_url = self.logo_provider[config.channels[chanid].icon_source] + config.channels[chanid].icon
                 self.xml_channels[xmltvid].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
 
@@ -11735,9 +11724,9 @@ def main():
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
 
-        #~ ttvdb = theTVDB()
-        #~ print ttvdb.get_ttvdb_id('ncis', 'de')
-        #~ return
+        test = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
+        test.get_channels()
+        return
 
         # Start the seperate fetching threads
         for source in xml_output.channelsource.values():
