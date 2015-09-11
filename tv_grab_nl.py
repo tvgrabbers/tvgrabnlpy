@@ -11724,9 +11724,9 @@ def main():
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
 
-        test = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
-        test.get_channels()
-        return
+        #~ test = npo_HTML(4, 'npo.nl', 'npo-ID', 'npo-url')
+        #~ test.get_channels()
+        #~ return
 
         # Start the seperate fetching threads
         for source in xml_output.channelsource.values():
