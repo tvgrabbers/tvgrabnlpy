@@ -351,7 +351,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150911'
+        self.patchdate = u'20150912'
         self.alfa = False
         self.beta = True
 
@@ -2116,6 +2116,9 @@ class Configure:
         Get a list of all available channels and store these
         in a file.
         """
+        db_icon = []
+        db_channel = []
+        db_channel_source = []
         # These channels contain no data!
         source_keys = {}
         reverse_channels = {}
@@ -2143,7 +2146,7 @@ class Configure:
             self.channels = {}
 
         for chanid, icon in xml_output.logo_names.items():
-            xml_output.program_cache.cache_request.put({'task':'add', 'icon': {'sourceid': icon[0], 'chanid': str(chanid),'icon': icon[1]}})
+            db_icon.append({'sourceid': icon[0], 'chanid': str(chanid),'icon': icon[1]})
 
         source_keys[0] = []
         for chan_scid in xml_output.channelsource[0].all_channels.keys():
@@ -2159,7 +2162,8 @@ class Configure:
             chan['cgroup'] = 10
             chan['name'] = xml_output.channelsource[0].all_channels[chan_scid]['name']
             chan['hd'] = False
-            xml_output.program_cache.cache_request.put({'task':'add', 'channel': chan})
+            db_channel_source.append(chan)
+            #~ xml_output.program_cache.cache_request.put({'task':'add', 'channel': chan})
             if not chanid in self.channels.keys():
                 self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chan_scid]['name'])
 
@@ -2235,6 +2239,7 @@ class Configure:
                 if 'icon' in channel:
                     icon['sourceid'] = index if 'icongrp' not in channel else channel['icongrp']
                     icon['icon'] = channel['icon']
+                    db_icon.append(icon)
 
                     if self.channels[chanid].icon_source == -1 \
                       or (index in (4, 5, 6) and self.channels[chanid].icon_source < 2) \
@@ -2242,7 +2247,7 @@ class Configure:
                         self.channels[chanid].icon_source = icon['sourceid']
                         self.channels[chanid].icon = icon['icon']
 
-                xml_output.program_cache.cache_request.put({'task':'add', 'channel': chan, 'icon': icon})
+                db_channel_source.append(chan)
 
         for channel in self.channels.values():
             # Set a source 4 icon if present and not allready set to 0 or 2
@@ -2269,6 +2274,9 @@ class Configure:
             if channel.source_id[0] in ('3', '34'):
                 channel.opt_dict['append_tvgidstv'] = False
 
+            db_channel.append({'name': channel.chan_name, 'chanid': channel.chanid, 'cgroup': channel.group})
+
+        xml_output.program_cache.cache_request.put({'task':'add', 'channel': db_channel, 'channelsource': db_channel_source, 'icon': db_icon})
         return 0
 
     # end get_channels()
@@ -3984,7 +3992,7 @@ class ProgramCache(Thread):
                     continue
 
                 if crequest['task'] == 'add':
-                    for t in ('program', 'channel', 'icon', 'ttvdb', 'ttvdb_alias', 'ttvdb_lang', 'episode'):
+                    for t in ('program', 'channelsource', 'channel', 'icon', 'ttvdb', 'ttvdb_alias', 'ttvdb_lang', 'episode'):
                         if t in crequest:
                             self.add(t, crequest[t])
                             continue
@@ -4103,6 +4111,8 @@ class ProgramCache(Thread):
             pcursor = self.pconn.cursor()
             log('Verifying the database\n')
             pcursor.execute("PRAGMA main.integrity_check")
+            pcursor.execute("PRAGMA main.synchronous = OFF")
+            pcursor.execute("PRAGMA main.temp_store = MEMORY")
             for t in ( 'programs',  'credits', 'channels', 'channelsource', 'iconsource', 'ttvdb', 'ttvdb_alias', 'episodes'):
                 # (cid, Name, Type, Nullable = 0, Default, Pri_key index)
                 pcursor.execute("PRAGMA main.table_info('%s')" % (t,))
@@ -4481,6 +4491,26 @@ class ProgramCache(Thread):
             serie['tdate'] = r[str('tdate')]
             return serie
 
+        elif table == 'ttvdb_aliasses':
+            pcursor.execute(u"SELECT alias FROM ttvdb_alias WHERE lower(title) = ?", (item.lower(), ))
+            r = pcursor.fetchall()
+            aliasses = []
+            if r != None:
+                for a in r:
+                    aliasses.append( a[0])
+
+            return aliasses
+
+        elif table == 'ttvdb_langs':
+            pcursor.execute(u"SELECT langs FROM ttvdb WHERE tid = ?", (item['tid'],))
+            r = pcursor.fetchone()
+            aliasses = []
+            if r == None:
+                return r[0]
+
+            else:
+                return []
+
         elif table == 'ep_by_id':
             qstring = u"SELECT * FROM episodes WHERE tid = ?"
             qlist = [item['tid']]
@@ -4525,6 +4555,68 @@ class ProgramCache(Thread):
             serie['lang'] = r[str('lang')]
             serie['description'] = r[str('description')]
             return serie
+        elif table == 'icon':
+            if item == None:
+                pcursor.execute(u"SELECT chanid, sourceid, icon FROM iconsource")
+                r = pcursor.fetchall()
+                icons = {}
+                if r != None:
+                    for g in r:
+                        if not g[0] in icons:
+                            icons[g[0]] ={}
+
+                        icons[g[0]][g[1]] = g[2]
+
+                return icons
+
+            else:
+                pcursor.execute(u"SELECT icon FROM iconsource WHERE chanid = ? and sourceid = ?", (item['chanid'], item['sourceid']))
+                r = pcursor.fetchone()
+                if r == None:
+                    return
+
+                return {'sourceid':  item['sourceid'], 'icon': r[0]}
+
+        elif table == 'chan_group':
+            if item == None:
+                pcursor.execute(u"SELECT chanid, cgroup, name FROM channels")
+                r = pcursor.fetchall()
+                changroups = {}
+                if r != None:
+                    for g in r:
+                        changroups[g[0]] = {'name': g[2],'cgroup': int(g[1])}
+
+                return changroups
+
+            else:
+                pcursor.execute(u"SELECT cgroup, name FROM channels WHERE chanid = ?", (item['chanid'],))
+                r = pcursor.fetchone()
+                if r == None:
+                    return
+
+                return {'cgroup':r[0], 'name': r[1]}
+
+        elif table == 'chan_scid':
+            if item == None:
+                pcursor.execute(u"SELECT chanid, sourceid, scid, name, hd FROM channelsource")
+                r = pcursor.fetchall()
+                scids = {}
+                if r != None:
+                    for g in r:
+                        if not g[0] in scids:
+                            scids[g[0]] ={}
+
+                        scids[g[0]][g[1]] = {'scid': g[2],'name': g[3], 'hd': g[4]}
+
+                return scids
+
+            else:
+                pcursor.execute(u"SELECT scid FROM channelsource WHERE chanid = ? and sourceid = ?", (item['chanid'], item['sourceid']))
+                r = pcursor.fetchone()
+                if r == None:
+                    return
+
+                return scid
 
     def query_id(self, table='program', item=None):
         """
@@ -4581,14 +4673,23 @@ class ProgramCache(Thread):
 
             return r[0]
 
+        elif table == 'chan_group':
+            pcursor.execute(u"SELECT cgroup, name FROM channels WHERE chanid = ?", (item['chanid'],))
+            r = pcursor.fetchone()
+            if r == None:
+                return
+
+            return r[0]
+
     def add(self, table='program', item=None):
         """
         Adds a record
         """
         pcursor = self.pconn.cursor()
+        rec = []
+        rec_upd = []
         if table == 'program':
-            # First check if it was previously saved to prevent doubles
-            id = self.query_id(item=item)
+            id = self.query_id('program', item)
             if id != None and id in item:
                 with self.pconn:
                     self.pconn.execute(u"DELETE FROM programs WHERE pid = ?", (item[id],))
@@ -4613,118 +4714,131 @@ class ProgramCache(Thread):
                     add_string = u"%s) %s)" % (sql_flds, sql_cnt)
                     with self.pconn:
                         self.pconn.execute(add_string, tuple(sql_vals))
-                        credits = []
-                        for f, v in item['credits'].items():
-                            credits.append((item[id], f, v))
 
-                        self.pconn.executemany(u"INSERT INTO credits (pid, title, name) VALUES (?, ?, ?)", credits)
-                        return
+                    add_string = u"INSERT INTO credits (pid, title, name) VALUES (?, ?, ?)"
+                    for f, v in item['credits'].items():
+                        rec.append((item[id], f, v))
 
-            log('Error saving program %s to the cache.\n' %  item['name'])
+                    break
+
+            else:
+                log('Error saving program %s to the cache.\n' %  item['name'])
 
         elif table == 'channel':
-            if item['scid'] == '':
-                return
+            add_string = u"INSERT INTO channels ('chanid', 'cgroup', 'name') VALUES (?, ?, ?)"
+            update_string = u"UPDATE channels SET cgroup = ? SET name = ? WHERE chanid = ?"
+            if isinstance(item, dict):
+                item = [item]
 
-            pcursor.execute(u"SELECT cgroup FROM channels WHERE chanid = ?", (item['chanid'],))
-            g = pcursor.fetchone()
-            if g == None:
-                with self.pconn:
-                    self.pconn.execute(u"INSERT INTO channels ('chanid', 'cgroup', 'name') VALUES (?, ?, ?)", (item['chanid'], item['cgroup'], item['name']))
+            if isinstance(item, list):
+                g = self.query('chan_group')
 
-            elif g[str('cgroup')] == 10 and item['cgroup'] != 0 and item['cgroup'] != 10:
-                with self.pconn:
-                    self.pconn.execute(u"UPDATE channels SET cgroup = ? WHERE chanid = ?", (item['cgroup'] , item['chanid'],))
+                for c in item:
+                    if not c['chanid'] in g.keys():
+                        rec.append((c['chanid'], c['cgroup'], c['name']))
 
-            pcursor.execute(u"SELECT scid FROM channelsource WHERE chanid = ? and sourceid = ?", (item['chanid'], item['sourceid']))
-            if pcursor.fetchone() == None:
-                with self.pconn:
-                    self.pconn.execute(u"INSERT INTO channelsource ('chanid', 'sourceid', 'scid', 'name', 'hd') VALUES (?, ?, ?, ?, ?)", \
-                        (item['chanid'], item['sourceid'], item['scid'], item['name'], item['hd']))
+                    elif g[c['chanid']]['name'].lower() != c['name'].lower() or g[c['chanid']]['cgroup'] != c['cgroup'] \
+                      or (g[c['chanid']]['cgroup'] == 10 and c['cgroup'] not in (-1, 0, 10)):
+                        rec_upd.append((c['cgroup'], c['name'] , c['chanid']))
 
-            else:
-                with self.pconn:
-                    self.pconn.execute(u"UPDATE channelsource SET 'scid'= ?, 'name'= ?, 'hd'= ? WHERE chanid = ? and sourceid = ?", \
-                        (item['scid'], item['name'], item['hd'], item['chanid'], item['sourceid']))
+        elif table == 'channelsource':
+            add_string = u"INSERT INTO channelsource ('chanid', 'sourceid', 'scid', 'name', 'hd') VALUES (?, ?, ?, ?, ?)"
+            update_string = u"UPDATE channelsource SET 'scid'= ?, 'name'= ?, 'hd'= ? WHERE chanid = ? and sourceid = ?"
+            if isinstance(item, dict):
+                item = [item]
+
+            if isinstance(item, list):
+                scids = self.query('chan_scid')
+                for c in item:
+                    if c['scid'] == '':
+                        continue
+
+                    if c['chanid'] in scids and c['sourceid'] in scids[c['chanid']]:
+                        rec_upd.append((c['scid'], c['name'], c['hd'], c['chanid'], c['sourceid']))
+
+                    else:
+                        rec.append((c['chanid'], c['sourceid'], c['scid'], c['name'], c['hd']))
 
         elif table == 'icon':
-            if item['sourceid'] == -1:
-                return
+            add_string = u"INSERT INTO iconsource ('chanid', 'sourceid', 'icon') VALUES (?, ?, ?)"
+            update_string = u"UPDATE iconsource SET 'icon'= ? WHERE chanid = ? and sourceid = ?"
+            if isinstance(item, dict):
+                item = [item]
 
-            pcursor.execute(u"SELECT icon FROM iconsource WHERE chanid = ? and sourceid = ?", (item['chanid'], item['sourceid']))
-            if pcursor.fetchone() == None:
-                with self.pconn:
-                    self.pconn.execute(u"INSERT INTO iconsource ('chanid', 'sourceid', 'icon') VALUES (?, ?, ?)", \
-                        (item['chanid'], item['sourceid'], item['icon']))
+            if isinstance(item, list):
+                icons = self.query('icon')
+                for ic in item:
+                    if ic['chanid'] in icons and ic['sourceid'] in icons[ic['chanid']] \
+                      and icons[ic['chanid']][ic['sourceid']] != ic['icon']:
+                        rec_upd.append((ic['icon'], ic['chanid'], ic['sourceid']))
 
-            else:
-                with self.pconn:
-                    self.pconn.execute(u"UPDATE iconsource SET 'icon'= ? WHERE chanid = ? and sourceid = ?", \
-                        (item['icon'], item['chanid'], item['sourceid']))
+                    else:
+                        rec.append((ic['chanid'], ic['sourceid'], ic['icon']))
 
         elif table == 'ttvdb':
-            with self.pconn:
-                self.pconn.execute(u"INSERT INTO ttvdb ('tid', 'title', 'langs', 'tdate') VALUES (?, ?, ?, ?)", \
-                                                (int(item['tid']), item['title'], list(item['langs']), datetime.date.today()))
+            add_string = u"INSERT INTO ttvdb ('tid', 'title', 'langs', 'tdate') VALUES (?, ?, ?, ?)"
+            update_string = ''
+            rec.append((int(item['tid']), item['title'], list(item['langs']), datetime.date.today()))
 
         elif table == 'ttvdb_lang':
-            pcursor.execute(u"SELECT langs FROM ttvdb WHERE tid = ?", (item['tid'],))
-            g = pcursor.fetchone()
-            if g == None:
-                with self.pconn:
-                    self.pconn.execute(u"INSERT INTO ttvdb ('tid', 'title', 'tdate', 'langs') VALUES (?, ?, ?, ?)", \
-                                                    (int(item['tid']), item['title'], datetime.date.today(), item['lang']))
+            add_string = u"INSERT INTO ttvdb ('tid', 'title', 'tdate', 'langs') VALUES (?, ?, ?, ?)"
+            update_string = u"UPDATE ttvdb SET langs = ?, tdate = ? WHERE tid = ?"
+            g = self.query('ttvdb_langs', int(item['tid']))
+            if len(g) == 0:
+                rec.append((int(item['tid']), item['title'], datetime.date.today(), item['lang']))
 
             else:
                 langs = g[0]
                 if item['lang'] not in langs:
                     langs.append(item['lang'])
-                    with self.pconn:
-                        self.pconn.execute(u"UPDATE ttvdb SET langs = ? WHERE tid = ? and tdate = ?", \
-                                                        (int(item['tid']) , langs, datetime.date.today(),))
+                    rec_upd.append((langs , datetime.date.today(), int(item['tid'])))
 
         elif table == 'ttvdb_alias':
-            with self.pconn:
-                if isinstance(item['alias'], list) and len(item['alias']) > 1:
-                    at = []
-                    for a in item['alias']:
-                        at.append((item['title'], a))
+            add_string = u"INSERT INTO ttvdb_alias ('title', 'alias') VALUES (?, ?)"
+            aliasses = self.query('ttvdb_aliasses', item['title'])
+            if isinstance(item['alias'], list) and len(item['alias']) > 0:
+                for a in item['alias']:
+                    if not a in aliasses:
+                        rec.append((item['title'], a))
 
-                    self.pconn.executemany(u"INSERT INTO ttvdb_alias ('title', 'alias') VALUES (?, ?)", at)
-
-                else:
-                    if isinstance(item['alias'], list) and len(item['alias']) == 1:
-                        item['alias'] =item['alias'][0]
-
-                    self.pconn.execute(u"INSERT INTO ttvdb_alias ('title', 'alias') VALUES (?, ?)", \
-                                                (item['title'], item['alias']))
+            else:
+                if not item['alias'] in aliasses:
+                    rec.append((item['title'], item['alias']))
 
         elif table == 'episode':
-            if isinstance(item, dict) or (isinstance(item, list) and len(item) == 1):
-                if isinstance(item, list):
-                    item = item[0]
+            add_string = u"INSERT INTO episodes ('tid', 'sid', 'eid', 'title', 'airdate', 'lang', 'description') " + \
+                                  u"VALUES (?, ?, ?, ?, ?, ?, ?)"
+            update_string = u"UPDATE episodes SET title = ?, airdate = ?, description = ? " + \
+                                       u"WHERE tid = ? and sid = ? and eid = ? and lang = ?"
+            if isinstance(item, dict):
+                item = [item]
 
-                with self.pconn:
-                    self.pconn.execute(u"INSERT INTO episodes ('tid', 'sid', 'eid', 'title', 'airdate', 'lang') VALUES (?, ?, ?, ?, ?, ?)", \
-                        (int(item['tid']), int(item['sid']), int(item['eid']), item['title'], item['airdate'], item['lang']))
-
-            elif isinstance(item, list) and len(item) > 1:
-                eps = []
-                eps_upd = []
+            if isinstance(item, list):
+                rec = []
+                rec_upd = []
                 for e in item:
                     ep = self.query('ep_by_id', e)
                     if ep == None or len(ep) == 0:
-                        eps.append((int(e['tid']), int(e['sid']), int(e['eid']), e['title'], e['airdate'], e['lang'], e['description']))
+                        rec.append((int(e['tid']), int(e['sid']), int(e['eid']), e['title'], e['airdate'], e['lang'], e['description']))
 
                     elif ep[0]['title'].lower() != e['title'].lower() or ep[0]['airdate'] != e['airdate']:
+                        rec_upd.append((e['title'], e['airdate'], int(e['tid']), int(e['sid']), int(e['eid']), e['lang'], e['description']))
 
-                        eps_upd.append((e['title'], e['airdate'], int(e['tid']), int(e['sid']), int(e['eid']), e['lang'], e['description']))
+        if len(rec_upd) == 1:
+            with self.pconn:
+                self.pconn.execute(update_string, rec_upd[0])
 
-                with self.pconn:
-                    self.pconn.executemany(u"UPDATE episodes SET title = ?, airdate = ?, description = ? WHERE tid = ? and sid = ? and eid = ? and lang = ?", eps_upd)
+        elif len(rec_upd) > 1:
+            with self.pconn:
+                self.pconn.executemany(update_string, rec_upd)
 
-                with self.pconn:
-                    self.pconn.executemany(u"INSERT INTO episodes ('tid', 'sid', 'eid', 'title', 'airdate', 'lang', 'description') VALUES (?, ?, ?, ?, ?, ?, ?)", eps)
+        if len(rec) == 1:
+            with self.pconn:
+                self.pconn.execute(add_string, rec[0])
+
+        elif len(rec) > 1:
+            with self.pconn:
+                self.pconn.executemany(add_string, rec)
 
     def delete(self, table='ttvdb', item=None):
         if table == 'ttvdb':
@@ -9430,21 +9544,6 @@ class npo_HTML(FetchData):
             if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
                 self.channels[chanid] = channel.source_id[self.proc_id]
                 self.chanids[channel.source_id[self.proc_id]] = chanid
-
-        #~ self.get_channels()
-        #~ for chanid, channel in config.channels.iteritems():
-            #~ self.program_data[chanid] = []
-            #~ if channel.active and chanid in config.source_channels[self.proc_id].keys():
-                #~ if not self.proc_id in channel.opt_dict['disable_source']:
-                    #~ self.channels[chanid] = config.source_channels[self.proc_id][chanid]
-                    #~ channel.source_id[self.proc_id] = self.channels[chanid]
-
-                #~ else:
-                    #~ self.channel_loaded[chanid] = True
-                    #~ config.channels[chanid].source_data[self.proc_id].set()
-
-            #~ else:
-                #~ channel.source_id[self.proc_id] = ''
 
     def get_url(self, offset = 0, href = None, vertical = False):
 
