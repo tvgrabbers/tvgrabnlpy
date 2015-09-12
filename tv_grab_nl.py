@@ -4104,13 +4104,52 @@ class ProgramCache(Thread):
         """
         Opens a sqlite cache db
         """
+        for try_loading in (0,1):
+            try:
+                self.pconn = sqlite3.connect(database=self.filename + '.db', isolation_level=None, detect_types=sqlite3.PARSE_DECLTYPES)
+                self.pconn.row_factory = sqlite3.Row
+                pcursor = self.pconn.cursor()
+                log('Verifying the database\n')
+                pcursor.execute("PRAGMA main.integrity_check")
+                if pcursor.fetchone()[0] == 'ok':
+                    # Making a backup copy
+                    self.pconn.close()
+                    if os.path.isfile(self.filename +'.db.bak'):
+                        os.remove(self.filename + '.db.bak')
+
+                    shutil.copy(self.filename + '.db', self.filename + '.db.bak')
+                    self.pconn = sqlite3.connect(database=self.filename + '.db', isolation_level=None, detect_types=sqlite3.PARSE_DECLTYPES)
+                    self.pconn.row_factory = sqlite3.Row
+                    pcursor = self.pconn.cursor()
+                    break
+
+                if try_loading == 0:
+                    log(['Error loading the database: %s.db (possibly corrupt)\n' % self.filename, \
+                        'Trying to load a backup copy', traceback.format_exc()])
+
+            except:
+                if try_loading == 0:
+                    log(['Error loading the database: %s.db (possibly corrupt)\n' % self.filename, \
+                        'Trying to load a backup copy', traceback.format_exc()])
+
+            try:
+                if os.path.isfile(self.filename +'.db'):
+                    os.remove(self.filename + '.db')
+
+                if os.path.isfile(self.filename +'.db.bak'):
+                    if try_loading == 0:
+                        shutil.copy(self.filename + '.db.bak', self.filename + '.db')
+
+                    else:
+                        os.remove(self.filename + '.db.bak')
+
+            except:
+                log(['Failed to load the database: %s\n' % self.filename, traceback.format_exc(), 'Disableing Cache function'])
+                self.filename = None
+                config.opt_dict['disable_ttvdb'] = True
+                return
+
         try:
-            self.pconn = sqlite3.connect(database=self.filename + '.db', isolation_level=None, detect_types=sqlite3.PARSE_DECLTYPES)
-            #, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES
-            self.pconn.row_factory = sqlite3.Row
-            pcursor = self.pconn.cursor()
-            log('Verifying the database\n')
-            pcursor.execute("PRAGMA main.integrity_check")
             pcursor.execute("PRAGMA main.synchronous = OFF")
             pcursor.execute("PRAGMA main.temp_store = MEMORY")
             for t in ( 'programs',  'credits', 'channels', 'channelsource', 'iconsource', 'ttvdb', 'ttvdb_alias', 'episodes'):
@@ -4136,7 +4175,7 @@ class ProgramCache(Thread):
                     self.add('ttvdb_alias', {'title': t, 'alias': a})
 
         except:
-            log(['Error loading the database: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
+            log(['Failed to load the database: %s\n' % self.filename, traceback.format_exc(), 'Disableing Cache function'])
             self.filename = None
             config.opt_dict['disable_ttvdb'] = True
 
