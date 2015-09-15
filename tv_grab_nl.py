@@ -127,7 +127,7 @@ description_text = """
 # Modules we need
 import re, sys, codecs, locale, argparse
 import time, datetime, random, io, json, shutil
-import os, os.path
+import os, os.path, pickle
 import traceback, socket, sqlite3, difflib
 try:
     import urllib.request as urllib
@@ -247,8 +247,6 @@ class Logging(Thread):
                 if isinstance(message, (str, unicode)):
                     if message == 'Closing down\n':
                         self.quit=True
-                        self.writelog('Closing down. Finishing DB operations can sometimes take a minute or so!\n')
-                        continue
 
                     self.writelog(message)
                     continue
@@ -351,7 +349,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150912'
+        self.patchdate = u'20150914'
         self.alfa = False
         self.beta = True
 
@@ -1834,6 +1832,7 @@ class Configure:
 
         # Read the channel stuff up to version 2.0
         channel_names = {}
+        old_chanids = {}
         if self.configversion <= 2.0:
             for line in self.config_dict[2]:
                 try:
@@ -1857,23 +1856,46 @@ class Configure:
                         active = True
 
                     channel = re.split(';', line)
-                    if ((self.configversion == 2.1) and (len(channel) != 8)) or len(channel) < 6:
-                        # A 2.1  configuration line must contain 8 items
-                        continue
+                    if self.configversion == 2.1:
+                        # Read an old channel string
+                        if len(channel) != 8:
+                            # A 2.1  configuration line must contain 8 items
+                            continue
 
-                    for index in range(min(xml_output.source_count,len(channel) - 5)):
-                        if channel[index + 2].strip() != '':
-                            break
+                        for index in range(xml_output.source_count):
+                            if channel[index + 2].strip() != '':
+                                old_chanid = unicode(channel[index + 2]).strip()
+                                break
+
+                        else:
+                            # No sources!
+                            continue
+
+                        chanid = u'%s-%s' % (index, old_chanid)
+                        old_chanids[old_chanid] = chanid
+                        self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]).strip(), int(channel[1]))
+                        for index in range(4):
+                            self.channels[chanid].source_id[index] = unicode(channel[index + 2]).strip()
 
                     else:
-                        # No sources!
-                        continue
+                        # And the new version 2.2 one
+                        if len(channel) < 6:
+                            # A configuration line with less then six has no chanids
+                            continue
 
-                    chanid = unicode(channel[2])
-                    channel_names[unicode(channel[0]).strip().lower()] = chanid
-                    self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]).strip(), int(channel[1]))
-                    for index in range(min(xml_output.source_count,len(channel) - 5)):
-                        self.channels[chanid].source_id[index] = unicode(channel[index + 3]).strip()
+                        for index in range(min(xml_output.source_count,len(channel) - 5)):
+                            if channel[index + 3].strip() != '':
+                                break
+
+                        else:
+                            # No sources!
+                            continue
+
+                        chanid = unicode(channel[2])
+                        channel_names[unicode(channel[0]).strip().lower()] = chanid
+                        self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]).strip(), int(channel[1]))
+                        for index in range(min(xml_output.source_count,len(channel) - 5)):
+                            self.channels[chanid].source_id[index] = unicode(channel[index + 3]).strip()
 
                     # The icon defenition
                     self.channels[chanid].icon_source = int(channel[-2])
@@ -1891,12 +1913,19 @@ class Configure:
                         self.chan_count += 1
 
                 except:
-                    log(['Invalid line in Channels section of config file %s:' % (self.config_file),'%r\n' % (line)])
+                    log(['Invalid line in Channels section of config file %s:\n' % (self.config_file),'%r\n' % (line), traceback.print_exc()])
 
         # Read the channel specific configuration
         for section, values in self.config_dict[9].items():
+            if self.configversion == 2.1:
+                if section in old_chanids.keys():
+                    chanid = old_chanids[section]
+
+                else:
+                    continue
+
             # is the name in the sectionheader a known chanid?
-            if section in self.channels.keys():
+            elif section in self.channels.keys():
                 chanid = section
 
             # or a known channelname
@@ -4131,6 +4160,12 @@ class ProgramCache(Thread):
                 if try_loading == 0:
                     log(['Error loading the database: %s.db (possibly corrupt)\n' % self.filename, \
                         'Trying to load a backup copy', traceback.format_exc()])
+
+            try:
+                self.pconn.close()
+
+            except:
+                pass
 
             try:
                 if os.path.isfile(self.filename +'.db'):
