@@ -349,7 +349,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 0
-        self.patchdate = u'20150914'
+        self.patchdate = u'20150915'
         self.alfa = False
         self.beta = True
 
@@ -6526,7 +6526,7 @@ class FetchData(Thread):
         elif mode == 1:
             config.channels[chanid].all_programs = good_programs
 
-    def merge_sources(self, chanid, prime_source_name, counter = 0):
+    def merge_sources(self, chanid, prime_source, counter = 0):
         """
         Try to match the channel info from the sources into the prime source.  If No prime_source is set
         If available: rtl.nl is used for the rtl channels, npo.nl for the npo and regional channels and teveblad.be
@@ -6534,6 +6534,7 @@ class FetchData(Thread):
         Else the first available is used as set in xml_output.source_order
         """
 
+        prime_source_name = xml_output.channelsource[prime_source].source
         with self.source_lock:
             if (not chanid in self.program_data):
                 self.program_data[chanid] = []
@@ -6559,7 +6560,7 @@ class FetchData(Thread):
                 match_array.extend([u'%s: %s - %s: %s.\n' % \
                         ((matchstr+self.source).rjust(25),  other_prog['start-time'].strftime('%d %b %H:%M'),  other_prog['stop-time'].strftime('%H:%M'), other_prog['name']), \
                         '%s: %s - %s: %s.\n' % \
-                        (('to '+prime_source_name).rjust(25), tvgids_prog['start-time'].strftime('%d %b %H:%M'), tvgids_prog['stop-time'].strftime('%H:%M'), tvgids_prog['name'])])
+                        (('to '+ prime_source_name).rjust(25), tvgids_prog['start-time'].strftime('%d %b %H:%M'), tvgids_prog['stop-time'].strftime('%H:%M'), tvgids_prog['name'])])
             elif tvgids_prog == None:
                 match_array.append(u'%s: %s - %s: %s Genre: %s.\n' % \
                         ((matchstr+self.source).rjust(25), other_prog['start-time'].strftime('%d %b %H:%M'),  other_prog['stop-time'].strftime('%H:%M'), \
@@ -6589,7 +6590,7 @@ class FetchData(Thread):
                     return 'NOS op 3'
 
             if chanid == '5':
-                if mname == 'Herhalingen':
+                if mname == 'herhalingen':
                     return 'Journaallus'
 
             if chanid == '6':
@@ -6873,7 +6874,7 @@ class FetchData(Thread):
 
             tdict = set_main_id(tdict)
             if reverse_match:
-                if not self.proc_id in (2, 3, 5) and tdict['titel aflevering'] == '':
+                if not self.proc_id in (2, 6, 5) and tdict['titel aflevering'] == '':
                     tdict['titel aflevering'] = tvdict['titel aflevering']
 
                 if self.proc_id != 1:
@@ -6891,7 +6892,17 @@ class FetchData(Thread):
                 if tdict['start-time'] in prog_starttimes: del prog_starttimes[tdict['start-time']]
 
             else:
-                if self.proc_id in (2, 3, 5) and (tvdict['titel aflevering'] != '' or tdict['titel aflevering'] == ''):
+                # We try to fill gaps in the prime source that are defined in the other
+                for item in info_gaps:
+                    if tdict['stop-time'] == item['start-time'] and item['start-time'] < tvdict['stop-time'] <= item['stop-time']:
+                            tdict['stop-time'] = tvdict['stop-time']
+                            break
+
+                    if tdict['start-time'] == item['stop-time'] and item['start-time'] < tvdict['start-time'] <= item['stop-time']:
+                            tdict['start-time'] = tvdict['start-time']
+                            break
+
+                if self.proc_id in (2, 6, 5) and (tvdict['titel aflevering'] != '' or tdict['titel aflevering'] == ''):
                     tdict['titel aflevering'] = tvdict['titel aflevering']
 
                 if tdict['season'] == 0:
@@ -7661,9 +7672,12 @@ class tvgids_JSON(FetchData):
 
             if re.search('<div class="cookie-backdrop">', strdata):
                 self.cooky_cnt += 1
-                if self.cooky_cnt >= 3:
+                if self.cooky_cnt > 2:
                     self.cookyblock = True
-                    log('Cooky block page encountered. Falling back to json\n', 1)
+                    log('More then 2 sequential Cooky block pages encountered. Falling back to json\n', 1)
+
+                else:
+                    self.cooky_cnt = 0
 
                 return
 
@@ -9811,30 +9825,15 @@ class npo_HTML(FetchData):
                         tdict['genre'] = u'overige'
 
                     # and append the program to the list of programs
-                    if last_added[chanid] != None:
-                        if last_added[chanid]['name'] == tdict['name']:
-                            with self.source_lock:
-                                self.program_data[chanid][-1]['stop-time'] = tdict['stop-time']
-
-                        elif last_added[chanid]['name'] == 'Tekst-TV':
-                            with self.source_lock:
-                                self.program_data[chanid][-1]['stop-time'] = tdict['start-time']
-                                self.program_data[chanid].append(tdict)
-
-                        elif tdict['name'] == 'Tekst-TV':
-                            tdict['start-time'] = last_added[chanid]['stop-time']
-                            with self.source_lock:
-                                self.program_data[chanid].append(tdict)
-
-                        else:
-                            with self.source_lock:
-                                self.program_data[chanid].append(tdict)
-
-                        last_added[chanid] = None
+                    if last_added[chanid] != None and last_added[chanid]['name'] == tdict['name']:
+                        with self.source_lock:
+                            self.program_data[chanid][-1]['stop-time'] = tdict['stop-time']
 
                     else:
                         with self.source_lock:
                             self.program_data[chanid].append(tdict)
+
+                    last_added[chanid] = None
 
                 last_added[chanid] = tdict
 
@@ -10950,14 +10949,13 @@ class Channel_Config(Thread):
                     if xml_data == False:
                         # This is the first source with data, so we just take in the data
                         xml_data = True
-                        prime_source = xml_output.channelsource[index].source
+                        prime_source = xml_output.channelsource[index].proc_id
                         with xml_output.channelsource[index].source_lock:
                             self.all_programs = xml_output.channelsource[index].program_data[self.chanid][:]
 
                     else:
                         # There is already data, so we merge the incomming data into that
                         xml_data = True
-                        #~ xml_output.channelsource[index].merge_sources(self.chanid, (self.opt_dict['prime_source'] == index), self.counter)
                         xml_output.channelsource[index].merge_sources(self.chanid,  prime_source, self.counter)
                         xml_output.channelsource[index].parse_programs(self.chanid, 1, 'None')
                         for i in range(0, len(self.all_programs)):
