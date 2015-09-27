@@ -31,6 +31,22 @@ Sinds versie 2:
 tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [TeVeBlad.be](http://www.teveblad.be), [RTL.nl](http://www.rtl.nl) and [NPO.nl](http://www.npo.nl) as a source.
 
 ###Release Notes Versie 2
+**p20150927**   version 2.2.1
+Bug fix for channels hanging when neither requesting details nor ttvdb lookups.
+(This already would fix itself after 30 minutes of inactivity)
+
+**p20150917**   version 2.2.0
+* Renewed logging module.
+* Renewed structure to easier add new sources. You now also can simply disable a source.
+* Renewed, more flexible configuration format. It will automatically be converted the first time. If you come from earlier alfa or beta releases, you might have to throw away your old config.
+* The cache is moved to an sqlite database and now also contains buffered channel and theTVDB.com data. It will automatically be converted the first time. This can, depending on the size of your old cache, take some time.
+* Since the first beta some tuning has been done on the sqlite engine and it is much faster. The tuning means that in case of a computercrash the db possibly can get corrupted. Therefore a backup is made at the start of every run
+* New sources: Horizon.tv and Humo.be.
+* Updated NPO.nl source. It now also contains the public radio stations
+* theTVDB.com lookup for incomplete episode information. Now unlike in the alfa release, fully integrated. So no longer dependent on MythTV functionality
+* There has been limited testing under Windows7 and some things have been adapted.
+* and lots more. See the Configuratie WIKI page.
+
 **p20150907**   version 2.1.13  
 Fix on previous  
 
