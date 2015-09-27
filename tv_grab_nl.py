@@ -348,8 +348,8 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 0
-        self.patchdate = u'20150917'
+        self.patch = 1
+        self.patchdate = u'20150927'
         self.alfa = False
         self.beta = False
 
@@ -10976,7 +10976,7 @@ class Channel_Config(Thread):
                     # Check if the sources are still alive
                     if not (xml_output.channelsource[0].is_alive() or xml_output.channelsource[1].is_alive()):
                         self.detail_data.set()
-                        log('sources: %s and %s died.\n So we stop waiting for the pending details for channel %s/n' \
+                        log('sources: %s and %s died.\n So we stop waiting for the pending details for channel %s\n' \
                             % (xml_output.channelsource[0].source, xml_output.channelsource[1].source, self.chan_name))
 
                 self.all_programs = self.detailed_programs
@@ -11255,6 +11255,9 @@ class Channel_Config(Thread):
         else:
             if not (config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
                 xml_output.ttvdb.detail_request.put({'task': 'last_one', 'parent': self})
+
+            else:
+                self.detail_data.set()
 
     def title_split(self,program):
         """
