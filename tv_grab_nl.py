@@ -1618,6 +1618,10 @@ class Configure:
                         metavar = '<file>',
                         help = 'file where to send the output <default to the screen>')
 
+        parser.add_argument('--output-windows-codeset',  action = 'store_true', default = False, dest = 'output_codeset',
+                        help = 'use for the outputfile Windows codeset (cp1252)\n' +
+                                    'instead of utf-8')
+
         parser.add_argument('-q', '--quiet', action = 'store_true', default = None, dest = 'quiet',
                         help = 'suppress all output.')
 
@@ -1636,7 +1640,7 @@ class Configure:
 
         parser.add_argument('-g', '--days', type = int, default = None, dest = 'days',
                         metavar = '<days>',
-                        help = '# number of days to grab from the several sources. <max 14 = default>\n' +
+                        help = '# number of days to grab from the several sources.\n<max 14 = default>\n' +
                                      'Where every source has itś own max.\n')
 
         parser.add_argument('-G', '--slowdays', type = int, default = None, dest = 'slowdays',
@@ -2664,7 +2668,13 @@ class Configure:
                         log('Creating %s directory,\n' % output_dir)
                         os.mkdir(output_dir)
 
-                    self.output = self.open_file(self.opt_dict['output_file'],'w')
+                    if self.args.output_codeset:
+                        xml_output.xmlencoding = 'CP1252'
+                        self.output = self.open_file(self.opt_dict['output_file'],'w', 'windows-1252')
+
+                    else:
+                        self.output = self.open_file(self.opt_dict['output_file'],'w')
+
                     if self.output == None:
                         log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
                         return(2)
