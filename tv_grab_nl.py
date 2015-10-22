@@ -348,10 +348,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 1
-        self.patchdate = u'20151004'
+        self.patch = 2
+        self.patchdate = u'20151022'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
@@ -6030,10 +6030,14 @@ class FetchData(Thread):
         if data == None:
             return u''
 
+        data = re.sub(' emprsant ', '&', data)
+        data = re.sub('emprsant ', '&', data)
+        data = re.sub(' emprsant', '&', data)
+        data = re.sub('emprsant', '&', data)
         if type(data) != unicode:
-            return unicode(re.sub(' emprsant ', '&', data))
+            return unicode(data)
 
-        return re.sub(' emprsant ', '&', data)
+        return data
 
     def add_endtimes(self, chanid, date_switch = 6):
         """
