@@ -348,8 +348,8 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 2
-        self.patchdate = u'20151022'
+        self.patch = 3
+        self.patchdate = u'20151028'
         self.alfa = False
         self.beta = False
 
@@ -7460,7 +7460,7 @@ class tvgids_JSON(FetchData):
 
         # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
         self.retime = re.compile(r'(\d\d\d\d)-(\d+)-(\d+) (\d+):(\d+)(?::\d+)')
-        self.tvgidsnlprog = re.compile('<div id="prog-content">(.*?)<div id="prog-banner-content">',re.DOTALL)
+        self.tvgidsnlprog = re.compile('<div id="prog-content">(.*?)<div id="prog-banner-content"',re.DOTALL)
         self.tvgidsnltitle = re.compile('<div class="programmering">(.*?)</h1>',re.DOTALL)
         self.tvgidsnldesc = re.compile('<p(.*?)</p>',re.DOTALL)
         self.tvgidsnldesc2 = re.compile('<div class="tekst col-sm-12">(.*?)</div>',re.DOTALL)
@@ -7695,11 +7695,12 @@ class tvgids_JSON(FetchData):
 
                 return
 
-            strdata = '<div>\n' +  self.tvgidsnlprog.search(strdata).group(1)
+            strdata = self.tvgidsnlprog.search(strdata)
             if strdata == None:
                 log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
                 return
 
+            strdata = '<div>\n' +  strdata.group(1)
             if re.search('[Gg]een detailgegevens be(?:kend|schikbaar)', strdata):
                 strtitle = ''
                 strdesc = ''
