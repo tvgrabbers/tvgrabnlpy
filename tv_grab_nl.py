@@ -349,7 +349,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 4
-        self.patchdate = u'20151103'
+        self.patchdate = u'20151104'
         self.alfa = False
         self.beta = True
 
@@ -987,7 +987,7 @@ class Configure:
         # channels for which to look on horizon.tv
         self.source_channels[5] = {'0-1': u'24443942983',
                                            '0-2': u'24443942987',
-                                           '0-3': u'24443943037',
+                                           '0-3': u'672816167173',
                                            '0-66': u'24443943064',
                                            '0-70': u'24443943108',
                                            '0-81': u'24443943160',
@@ -1101,6 +1101,7 @@ class Configure:
                                            '0-462': u'24443943072',
                                            '0-465': u'660696615380',
                                            '1-tv-e': u'24443942991'}
+                                           #~ '0-3': u'24443943037',
                                            #~ '': u'100% NL TV 606274087100',
                                            #~ '': u'192TV 24443943155',
                                            #~ '': u'2M 606274087098',
@@ -1920,6 +1921,7 @@ class Configure:
 
         # Changed Channel config since version 2.1
         if self.configversion >= 2.1:
+            test_as_21 = False
             for line in self.config_dict[3]:
                 try:
                     if line[0:1] == '#':
@@ -1930,9 +1932,26 @@ class Configure:
                         active = True
 
                     channel = re.split(';', line)
-                    if self.configversion == 2.1:
+                    if len(channel) < 6:
+                        # A configuration line with less then six has no chanids
+                        continue
+
+                    # Test to catch early 2.2 configurations without a chanid
+                    try:
+                        if self.configversion > 2.1:
+                            if channel[2].strip() == '':
+                                test_as_21 = True
+
+                            else:
+                                x = int(channel[2])
+                                test_as_21 = True
+
+                    except:
+                        pass
+
+                    if self.configversion == 2.1 or test_as_21:
                         # Read an old channel string
-                        if len(channel) != 8:
+                        if len(channel) != 8 and not test_as_21:
                             # A 2.1  configuration line must contain 8 items
                             continue
 
@@ -1953,10 +1972,6 @@ class Configure:
 
                     else:
                         # And the new version 2.2 one
-                        if len(channel) < 6:
-                            # A configuration line with less then six has no chanids
-                            continue
-
                         for index in range(min(xml_output.source_count,len(channel) - 5)):
                             if channel[index + 3].strip() != '':
                                 break
@@ -1991,7 +2006,7 @@ class Configure:
 
         # Read the channel specific configuration
         for section, values in self.config_dict[9].items():
-            if self.configversion == 2.1:
+            if self.configversion == 2.1 or test_as_21:
                 if section in old_chanids.keys():
                     chanid = old_chanids[section]
 
