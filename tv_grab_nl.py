@@ -1389,7 +1389,7 @@ class Configure:
                                      ('g3016', ): ('amusement',''),
                                      ('g3017', ): ('informatief', ''),
                                      ('g301721', ): ('Nieuws/Actualiteiten', ''),
-                                     ('g301724', ): (u'informatief', u'kunst/cultuur'),
+                                     ('g301724', ): (u'kunst/cultuur', u''),
                                      ('g3017', 'g301724'): (u'informatief', u'kunst/cultuur'),
                                      ('g301725', ): (u'natuur', u''),
                                      ('g301726', ): (u'religieus', u''),
@@ -1439,7 +1439,8 @@ class Configure:
                                                              7: u'role translation',
                                                              8: u'npo.nl genres',
                                                              9: u'horizon.tv genres',
-                                                             10: u'humo.be genres'}
+                                                             10: u'humo.be genres',
+                                                             11: u'vpro.nl genres'}
 
         self.sources = {}
         self.detail_ids = []
@@ -3614,12 +3615,12 @@ class Configure:
             f.write(u'%s\n' % string)
 
         f.write(u'\n')
-        f.write(u'# These are the translation lists for npo.nl, horizon.tv and humo.be genres\n')
+        f.write(u'# These are the translation lists for npo.nl, horizon.tv, humo.be and vpro.nl genres\n')
         f.write(u'# to tvgids.nl genre:subgenre. If you have cattrans enabled, they will next be\n')
         f.write(u'# converted according to the list further down.\n')
         f.write(u"# Notice you don't see any Movie category in the horizon list. This is ruled by\n")
         f.write(u'# a separate flag\n')
-        for index in (4, 5, 6):
+        for index in (4, 5, 6, 7):
             f.write(u'\n')
             f.write(u'[%s]\n' % self.__DEFAULT_SECTIONS__[index+4])
 
@@ -5173,7 +5174,9 @@ class theTVDB(Thread):
                     if 'tdict' in crequest:
                         qanswer = self.get_season_episode(crequest['parent'], crequest['tdict'])
                         qanswer = xml_output.channelsource[0].checkout_program_dict(qanswer)
-                        xml_output.program_cache.cache_request.put({'task':'add', 'program': qanswer})
+                        if qanswer['ID'] != '':
+                            xml_output.program_cache.cache_request.put({'task':'add', 'program': qanswer})
+
                         with crequest['parent'].channel_lock:
                             crequest['parent'].detailed_programs.append(qanswer)
 
@@ -5632,46 +5635,46 @@ class FetchData(Thread):
                     config.channels[chanid].source_data[self.proc_id] = True
 
                 self.ready = True
-                return
 
-            self.day_loaded[0] = {}
-            for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
-                self.day_loaded[0][day] = False
-
-            for chanid in config.channels.keys():
-                self.channel_loaded[chanid] = False
-                self.day_loaded[chanid] ={}
+            else:
+                self.day_loaded[0] = {}
                 for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
-                    self.day_loaded[chanid][day] = False
+                    self.day_loaded[0][day] = False
 
-                self.program_data[chanid] = []
+                for chanid in config.channels.keys():
+                    self.channel_loaded[chanid] = False
+                    self.day_loaded[chanid] ={}
+                    for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
+                        self.day_loaded[chanid][day] = False
 
-            self.init_channels()
-            if not self.source in config.sources.keys():
-                config.sources[self.source] ={}
-                config.sources[self.source]['ID'] = self.detail_id if (self.detail_id != '') else ''
-                config.sources[self.source]['url'] = self.detail_url if (self.detail_url != '') else ''
-                config.detail_ids.append(self.detail_id)
+                    self.program_data[chanid] = []
 
-            self.init_json()
-            # Load and proccess al the program pages
-            try:
-                self.load_pages()
+                self.init_channels()
+                if not self.source in config.sources.keys():
+                    config.sources[self.source] ={}
+                    config.sources[self.source]['ID'] = self.detail_id if (self.detail_id != '') else ''
+                    config.sources[self.source]['url'] = self.detail_url if (self.detail_url != '') else ''
+                    config.detail_ids.append(self.detail_id)
 
-            except:
-                self.fail_count += 1
-                log(['Fatal Error processing the basepages from %s\n' % (self.source), \
-                    'Setting them all to being loaded, to let the other sources finish the job\n', traceback.print_exc()], 0)
-                for chanid in self.channels.keys():
-                    self.channel_loaded[chanid] = True
-                    config.channels[chanid].source_data[self.proc_id].set()
+                self.init_json()
+                # Load and proccess al the program pages
+                try:
+                    self.load_pages()
 
-            # if this is the prefered description source set the value
-            with self.source_lock:
-                for chanid in self.channels.keys():
-                    if config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
-                        for i in range(len(self.program_data[chanid])):
-                            self.program_data[chanid][i]['prefered description'] = self.program_data[chanid][i]['description']
+                except:
+                    self.fail_count += 1
+                    log(['Fatal Error processing the basepages from %s\n' % (self.source), \
+                        'Setting them all to being loaded, to let the other sources finish the job\n', traceback.print_exc()], 0)
+                    for chanid in self.channels.keys():
+                        self.channel_loaded[chanid] = True
+                        config.channels[chanid].source_data[self.proc_id].set()
+
+                # if this is the prefered description source set the value
+                with self.source_lock:
+                    for chanid in self.channels.keys():
+                        if config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
+                            for i in range(len(self.program_data[chanid])):
+                                self.program_data[chanid][i]['prefered description'] = self.program_data[chanid][i]['description']
 
             if self.detail_processor and  not self.proc_id in config.opt_dict['disable_detail_source']:
                 # We process detail requests, so we loop till we are finished
@@ -8306,11 +8309,12 @@ class tvgidstv_HTML(FetchData):
                 if config.write_info_files and not tdict['channelid'] in ('29', '438',):
                     infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
 
-            tdict['subgenre'] = dtext
-            # And add them to source_cattrans[self.proc_id] (and tv_grab_nl_py.set for later reference
-            # But not for Discovery Channel or TLC as that is garbage
-            if not (tdict['genre'] == u'overige' and tdict['channelid'] in ('29', '438',)):
-                config.new_cattrans[self.proc_id].append((dtext.lower().strip(), tdict['genre']))
+            if not tdict['channelid'] in ('29', '438',):
+                tdict['subgenre'] = dtext
+                # And add them to source_cattrans[self.proc_id] (and tv_grab_nl_py.set for later reference
+                # But not for Discovery Channel or TLC as that is garbage
+                if not tdict['genre'] == u'overige':
+                    config.new_cattrans[self.proc_id].append((dtext.lower().strip(), tdict['genre']))
 
         return tdict
 
@@ -10818,6 +10822,16 @@ class vpro_HTML(FetchData):
         self.fetch_channellist = re.compile('<ul class="epg-channel-names">(.*?)</ul>',re.DOTALL)
         self.fetch_titels = re.compile('<h6 class="title">(.*?)</h6>',re.DOTALL)
         self.fetch_data = re.compile('<section class="section-with-layout component-theme theme-white">(.*?)</section>',re.DOTALL)
+        self.fetch_subgenre = re.compile('^(.*?) uit (\d{4}) van (.*?)(over .*?\.|waarin .*?\.|voor .*?\.|\.)')
+        self.fetch_subgenre2 = re.compile('^([A-Z/]+) (\d{4})\. ?(.*?) van (.*?)\.')
+        self.fetch_startline = re.compile('^(.*?)\.')
+        self.fetch_subgenre3 = re.compile('^(.*?) uit (\d{4})')
+        self.fetch_subgenre4 = re.compile('^(.*?) (naar|waarin|over).*?')
+        self.fetch_subtitle = re.compile('[Aa]fl([. ]*)(\d*): (.*?)[.?!]')
+        self.fetch_episode = re.compile('[Aa]flevering([. ]*): (\d+) van (\d+)\.')
+        self.fetch_presenter = re.compile('[Pp]resentatie([. ]*): (.*?)\.')
+        self.fetch_cast = re.compile('[Mm]et([. ]*): (.*?)e\.a\.')
+        self.fetch_cast2 = re.compile('[Mm]et oa (.*?)\.')
 
         self.availabe_days = []
         self.chanids = {}
@@ -10882,8 +10896,123 @@ class vpro_HTML(FetchData):
             self.availabe_days.append(datetime.date(int(d[0]), int(d[1]), int(d[2])).toordinal() - self.current_date)
 
     def load_pages(self):
+        # The vpro description has all kind of inden info like: year episode, cast, presentation.
+        def filter_desc(tdict):
+            if tdict['description'] == '':
+                return
 
-        def get_programs(xml, chanid, omroep = True):
+            # Get subgenre, and possibly jaar van premiere, regisseur, country
+            subg = self.fetch_subgenre.search(tdict['description'])
+            subg2 = self.fetch_subgenre2.search(tdict['description'])
+            startline = self.fetch_startline.search(tdict['description'])
+            if startline == None:
+                startline = ''
+                subg3 = None
+                subg4 = None
+
+            else:
+                startline = startline.group(1)
+                subg3 = self.fetch_subgenre3.search(startline)
+                subg4 = self.fetch_subgenre4.search(startline)
+
+            if subg != None:
+                tdict['subgenre'] = subg.group(1)
+                tdict['jaar van premiere'] = subg.group(2)
+                direct = re.sub(' en ',  ' , ', subg.group(3))
+                direct = re.split(',', direct)
+                if not 'director' in tdict['credits']:
+                    tdict['credits']['director'] = []
+
+                for d in direct:
+                    tdict['credits']['director'].append(d)
+
+            elif subg2 != None:
+                # group(1) is country
+                if config.write_info_files:
+                    pstr = u'new vpro county => '
+                    #~ for cstr in item['program']['countries']:
+                        #~ pstr = pstr + u', ' + cstr
+                    infofiles.addto_detail_list(pstr + subg2.group(1))
+
+                tdict['jaar van premiere'] = subg2.group(2)
+                tdict['subgenre'] = subg2.group(3)
+                direct = re.sub(' en ',  ' , ', subg2.group(4))
+                direct = re.split(',', direct)
+                if not 'director' in tdict['credits']:
+                    tdict['credits']['director'] = []
+
+                for d in direct:
+                    dtest = re.split(' ', d)
+                    if dtest[0] in ('gebaseerd', 'naar', ) or len(dtest) > 5:
+                        continue
+
+                    tdict['credits']['director'].append(d)
+
+            elif subg3 != None:
+                tdict['subgenre'] = subg3.group(1)
+                tdict['jaar van premiere'] = subg3.group(2)
+
+            elif tdict['description'][0:3] == 'Afl' or tdict['description'][0:7] == 'Overige':
+                pass
+
+            elif subg4 != None:
+                subg5 = re.split(' ', subg4.group(1))
+                if len(subg5) <= 4:
+                    tdict['subgenre'] = subg4.group(1)
+
+            else:
+                subg6 = re.split(' ', startline)
+                if len(subg6) <= 4:
+                    tdict['subgenre'] = startline
+
+            # Get the episode Number
+            ep = self.fetch_episode.search(tdict['description'])
+            if ep != None:
+                tdict['episode'] = int(ep.group(2))
+
+            # Get the subtitle and possibly an episode number
+            subt = self.fetch_subtitle.search(tdict['description'])
+            if subt != None:
+                tdict['titel aflevering'] = subt.group(3)
+                if subt.group(2) != '' and tdict['episode'] == 0:
+                    tdict['episode'] = int(subt.group(2))
+
+            # Get the Presenter
+            pres = self.fetch_presenter.search(tdict['description'])
+            if pres != None:
+                pres = re.sub(' en ',  ' , ', pres.group(2))
+                pres = re.split(',', pres)
+                if not 'presenter' in tdict['credits']:
+                    tdict['credits']['presenter'] = []
+
+                for p in pres:
+                    tdict['credits']['presenter'].append(p)
+
+            # Get the acters
+            if tdict['genre'] == 'Sport':
+                return
+
+            cast = self.fetch_cast.search(tdict['description'])
+            cast2 = self.fetch_cast2.search(tdict['description'])
+            if cast != None:
+                cast = re.sub(' en ',  ' , ', cast.group(2))
+                cast = re.split(',', cast)
+                if not 'actor' in tdict['credits']:
+                    tdict['credits']['actor'] = []
+
+                for p in cast:
+                    tdict['credits']['actor'].append(p)
+
+            elif cast2 != None:
+                cast2 = re.sub(' en ',  ' , ', cast2.group(1))
+                cast2 = re.split(',', cast2)
+                if not 'actor' in tdict['credits']:
+                    tdict['credits']['actor'] = []
+
+                for p in cast2:
+                    tdict['credits']['actor'].append(p)
+
+        def get_programs(xml, chanid):
             try:
                 tdict = None
                 day_offset = 0
@@ -10932,9 +11061,8 @@ class vpro_HTML(FetchData):
 
                     pgenre = re.sub('epg-program', '', p.get('class','')).strip()
                     if pgenre != None and pgenre !=  '':
-                        pgenre = pgenre.lower()
-                        #~ pgenre = re.sub('  ', ' ', pgenre.strip())
-                        pg = pgenre.split(' +', 1)
+                        pgenre = re.sub(' +', ' ', re.sub('g', ' g', re.sub('gvpro', '', pgenre.lower())).strip())
+                        pg = pgenre.split(' ')
                         if len(pg) == 1 or pg[1].strip() == 'gvpro':
                             pg = (pg[0].strip(), )
 
@@ -10961,15 +11089,18 @@ class vpro_HTML(FetchData):
                                     tdict['subgenre'] = pg[1].capitalize()
                                     config.new_cattrans[self.proc_id][pg] = (u'Overige', pg[1])
 
-                                elif not pgenre.strip() in ('', 'gvpro'):
+                                elif not pgenre in ('', 'gvpro'):
                                     config.new_cattrans[self.proc_id][pg] = (u'Overige', u'')
 
-                            if config.write_info_files and not pgenre.strip() in ('', 'gvpro'):
+                            if config.write_info_files and not pgenre in ('', 'gvpro'):
                                 infofiles.addto_detail_list(unicode('unknown vpro.nl genre => ' + pgenre + ': ' + tdict['name']))
+
+                        #~ print tdict['genre']
 
                     else:
                         tdict['genre'] = u'overige'
 
+                    filter_desc(tdict)
                     # and append the program to the list of programs
                     with self.source_lock:
                         self.program_data[chanid].append(tdict)
@@ -11039,13 +11170,17 @@ class vpro_HTML(FetchData):
                             t = re.sub('\+', '\\+', t)
 
                     if t != tt:
-                        noquote = re.sub(t, tt, noquote)
+                        noquote = re.sub(t, tt, noquote, flags = re.IGNORECASE)
 
                 htmldata = ET.fromstring( noquote.encode('utf-8'))
 
             except:
                 log('Error extracting ElementTree for day:%s on vpro.nl\n' % (offset))
                 self.fail_count += 1
+                #~ print traceback.format_exc()
+                #~ p = re.split('\n', noquote)
+                #~ print p[23993]
+                #~ print p[24005]
                 if config.write_info_files:
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                     infofiles.write_raw_string(noquote)
@@ -11080,10 +11215,6 @@ class vpro_HTML(FetchData):
                         continue
 
                     chanid = self.chanids[scid]
-                    #~ chanid = u'0-2'
-                    #~ if not chanid in last_added:
-                        #~ last_added[chanid] = None
-
                     get_programs(c, chanid)
                     if channel_cnt == 2:
                         self.day_loaded[chanid][offset] = True
