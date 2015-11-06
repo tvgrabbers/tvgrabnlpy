@@ -2235,6 +2235,11 @@ class Configure:
         Get a list of all available channels and store these
         in a file.
         """
+        # First we clear out all existing source_id's, because they can have become invalid!
+        for channel in self.channels.values():
+            for index in range(xml_output.source_count):
+                channel.source_id[index] = ''
+
         db_icon = []
         db_channel = []
         db_channel_source = []
@@ -3165,6 +3170,14 @@ class Configure:
 
         def get_channel_string(chanid, active = None, chan_string = None, icon_string = None):
             chan = self.channels[chanid]
+            for index in range(xml_output.source_count):
+                if chan.source_id[index] != '':
+                    break
+
+            else:
+                # There are no Source ids so we remove it
+                return {'chan_string': None, 'active': None}
+
             if active == None:
                 active = chan.active
 
@@ -3412,7 +3425,8 @@ class Configure:
                     chan_list[unicode(g)].sort(key=lambda channel: (channel['chan_string']))
                     chan_list[unicode(g)].sort(key=lambda channel: (channel['active']), reverse=True)
                     for channel in chan_list[unicode(g)]:
-                        f.write( channel['chan_string'])
+                        if channel['chan_string'] != None:
+                            f.write(channel['chan_string'])
 
                 if len(chan_not_updated) > 0:
                     f.write('\n')
@@ -3437,7 +3451,8 @@ class Configure:
                 chan_list[g].sort(key=lambda channel: (channel['chan_string']))
                 chan_list[g].sort(key=lambda channel: (channel['active']), reverse=True)
                 for channel in chan_list[g]:
-                    f.write(channel['chan_string'])
+                    if channel['chan_string'] != None:
+                        f.write(channel['chan_string'])
 
         f.write(u'\n')
         f.write(u'# Channel specific settings other then the above or the default:\n')
