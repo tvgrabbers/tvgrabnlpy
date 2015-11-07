@@ -349,7 +349,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 4
-        self.patchdate = u'20151106'
+        self.patchdate = u'20151107'
         self.alfa = False
         self.beta = True
 
@@ -388,14 +388,23 @@ class Configure:
 
         # A selection of user agents we will impersonate, in an attempt to be less
         # conspicuous to the tvgids.nl police.
-        self.user_agents = [ 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)',
-               'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
-               'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322)',
-               'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.7) Gecko/20060909 Firefox/1.5.0.7',
-               'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)',
-               'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.9) Gecko/20071105 Firefox/2.0.0.9',
-               'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
-               'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.8) Gecko/20071022 Ubuntu/7.10 (gutsy) Firefox/2.0.0.8']
+        #~ self.user_agents = [ 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)',
+               #~ 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
+               #~ 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322)',
+               #~ 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.7) Gecko/20060909 Firefox/1.5.0.7',
+               #~ 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)',
+               #~ 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.9) Gecko/20071105 Firefox/2.0.0.9',
+               #~ 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
+               #~ 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.8) Gecko/20071022 Ubuntu/7.10 (gutsy) Firefox/2.0.0.8']
+
+        self.user_agents = [ 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
+               'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.19) Gecko/20081216 Ubuntu/8.04 (hardy) Firefox/2.0.0.19',
+               'Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko',
+               'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A',
+               'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 7.0; InfoPath.3; .NET CLR 3.1.40767; Trident/6.0; en-IN)',
+               'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:42.0) Gecko/20100101 Firefox/42.0',
+               'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36',
+               'Mozilla/5.0 (X11; Linux x86_64; rv:38.0) Gecko/20100101 Firefox/38.0']
 
         # default encoding iso-8859-1 is general and iso-8859-15 is with euro support
         self.httpencoding = 'iso-8859-15'
@@ -2721,7 +2730,7 @@ class Configure:
                 channel.opt_dict['prime_source'] = 6
 
             else:
-                for value in (0, 1, 5, 6):
+                for value in xml_output.prime_source_order:
                     if channel.source_id[value] != '' \
                         and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
                             channel.opt_dict['prime_source'] = value
@@ -3458,7 +3467,11 @@ class Configure:
         f.write(u'# Channel specific settings other then the above or the default:\n')
         chan_names = []
         for chan_def in self.channels.values():
-            chan_names.append({'active': chan_def.active, 'name': chan_def.chan_name, 'id': chan_def.chanid})
+            for index in range(xml_output.source_count):
+                if chan_def.source_id[index] != '':
+                    # Only add specific settings if at least one sourceid present
+                    chan_names.append({'active': chan_def.active, 'name': chan_def.chan_name, 'id': chan_def.chanid})
+                    break
 
         chan_names.sort(key=lambda channel: (channel['name']))
         chan_names.sort(key=lambda channel: (channel['active']), reverse=True)
@@ -9986,77 +9999,83 @@ class npo_HTML(FetchData):
             return
 
         last_added = {}
-        for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 7)):
-            if self.quit:
-                return
+        for retry in (0, 1):
+            for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 7)):
+                if self.quit:
+                    return
 
-            log(['\n', 'Now fetching %s channels from npo.nl\n' % (len(self.channels)), \
-                '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
-
-            channel_url = self.get_url(offset)
-
-            # get the raw programming for the day
-            strdata = self.get_page(channel_url)
-            if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
-                log("No data on npo.nl for day=%d\n" % (offset))
-                self.fail_count += 1
-                continue
-
-            try:
-                strdata = self.clean_html(strdata)
-                htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
-
-            except:
-                log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
-                self.fail_count += 1
-                if config.write_info_files:
-                    infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                    infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
-
-                continue
-
-            # First we get the line-up and some date checks
-            self.base_count += 1
-            try:
-                startdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-start')
-                nextdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-end')
-                if startdate == None or nextdate == None:
-                    log('Error validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
+                # Check if it is already loaded
+                if self.day_loaded[0][offset]:
                     continue
 
-                d = (startdate.split(',')[-1].strip()).split(' ')
-                startdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+                log(['\n', 'Now fetching %s channels from npo.nl\n' % (len(self.channels)), \
+                    '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
-                d = (nextdate.split(',')[-1].strip()).split(' ')
-                nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+                channel_url = self.get_url(offset)
 
-                lineup = self.get_channel_lineup(htmldata)
+                # get the raw programming for the day
+                strdata = self.get_page(channel_url)
+                if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
+                    log("No data on npo.nl for day=%d\n" % (offset))
+                    self.fail_count += 1
+                    continue
 
-            except:
-                log(traceback.format_exc())
-                continue
+                try:
+                    strdata = self.clean_html(strdata)
+                    htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
 
-            try:
-                channel_cnt = 0
-                for c in htmldata.findall('div/div[@class="span12"]/div/div[@class="guide-scroller"]/div/div[@class="channels"]/div'):
+                except:
+                    log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
+                    self.fail_count += 1
+                    if config.write_info_files:
+                        infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                        infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
 
-                    scid = lineup[channel_cnt]
-                    channel_cnt += 1
-                    if not scid in self.chanids.keys():
+                    continue
+
+                # First we get the line-up and some date checks
+                self.base_count += 1
+                try:
+                    startdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-start')
+                    nextdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-end')
+                    if startdate == None or nextdate == None:
+                        log('Error validating page for day:%s on npo.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
                         continue
 
-                    chanid = self.chanids[scid]
-                    if not chanid in last_added:
-                        last_added[chanid] = None
+                    d = (startdate.split(',')[-1].strip()).split(' ')
+                    startdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
 
-                    get_programs(c, chanid, self.all_channels[scid]['group'] in (1, 7, 11))
-                    self.day_loaded[chanid][offset] = True
+                    d = (nextdate.split(',')[-1].strip()).split(' ')
+                    nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
 
-            except:
-                log(traceback.format_exc())
+                    lineup = self.get_channel_lineup(htmldata)
 
-            # be nice to npo.nl
-            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                except:
+                    log(traceback.format_exc())
+                    continue
+
+                try:
+                    channel_cnt = 0
+                    for c in htmldata.findall('div/div[@class="span12"]/div/div[@class="guide-scroller"]/div/div[@class="channels"]/div'):
+
+                        scid = lineup[channel_cnt]
+                        channel_cnt += 1
+                        if not scid in self.chanids.keys():
+                            continue
+
+                        chanid = self.chanids[scid]
+                        if not chanid in last_added:
+                            last_added[chanid] = None
+
+                        get_programs(c, chanid, self.all_channels[scid]['group'] in (1, 7, 11))
+                        self.day_loaded[chanid][offset] = True
+
+                except:
+                    log(traceback.format_exc())
+
+                # be nice to npo.nl
+                self.day_loaded[0][offset] = True
+                time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
         for chanid in self.channels.keys():
             self.channel_loaded[chanid] = True
@@ -11120,18 +11139,6 @@ class vpro_HTML(FetchData):
                     with self.source_lock:
                         self.program_data[chanid].append(tdict)
 
-                    #~ if last_added[chanid] != None and last_added[chanid]['name'] == tdict['name']:
-                        #~ with self.source_lock:
-                            #~ self.program_data[chanid][-1]['stop-time'] = tdict['stop-time']
-
-                    #~ else:
-                        #~ with self.source_lock:
-                            #~ self.program_data[chanid].append(tdict)
-
-                    #~ last_added[chanid] = None
-
-                #~ last_added[chanid] = tdict
-
             except:
                 log(traceback.format_exc())
 
@@ -11145,100 +11152,105 @@ class vpro_HTML(FetchData):
         if len(self.channels) == 0 :
             return
 
-        last_added = {}
-        for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 5)):
-            if self.quit:
-                return
+        for retry in (0, 1):
+            for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 5)):
+                if self.quit:
+                    return
 
-            if len(self.availabe_days) > 0 and not offset in self.availabe_days:
-                continue
-
-            log(['\n', 'Now fetching %s channels from vpro.nl\n' % (len(self.channels)), \
-                '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
-
-            channel_url = self.get_url(offset)
-
-            # get the raw programming for the day
-            strdata = self.get_page(channel_url)
-            if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
-                log("No data on vpro.nl for day=%d\n" % (offset))
-                self.fail_count += 1
-                continue
-
-            try:
-                strdata = self.clean_html(strdata)
-                if len(self.availabe_days) == 0:
-                    self.get_available_days(strdata)
-                    lineup = self.get_channel_lineup(strdata)
-
-                strdata = self.fetch_data.search(strdata).group(0)
-                noquote = strdata
-                for t in self.fetch_titels.findall(strdata):
-                    t = re.sub('<span class="broadcaster">(.*?)</span>', '', t)
-                    t = t.strip()
-                    tt = t
-                    for s in (('"', '&quot;'), ('<', '&lt;'), ('>', '&gt;')):
-                        if s[0] in t:
-                            tt = re.sub(s[0], s[1], tt)
-                            t = re.sub('\?', '\\?', t)
-                            t = re.sub('\*', '\\*', t)
-                            t = re.sub('\+', '\\+', t)
-
-                    if t != tt:
-                        noquote = re.sub(t, tt, noquote, flags = re.IGNORECASE)
-
-                htmldata = ET.fromstring( noquote.encode('utf-8'))
-
-            except:
-                log('Error extracting ElementTree for day:%s on vpro.nl\n' % (offset))
-                self.fail_count += 1
-                #~ print traceback.format_exc()
-                #~ p = re.split('\n', noquote)
-                #~ print p[23993]
-                #~ print p[24005]
-                if config.write_info_files:
-                    infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                    infofiles.write_raw_string(noquote)
-
-                continue
-
-            # First we get the line-up and some date checks
-            self.base_count += 1
-            try:
-                startdate = htmldata.find('div[@class="grid"]/div/div').get('data-selected-guide-date')
-                if startdate == None:
-                    log('Error validating page for day:%s on vpro.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
+                # Check if it is already loaded
+                if self.day_loaded[0][offset]:
                     continue
 
-                d = startdate.split('-')
-                startdate = datetime.date(int(d[0]), int(d[1]), int(d[2]))
-                nextdate = datetime.date(int(d[0]), int(d[1]), int(d[2])+1)
-                if startdate.toordinal() - self.current_date != offset:
-                    log('Error validating page for day:%s on vpro.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
+                if len(self.availabe_days) > 0 and not offset in self.availabe_days:
                     continue
 
-            except:
-                log(traceback.format_exc())
-                continue
+                log(['\n', 'Now fetching %s channels from vpro.nl\n' % (len(self.channels)), \
+                    '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
-            try:
-                channel_cnt = 0
-                for c in htmldata.findall('div[@class="grid"]/div/div/div/div/div/div[@class="epg-channels-container"]/ol'):
-                    scid = lineup[channel_cnt]
-                    channel_cnt += 1
-                    if not scid in self.chanids.keys():
+                channel_url = self.get_url(offset)
+
+                # get the raw programming for the day
+                strdata = self.get_page(channel_url)
+                if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
+                    log("No data on vpro.nl for day=%d\n" % (offset))
+                    self.fail_count += 1
+                    continue
+
+                try:
+                    strdata = self.clean_html(strdata)
+                    if len(self.availabe_days) == 0:
+                        self.get_available_days(strdata)
+                        lineup = self.get_channel_lineup(strdata)
+
+                    strdata = self.fetch_data.search(strdata).group(0)
+                    noquote = strdata
+                    for t in self.fetch_titels.findall(strdata):
+                        t = re.sub('<span class="broadcaster">(.*?)</span>', '', t)
+                        t = t.strip()
+                        tt = t
+                        for s in (('"', '&quot;'), ('<', '&lt;'), ('>', '&gt;')):
+                            if s[0] in t:
+                                tt = re.sub(s[0], s[1], tt)
+                                t = re.sub('\?', '\\?', t)
+                                t = re.sub('\*', '\\*', t)
+                                t = re.sub('\+', '\\+', t)
+
+                        if t != tt:
+                            noquote = re.sub(t, tt, noquote, flags = re.IGNORECASE)
+
+                    htmldata = ET.fromstring( noquote.encode('utf-8'))
+
+                except:
+                    log('Error extracting ElementTree for day:%s on vpro.nl\n' % (offset))
+                    self.fail_count += 1
+                    #~ print traceback.format_exc()
+                    #~ p = re.split('\n', noquote)
+                    #~ print p[23993]
+                    #~ print p[24005]
+                    if config.write_info_files:
+                        infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                        infofiles.write_raw_string(noquote)
+
+                    continue
+
+                # First we get the line-up and some date checks
+                self.base_count += 1
+                try:
+                    startdate = htmldata.find('div[@class="grid"]/div/div').get('data-selected-guide-date')
+                    if startdate == None:
+                        log('Error validating page for day:%s on vpro.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
                         continue
 
-                    chanid = self.chanids[scid]
-                    get_programs(c, chanid)
-                    if channel_cnt == 2:
-                        self.day_loaded[chanid][offset] = True
+                    d = startdate.split('-')
+                    startdate = datetime.date(int(d[0]), int(d[1]), int(d[2]))
+                    nextdate = datetime.date(int(d[0]), int(d[1]), int(d[2])+1)
+                    if startdate.toordinal() - self.current_date != offset:
+                        log('Error validating page for day:%s on vpro.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
+                        continue
 
-            except:
-                log(traceback.format_exc())
+                except:
+                    log(traceback.format_exc())
+                    continue
 
-            # be nice to npo.nl
-            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                try:
+                    channel_cnt = 0
+                    for c in htmldata.findall('div[@class="grid"]/div/div/div/div/div/div[@class="epg-channels-container"]/ol'):
+                        scid = lineup[channel_cnt]
+                        channel_cnt += 1
+                        if not scid in self.chanids.keys():
+                            continue
+
+                        chanid = self.chanids[scid]
+                        get_programs(c, chanid)
+                        if channel_cnt == 2:
+                            self.day_loaded[chanid][offset] = True
+
+                except:
+                    log(traceback.format_exc())
+
+                # be nice to npo.nl
+                self.day_loaded[0][offset] = True
+                time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
         for chanid in self.channels.keys():
             self.channel_loaded[chanid] = True
@@ -12100,9 +12112,10 @@ class XMLoutput:
         self.source_count = 8
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be',
                                   4: 'npo.nl', 5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl'}
+        self.source_order = (0, 1, 7, 5, 6, 2, 4)
         self.source_count = len(self.sources)
-        self.source_order = (0, 1, 5, 7, 6, 2, 4)
         self.detail_sources = (0, 1)
+        self.prime_source_order = (0, 7, 1, 5, 6)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
