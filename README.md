@@ -11,7 +11,7 @@
 
 ###Samenvatting
 
-tv_grab_nl_py is een [XMLTV](http://xmltv.org)-compatibele grabber voor Nederlandse en Vlaamse televisie die [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [horizon.tv](http://www.horizon.tv) en [Humo.be](http://www.humo.be) als bron gebruikt.
+tv_grab_nl_py is een [XMLTV](http://xmltv.org)-compatibele grabber voor Nederlandse en Vlaamse televisie die [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [horizon.tv](http://www.horizon.tv) [Humo.be](http://www.humo.be) en [VPRO.nl](http://www.vpro.nl) als bron gebruikt.
 
 Prettige eigenschappen zijn:
   * detailinformatie wordt gecached
@@ -34,9 +34,24 @@ Sinds versie 2.2:
 
 ###English Summary
 
-tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [horizon.tv](http://www.horizon.tv) and [Humo.be](http://www.humo.be) as a source.
+tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [horizon.tv](http://www.horizon.tv), [Humo.be](http://www.humo.be) and [VPRO.nl](http://www.vpro.nl) as a source.
 
 ###Release Notes Versie 2
+**p20151110**   version 2.2.4 
+* Updated humo.be source. See issue #46. xmltvid's originating from this source (starting with '6-') are no longer valid. They either changed or the channels where removed on the source!  
+* New vpro.nl source with especially more radio channels.  
+* Fixed the `--configure` option to properly update the configuration also removing outdated (invalid) sourceid's especially from humo.be  
+* Some missing icons added.  
+* Some fresh User agents  
+* Some small bugs fixed.  
+
+**p20151030**   version 2.2.3 
+* Small fix for extra space in important tag on tvgids.nl preventing the page being read.
+
+**p20151022**   version 2.2.2 
+* Pure for Windows users optional CP1252 output coding with `--output-windows-codeset`option  
+* Small bugfix (see output for NPO 3 sa 24-10 23:09)
+
 **p20150927**   version 2.2.1
 Bug fix for channels hanging when neither requesting details nor ttvdb lookups.
 (This already would fix itself after 30 minutes of inactivity)
