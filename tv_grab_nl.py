@@ -349,9 +349,9 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 4
-        self.patchdate = u'20151107'
+        self.patchdate = u'20151110'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
@@ -10460,7 +10460,8 @@ class horizon_JSON(FetchData):
                         start = item['endTime']
                         if 'secondaryTitle' in item['program'] \
                           and item['program']['secondaryTitle'][:27].lower() != 'geen informatie beschikbaar' \
-                          and item['program']['secondaryTitle'] not in (item['program']['title']):
+                          and item['program']['secondaryTitle'] not in (item['program']['title']) \
+                          and len(item['program']['secondaryTitle']) < 50:
                             tdict['titel aflevering'] = self.unescape(item['program']['secondaryTitle'])
 
                         ep = int(item['program']['seriesEpisodeNumber']) if 'seriesEpisodeNumber' in item['program'] else 0
