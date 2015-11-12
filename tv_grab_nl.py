@@ -155,6 +155,7 @@ if sys.version_info[:2] < (2,7):
 if sys.version_info[:2] >= (3,0):
     sys.stderr.write("tv_grab_nl_py does not yet support Pyton 3 or higher.\nExpect errors while we proceed\n")
 
+locale.setlocale(locale.LC_ALL, '')
 # XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
 if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
     try:
@@ -1406,6 +1407,64 @@ class Configure:
                                      ('g3018', ): ('informatief', 'Documentaire')}
         self.new_cattrans[7] = {}
 
+        # channels for which to look on nieuwsblad.be
+        self.source_channels[8] = {u'0-1': u'npo1',
+                                                u'0-2': u'npo2',
+                                                u'0-3': u'npo3',
+                                                u'0-37': u'net5',
+                                                u'0-36': u'sbs6',
+                                                u'0-34': u'veronica',
+                                                u'0-5': u'een',
+                                                u'0-6': u'canvas',
+                                                u'1-ketnet-canvas-2': u'ketnet',
+                                                u'1-vijftv': u'vijf',
+                                                u'1-acht': u'acht',
+                                                u'0-49': u'vtm',
+                                                u'0-59': u'2be',
+                                                u'1-vitaya': u'vitaya',
+                                                u'1-jim': u'jim',
+                                                u'1-kanaalz': u'kanaal-z',
+                                                u'1-vtmkzoom': u'vtmkzoom',
+                                                u'0-89': u'nickelodeon',
+                                                u'0-90': u'bvn',
+                                                u'0-11': u'rtl',
+                                                u'0-7': u'bbc_1',
+                                                u'0-8': u'bbc_2',
+                                                u'0-300': u'bbc3',
+                                                u'0-301': u'bbc4',
+                                                u'0-86': u'bbc-world',
+                                                u'1-itv-1': u'itv',
+                                                u'0-26': u'cnn',
+                                                u'0-9': u'ard',
+                                                u'0-10': u'zdf',
+                                                u'0-12': u'wdr',
+                                                u'1-sudwest-fernsehen': u'swr',
+                                                u'0-38': u'arte',
+                                                u'0-15': u'la-une',
+                                                u'0-16': u'la-deux',
+                                                u'1-tf1': u'tf1',
+                                                u'1-france-2': u'france2',
+                                                u'1-france-3': u'france3',
+                                                u'0-17': u'tv5-monde',
+                                                u'1-club-rtl': u'club-rtl',
+                                                u'1-discovery-vlaanderen': u'discovery-channel',
+                                                u'0-422': u'euronews',
+                                                u'6-97': u'tmf',
+                                                u'0-25': u'mtv',
+                                                u'0-18': u'natgeografic',
+                                                u'6-93': u'sundance-channel',
+                                                u'0-19': u'eurosport1',
+                                                u'0-436': u'eurosport-2',
+                                                u'0-21': u'cartoon-network',
+                                                u'1-prime-star': u'prime-star',
+                                                u'1-prime-series': u'prime-serie',
+                                                u'1-prime-fezztival': u'prime-fezztival',
+                                                u'1-prime-family': u'prime-family',
+                                                u'1-prime-action': u'prime-action',
+                                                u'1-tv-e': u'tveint',
+                                                u'0-32': u'trt-turk',
+                                                u'1-rai-uno': u'raiuno'}
+
         #Channel group names as used in tvgids.tv
         self.chan_groups = {1: 'Nederlands',
                                           2: 'Vlaams',
@@ -1414,10 +1473,13 @@ class Configure:
                                           5: 'Frans',
                                           6: 'Nederlands Regionaal',
                                           7: 'Nederlands Overig',
-                                          8: 'Vlaams Overig',
-                                          9: 'Internationaal',
-                                         10: 'Overig',
-                                         11: 'Radio Nederlands'}
+                                          8: 'Vlaams Regionaal',
+                                          9: 'Vlaams Overig',
+                                         10: 'Internationaal',
+                                         11: 'Radio Nederlands',
+                                         12: 'Radio Vlaams',
+                                         13: 'Radio Overig',
+                                         99: 'Overig'}
 
         self.group_names = {1: 'Nederlandse kanalen',
                                           2: 'Vlaamse kanalen',
@@ -1426,10 +1488,13 @@ class Configure:
                                           5: 'Franse kanalen',
                                           6: 'Nederlands Regionaal',
                                           7: 'Overige Nederlands kanalen',
-                                          8: 'Overige Vlaamse kanalen ',
-                                          9: 'Internationale kanalen',
-                                         10: 'Overig kanalen',
+                                          8: 'Vlaams Regionaal',
+                                          9: 'Overige Vlaamse kanalen ',
+                                         10: 'Internationale kanalen',
                                          11: 'Nederlandse Radio',
+                                         12: 'Vlaamse Radio',
+                                         13: 'Overige Radio',
+                                         99: 'Overig kanalen',
                                          -1: 'Alleen geselecteerde kanalen'}
 
         # DO NOT CHANGE THIS!
@@ -2246,6 +2311,8 @@ class Configure:
         """
         # First we clear out all existing source_id's, because they can have become invalid!
         for channel in self.channels.values():
+            if channel.group in (8, 9, 10, 11):
+                channel.group = 99
             for index in range(xml_output.source_count):
                 channel.source_id[index] = ''
 
@@ -2273,6 +2340,7 @@ class Configure:
             '635928103350', '635928103352']
         empty_channels[6] = []
         empty_channels[7] = []
+        empty_channels[8] = []
         # download the json feed
         xml_output.channelsource[0].init_channels()
         xml_output.channelsource[0].get_channels()
@@ -2293,7 +2361,7 @@ class Configure:
             chan['chanid'] = chanid
             chan['sourceid'] = 0
             chan['scid'] = chan_scid
-            chan['cgroup'] = 10
+            chan['cgroup'] = 99
             chan['name'] = xml_output.channelsource[0].all_channels[chan_scid]['name']
             chan['hd'] = False
             db_channel_source.append(chan)
@@ -2311,7 +2379,7 @@ class Configure:
                     self.channels[chanid].icon = xml_output.logo_names[int(chan_scid)][1] + '.gif'
 
         # Get the other sources
-        for index in (1, 6, 5, 2, 4, 7):
+        for index in (1, 6, 5, 2, 4, 7, 8):
             xml_output.channelsource[index].init_channels()
             xml_output.channelsource[index].get_channels()
             # a dict with coresponding source, id and chanid
@@ -2329,7 +2397,7 @@ class Configure:
                 if not (chan_scid in empty_channels[index]):
                     source_keys[index].append(chan_scid)
 
-        for index in (1, 6, 5, 2, 4, 7):
+        for index in (1, 6, 5, 2, 4, 7, 8):
             for chan_scid, channel in xml_output.channelsource[index].all_channels.items():
                 if chan_scid in reverse_channels[index].keys() and \
                   reverse_channels[index][chan_scid]['chan_scid'] in source_keys[reverse_channels[index][chan_scid]['source']]:
@@ -2344,7 +2412,7 @@ class Configure:
                 chan['chanid'] = chanid
                 chan['sourceid'] = index
                 chan['scid'] = chan_scid
-                chan['cgroup'] = channel['group'] if 'group' in channel else 10
+                chan['cgroup'] = channel['group'] if 'group' in channel else 99
                 chan['name'] = channel['name']
                 if 'HD' in channel:
                     chan['hd'] = channel['HD']
@@ -2367,8 +2435,8 @@ class Configure:
 
                 self.channels[chanid].source_id[index] = chan_scid
                 # Set the group
-                if self.channels[chanid].group >= 10:
-                    self.channels[chanid].group = channel['group'] if 'group' in channel else 10
+                if self.channels[chanid].group >= 99:
+                    self.channels[chanid].group = channel['group'] if 'group' in channel else 99
 
                 # Set the Icon
                 icon ={}
@@ -6013,8 +6081,8 @@ class FetchData(Thread):
         self.text_values = ('channelid', 'source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', 'rtl-ID', \
-              'npo-ID', 'horizon-ID', 'humo-ID', 'vpro-ID', 'nl-url', 'tv-url', 'rtl-url', 'be-url', 'npo-url',  \
-              'horizon-url', 'humo-url', 'vpro-url', 'infourl', 'audio', 'star-rating', 'country', 'omroep')
+              'npo-ID', 'horizon-ID', 'humo-ID', 'vpro-ID', 'nb-ID', 'nl-url', 'tv-url', 'rtl-url', 'be-url', 'npo-url',  \
+              'horizon-url', 'humo-url', 'vpro-url', 'nb-url', 'infourl', 'audio', 'star-rating', 'country', 'omroep')
         self.datetime_values = ('start-time', 'stop-time')
         self.date_values = ('airdate', )
         self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst', \
@@ -8249,7 +8317,7 @@ class tvgidstv_HTML(FetchData):
                 name = self.empersant(chan.findtext('div[@class="channel-name ellipsis"]'))
                 self.all_channels[chanid] = {}
                 self.all_channels[chanid]['name'] = name
-                self.all_channels[chanid]['group'] = 10
+                self.all_channels[chanid]['group'] = 99
                 for id in config.chan_groups.keys():
                     if group_name == config.chan_groups[id]:
                         self.all_channels[chanid]['group'] = id
@@ -8399,7 +8467,8 @@ class tvgidstv_HTML(FetchData):
                                 continue
 
                         except:
-                            log('Error: "%s" reading the tvgids.tv basepage for channel=%s, day=%d.\n' % (sys.exc_info()[1]))
+                            log('Error: "%s" reading the tvgids.tv basepage for channel=%s, day=%d.\n' %
+                                (sys.exc_info()[1], config.channels[chanid].chan_name, offset))
                             failure_count += 1
                             self.fail_count += 1
                             continue
@@ -9101,14 +9170,14 @@ class teveblad_HTML(FetchData):
                                     'Hoofdzenders': 2,
                                     'Engelstalig': 3,
                                     'Franstalig': 5,
-                                    'Digitale zenders': 8,
-                                    'Documentaire': 8,
-                                    'Sport': 8,
-                                    'Kids & Jeugd': 8,
-                                    'Anderstalige zenders': 9}
+                                    'Digitale zenders': 9,
+                                    'Documentaire': 9,
+                                    'Sport': 9,
+                                    'Kids & Jeugd': 9,
+                                    'Anderstalige zenders': 10}
         self.all_channels ={}
         self.page_strings = {}
-        changroup = 10
+        changroup = 99
         for item in htmldata.find('div[@class="greyrounded"]'):
             if item.tag == 'h2':
                 group =  self.empersant(item.findtext('a[@href]'))
@@ -9116,7 +9185,7 @@ class teveblad_HTML(FetchData):
                     changroup = chan_groups[group]
 
                 else:
-                    changroup = 10
+                    changroup = 99
 
                 group_url = item.find('a').get('href')
                 group_url = re.split('/', group_url)[-1]
@@ -9836,7 +9905,7 @@ class npo_HTML(FetchData):
 
             else:
                 # Unknown Group
-                cgrp = 10
+                cgrp = 99
 
             for c in c_grp.findall('div[@class="span12"]/div/div[@class="guide-channel-icons"]/div[@class="channel-icon"]'):
                 try:
@@ -10910,10 +10979,17 @@ class vpro_HTML(FetchData):
             scid =re.sub('[!(),]', '', scid)
             #~ scid = '%s-%s' % (self.proc_id, scid)
             if c.attrib['class'] == "epg-source-radio epg-channel-name":
-                grp = 11
+                if scid in ('vrt_radio_1', 'vrt_radio_2', 'klara', ):
+                    grp = 12
+
+                elif scid in ('bbc_radio_3', 'ndr3', 'wdr3', ):
+                    grp = 13
+
+                else:
+                    grp = 11
 
             else:
-                grp = 10
+                grp = 99
 
             self.all_channels[scid] = {}
             self.all_channels[scid]['name'] = name
@@ -11276,7 +11352,6 @@ class vpro_HTML(FetchData):
             except:
                 pass
 
-
 # end vpro_HTML
 
 class nieuwsblad_HTML(FetchData):
@@ -11381,29 +11456,340 @@ class nieuwsblad_HTML(FetchData):
             </html>
         """
 
-        # These regexes fetch the relevant data out of thetvgids.tv pages, which then will be parsed to the ElementTree
+        # These regexes fetch the relevant data out of the nieuwsblad.be pages, which then will be parsed to the ElementTree
+        self.getchannels = re.compile("<div class=\"grid channel__overview\">(.*?)<!-- end block 'tv-gids-channel-overview' -->",re.DOTALL)
         self.getheader = re.compile("<!-- start block 'tvgids-top' -->(.*?)<!-- end block 'tvgids-top' -->",re.DOTALL)
         self.getprograms = re.compile("<!-- start block 'tvgids-left-center' -->(.*?)<!-- end block 'tvgids-left-center' -->",re.DOTALL)
-        self.getchannels = re.compile("<!-- start block 'tvgids-right-center' -->(.*?)<!-- end block 'tvgids-right-center' -->",re.DOTALL)
+        self.getchannelgroups = re.compile("<div id=\"accordion\" class=\"accordion\" data-accordion data-jq-plugin=\"accordion\">(.*?)<!-- end block 'tvgids-right-center' -->",re.DOTALL)
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
             if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
                 self.channels[chanid] = channel.source_id[self.proc_id]
 
-    def get_url(self, offset = 0, chan_group = 0):
+    def get_url(self, channel = None, offset = 0, chan_group = 0):
 
+        locale.setlocale(locale.LC_TIME, ('nl_NL', 'utf-8'))
         base_url = 'http://www.nieuwsblad.be/tv-gids'
         scan_day = datetime.date.fromordinal(self.current_date + offset).strftime("%A")
-        return u'%s/%s/%s' % (base_url,  scan_day, chan_group)
+        if channel == 'base':
+            return base_url
+
+        elif channel == 'zenders':
+            return '%s/zenders' % base_url
+
+        elif channel != None:
+            return '%s/%s/%s' % (base_url, channel,  scan_day)
+
+        else:
+            return u'%s/%s/%s' % (base_url,  scan_day, chan_group)
 
     def get_channels(self):
-        self.channel_names = {}
-        for chanid, channel in self.all_channels.items():
-            self.channel_names[channel['name']] = chanid
-            if 'alt_name' in channel:
-                self.channel_names[channel['alt_name']] = chanid
+        """
+        Get a list of all available channels and store these
+        in all_channels.
+        """
 
+        try:
+            strdata = self.get_page(self.get_url('base'))
+            self.get_channel_lineup(strdata)
+
+        except:
+            self.fail_count += 1
+            print traceback.format_exc()
+
+    def get_channel_lineup(self, chandata):
+
+        chan_groups = {'Vlaams': 2,
+                                    'Nederlands': 1,
+                                    'Frans': 5,
+                                    'Duits': 4,
+                                    'Engels': 3,
+                                    'Overige': 99}
+
+        self.all_channels = {}
+        self.chan_names = {}
+        self.page_strings = {}
+        try:
+            strdata = self.get_page(self.get_url('zenders'))
+            strdata = self.getchannels.search(strdata).group(1)
+            strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
+            strdata = self.clean_html('<div><div>' + strdata).encode('utf-8')
+            htmldata = ET.fromstring(strdata)
+
+            for item in htmldata.findall('div/div[@class]/div[@class="grid__col__inner"]/a[@href]'):
+                url = item.get('href', '')
+                if url != '':
+                    chanid = url.split('/')[-2].strip()
+                    if chanid in self.all_channels:
+                        continue
+
+                    name = self.empersant(item.findtext('div[@class="grid"]/div[@class="grid__col"]/div[@class]/p')).strip()
+                    icon = item.find('div[@class="grid"]/div[@class="grid__col size-1-3"]/div[@class]/img').get('src', '')
+                    if icon != '':
+                        icon = icon.split('/')
+                        icon = '%s/%s' % (icon[-2], icon[-1])
+
+                    self.all_channels[chanid] = {}
+                    self.all_channels[chanid]['name'] = name
+                    self.all_channels[chanid]['icon'] = icon
+                    self.all_channels[chanid]['icongrp'] = 8
+                    self.chan_names[name] = chanid
+
+            for item in htmldata.findall('div/div[@class]/div[@class="grid__col__inner"]/div[@class="grid"]/a[@href]'):
+                url = item.get('href', '')
+                if url != '':
+                    chanid = url.split('/')[-2]
+                    if chanid in self.all_channels:
+                        continue
+
+                    name = self.empersant(item.findtext('div[@class]/div[@class="grid__col__inner"]/p')).strip()
+                    icon = item.find('div[@class]/div[@class="grid__col__inner"]/img').get('src', '')
+                    if icon != '':
+                        icon = icon.split('/')
+                        icon = '%s/%s' % (icon[-2], icon[-1])
+
+                    self.all_channels[chanid] = {}
+                    self.all_channels[chanid]['name'] = name
+                    self.all_channels[chanid]['icon'] = icon
+                    self.all_channels[chanid]['icongrp'] = 8
+                    self.chan_names[name] = chanid
+
+            for item in htmldata.findall('div/div[@class]/div[@class="grid__col__inner"]/ul/li/a[@href]'):
+                url = item.get('href', '')
+                if url != '':
+                    chanid = url.split('/')[-2]
+                    if chanid in self.all_channels or chanid == 'bbc1':
+                        continue
+
+                    name = self.empersant(item.text).strip()
+                    icon = ''
+
+                    self.all_channels[chanid] = {}
+                    self.all_channels[chanid]['name'] = name
+                    self.chan_names[name] = chanid
+
+        except:
+            self.fail_count += 1
+            print traceback.format_exc()
+
+        changroup = 99
+        try:
+            strdata = self.getchannelgroups.search(chandata).group(1)
+            strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
+            strdata = self.clean_html('<div><div>' + strdata).encode('utf-8')
+            htmldata = ET.fromstring(strdata)
+            for item in htmldata.findall('div/div[@class]'):
+                if item.get('class') == 'accordion__header':
+                    group =  self.empersant(item.text).strip()
+                    if group in chan_groups:
+                        changroup = chan_groups[group]
+
+                    else:
+                        changroup = 99
+
+                elif item.get('class') == 'accordion__content':
+                    for g in item.findall('a[@href]'):
+                        pagegrp = g.get('href').split('/')[-1]
+                        self.page_strings[pagegrp] = []
+                        for c in g.findall('div/img'):
+                            cname = c.get('title').strip()
+                            icon = c.get('src', '')
+                            if icon != '':
+                                icon = re.split('/', icon)[-1]
+                                chanid = re.split('\.', icon)[0]
+                                if (changroup == 99 and chanid in ('npo1', 'npo2', 'npo3')) or chanid in ('tv5', 'bbc1'):
+                                    continue
+
+                            if not chanid in self.all_channels.keys():
+                                if cname in self.chan_names.keys():
+                                    chanid = self.chan_names[cname]
+
+                                elif chanid != '':
+                                    self.all_channels[chanid] = {}
+
+                                else:
+                                    continue
+
+                            if not 'name' in self.all_channels[chanid] or self.all_channels[chanid]['name'] == '':
+                                self.all_channels[chanid]['name'] = cname
+
+                            if not 'icon' in self.all_channels[chanid] or self.all_channels[chanid]['icon'] == '':
+                                self.all_channels[chanid]['icon'] = icon
+                                self.all_channels[chanid]['icongrp'] = 8
+
+                            self.all_channels[chanid]['pagegrp'] = pagegrp
+                            self.page_strings[pagegrp].append(chanid)
+                            self.all_channels[chanid]['group'] = changroup
+                            if chanid in ('atv', 'avs', 'rtv', 'wtv', 'tvbrussel', 'tvlimburg', 'tv-oost', 'rob-tv', 'ring-tv',  'focus'):
+                                self.all_channels[chanid]['group'] = 8
+
+                            if chanid in ('eenplus', 'lacht', 'libelle-tv', 'jim', 'kanaal-z', 'vtmkzoom',
+                                    'sporting-1', 'sporting-2', 'play-sports-1', 'play-sports-2'):
+                                self.all_channels[chanid]['group'] = 9
+
+        except:
+            self.fail_count += 1
+            print traceback.format_exc()
+
+
+    def load_pages(self):
+        if config.opt_dict['offset'] > 6:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+
+            return
+
+        self.all_channels = None
+        dayoffset = {}
+        dayoffset['vandaag'] = 0
+        dayoffset['morgen'] = 1
+        dayoffset['overmorgen'] = 2
+        for d in range(6):
+            dd = datetime.date.fromordinal(self.current_date + d).strftime("%A")
+            dayoffset[dd] = d
+
+        try:
+            for retry in (0, 1):
+                channel_cnt = 0
+                for chanid in self.channels.keys():
+                    channel_cnt += 1
+                    failure_count = 0
+                    if self.quit:
+                        return
+
+                    if config.channels[chanid].source_data[self.proc_id].is_set():
+                        continue
+
+                    channel = self.channels[chanid]
+                    # Nieuwsblad.be either returns 6 days per channel or 3 channels per day for 7 days including today
+                    start = config.opt_dict['offset']
+                    # Check if it is allready loaded
+                    if self.day_loaded[chanid][start] != False:
+                        continue
+
+                    log(['\n', 'Now fetching %s(xmltvid=%s%s) from nieuwsblad.be\n' % \
+                        (config.channels[chanid].chan_name, config.channels[chanid].xmltvid , (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                        '    (channel %s of %s) for 6 days.\n' % \
+                        (channel_cnt, len(self.channels))], 2)
+
+                    # get the raw programming for the day
+                    try:
+                        channel_url = self.get_url(channel, start)
+                        strdata = self.get_page(channel_url)
+
+                        if strdata == None:
+                            log("Skip channel=%s on nieuwsblad.be. No data!\n" % (config.channels[chanid].chan_name))
+                            failure_count += 1
+                            self.fail_count += 1
+                            continue
+
+                        if self.all_channels == None:
+                            self.get_channel_lineup(strdata)
+
+                    except:
+                        log('Error: "%s" reading the nieuwsblad.be basepage for channel=%s.\n' % (sys.exc_info()[1], config.channels[chanid].chan_name))
+                        failure_count += 1
+                        self.fail_count += 1
+                        continue
+
+                    try:
+                        strdata =self.getprograms.search(strdata).group(1)
+                        strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
+                        strdata = self.clean_html(strdata)
+                        htmldata = ET.fromstring(strdata.encode('utf-8'))
+
+                    except:
+                        log(["Error extracting ElementTree for channel:%s day:%s on nieuwsblad.be\n" % \
+                            (config.channels[chanid].chan_name, offset)])
+
+                        if config.write_info_files:
+                            infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                            infofiles.write_raw_string(strdata)
+
+                        failure_count += 1
+                        self.fail_count += 1
+                        self.day_loaded[chanid][offset] = None
+                        continue
+
+                    for d in htmldata.findall('div[@class="grid channel-block"]/div[@class="grid__col size-1-3--bp4"]'):
+                        weekday = d.findtext('div/div[@class="tv-guide__channel"]/h6/a').strip()
+                        offset = dayoffset[weekday]
+                        date_offset = offset
+                        scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                        last_program = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + date_offset - 1), datetime.time(0, 0, 0 ,0 ,CET_CEST))
+                        for p in d.findall('div/div[@class="program"]'):
+                            #~ start = p.findtext('div[@class="time"]')
+                            #~ title = p.findtext('div[@class="title"]/a').strip()
+                            #~ url = p.find('div[@class="title"]/a').get('href')
+
+                            tdict = self.checkout_program_dict()
+                            tdict['source'] = u'nieuwsblad'
+                            tdict['channelid'] = chanid
+                            tdict['channel'] = config.channels[chanid].chan_name
+                            tdict[self.detail_url] = p.find('div[@class="title"]/a').get('href')
+                            #~ tdict[self.detail_id] = u'tv-%s' % tdict[self.detail_url].split('/')[5]  if (tdict[self.detail_url] != '') else ''
+
+                            # The Title
+                            tdict['name'] = self.empersant(p.findtext('div[@class="title"]/a').strip())
+                            tdict = self.check_title_name(tdict)
+                            if  tdict['name'] == None or tdict['name'] == '':
+                                log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                                continue
+
+                            # Get the starttime and make sure the midnight date change is properly crossed
+                            start = p.findtext('div[@class="time"]')
+                            if start == None or start == '':
+                                log('Can not determine starttime for "%s"\n' % tdict['name'])
+                                continue
+
+                            prog_time = datetime.time(int(start.split(':')[0]), int(start.split(':')[1]), 0 ,0 ,CET_CEST)
+                            if datetime.datetime.combine(scan_date, prog_time) < last_program:
+                                date_offset = date_offset +1
+                                scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+
+                            tdict['offset'] = date_offset
+                            tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
+                            last_program = tdict['start-time']
+
+                            # and append the program to the list of programs
+                            with self.source_lock:
+                                self.program_data[chanid].append(tdict)
+
+                        self.base_count += 1
+                        self.day_loaded[chanid][offset] = True
+                        # be nice to nieuwsblad.be
+                        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+                    if len(self.program_data[chanid]) == 0:
+                        config.channels[chanid].source_data[self.proc_id].set()
+                        continue
+
+                    # Add starttime of the next program as the endtime
+                    with self.source_lock:
+                        self.program_data[chanid].sort(key=lambda program: (program['start-time']))
+                        self.add_endtimes(chanid, 6)
+
+                        for tdict in self.program_data[chanid]:
+                            self.program_by_id[tdict[self.detail_id]] = tdict
+
+                    if failure_count == 0 or retry == 1:
+                        self.channel_loaded[chanid] = True
+                        self.parse_programs(chanid, 0, 'None')
+                        config.channels[chanid].source_data[self.proc_id].set()
+
+                        try:
+                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+                        except:
+                            pass
+
+        except:
+            log(traceback.format_exc())
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
 
 # end nieuwsblad_HTML
 
@@ -11411,7 +11797,7 @@ class Channel_Config(Thread):
     """
     Class that holds the Channel definitions and manages the data retrieval and processing
     """
-    def __init__(self, chanid = 0, name = '', group = 10):
+    def __init__(self, chanid = 0, name = '', group = 99):
         Thread.__init__(self)
         # Flag to stop the thread
         self.quit = False
@@ -11488,7 +11874,7 @@ class Channel_Config(Thread):
         config.validate_option('max_overlap', self)
         config.validate_option('desc_length', self)
         config.validate_option('slowdays', self)
-        if self.group in (6, 11):
+        if self.group in (6, 8, 11, 12):
             self.opt_dict['disable_ttvdb'] = True
 
     def run(self):
@@ -11907,7 +12293,8 @@ class XMLoutput:
                                         'http://212.142.41.211/ChannelLogos/02/',
                                         'https://www.horizon.tv/static-images/',
                                         'http://img.humo.be/q100/w100/h100/epglogos/',
-                                        'http://www-assets.npo.nl/uploads/']
+                                        'http://www-assets.npo.nl/uploads/',
+                                        'http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/']
 
                                     #~ 1 : [0, 'ned1'],
                                     #~ 2 : [0, 'ned2'],
@@ -12110,13 +12497,13 @@ class XMLoutput:
                                     '7-klara': [4, 'radio_vrtklara'],
                                     '7-wdr3': [4, 'radio_wdr_5']}
 
-        self.source_count = 8
+        self.source_count = 9
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be',
-                                  4: 'npo.nl', 5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl'}
-        self.source_order = (0, 1, 7, 5, 6, 2, 4)
+                                  4: 'npo.nl', 5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be'}
+        self.source_order = (0, 1, 7, 5, 6, 8, 2, 4)
         self.source_count = len(self.sources)
         self.detail_sources = (0, 1)
-        self.prime_source_order = (0, 7, 1, 5, 6)
+        self.prime_source_order = (0, 7, 1, 5, 6, 8)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
@@ -12126,6 +12513,7 @@ class XMLoutput:
         self.channelsource[5] = horizon_JSON(5, 'horizon.tv', 'horizon-ID', 'horizon-url', True)
         self.channelsource[6] = humo_JSON(6, 'humo.be', 'humo-ID', 'humo-url', True)
         self.channelsource[7] = vpro_HTML(7, 'vpro.nl', 'vpro-ID', 'vpro-url')
+        self.channelsource[8] = nieuwsblad_HTML(8, 'nieuwsblad.be', 'nb-ID', 'nb-url')
         self.output_lock = Lock()
         self.cache_return = Queue()
         self.ttvdb = theTVDB()
@@ -12519,8 +12907,9 @@ def main():
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
 
-        #~ test = vpro_HTML(7, 'vpro.nl', 'vpro-ID', 'vpro-url')
+        #~ test = nieuwsblad_HTML(8, 'nieuwsblad.be', 'nb-ID', 'nb-url')
         #~ test.init_channels()
+        #~ test.get_channels()
         #~ config.opt_dict['offset'] = 0
         #~ config.opt_dict['days'] = 1
         #~ test.load_pages()
