@@ -350,9 +350,9 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 5
-        self.patchdate = u'20151115'
+        self.patchdate = u'20151116'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
@@ -8011,21 +8011,21 @@ class tvgids_JSON(FetchData):
                 if content == '':
                     continue
 
-                if ctype == 'aflevering':
+                elif ctype == 'aflevering':
                     # This contains a subtitle, optionally preseded by an episode number and an episode count
                     txt = self.aflevering.search(content)
                     if txt != None:
                         tdict['episode'] = 0 if txt.group(1) in ('', None) else int(txt.group(1))
                         tdict['titel aflevering'] = '' if txt.group(2) in ('', None) else txt.group(2).strip()
 
-                if ctype == 'seizoen':
+                elif ctype == 'seizoen':
                     try:
                         tdict['season'] = int(content)
 
                     except:
                         pass
 
-                if ctype == 'genre':
+                elif ctype == 'genre':
                     tdict['genre'] = content.title()
 
                 # Parse persons and their roles for credit info
