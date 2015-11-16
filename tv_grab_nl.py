@@ -350,7 +350,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 5
-        self.patchdate = u'20151112'
+        self.patchdate = u'20151115'
         self.alfa = False
         self.beta = True
 
@@ -555,6 +555,8 @@ class Configure:
                              'scenario schrijver'              : 'writer',
                              'componist'                                : 'composer',
                              'presentatie'                            : 'presenter',
+                             'presentator'                            : 'presenter',
+                             'verslaggever'                          : 'reporter',
                              'commentaar'                              : 'commentator'}
 
         # List of titles not to split with title_split().
@@ -563,7 +565,10 @@ class Configure:
                                 u'ncis: new orleans',
                                 u'csi: miami',
                                 u'csi: new york',
-                                u'law & order: special victims unit']
+                                u'law and order: special victims unit',
+                                u'law & order: special victims unit',
+                                u'law & order: criminal intent',
+                                u'law & order: svu']
 
         # Parts to remove from a title
         self.groupnameremove = ['kro detectives', 'detectives', 'premiére']
@@ -7665,6 +7670,7 @@ class tvgids_JSON(FetchData):
         self.tvgidsnldesc = re.compile('<p(.*?)</p>',re.DOTALL)
         self.tvgidsnldesc2 = re.compile('<div class="tekst col-sm-12">(.*?)</div>',re.DOTALL)
         self.tvgidsnldetails = re.compile('<div class="programmering_info_detail">(.*?)</div>',re.DOTALL)
+        self.aflevering = re.compile('(\d*)/?\d*(.*)')
 
         self.channels = {}
         self.url_channels = ''
@@ -8005,6 +8011,20 @@ class tvgids_JSON(FetchData):
                 if content == '':
                     continue
 
+                if ctype == 'aflevering':
+                    # This contains a subtitle, optionally preseded by an episode number and an episode count
+                    txt = self.aflevering.search(content)
+                    if txt != None:
+                        tdict['episode'] = 0 if txt.group(1) in ('', None) else int(txt.group(1))
+                        tdict['titel aflevering'] = '' if txt.group(2) in ('', None) else txt.group(2).strip()
+
+                if ctype == 'seizoen':
+                    try:
+                        tdict['season'] = int(content)
+
+                    except:
+                        pass
+
                 if ctype == 'genre':
                     tdict['genre'] = content.title()
 
@@ -8012,6 +8032,8 @@ class tvgids_JSON(FetchData):
                 elif ctype in config.roletrans:
                     if not config.roletrans[ctype] in tdict['credits']:
                         tdict['credits'][config.roletrans[ctype]] = []
+
+                    content = re.sub(' en ', ' , ', content)
                     persons = content.split(',');
                     for name in persons:
                         if name.find(':') != -1:
@@ -8050,7 +8072,7 @@ class tvgids_JSON(FetchData):
                 elif ctype == 'nl-url':
                     tdict['infourl'] = content
 
-                elif (ctype not in tdict) and (ctype.lower() not in ('zender', 'datum', 'uitzendtijd', 'titel')):
+                elif (ctype not in tdict) and (ctype.lower() not in ('zender', 'datum', 'uitzendtijd', 'titel', 'prijzen')):
                     # In unmatched cases, we still add the parsed type and content to the program details.
                     # Some of these will lead to xmltv output during the xmlefy_programs step
                     if config.write_info_files:
