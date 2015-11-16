@@ -517,6 +517,7 @@ class Configure:
         # Whether to use the split double episodes regularily seen on teveblad.be
         self.opt_dict['use_split_episodes'] = True
 
+        self.weekdagen = ('zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag')
         # The values for the Kijkwijzer
         # Possible styles are
         # long, short, single and none
@@ -11491,9 +11492,8 @@ class nieuwsblad_HTML(FetchData):
 
     def get_url(self, channel = None, offset = 0, chan_group = 0):
 
-        locale.setlocale(locale.LC_TIME, ('nl_NL', 'utf-8'))
         base_url = 'http://www.nieuwsblad.be/tv-gids'
-        scan_day = datetime.date.fromordinal(self.current_date + offset).strftime("%A")
+        scan_day = config.weekdagen[int(datetime.date.fromordinal(self.current_date + offset).strftime("%w"))]
         if channel == 'base':
             return base_url
 
@@ -11669,7 +11669,7 @@ class nieuwsblad_HTML(FetchData):
         dayoffset['morgen'] = 1
         dayoffset['overmorgen'] = 2
         for d in range(6):
-            dd = datetime.date.fromordinal(self.current_date + d).strftime("%A")
+            dd = config.weekdagen[int(datetime.date.fromordinal(self.current_date + d).strftime("%w"))]
             dayoffset[dd] = d
 
         try:
