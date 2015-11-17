@@ -706,6 +706,7 @@ class Configure:
                                            '0-148': 'eredivisie-live',
                                            '0-417': 'extreme-sports',
                                            '0-418': 'espn-classic',
+                                           '0-466': 'ziggo-sport',
                                            '0-24': 'film1.1',
                                            '0-411': 'film1-action',
                                            '0-39': 'film1-familiy',
@@ -758,6 +759,7 @@ class Configure:
                                            '0-8': 'bbc-2',
                                            '0-300': 'bbc-3',
                                            '0-301': 'bbc-4',
+                                           '0-464': 'bbc-first',
                                            '0-104': 'bbc-prime',
                                            '0-86': 'bbc-world',
                                            '0-26': 'cnn',
@@ -1088,6 +1090,7 @@ class Configure:
                                            '1-eredivisie-live-3': u'119414823235',
                                            '1-eredivisie-live-4': u'119414823230',
                                            '1-fox-sports-5-eredivisie': u'555680807172',
+                                           '1-fox-sports-6': u'606274087106',
                                            '0-99': u'24443943161',
                                            '0-419': u'24443943140',
                                            '1-sport-1-2': u'24443943164',
@@ -1105,8 +1108,10 @@ class Configure:
                                            '0-32': u'24443943081',
                                            '0-313': u'24443943095',
                                            '0-315': u'24443943111',
+                                           '0-317': u'672816167176',
                                            '0-406': u'24443943124',
                                            '0-407': u'545453607330',
+                                           '0-408': u'672816167174',
                                            '0-415': u'564193831244',
                                            '0-422': u'24443943027',
                                            '0-423': u'561138215259',
@@ -1116,6 +1121,7 @@ class Configure:
                                            '0-437': u'24443943077',
                                            '0-462': u'24443943072',
                                            '0-465': u'660696615380',
+                                           '0-466': u'675503655063',
                                            '1-tv-e': u'24443942991'}
                                            #~ '0-3': u'24443943037',
                                            #~ '': u'100% NL TV 606274087100',
@@ -1247,11 +1253,9 @@ class Configure:
                                             '0-9': '43',
                                             '0-10': '105',
                                             '1-jim': '55',
-                                            '0-25': '69',
                                             '1-ketnet-canvas-2': '59',
                                             '1-vtmkzoom': '101',
                                             '0-424': '47',
-                                            '0-89': '73',
                                             '0-12': '103',
                                             '1-tf1': '95',
                                             '1-rai-uno': '85',
@@ -1262,6 +1266,8 @@ class Configure:
                                             #~ 93 Sundance
                                             #~ 91 studio100 tv
 
+                                            #~ '0-89': '73',
+                                            #~ '0-25': '69',
                                             #~ '0-300': '345',
                                             #~ '0-301': '347',
                                             #~ '0-413': '191',
@@ -1360,14 +1366,14 @@ class Configure:
                                                 u'5-24443943129': u'mezzo',
                                                 u'0-19': u'eurosport',
                                                 u'0-431': u'hbo_1',
-                                                u'0-91': u'comedycentral',
+                                                u'0-91': u'comedy_central',
                                                 u'0-404': u'fox_live',
                                                 u'0-93': u'13th_street',
                                                 u'0-94': u'syfy',
                                                 u'0-29': u'discovery_channel',
                                                 u'0-18': u'national_geographic',
                                                 u'0-438': u'tlc',
-                                                u'0-435': u'24kitchen',
+                                                u'0-435': u'24_kitchen',
                                                 u'4-292': u'radio_1',
                                                 u'4-293': u'radio_2',
                                                 u'4-294': u'3fm',
@@ -1431,11 +1437,11 @@ class Configure:
                                                 u'1-jim': u'jim',
                                                 u'1-kanaalz': u'kanaal-z',
                                                 u'1-vtmkzoom': u'vtmkzoom',
-                                                u'0-89': u'nickelodeon',
+                                                u'6-73': u'nickelodeon',
                                                 u'0-90': u'bvn',
                                                 u'0-11': u'rtl',
-                                                u'0-7': u'bbc_1',
-                                                u'0-8': u'bbc_2',
+                                                u'0-7': u'bbc-1',
+                                                u'0-8': u'bbc-2',
                                                 u'0-300': u'bbc3',
                                                 u'0-301': u'bbc4',
                                                 u'0-86': u'bbc-world',
@@ -1456,14 +1462,14 @@ class Configure:
                                                 u'1-discovery-vlaanderen': u'discovery-channel',
                                                 u'0-422': u'euronews',
                                                 u'6-97': u'tmf',
-                                                u'0-25': u'mtv',
+                                                u'6-69': u'mtv',
                                                 u'0-18': u'natgeografic',
                                                 u'6-93': u'sundance-channel',
                                                 u'0-19': u'eurosport1',
                                                 u'0-436': u'eurosport-2',
                                                 u'0-21': u'cartoon-network',
                                                 u'1-prime-star': u'prime-star',
-                                                u'1-prime-series': u'prime-serie',
+                                                u'1-prime-series': u'prime-series',
                                                 u'1-prime-fezztival': u'prime-fezztival',
                                                 u'1-prime-family': u'prime-family',
                                                 u'1-prime-action': u'prime-action',
@@ -10444,7 +10450,13 @@ class horizon_JSON(FetchData):
             for schedule in channel['stationSchedules']:
                 chanid = schedule['station']['id']
                 self.all_channels[chanid] = {}
-                #~ self.all_channels[chanid]['group'] = 10
+                if chanid in ('24443943153', '647417383034', '561138215259', '565790759345',
+                                    '24443942998', '606274087103', '606274087104', '24443943090',
+                                    '672816167175', '24443943185', '24443943023', '564193831245',
+                                    '429332519213', '24443943030', '606274087101', '24443943109',
+                                    '24443943092', '606274087105', '560453158988', ):
+                    self.all_channels[chanid]['group'] = 10
+
                 self.all_channels[chanid]['name'] = self.unescape(schedule['station']['title']).strip()
                 if self.all_channels[chanid]['name'][-3:] == ' HD':
                     self.all_channels[chanid]['name'] = self.all_channels[chanid]['name'][:-3].strip()
@@ -11647,7 +11659,7 @@ class nieuwsblad_HTML(FetchData):
                                 self.all_channels[chanid]['group'] = 8
 
                             if chanid in ('eenplus', 'lacht', 'libelle-tv', 'jim', 'kanaal-z', 'vtmkzoom',
-                                    'sporting-1', 'sporting-2', 'play-sports-1', 'play-sports-2'):
+                                    'sporting-1', 'sporting-2', 'play-sports-1', 'play-sports-2', 'nickelodeon', 'mtv', 'tmf'):
                                 self.all_channels[chanid]['group'] = 9
 
         except:
