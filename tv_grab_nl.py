@@ -349,10 +349,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 5
-        self.patchdate = u'20151116'
+        self.patch = 6
+        self.patchdate = u'20151118'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
@@ -1257,6 +1257,7 @@ class Configure:
                                             '1-vtmkzoom': '101',
                                             '0-424': '47',
                                             '0-12': '103',
+                                            '0-21': '109',
                                             '1-tf1': '95',
                                             '1-rai-uno': '85',
                                             '1-tv-e': '99',
@@ -1370,6 +1371,7 @@ class Configure:
                                                 u'0-404': u'fox_live',
                                                 u'0-93': u'13th_street',
                                                 u'0-94': u'syfy',
+                                                u'0-440': u'fox',
                                                 u'0-29': u'discovery_channel',
                                                 u'0-18': u'national_geographic',
                                                 u'0-438': u'tlc',
@@ -8634,7 +8636,7 @@ class tvgidstv_HTML(FetchData):
                             pass
 
         except:
-            log(traceback.format_exc())
+            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source), traceback.format_exc()], 0)
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 config.channels[chanid].source_data[self.proc_id].set()
@@ -10748,6 +10750,8 @@ class humo_JSON(FetchData):
                 self.all_channels[chanid]['name'] = channel['display_name']
                 self.all_channels[chanid]['icon'] = icon[-1]
                 self.all_channels[chanid]['fetch_grp'] = grp_code
+                if chanid in ('111', ):
+                    self.all_channels[chanid]['group'] = 9
 
     def load_pages(self):
 
@@ -11820,7 +11824,7 @@ class nieuwsblad_HTML(FetchData):
                             pass
 
         except:
-            log(traceback.format_exc())
+            log(['\n', 'An unexpected error has occured in the %s thread\n' %  (self.source), traceback.format_exc()], 0)
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 config.channels[chanid].source_data[self.proc_id].set()
