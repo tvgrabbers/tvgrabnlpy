@@ -1048,8 +1048,6 @@ class Configure:
                                            '0-26': u'561138215261',
                                            '0-86': u'24443943049',
                                            '0-104': u'24443943099',
-                                           '0-300': u'24443943013',
-                                           '0-301': u'24443943080',
                                            '0-9': u'429332519216',
                                            '0-10': u'429332519214',
                                            '0-11': u'555680807174',
@@ -1123,6 +1121,8 @@ class Configure:
                                            '0-465': u'660696615380',
                                            '0-466': u'675503655063',
                                            '1-tv-e': u'24443942991'}
+                                           #~ '0-300': u'24443943013',
+                                           #~ '0-301': u'24443943080',
                                            #~ '0-3': u'24443943037',
                                            #~ '': u'100% NL TV 606274087100',
                                            #~ '': u'192TV 24443943155',
@@ -2451,6 +2451,13 @@ class Configure:
                 # Set the group
                 if self.channels[chanid].group >= 99:
                     self.channels[chanid].group = channel['group'] if 'group' in channel else 99
+
+                # Move Dutch/Flemish channels from other to main if any sources places them there
+                if 'group' in channel and channel['group'] == 1 and self.channels[chanid].group == 7:
+                    self.channels[chanid].group = channel['group'] = 1
+
+                if 'group' in channel and channel['group'] == 2 and self.channels[chanid].group == 9:
+                    self.channels[chanid].group = channel['group'] = 2
 
                 # Set the Icon
                 icon ={}
@@ -8354,6 +8361,9 @@ class tvgidstv_HTML(FetchData):
                         self.all_channels[chanid]['group'] = id
                         break
 
+                if chanid in ('cbeebies', ):
+                    self.all_channels[chanid]['group'] = 3
+
     def match_genre(self, dtext, tdict):
         if len(dtext) > 20:
             tdict['genre'] = u'overige'
@@ -9924,7 +9934,7 @@ class npo_HTML(FetchData):
 
             elif g_id == 'themed-guide':
                 # The NPO theme channels
-                cgrp = 7
+                cgrp = 1
 
             elif g_id == 'regional-guide':
                 # The Regional channels
@@ -10458,6 +10468,9 @@ class horizon_JSON(FetchData):
                                     '429332519213', '24443943030', '606274087101', '24443943109',
                                     '24443943092', '606274087105', '560453158988', ):
                     self.all_channels[chanid]['group'] = 10
+
+                elif chanid in ('24443943080', '24443943013', '24443943111', '24443943051',):
+                    self.all_channels[chanid]['group'] = 3
 
                 self.all_channels[chanid]['name'] = self.unescape(schedule['station']['title']).strip()
                 if self.all_channels[chanid]['name'][-3:] == ' HD':
