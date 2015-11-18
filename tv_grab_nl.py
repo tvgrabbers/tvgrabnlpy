@@ -517,6 +517,9 @@ class Configure:
         # Whether to use the split double episodes regularily seen on teveblad.be
         self.opt_dict['use_split_episodes'] = True
 
+        # After configure, place the active channels in a separate group on top of the list
+        self.opt_dict['group_active_channels'] = False
+
         self.weekdagen = ('zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag')
         # The values for the Kijkwijzer
         # Possible styles are
@@ -1120,7 +1123,7 @@ class Configure:
                                            '0-462': u'24443943072',
                                            '0-465': u'660696615380',
                                            '0-466': u'675503655063',
-                                           '1-tv-e': u'24443942991'}
+                                           '1-tv-e': u'672816167175'}
                                            #~ '0-300': u'24443943013',
                                            #~ '0-301': u'24443943080',
                                            #~ '0-3': u'24443943037',
@@ -1242,7 +1245,6 @@ class Configure:
                                             '0-3': '34',
                                             '0-19': '49',
                                             '1-njam': '28',
-                                            '0-438': '36',
                                             '0-7': '10',
                                             '0-8': '12',
                                             '0-38': '45',
@@ -1262,7 +1264,9 @@ class Configure:
                                             '1-rai-uno': '85',
                                             '1-tv-e': '99',
                                             '1-rtl-tvi': '87',
+                                            '1-amc': '107',
                                             '1-tmf': '97'}
+                                            #~ '0-438': '36',
                                             #~ 65 La Trois
                                             #~ 93 Sundance
                                             #~ 91 studio100 tv
@@ -1493,6 +1497,7 @@ class Configure:
                                          11: 'Radio Nederlands',
                                          12: 'Radio Vlaams',
                                          13: 'Radio Overig',
+                                          0: 'Actieve Zenders',
                                          99: 'Overig'}
 
         self.group_names = {1: 'Nederlandse kanalen',
@@ -1750,6 +1755,11 @@ class Configure:
         parser.add_argument('-c', '--configure', action = 'store_true', default = False, dest = 'configure',
                         help = 'create configfile; rename an existing file to *.old.')
 
+        parser.add_argument('--group_active_channels', action = 'store_true', default = False, dest = 'group_active_channels',
+                        help = 'After running configure, place all active channels in\n' +
+                                    'a separate group on top of the list.\n' +
+                                    'Only relevant together with the configure option.')
+
         parser.add_argument('-C', '--config-file', type = str, default = self.config_file, dest = 'config_file',
                         metavar = '<file>',
                         help = 'name of the configuration file\n<default = \'%s\'>' % self.config_file)
@@ -1761,9 +1771,6 @@ class Configure:
         parser.add_argument('-A', '--cache', type = str, default = self.program_cache_file, dest = 'program_cache_file',
                         metavar = '<file>',
                         help = 'cache descriptions and use the file to store\n<default = \'%s\'>' % self.program_cache_file)
-
-        parser.add_argument('-S', '--cache-save-interval', type = int, default = None, dest = 'cache_save_interval',
-                        metavar = '<number>', help = 'This option is deprecated')
 
         parser.add_argument('--clean_cache', action = 'store_true', default = self.clean_cache, dest = 'clean_cache',
                         help = 'clean the cache of outdated data before fetching')
@@ -1942,7 +1949,7 @@ class Configure:
                 cfg_option = a[0].lower().strip()
                 # Boolean Values
                 if cfg_option in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', \
-                  'mark_hd', 'use_utc', 'disable_ttvdb', 'use_split_episodes'):
+                  'mark_hd', 'use_utc', 'disable_ttvdb', 'use_split_episodes', 'group_active_channels'):
                     if len(a) == 1:
                         self.opt_dict[cfg_option] = True
 
@@ -2325,7 +2332,7 @@ class Configure:
         """
         # First we clear out all existing source_id's, because they can have become invalid!
         for channel in self.channels.values():
-            if channel.group in (8, 9, 10, 11):
+            if channel.group in (0, 8, 9, 10, 11):
                 channel.group = 99
             for index in range(xml_output.source_count):
                 channel.source_id[index] = ''
@@ -2420,7 +2427,6 @@ class Configure:
 
                 else:
                     chanid = '%s-%s' % (index, chan_scid)
-                    #~ print '%s: %s from source %s is not in reverse_channels' % (chan_scid, channel['name'], index)
 
                 chan ={}
                 chan['chanid'] = chanid
@@ -2447,6 +2453,9 @@ class Configure:
 
                     self.channels[chanid] = Channel_Config(chanid, chan['name'] )
 
+                elif index in(2, 4):
+                    self.channels[chanid].chan_name = chan['name']
+
                 self.channels[chanid].source_id[index] = chan_scid
                 # Set the group
                 if self.channels[chanid].group >= 99:
@@ -2454,10 +2463,10 @@ class Configure:
 
                 # Move Dutch/Flemish channels from other to main if any sources places them there
                 if 'group' in channel and channel['group'] == 1 and self.channels[chanid].group == 7:
-                    self.channels[chanid].group = channel['group'] = 1
+                    self.channels[chanid].group = channel['group']
 
                 if 'group' in channel and channel['group'] == 2 and self.channels[chanid].group == 9:
-                    self.channels[chanid].group = channel['group'] = 2
+                    self.channels[chanid].group = channel['group']
 
                 # Set the Icon
                 icon ={}
@@ -2625,6 +2634,7 @@ class Configure:
 
         self.write_opts_to_log()
         if self.args.configure:
+            self.args.group_active_channels = self.opt_dict['group_active_channels'] | self.args.group_active_channels
             log('Creating config file: %s\n' % self.config_file)
             self.get_channels()
             if not self.write_config(True):
@@ -3223,6 +3233,7 @@ class Configure:
         f.write(u"#   none  : don't add any\n")
         f.write(u'kijkwijzerstijl = %s\n' % self.opt_dict['kijkwijzerstijl'])
         f.write(u'use_split_episodes = %s\n' % self.opt_dict['use_split_episodes'])
+        f.write(u'group_active_channels = %s\n' % self.opt_dict['group_active_channels'])
         f.write(u'\n')
 
         f.write(u'# These are the channeldefinitions. You can disable a channel by placing\n')
@@ -3278,6 +3289,9 @@ class Configure:
 
             if active == None:
                 active = chan.active
+
+            if self.args.group_active_channels and active:
+                chan.group = 0
 
             if chan_string == None:
                 chan_string = '%s;%s;%s' % (chan.chan_name, chan.group, chanid)
@@ -3342,6 +3356,7 @@ class Configure:
                 return True
 
         # This is an upgrade
+        chan_not_updated = []
         if add_channels != True:
             configlines = {}
             configlines['2remarks'] = []
@@ -3421,7 +3436,6 @@ class Configure:
 
                 self.get_channels()
                 chan_added = []
-                chan_not_updated = []
                 chan_list = {}
                 for g in self.chan_groups.keys():
                     chan_list[unicode(g)] =[]
@@ -3435,6 +3449,9 @@ class Configure:
 
                         if chan[0].strip() in self.channels.keys():
                             chanid = chan[0].strip()
+                            if self.args.group_active_channels:
+                                self.channels[chanid].group = 0
+
                             chan_list[unicode(self.channels[chanid].group)].append(get_channel_string(chanid, True, '%s;%s;%s' % \
                                 (chan[1], self.channels[chanid].group, chanid)))
                             chan_added.append(chanid)
@@ -3470,6 +3487,9 @@ class Configure:
                             for index in range(min(xml_output.source_count,len(chan) - 4)):
                                 if (chan[index + 2].strip() !='') and (chan[index + 2].strip() == channel.source_id[index]):
                                     chan_found = True
+                                    if self.args.group_active_channels:
+                                        chan[1] = '0'
+
                                     chan_list[chan[1]].append(get_channel_string(chanid, True, '%s;%s;%s' % \
                                         (chan[0], chan[1], chanid), '%s;%s' % (chan[-2], chan[-1])))
                                     chan_added.append(chanid)
@@ -3516,41 +3536,34 @@ class Configure:
                     if not chanid in chan_added:
                         chan_list[unicode(channel.group)].append(get_channel_string(chanid, False))
 
-                f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
-                for g in self.chan_groups.keys():
-                    f.write('\n')
-                    f.write('# %s\n' % self.chan_groups[g])
-                    chan_list[unicode(g)].sort(key=lambda channel: (channel['chan_string']))
-                    chan_list[unicode(g)].sort(key=lambda channel: (channel['active']), reverse=True)
-                    for channel in chan_list[unicode(g)]:
-                        if channel['chan_string'] != None:
-                            f.write(channel['chan_string'])
-
-                if len(chan_not_updated) > 0:
-                    f.write('\n')
-                    f.write('# Following are not converted lines!\n')
-                    for line in chan_not_updated:
-                        f.write(line)
-
                 # At a later config upgrade we here have to parse the type 9 sections
 
         if add_channels:
             chan_list = {}
             for g in self.chan_groups.keys():
-                chan_list[g] =[]
+                chan_list[unicode(g)] =[]
 
             for chanid, channel in self.channels.items():
-                chan_list[channel.group].append(get_channel_string(chanid))
+                if self.args.group_active_channels and channel.active:
+                    channel.group = 0
 
-            f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
-            for g in self.chan_groups.keys():
-                f.write('\n')
-                f.write('# %s\n' % self.chan_groups[g])
-                chan_list[g].sort(key=lambda channel: (channel['chan_string']))
-                chan_list[g].sort(key=lambda channel: (channel['active']), reverse=True)
-                for channel in chan_list[g]:
-                    if channel['chan_string'] != None:
-                        f.write(channel['chan_string'])
+                chan_list[unicode(channel.group)].append(get_channel_string(chanid))
+
+        f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
+        for g in self.chan_groups.keys():
+            f.write('\n')
+            f.write('# %s\n' % self.chan_groups[g])
+            chan_list[unicode(g)].sort(key=lambda channel: (channel['chan_string']))
+            chan_list[unicode(g)].sort(key=lambda channel: (channel['active']), reverse=True)
+            for channel in chan_list[unicode(g)]:
+                if channel['chan_string'] != None:
+                    f.write(channel['chan_string'])
+
+        if len(chan_not_updated) > 0:
+            f.write('\n')
+            f.write('# Following are not converted lines!\n')
+            for line in chan_not_updated:
+                f.write(line)
 
         f.write(u'\n')
         f.write(u'# Channel specific settings other then the above or the default:\n')
@@ -9978,7 +9991,6 @@ class npo_HTML(FetchData):
                         cname = 'NPO 3'
                         cicon = 'tv-channel/265/logo/regular_logo-npo3.png'
 
-                    #~ print '%2.0f: %3.0f: %s: %s => %s' % (cgrp, channel_cnt, scid, cname, cicon)
                     self.all_channels[scid] = {}
                     self.all_channels[scid]['name'] = cname
                     self.all_channels[scid]['group'] = cgrp
@@ -10466,7 +10478,8 @@ class horizon_JSON(FetchData):
                                     '24443942998', '606274087103', '606274087104', '24443943090',
                                     '672816167175', '24443943185', '24443943023', '564193831245',
                                     '429332519213', '24443943030', '606274087101', '24443943109',
-                                    '24443943092', '606274087105', '560453158988', ):
+                                    '24443943092', '606274087105', '560453158988', '555680807175',
+                                    '544430119366', '565790759344', '529739815221', '647417383035'):
                     self.all_channels[chanid]['group'] = 10
 
                 elif chanid in ('24443943080', '24443943013', '24443943111', '24443943051',):
@@ -10763,8 +10776,11 @@ class humo_JSON(FetchData):
                 self.all_channels[chanid]['name'] = channel['display_name']
                 self.all_channels[chanid]['icon'] = icon[-1]
                 self.all_channels[chanid]['fetch_grp'] = grp_code
-                if chanid in ('111', ):
+                if chanid in ('111', '36'):
                     self.all_channels[chanid]['group'] = 9
+
+                if chanid in ('65', '87'):
+                    self.all_channels[chanid]['group'] = 5
 
     def load_pages(self):
 
@@ -11034,7 +11050,7 @@ class vpro_HTML(FetchData):
                 if scid in ('vrt_radio_1', 'vrt_radio_2', 'klara', ):
                     grp = 12
 
-                elif scid in ('bbc_radio_3', 'ndr3', 'wdr3', ):
+                elif scid in ('bbc_radio_3', 'ndr_3', 'wdr_3', 'wdr3', ):
                     grp = 13
 
                 else:
