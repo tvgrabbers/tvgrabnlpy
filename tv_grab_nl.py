@@ -1247,7 +1247,6 @@ class Configure:
                                             '1-njam': '28',
                                             '0-7': '10',
                                             '0-8': '12',
-                                            '0-38': '45',
                                             '0-15': '67',
                                             '0-16': '61',
                                             '1-france-2': '51',
@@ -1266,6 +1265,7 @@ class Configure:
                                             '1-rtl-tvi': '87',
                                             '1-amc': '107',
                                             '1-tmf': '97'}
+                                            #~ '0-38': '45',
                                             #~ '0-438': '36',
                                             #~ 65 La Trois
                                             #~ 93 Sundance
@@ -1445,7 +1445,8 @@ class Configure:
                                                 u'1-vtmkzoom': u'vtmkzoom',
                                                 u'6-73': u'nickelodeon',
                                                 u'0-90': u'bvn',
-                                                u'0-11': u'rtl',
+                                                u'6-87': u'rtl',
+                                                u'0-11': u'rtl-plus-international',
                                                 u'0-7': u'bbc-1',
                                                 u'0-8': u'bbc-2',
                                                 u'0-300': u'bbc3',
@@ -1457,7 +1458,7 @@ class Configure:
                                                 u'0-10': u'zdf',
                                                 u'0-12': u'wdr',
                                                 u'1-sudwest-fernsehen': u'swr',
-                                                u'0-38': u'arte',
+                                                u'6-45': u'arte',
                                                 u'0-15': u'la-une',
                                                 u'0-16': u'la-deux',
                                                 u'1-tf1': u'tf1',
@@ -10776,10 +10777,15 @@ class humo_JSON(FetchData):
                 self.all_channels[chanid]['name'] = channel['display_name']
                 self.all_channels[chanid]['icon'] = icon[-1]
                 self.all_channels[chanid]['fetch_grp'] = grp_code
-                if chanid in ('111', '36'):
+                if chanid == '97':
+                    self.all_channels[chanid]['name'] = 'Comedy Central Vlaanderen'
                     self.all_channels[chanid]['group'] = 9
 
-                if chanid in ('65', '87'):
+                if chanid in ('111', '36', '69', '73', ):
+                    self.all_channels[chanid]['name'] += ' Vlaanderen'
+                    self.all_channels[chanid]['group'] = 9
+
+                if chanid in ('65', '87', '45'):
                     self.all_channels[chanid]['group'] = 5
 
     def load_pages(self):
