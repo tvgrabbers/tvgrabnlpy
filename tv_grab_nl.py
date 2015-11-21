@@ -350,7 +350,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 6
-        self.patchdate = u'20151119'
+        self.patchdate = u'20151121'
         self.alfa = False
         self.beta = True
 
@@ -1517,6 +1517,8 @@ class Configure:
                                          99: 'Overig kanalen',
                                          -1: 'Alleen geselecteerde kanalen'}
 
+        self.combined_channels = {'5-24443943013': ['0-300'],
+                                                     '5-24443943080': ['0-301', '1-cbeebies']}
         # DO NOT CHANGE THIS!
         self.configversion = None
         self.__CONFIG_SECTIONS__ = { 1: u'Configuration',
@@ -6783,20 +6785,38 @@ class FetchData(Thread):
         Else the first available is used as set in xml_output.source_order
         """
 
-        prime_source_name = xml_output.channelsource[prime_source].source
-        with self.source_lock:
-            if (not chanid in self.program_data):
-                self.program_data[chanid] = []
+        if prime_source in xml_output.channelsource:
+            prime_source_name = xml_output.channelsource[prime_source].source
+            other_source_name = self.source
+            with self.source_lock:
+                if not chanid in self.program_data:
+                    self.program_data[chanid] = []
 
-            if (len(self.program_data[chanid]) == 0):
+                if len(self.program_data[chanid]) == 0:
+                    return
+
+                if len(config.channels[chanid].all_programs) == 0:
+                    config.channels[chanid].all_programs = self.program_data[chanid][:]
+                    return
+
+                # This is the by this source collected data
+                programs = self.program_data[chanid][:]
+                # This is the already collected data to start with the prime source
+                info = config.channels[chanid].all_programs[:]
+
+        else:
+            # This is a channel merge
+            prime_source_name = config.channels[chanid].chan_name
+            other_source_name = config.channels[prime_source].chan_name
+            if len(config.channels[prime_source].child_programs) == 0:
                 return
 
             if len(config.channels[chanid].all_programs) == 0:
-                config.channels[chanid].all_programs = self.program_data[chanid][:]
+                config.channels[chanid].all_programs = config.channels[prime_source].child_programs
                 return
 
             # This is the by this source collected data
-            programs = self.program_data[chanid][:]
+            programs = config.channels[prime_source].child_programs
             # This is the already collected data to start with the prime source
             info = config.channels[chanid].all_programs[:]
 
@@ -6807,12 +6827,12 @@ class FetchData(Thread):
 
             if mode == 4:
                 match_array.extend([u'%s: %s - %s: %s.\n' % \
-                        ((matchstr+self.source).rjust(25),  other_prog['start-time'].strftime('%d %b %H:%M'),  other_prog['stop-time'].strftime('%H:%M'), other_prog['name']), \
+                        ((matchstr+other_source_name).rjust(25),  other_prog['start-time'].strftime('%d %b %H:%M'),  other_prog['stop-time'].strftime('%H:%M'), other_prog['name']), \
                         '%s: %s - %s: %s.\n' % \
                         (('to '+ prime_source_name).rjust(25), tvgids_prog['start-time'].strftime('%d %b %H:%M'), tvgids_prog['stop-time'].strftime('%H:%M'), tvgids_prog['name'])])
             elif tvgids_prog == None:
                 match_array.append(u'%s: %s - %s: %s Genre: %s.\n' % \
-                        ((matchstr+self.source).rjust(25), other_prog['start-time'].strftime('%d %b %H:%M'),  other_prog['stop-time'].strftime('%H:%M'), \
+                        ((matchstr+other_source_name).rjust(25), other_prog['start-time'].strftime('%d %b %H:%M'),  other_prog['stop-time'].strftime('%H:%M'), \
                         other_prog['name'], other_prog['genre']))
             elif other_prog == None:
                 match_array.append(u'%s: %s - %s: %s Genre: %s.\n' % \
@@ -7135,7 +7155,7 @@ class FetchData(Thread):
                     if tdict['subgenre'] == '':
                         tdict['subgenre'] = tvdict['subgenre']
 
-                tdict['merge-source'] = self.source
+                tdict['merge-source'] = other_source_name
                 matched_programs.append(tdict)
                 if tdict in programs: programs.remove(tdict)
                 if tdict['start-time'] in prog_starttimes: del prog_starttimes[tdict['start-time']]
@@ -7220,11 +7240,21 @@ class FetchData(Thread):
 
         # end check_match_to_info()
 
-        log(['\n', 'Now merging %s (channel %s of %s):\n' % (config.channels[chanid].chan_name , counter, config.chan_count), \
-            '  %s programs from %s into %s programs from %s\n' % (len(programs), self.source, len(info), prime_source_name)], 2)
-        log_array =['\n']
-        log_array.append('Merg statistics for %s (channel %s of %s) from %s into %s\n' % \
-            (config.channels[chanid].chan_name , counter, config.chan_count, self.source, prime_source_name))
+        if prime_source in xml_output.channelsource:
+            log(['\n', 'Now merging %s (channel %s of %s):\n' % (config.channels[chanid].chan_name , counter, config.chan_count), \
+                '  %s programs from %s into %s programs from %s\n' % \
+                (len(programs), other_source_name, len(info), prime_source_name)], 2)
+            log_array =['\n']
+            log_array.append('Merg statistics for %s (channel %s of %s) from %s into %s\n' % \
+                (config.channels[chanid].chan_name , counter, config.chan_count, other_source_name, prime_source_name))
+
+        else:
+            log(['\n', 'Now merging %s programs from %s into %s programs from %s\n' % \
+                    (len(programs), other_source_name, len(info), prime_source_name), \
+                    '    (channel %s of %s)' % (counter, config.chan_count)], 2)
+            log_array =['\n']
+            log_array.append('Merg statistics for %s (channel %s of %s) from %s\n' % \
+                (prime_source_name , counter, config.chan_count, other_source_name))
 
         # Do some general renaming to match tvgids.nl naming
         for i in range(0, len(programs)):
@@ -7245,7 +7275,7 @@ class FetchData(Thread):
         log_array.append('%6.0f programs in %s for range: %s - %s, \n' % \
             (len(info), prime_source_name.ljust(11), infostarttime.strftime('%d-%b %H:%M'), infoendtime.strftime('%d-%b %H:%M')))
         log_array.append('%6.0f programs in %s for range: %s - %s\n' % \
-            (len(programs), self.source.ljust(11), progstarttime.strftime('%d-%b %H:%M'), progendtime.strftime('%d-%b %H:%M')))
+            (len(programs), other_source_name.ljust(11), progstarttime.strftime('%d-%b %H:%M'), progendtime.strftime('%d-%b %H:%M')))
         log_array.append('\n')
 
         # move all programs outside the range of programs to matched_programs
@@ -7327,7 +7357,7 @@ class FetchData(Thread):
             if (tdict['start-time'] > infoendtime) or (tdict['stop-time'] < infostarttime):
                 ocount += 1
                 tdict = set_main_id(tdict)
-                tdict['merge-source'] = self.source
+                tdict['merge-source'] = other_source_name
                 if tdict['genre'] in ('', 'overige'):
                     # We later try to match them generic to get a genre
                     generic_match.append(tdict)
@@ -7345,7 +7375,7 @@ class FetchData(Thread):
                 if (tdict['start-time'] >= pgap['start-time']) and (tdict['stop-time'] <= pgap['stop-time']):
                     ocount += 1
                     tdict = set_main_id(tdict)
-                    tdict['merge-source'] = self.source
+                    tdict['merge-source'] = other_source_name
                     if tdict['genre'] in ('', 'overige'):
                         # We later try to match them generic to get a genre
                         generic_match.append(tdict)
@@ -7360,7 +7390,7 @@ class FetchData(Thread):
 
         log_array.append('%6.0f programs added outside common timerange\n' % ocount)
         log_array.append('%6.0f programs left in %s to match\n' % (len(info), prime_source_name))
-        log_array.append('%6.0f programs left in %s to match\n' % (len(programs), self.source))
+        log_array.append('%6.0f programs left in %s to match\n' % (len(programs), other_source_name))
         log_array.append('\n')
 
         ncount = 0
@@ -7555,7 +7585,7 @@ class FetchData(Thread):
                     scount += 1
                     pcount += 1
                     tvdict = set_main_id(tvdict)
-                    tvdict['merge-source'] = self.source
+                    tvdict['merge-source'] = other_source_name
                     matched_programs.append(tvdict)
                     if pcount == 1:
                         matchlog('groupslot in info', None, tdict, 8)
@@ -7603,7 +7633,7 @@ class FetchData(Thread):
 
         config.channels[chanid].all_programs = matched_programs
         try:
-            infofiles.write_fetch_list(matched_programs, chanid, self.source, True)
+            infofiles.write_fetch_list(matched_programs, chanid, other_source_name, True)
 
         except:
             pass
@@ -7708,13 +7738,23 @@ class tvgids_JSON(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
-                self.channels[chanid] = channel.source_id[self.proc_id]
-                if self.url_channels == '':
-                    self.url_channels = channel.source_id[self.proc_id]
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '':
+                    self.channels[chanid] = channel.source_id[self.proc_id]
 
-                else:
-                    self.url_channels  = '%s,%s' % (self.url_channels, channel.source_id[self.proc_id])
+                if channel.chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[channel.chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            config.channels[c].is_child = True
+
+        for channel in self.channels.values():
+            if self.url_channels == '':
+                self.url_channels = channel
+
+            else:
+                self.url_channels  = '%s,%s' % (self.url_channels, channel)
 
     def get_url(self, type = 'channels', offset = 0, id = None):
 
@@ -8273,8 +8313,16 @@ class tvgidstv_HTML(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
-                self.channels[chanid] = channel.source_id[self.proc_id]
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '':
+                    self.channels[chanid] = channel.source_id[self.proc_id]
+
+                if channel.chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[channel.chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            config.channels[c].is_child = True
 
     def get_url(self, channel = None, offset = 0, href = None):
 
@@ -8819,9 +8867,18 @@ class rtl_JSON(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
-                self.channels[chanid] = channel.source_id[self.proc_id]
-                self.schedule[channel.source_id[self.proc_id]] =[]
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '':
+                    self.channels[chanid] = channel.source_id[self.proc_id]
+                    self.schedule[channel.source_id[self.proc_id]] =[]
+
+                if channel.chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[channel.chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            self.schedule[config.channels[c].source_id[self.proc_id]] =[]
+                            config.channels[c].is_child = True
 
     def init_json(self):
 
@@ -9138,8 +9195,16 @@ class teveblad_HTML(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
-                self.channels[chanid] = channel.source_id[self.proc_id]
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '':
+                    self.channels[chanid] = channel.source_id[self.proc_id]
+
+                if channel.chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[channel.chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            config.channels[c].is_child = True
 
     def get_url(self, date = '', channel = '', get_group = False):
 
@@ -9901,9 +9966,18 @@ class npo_HTML(FetchData):
         self.chanids = {}
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
-                self.channels[chanid] = channel.source_id[self.proc_id]
-                self.chanids[channel.source_id[self.proc_id]] = chanid
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '':
+                    self.channels[chanid] = channel.source_id[self.proc_id]
+                    self.chanids[channel.source_id[self.proc_id]] = chanid
+
+                if channel.chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[channel.chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            self.chanids[config.channels[c].source_id[self.proc_id]] = c
+                            config.channels[c].is_child = True
 
     def get_url(self, offset = 0, href = None, vertical = False):
 
@@ -10436,8 +10510,16 @@ class horizon_JSON(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
-                self.channels[chanid] = channel.source_id[self.proc_id]
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '':
+                    self.channels[chanid] = channel.source_id[self.proc_id]
+
+                if channel.chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[channel.chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            config.channels[c].is_child = True
 
     def init_json(self):
 
@@ -10722,9 +10804,18 @@ class humo_JSON(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
-                self.channels[chanid] = channel.source_id[self.proc_id]
-                self.chanids[channel.source_id[self.proc_id]] = chanid
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '':
+                    self.channels[chanid] = channel.source_id[self.proc_id]
+                    self.chanids[channel.source_id[self.proc_id]] = chanid
+
+                if channel.chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[channel.chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            self.chanids[config.channels[c].source_id[self.proc_id]] = c
+                            config.channels[c].is_child = True
 
     def init_json(self):
 
@@ -11015,9 +11106,18 @@ class vpro_HTML(FetchData):
         self.chanids = {}
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
-                self.channels[chanid] = channel.source_id[self.proc_id]
-                self.chanids[channel.source_id[self.proc_id]] = chanid
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '':
+                    self.channels[chanid] = channel.source_id[self.proc_id]
+                    self.chanids[channel.source_id[self.proc_id]] = chanid
+
+                if channel.chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[channel.chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            self.chanids[config.channels[c].source_id[self.proc_id]] = c
+                            config.channels[c].is_child = True
 
     def get_url(self, offset = None):
 
@@ -11538,8 +11638,16 @@ class nieuwsblad_HTML(FetchData):
 
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
-            if channel.active and channel.source_id[self.proc_id] != '' and not self.proc_id in channel.opt_dict['disable_source']:
-                self.channels[chanid] = channel.source_id[self.proc_id]
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '':
+                    self.channels[chanid] = channel.source_id[self.proc_id]
+
+                if channel.chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[channel.chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            config.channels[c].is_child = True
 
     def get_url(self, channel = None, offset = 0, chan_group = 0):
 
@@ -11648,6 +11756,9 @@ class nieuwsblad_HTML(FetchData):
 
         changroup = 99
         try:
+            if not isinstance(chandata, (str, unicode)):
+                chandata = self.get_page(self.get_url('base'))
+
             strdata = self.getchannelgroups.search(chandata).group(1)
             strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
             strdata = self.clean_html('<div><div>' + strdata).encode('utf-8')
@@ -11878,6 +11989,7 @@ class Channel_Config(Thread):
         # Flags to indicate the data is in
         self.source_data = {}
         self.detail_data = Event()
+        self.child_data = Event()
         self.cache_return = Queue()
         self.channel_lock = Lock()
 
@@ -11885,6 +11997,8 @@ class Channel_Config(Thread):
         self.ready = False
 
         self.active = False
+        self.is_child = False
+        self.child_programs = []
         self.counter = 0
         self.chanid = chanid
         self.xmltvid = chanid.split('-',1)
@@ -11952,13 +12066,16 @@ class Channel_Config(Thread):
 
     def run(self):
 
-        if not self.active:
+        if not self.active and not self.is_child:
             self.ready = True
             for index in xml_output.source_order:
                 self.source_data[index].set()
 
             self.detail_data.set()
             return
+
+        if not self.is_child:
+            self.child_data.set()
 
         try:
             # Create the merge order
@@ -12011,6 +12128,44 @@ class Channel_Config(Thread):
                         xml_output.channelsource[index].parse_programs(self.chanid, 1, 'None')
                         for i in range(0, len(self.all_programs)):
                             self.all_programs[i] = xml_output.channelsource[index].checkout_program_dict(self.all_programs[i])
+
+            if self.chanid in config.combined_channels.keys():
+                for c in config.combined_channels[self.chanid]:
+                    if c in config.channels:
+                        while not config.channels[c].child_data.is_set():
+                            # Wait till the event is set by the child, but check every 5 seconds for an unexpected break or wether the child is still alive
+                            config.channels[c].child_data.wait(5)
+                            if self.quit:
+                                self.ready = True
+                                return
+
+                            # Check if the child is still alive
+                            if not config.channels[c].is_alive():
+                                break
+
+                        if len(config.channels[c].child_programs) == 0:
+                            log('No Data from %s for channel: %s\n'% (config.channels[c].chan_name, self.chan_name))
+
+                        elif self.child_data.is_set():
+                            if xml_data == False:
+                                # This is the first source with data, so we just take in the data
+                                xml_data = True
+                                self.all_programs = config.channels[c].child_programs
+
+                            else:
+                                # There is already data, so we merge the incomming data into that
+                                xml_data = True
+                                xml_output.channelsource[0].merge_sources(self.chanid,  c, self.counter)
+                                xml_output.channelsource[0].parse_programs(self.chanid, 1, 'None')
+                                for i in range(0, len(self.all_programs)):
+                                    self.all_programs[i] = xml_output.channelsource[0].checkout_program_dict(self.all_programs[i])
+
+            if self.is_child:
+                self.child_programs = deepcopy(self.all_programs) if self.active else self.all_programs
+                self.child_data.set()
+                if not self.active:
+                    self.ready = True
+                    return
 
             # And get the detailpages
             if len(self.all_programs) == 0:
@@ -12994,11 +13149,12 @@ def main():
             if x != None:
                 return(x)
 
-        # Start the Channel threads
+        # Start the Channel threads, but wait a second so the sources have properly initialized any child channel
+        time.sleep(1)
         counter = 0
         channel_threads = []
         for channel in config.channels.values():
-            if not channel.active:
+            if not (channel.active or channel.is_child):
                 continue
 
             counter += 1
