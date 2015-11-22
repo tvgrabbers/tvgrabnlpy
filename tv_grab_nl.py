@@ -659,15 +659,15 @@ class Configure:
 
         self.genre_list = []
 
-        # Program group names to exclude from teveblad.be if the counterpart contains details
+        # Program group names to exclude from a primesource if the counterpart contains details
         self.groupslot_names = ("ochtend- en dagprogramma's",
-                                                            "ochtend - en dagprogramma's",
-                                                            "nachtprogramma's",
-                                                            "kinderprogramma's",
-                                                            "kinder-tv",
-                                                            "kindertijd",
-                                                            "pause",
-                                                            "geen programmagegevens beschikbaar.")
+                                                "ochtend - en dagprogramma's",
+                                                "nachtprogramma's",
+                                                "kinderprogramma's",
+                                                "kinder-tv",
+                                                "kindertijd",
+                                                "pause",
+                                                "geen programmagegevens beschikbaar.")
 
         # These ara all dicts used in merging the sources
         self.source_channels ={}
@@ -684,7 +684,6 @@ class Configure:
                                            '0-92': 'rtl-8',
                                            '0-36': 'sbs-6',
                                            '0-37': 'net-5',
-                                           '0-34': 'veronica',
                                            '0-460': 'sbs-9',
                                            '0-440': 'fox',
                                            '0-465':'rtl-z',
@@ -780,6 +779,7 @@ class Configure:
                                            '0-16': 'rtbf-la-2',
                                            '0-32': 'trt-international',
                                            '0-20': 'tcm'}
+                                           #~ '0-34': 'veronica',
 
         # tvgids.tv subgenre to genre translation table
         self.source_cattrans[1] = {'euromillions': 'Amusement',
@@ -1026,7 +1026,7 @@ class Configure:
                                            '1-rtl-telekids': u'24443943100',
                                            '0-36': u'24443943184',
                                            '0-37': u'24443943091',
-                                           '0-34': u'24443943190',
+                                           '1-veronica': u'24443943190',
                                            '0-460': u'566369831211',
                                            '0-440': u'120746535305',
                                            '0-5': u'24443943058',
@@ -1124,6 +1124,7 @@ class Configure:
                                            '0-465': u'660696615380',
                                            '0-466': u'675503655063',
                                            '1-tv-e': u'672816167175'}
+                                           #~ '0-34': u'24443943190',
                                            #~ '0-300': u'24443943013',
                                            #~ '0-301': u'24443943080',
                                            #~ '0-3': u'24443943037',
@@ -1434,7 +1435,6 @@ class Configure:
                                                 u'0-34': u'veronica',
                                                 u'0-5': u'een',
                                                 u'0-6': u'canvas',
-                                                u'1-ketnet-canvas-2': u'ketnet',
                                                 u'1-vijftv': u'vijf',
                                                 u'1-acht': u'acht',
                                                 u'0-49': u'vtm',
@@ -1483,6 +1483,7 @@ class Configure:
                                                 u'1-tv-e': u'tveint',
                                                 u'0-32': u'trt-turk',
                                                 u'1-rai-uno': u'raiuno'}
+                                                #~ u'1-ketnet-canvas-2': u'ketnet',
 
         #Channel group names as used in tvgids.tv
         self.chan_groups = {1: 'Nederlands',
@@ -1518,7 +1519,9 @@ class Configure:
                                          -1: 'Alleen geselecteerde kanalen'}
 
         self.combined_channels = {'5-24443943013': ['0-300'],
-                                                     '5-24443943080': ['0-301', '1-cbeebies']}
+                                                     '5-24443943080': ['0-301', '1-cbeebies'],
+                                                     '1-veronica': ['0-34', '0-311'],
+                                                     '1-ketnet-canvas-2': ['8-ketnet', '8-eenplus']}
         # DO NOT CHANGE THIS!
         self.configversion = None
         self.__CONFIG_SECTIONS__ = { 1: u'Configuration',
@@ -2364,7 +2367,7 @@ class Configure:
             '635928103350', '635928103352']
         empty_channels[6] = []
         empty_channels[7] = []
-        empty_channels[8] = []
+        empty_channels[8] = ['op-12']
         # download the json feed
         xml_output.channelsource[0].init_channels()
         xml_output.channelsource[0].get_channels()
@@ -3989,10 +3992,12 @@ class InfoFiles:
                 self.fetch_strings[chanid][source] = ''
 
             if ismerge:
-                self.fetch_strings[chanid][source] += u'(%3.0f) merging channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
+                self.fetch_strings[chanid][source] += u'(%3.0f) merging channel: %s from: %s\n' % \
+                    (len(programs), config.channels[chanid].chan_name, source)
 
             else:
-                self.fetch_strings[chanid][source] += u'(%3.0f) channel: %s from: %s\n' % (len(programs), config.channels[chanid].chan_name, source)
+                self.fetch_strings[chanid][source] += u'(%3.0f) channel: %s from: %s\n' % \
+                    (len(programs), config.channels[chanid].chan_name, source)
 
             programs.sort(key=lambda program: (program['start-time']))
 
@@ -4031,11 +4036,16 @@ class InfoFiles:
 
         if self.fetch_list != None:
             for chanid in config.channels.keys():
-                if config.channels[chanid].active and chanid in self.fetch_strings:
-                    #~ for s in xml_output.source_order:
+                if (config.channels[chanid].active or config.channels[chanid].is_child) and chanid in self.fetch_strings:
                     for s in config.channels[chanid].merge_order:
                         if xml_output.channelsource[s].source in self.fetch_strings[chanid].keys():
                             self.fetch_list.write(self.fetch_strings[chanid][xml_output.channelsource[s].source])
+
+                    if chanid in config.combined_channels:
+                        for c in config.combined_channels[chanid]:
+                            if c in config.channels:
+                                self.fetch_list.write(self.fetch_strings[chanid][config.channels[c].chan_name])
+
 
             self.fetch_list.close()
 
@@ -6843,46 +6853,46 @@ class FetchData(Thread):
         def general_renames(name):
             # Some renaming to cover diferences between the sources
             mname = name.lower()
-            if chanid in ('1', '2', '3'):
+            if chanid in ('0-1', '0-2', '0-3'):
                 if mname == 'journaal':
                     return 'NOS Journaal'
 
                 if mname in ('tekst-tv', 'nos tekst tv', 'nos tekst-tv'):
                     return 'Tekst TV'
 
-            if chanid in ('1', '2'):
+            if chanid in ('0-1', '0-2'):
                 if mname == 'nieuws':
                     return 'NOS Journaal'
 
-            if chanid == '3':
+            if chanid == '0-3':
                 if mname == 'nieuws':
                     return 'NOS op 3'
 
-            if chanid == '5':
+            if chanid == '0-5':
                 if mname == 'herhalingen':
                     return 'Journaallus'
 
-            if chanid == '6':
+            if chanid == '0-6':
                 if mname == 'herhalingen':
                     return 'Canvaslus'
 
-            if chanid in ('7', '8'):
+            if chanid in ('0-7', '0-8'):
                 if mname == 'nieuws':
                     return 'BBC News'
 
                 if mname == 'het weer':
                     return 'Regional News and Weather'
 
-            if chanid == '9':
+            if chanid == '0-9':
                 if mname == 'nieuws':
                     return 'Tagesschau'
 
-            if chanid == '10':
+            if chanid == '0-10':
                 if mname == 'nieuws':
                     return 'Heute'
 
             if self.source == 'horizon.tv':
-                if chanid in ('1', '2', '3'):
+                if chanid in ('0-1', '0-2', '0-3'):
                     if  'nos journaal' in mname:
                         return 'NOS Journaal'
 
@@ -6901,11 +6911,11 @@ class FetchData(Thread):
                     if mname == 'z@ppsport':
                         return 'ZappSport'
 
-                if chanid in ('5', '6'):
+                if chanid in ('0-5', '0-6'):
                     if  'het journaal' in mname:
                         return 'Journaal'
 
-                if chanid in ('4', '31', '46', '92'):
+                if chanid in ('0-4', '0-31', '0-46', '0-92'):
                     if 'rtl nieuws' in mname:
                         return 'Nieuws'
 
@@ -7300,8 +7310,8 @@ class FetchData(Thread):
         # And we create a list of starttimes and of names for matching
         for tdict in info[:]:
             if (tdict['name'].lower() in config.groupslot_names) \
-              or (chanid in ('1', '2', '3') and  tdict['name'].lower() == 'kro kindertijd') \
-              or (chanid == '34' and tdict['name'].lower() == 'disney xd'):
+              or (chanid in ('0-1', '0-2', '0-3') and  tdict['name'].lower() == 'kro kindertijd') \
+              or (chanid in ('0-34','1-veronica') and (tdict['name'].lower() == 'disney xd' or tdict['name'].lower() == 'disney')):
                 # These are group names. We move them aside to not get hit by merge_match
                 info_groups.append(tdict)
                 if tdict in info: info.remove(tdict)
@@ -7313,7 +7323,7 @@ class FetchData(Thread):
                 info_names[iname] = tdict
 
             # These do not overlap in time so they cannot be matched
-            if (tdict['start-time'] > progendtime) or (tdict['stop-time'] < progstarttime):
+            if (tdict['start-time'] >= progendtime) or (tdict['stop-time'] <= progstarttime):
                 ocount += 1
                 tdict = set_main_id(tdict)
                 if tdict['merge-source'] == '':
@@ -7332,8 +7342,8 @@ class FetchData(Thread):
         # count the occurense of the rest and organise by name/start-time and stop-time
         for tdict in programs[:]:
             if (tdict['name'].lower() in config.groupslot_names) \
-              or (chanid in ('1', '2', '3') and  tdict['name'].lower() == 'kro kindertijd') \
-              or (chanid == '34' and tdict['name'].lower() == 'disney xd'):
+              or (chanid in ('0-1', '0-2', '0-3') and  tdict['name'].lower() == 'kro kindertijd') \
+              or (chanid in ('0-34','1-veronica') and (tdict['name'].lower() == 'disney xd' or tdict['name'].lower() == 'disney')):
                 # These are group names. We move them aside to not get hit by merge_match
                 prog_groups.append(tdict)
                 if tdict in programs: programs.remove(tdict)
@@ -7354,7 +7364,7 @@ class FetchData(Thread):
 
             prog_names[rname]['count'] += 1
             # These do not overlap in time so they cannot be matched
-            if (tdict['start-time'] > infoendtime) or (tdict['stop-time'] < infostarttime):
+            if (tdict['start-time'] >= infoendtime) or (tdict['stop-time'] <= infostarttime):
                 ocount += 1
                 tdict = set_main_id(tdict)
                 tdict['merge-source'] = other_source_name
@@ -8425,6 +8435,9 @@ class tvgidstv_HTML(FetchData):
 
                 if chanid in ('cbeebies', ):
                     self.all_channels[chanid]['group'] = 3
+
+                if chanid == 'veronica':
+                    self.all_channels[chanid]['name'] = 'Veronica / Disney XD'
 
     def match_genre(self, dtext, tdict):
         if len(dtext) > 20:
@@ -11854,7 +11867,8 @@ class nieuwsblad_HTML(FetchData):
                         continue
 
                     log(['\n', 'Now fetching %s(xmltvid=%s%s) from nieuwsblad.be\n' % \
-                        (config.channels[chanid].chan_name, config.channels[chanid].xmltvid , (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                        (config.channels[chanid].chan_name, config.channels[chanid].xmltvid , \
+                        (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
                         '    (channel %s of %s) for 6 days.\n' % \
                         (channel_cnt, len(self.channels))], 2)
 
@@ -11873,7 +11887,8 @@ class nieuwsblad_HTML(FetchData):
                             self.get_channel_lineup(strdata)
 
                     except:
-                        log('Error: "%s" reading the nieuwsblad.be basepage for channel=%s.\n' % (sys.exc_info()[1], config.channels[chanid].chan_name))
+                        log('Error: "%s" reading the nieuwsblad.be basepage for channel=%s.\n' % \
+                            (sys.exc_info()[1], config.channels[chanid].chan_name))
                         failure_count += 1
                         self.fail_count += 1
                         continue
@@ -11885,8 +11900,8 @@ class nieuwsblad_HTML(FetchData):
                         htmldata = ET.fromstring(strdata.encode('utf-8'))
 
                     except:
-                        log(["Error extracting ElementTree for channel:%s day:%s on nieuwsblad.be\n" % \
-                            (config.channels[chanid].chan_name, offset)])
+                        log(["Error extracting ElementTree for channel:%s on nieuwsblad.be\n" % \
+                            (config.channels[chanid].chan_name)])
 
                         if config.write_info_files:
                             infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
@@ -11900,9 +11915,13 @@ class nieuwsblad_HTML(FetchData):
                     for d in htmldata.findall('div[@class="grid channel-block"]/div[@class="grid__col size-1-3--bp4"]'):
                         weekday = d.findtext('div/div[@class="tv-guide__channel"]/h6/a').strip()
                         offset = dayoffset[weekday]
+                        if offset >= config.opt_dict['offset'] + config.opt_dict['days']:
+                            break
+
                         date_offset = offset
                         scan_date = datetime.date.fromordinal(self.current_date + date_offset)
-                        last_program = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + date_offset - 1), datetime.time(0, 0, 0 ,0 ,CET_CEST))
+                        last_program = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + date_offset - 1), \
+                                                                                                datetime.time(0, 0, 0 ,0 ,CET_CEST))
                         for p in d.findall('div/div[@class="program"]'):
                             #~ start = p.findtext('div[@class="time"]')
                             #~ title = p.findtext('div[@class="title"]/a').strip()
