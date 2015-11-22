@@ -350,7 +350,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 6
-        self.patchdate = u'20151122'
+        self.patchdate = u'20151123'
         self.alfa = False
         self.beta = True
 
@@ -1435,6 +1435,7 @@ class Configure:
                                                 u'0-34': u'veronica',
                                                 u'0-5': u'een',
                                                 u'0-6': u'canvas',
+                                                u'0-60': u'vier',
                                                 u'1-vijftv': u'vijf',
                                                 u'1-acht': u'acht',
                                                 u'0-49': u'vtm',
@@ -2518,12 +2519,17 @@ class Configure:
             # set the default prime_source
             self.validate_option('prime_source', channel, -1)
               # For Veronica tvgids.tv contains Disney XD, so we don't append it
-            if channel.source_id[0] in ('3', '34'):
+            if channel.source_id[0] in ('3',):
                 channel.opt_dict['append_tvgidstv'] = False
 
-            db_channel.append({'name': channel.chan_name, 'chanid': channel.chanid, 'cgroup': channel.group})
+            db_channel.append({'name': channel.chan_name,
+                                               'chanid': channel.chanid,
+                                               'cgroup': channel.group})
 
-        xml_output.program_cache.cache_request.put({'task':'add', 'channel': db_channel, 'channelsource': db_channel_source, 'icon': db_icon})
+        xml_output.program_cache.cache_request.put({'task':'add',
+                                               'channel': db_channel,
+                                               'channelsource': db_channel_source,
+                                               'icon': db_icon})
         return 0
 
     # end get_channels()
@@ -3177,6 +3183,7 @@ class Configure:
         f.write(u'\n')
 
         # Save the options
+        f.write(u'# See: https://github.com/tvgrabbers/tvgrabnlpy/wiki/Over_de_configuratie\n')
         f.write(u'# This is a list with default options set by the --save-options (-O)\n')
         f.write(u'# argument. Most can be overruled on the commandline.\n')
         f.write(u'# Be carefull with manually editing. Invalid options will be\n')
@@ -3244,8 +3251,8 @@ class Configure:
 
         f.write(u'# These are the channeldefinitions. You can disable a channel by placing\n')
         f.write(u'# a \'#\' in front. Seperated by \';\' you see on every line: The Name,\n')
-        f.write(u'# the group, the ID\'s for the sources in the order as returned by the\n')
-        f.write(u'# "--show-sources" option and finally the iconsource and name.\n')
+        f.write(u'# the group, the channelID, the ID\'s for the sources in the order as\n')
+        f.write(u'# returned by the "--show-sources" option and finally the iconsource and name.\n')
         f.write(u'# You can change the names to suit your own preferences.\n')
         f.write(u'# A missing ID means the source doesn\'t supply the channel.\n')
         f.write(u'# Removing an ID disables fetching from that source, but keep the \';\'s in place.\n')
@@ -3253,8 +3260,7 @@ class Configure:
         f.write(u'# Set iconsource to 99, to add your own full url.\n')
         f.write(u'\n')
         f.write(u'# To specify further Channel settings you can add sections in the form of\n')
-        f.write(u'# [Channel <channelID>], where <channelID> is the first ID on the line, \n')
-        f.write(u'# (most of the times the nummeric tvgids.nl ID)\n')
+        f.write(u'# [Channel <channelID>], where <channelID> is the third item on the line, \n')
         f.write(u'# You can use the following tags:\n')
         f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
         f.write(u'#   fast, compat, logos, cattrans, mark_hd, add_hd_id, append_tvgidstv\n')
@@ -3270,7 +3276,7 @@ class Configure:
         f.write(u'#   disable_source, disable_detail_source\n')
         f.write(u'#     prime_source (0-4) is the source whose timings are dominant\n')
         f.write(u'#     It defaults to the first available source or 2 for rtl channels\n')
-        f.write(u'#     and 3 for group 2 and 8 (Flemmisch) channels\n')
+        f.write(u'#     4 for NPO channels and 6 for group 2 and 9 (Flemmisch) channels\n')
         f.write(u'#     prefered_description (0-3) is the source whose description, if present,\n')
         f.write(u'#     is used. It defaults to the longest description found.\n')
         f.write(u'#     with disable_source and disable_detail_source you can disable a source\n')
@@ -6796,6 +6802,7 @@ class FetchData(Thread):
         """
 
         if prime_source in xml_output.channelsource:
+            source_merge = True
             prime_source_name = xml_output.channelsource[prime_source].source
             other_source_name = self.source
             with self.source_lock:
@@ -6816,6 +6823,7 @@ class FetchData(Thread):
 
         else:
             # This is a channel merge
+            source_merge = False
             prime_source_name = config.channels[chanid].chan_name
             other_source_name = config.channels[prime_source].chan_name
             if len(config.channels[prime_source].child_programs) == 0:
@@ -7441,7 +7449,7 @@ class FetchData(Thread):
                         mstart = tdict['start-time'] + datetime.timedelta(0, 0, 0, 0, i)
                         if mstart in prog_starttimes:
                             pi = prog_starttimes[mstart]
-                            x = check_match_to_info(tdict, pi, mstart, check_genre = (checkrun==1))
+                            x = check_match_to_info(tdict, pi, mstart, check_genre = (source_merge and (checkrun==1)))
                             if x == 1:
                                 ncount += 1
                                 break
@@ -7483,7 +7491,7 @@ class FetchData(Thread):
                                     merge_programs(pp, pi)
 
                                 else:
-                                    x = check_match_to_info(pp, pi, None, False)
+                                    x = check_match_to_info(pp, pi, None, False, check_genre = source_merge)
                                     if x == 1:
                                         merge_programs(pp, pi, copy_ids = False)
                                         ncount += 1
@@ -7527,7 +7535,7 @@ class FetchData(Thread):
                                 merge_programs(pp, tdict, reverse_match = True)
 
                             else:
-                                x = check_match_to_info(tdict, pp, None, False)
+                                x = check_match_to_info(tdict, pp, None, False, check_genre = source_merge)
                                 if x == 1:
                                     merge_programs(pp, tdict, reverse_match = True, copy_ids = False)
                                     ncount += 1
@@ -10881,6 +10889,9 @@ class humo_JSON(FetchData):
                 self.all_channels[chanid]['name'] = channel['display_name']
                 self.all_channels[chanid]['icon'] = icon[-1]
                 self.all_channels[chanid]['fetch_grp'] = grp_code
+                if chanid in ('59', ):
+                    self.all_channels[chanid]['group'] = 2
+
                 if chanid == '97':
                     self.all_channels[chanid]['name'] = 'Comedy Central Vlaanderen'
                     self.all_channels[chanid]['group'] = 9
@@ -11821,7 +11832,10 @@ class nieuwsblad_HTML(FetchData):
                             if chanid in ('atv', 'avs', 'rtv', 'wtv', 'tvbrussel', 'tvlimburg', 'tv-oost', 'rob-tv', 'ring-tv',  'focus'):
                                 self.all_channels[chanid]['group'] = 8
 
-                            if chanid in ('eenplus', 'lacht', 'libelle-tv', 'jim', 'kanaal-z', 'vtmkzoom',
+                            if chanid in ('eenplus', ):
+                                self.all_channels[chanid]['group'] = 2
+
+                            if chanid in ('lacht', 'libelle-tv', 'jim', 'kanaal-z', 'vtmkzoom',
                                     'sporting-1', 'sporting-2', 'play-sports-1', 'play-sports-2', 'nickelodeon', 'mtv', 'tmf'):
                                 self.all_channels[chanid]['group'] = 9
 
