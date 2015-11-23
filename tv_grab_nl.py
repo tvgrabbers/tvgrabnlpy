@@ -1257,7 +1257,6 @@ class Configure:
                                             '1-jim': '55',
                                             '1-ketnet-canvas-2': '59',
                                             '1-vtmkzoom': '101',
-                                            '0-424': '47',
                                             '0-12': '103',
                                             '0-21': '109',
                                             '1-tf1': '95',
@@ -1266,6 +1265,7 @@ class Configure:
                                             '1-rtl-tvi': '87',
                                             '1-amc': '107',
                                             '1-tmf': '97'}
+                                            #~ '0-424': '47',
                                             #~ '0-38': '45',
                                             #~ '0-438': '36',
                                             #~ 65 La Trois
@@ -1373,10 +1373,9 @@ class Configure:
                                                 u'0-19': u'eurosport',
                                                 u'0-431': u'hbo_1',
                                                 u'0-91': u'comedy_central',
-                                                u'0-404': u'fox_live',
+                                                u'0-404': u'fox',
                                                 u'0-93': u'13th_street',
                                                 u'0-94': u'syfy',
-                                                u'0-440': u'fox',
                                                 u'0-29': u'discovery_channel',
                                                 u'0-18': u'national_geographic',
                                                 u'0-438': u'tlc',
@@ -10896,7 +10895,7 @@ class humo_JSON(FetchData):
                     self.all_channels[chanid]['name'] = 'Comedy Central Vlaanderen'
                     self.all_channels[chanid]['group'] = 9
 
-                if chanid in ('111', '36', '69', '73', ):
+                if chanid in ('111', '36', '69', '73', '47'):
                     self.all_channels[chanid]['name'] += ' Vlaanderen'
                     self.all_channels[chanid]['group'] = 9
 
