@@ -1,6 +1,7 @@
 {"description":"Dit bestand wordt vanaf versie 2.2.6 door configure van github gedownload en hoeft niet lokaal bewaard te worden",
 	"data_version":"1",
 	"program_version":"2.2.6",
+	"version_message":"",
 	"channel_groups":{
 		"0":"Actieve Zenders",
 		"1":"Nederlands",
@@ -409,11 +410,6 @@
 			"6-97": "tmf",
 			"6-69": "mtv",
 			"6-93": "sundance-channel"}},
-	"combined_channels":{
-		"5-24443943013": ["0-300"],
-		"5-24443943080": ["0-301", "1-cbeebies"],
-		"1-veronica": ["0-34", "0-311"],
-		"1-ketnet-canvas-2": ["8-ketnet", "8-eenplus"]},
 	"channel_grouping":{
 		"0":{
 			"1":[],
@@ -547,6 +543,15 @@
 			"11":[],
 			"12":[],
 			"13":[]}},
+	"rtl_channellist":{
+		"RTL4": {"name": "RTL 4", "icon": "logo_rtl4_med_dark.png", "icongrp": 3},
+		"RTL5": {"name": "RTL 5", "icon": "logo_rtl5.png", "icongrp": 3},
+		"RTL7": {"name": "RTL 7", "icon": "logo_rtl7_trans.png", "icongrp": 3},
+		"RTL8": {"name": "RTL 8", "icon": "logo_rtl8.png", "icongrp": 3},
+		"RTLL": {"name": "RTL Lounge", "icon": "logo_rtllounge.png", "icongrp": 3},
+		"RTCR": {"name": "RTL Crime", "icon": "logo_rtlcrime.png", "icongrp": 3},
+		"RTLZ": {"name": "RTL Z", "icon": "logo_rtlz.png", "icongrp": 3},
+		"RTLT": {"name": "RTL Telekids", "icon": "logo_telekids.png", "icongrp": 3}}
 	"logo_provider":[
 		"http://graphics.tudelft.nl/~paul/logos/gif/64x64/",
 		"http://static.tvgids.nl/gfx/zenders/",
@@ -718,6 +723,11 @@
 		"7-vrt_radio_2": ["4", "radio_vrt2"],
 		"7-klara": ["4", "radio_vrtklara"],
 		"7-wdr3": ["4", "radio_wdr_5"]},
+	"combined_channels":{
+		"5-24443943013": ["0-300"],
+		"5-24443943080": ["0-301", "1-cbeebies"],
+		"1-veronica": ["0-34", "0-311"],
+		"1-ketnet-canvas-2": ["8-ketnet", "8-eenplus"]},
 	"ttvdb_aliasses":{"Castle": "Castle (2009)"},
 	"groupslot_names":["ochtend- en dagprogramma's","ochtend - en dagprogramma 's",
 		"nachtprogramma's","kinderprogramma's","kinder-tv","kindertijd",
