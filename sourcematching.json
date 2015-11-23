@@ -557,7 +557,7 @@
             "635928103350", "635928103352", "635928103348", "24443942980"],
 		"6":[],
 		"7":[],
-		"8":["op-12"]},
+		"8":["op-12", "tv5", "bbc1"]},
 	"rtl_channellist":{
 		"RTL4": {"name": "RTL 4", "icon": "logo_rtl4_med_dark.png", "icongrp": 3},
 		"RTL5": {"name": "RTL 5", "icon": "logo_rtl5.png", "icongrp": 3},
