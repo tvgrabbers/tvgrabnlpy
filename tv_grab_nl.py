@@ -1900,6 +1900,9 @@ class Configure:
         try:
             url = 'https://raw.githubusercontent.com/tvgrabbers/tvgrabnlpy/master/sourcematching.json'
             githubdata = json.loads(self.get_page(url, 'utf-8'))
+            if "warning_message" in githubdata and githubdata["warning_message"] != "":
+                log(githubdata["warning_message"], 0)
+
             dv = int(githubdata["data_version"])
             nv = githubdata["program_version"]
             pv = u'%s.%s.%s' % (self.major, self.minor, self.patch)
