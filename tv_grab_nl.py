@@ -1828,6 +1828,10 @@ class Configure:
                 db_channel_source.append(chan)
 
         for channel in self.channels.values():
+            # Some channel title renaming
+            if channel.chanid in self.channel_rename.keys():
+                channel.chan_name = self.channel_rename[channel.chanid]
+
             # Set a source 4 icon if present and not allready set to 0 or 2
             if channel.icon_source in (-1, 1, 3):
                 if channel.chanid in xml_output.logo_names.keys() and xml_output.logo_names[channel.chanid][0] == '4':
@@ -1853,7 +1857,6 @@ class Configure:
 
             # set the default prime_source
             self.validate_option('prime_source', channel, -1)
-              # For Veronica tvgids.tv contains Disney XD, so we don't append it
             if channel.source_id[0] in ('3',):
                 channel.opt_dict['append_tvgidstv'] = False
 
@@ -1952,6 +1955,7 @@ class Configure:
 
                 xml_output.logo_names = githubdata["logo_names"]
                 self.rtl_channellist = githubdata["rtl_channellist"]
+                self.channel_rename = githubdata["channel_rename"]
 
         except:
             print traceback.print_exc()
@@ -7848,9 +7852,6 @@ class tvgidstv_HTML(FetchData):
                         self.all_channels[chanid]['group'] = id
                         break
 
-                if chanid == 'veronica':
-                    self.all_channels[chanid]['name'] = 'Veronica / Disney XD'
-
     def match_genre(self, dtext, tdict):
         if len(dtext) > 20:
             tdict['genre'] = u'overige'
@@ -10274,11 +10275,6 @@ class humo_JSON(FetchData):
                 self.all_channels[chanid]['name'] = channel['display_name']
                 self.all_channels[chanid]['icon'] = icon[-1]
                 self.all_channels[chanid]['fetch_grp'] = grp_code
-                if chanid in ('111', '36', '69', '73', '47'):
-                    self.all_channels[chanid]['name'] += ' Vlaanderen'
-
-                if chanid == '97':
-                    self.all_channels[chanid]['name'] = 'Comedy Central Vlaanderen'
 
     def load_pages(self):
 
