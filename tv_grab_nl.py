@@ -148,7 +148,7 @@ except NameError:
     unichr = chr    # Python 3
 
 # check Python version
-if sys.version_info[:2] < (2,7):
+if sys.version_info[:3] < (2,7,9):
     sys.stderr.write("tv_grab_nl_py requires Pyton 2.7 or higher\n")
     sys.exit(2)
 
@@ -579,8 +579,7 @@ class Configure:
         # Titles to rename
         self.titlerename = {'navy ncis': 'NCIS',
                                         'inspector banks': 'DCI Banks'}
-        # Sometimes titles were already taken in theTVDB
-        self.ttvdb_aliasses = {'Castle': 'Castle (2009)'}
+
         # Create a category translation dictionary
         # Look in mythtv/themes/blue/ui.xml for all category names
         # The keys are the categories used by tvgids.nl (lowercase please)
@@ -659,128 +658,9 @@ class Configure:
 
         self.genre_list = []
 
-        # Program group names to exclude from a primesource if the counterpart contains details
-        self.groupslot_names = ("ochtend- en dagprogramma's",
-                                                "ochtend - en dagprogramma's",
-                                                "nachtprogramma's",
-                                                "kinderprogramma's",
-                                                "kinder-tv",
-                                                "kindertijd",
-                                                "pause",
-                                                "geen programmagegevens beschikbaar.")
-
         # These ara all dicts used in merging the sources
-        self.source_channels ={}
         self.source_cattrans = {}
         self.new_cattrans = {}
-        self.source_channels[0] = {}
-        # link to tvgids.nl for channels on tvgids.tv': '
-        self.source_channels[1] = {'0-1': 'nederland-1',
-                                           '0-2': 'nederland-2',
-                                           '0-3': 'nederland-3',
-                                           '0-4': 'rtl-4',
-                                           '0-31': 'rtl-5',
-                                           '0-46': 'rtl-7',
-                                           '0-92': 'rtl-8',
-                                           '0-36': 'sbs-6',
-                                           '0-37': 'net-5',
-                                           '0-460': 'sbs-9',
-                                           '0-440': 'fox',
-                                           '0-465':'rtl-z',
-                                           '0-29': 'discovery-channel',
-                                           '0-305': 'discovery-world',
-                                           '0-306': 'discovery-science',
-                                           '0-414': 'investigation-discovery',
-                                           '0-94': 'syfy',
-                                           '0-439': 'animal-planet',
-                                           '0-438': 'tlc',
-                                           '0-18': 'national-geographic',
-                                           '0-416': 'nat-geo-wild',
-                                           '0-413': 'history',
-                                           '0-25': 'mtv',
-                                           '0-404': 'foxlife',
-                                           '0-408': 'rtl-lounge',
-                                           '0-99': 'sport1',
-                                           '0-419': 'sport-1-3',
-                                           '0-420': 'sport-1-extra',
-                                           '0-19': 'eurosport',
-                                           '0-436': 'eurosport-2',
-                                           '0-148': 'eredivisie-live',
-                                           '0-417': 'extreme-sports',
-                                           '0-418': 'espn-classic',
-                                           '0-466': 'ziggo-sport',
-                                           '0-24': 'film1.1',
-                                           '0-411': 'film1-action',
-                                           '0-39': 'film1-familiy',
-                                           '0-107': 'film1-festival',
-                                           '0-430': 'film1-series',
-                                           '0-93': '13th-street',
-                                           '0-409': 'rtl-crime',
-                                           '0-311': 'disney-xd',
-                                           '0-424': 'disney-channel',
-                                           '0-21': 'cartoon-network',
-                                           '0-317': 'comedy-family',
-                                           '0-91': 'comedy-central',
-                                           '0-89': 'nickelodeon',
-                                           '0-312': 'nick-jr',
-                                           '0-410': '101-tv',
-                                           '0-66': 'humortv-24',
-                                           '0-316': 'best-24',
-                                           '0-70': 'cultura-24',
-                                           '0-81': 'hollanddoc-24',
-                                           '0-90': 'bvn',
-                                           '0-403': 'goed-tv',
-                                           '0-431': 'hbo',
-                                           '0-432': 'hbo-2',
-                                           '0-433': 'hbo-3',
-                                           '0-435': '24kitchen',
-                                           '0-428': 'bravatv',
-                                           '0-407': 'out-tv',
-                                           '0-461': 'pebble-tv',
-                                           '0-304': 'mgm',
-                                           '0-5': 'een',
-                                           '0-6': 'ketnet-canvas',
-                                           '0-49': 'vtm',
-                                           '0-59': '2be',
-                                           '0-60': 'vt4',
-                                           '0-40': 'at-5',
-                                           '0-115': 'l1-tv',
-                                           '0-114': 'omroep-brabant',
-                                           '0-113': 'omroep-flevoland',
-                                           '0-109': 'omrop-fryslan',
-                                           '0-112': 'omroep-gelderland',
-                                           '0-116': 'omroep-zeeland',
-                                           '0-110': 'rtv-drenthe',
-                                           '0-108': 'rtv-noord',
-                                           '0-103': 'rtv-noord-holland',
-                                           '0-111': 'rtv-oost',
-                                           '0-102': 'rtv-rijnmond',
-                                           '0-100': 'rtv-utrecht',
-                                           '0-101': 'rtv-west',
-                                           '0-7': 'bbc-1',
-                                           '0-8': 'bbc-2',
-                                           '0-300': 'bbc-3',
-                                           '0-301': 'bbc-4',
-                                           '0-464': 'bbc-first',
-                                           '0-104': 'bbc-prime',
-                                           '0-86': 'bbc-world',
-                                           '0-26': 'cnn',
-                                           '0-9': 'ard',
-                                           '0-10': 'zdf',
-                                           '0-11': 'rtl',
-                                           '0-12': 'wdr-fernsehen',
-                                           '0-13': 'ndr-fernsehen',
-                                           '0-50': '3sat',
-                                           '0-38': 'arte',
-                                           '0-58': 'pro-7',
-                                           '0-28': 'sat-1',
-                                           '0-17': 'tv-5',
-                                           '0-15': 'rtbf-la-1',
-                                           '0-16': 'rtbf-la-2',
-                                           '0-32': 'trt-international',
-                                           '0-20': 'tcm'}
-                                           #~ '0-34': 'veronica',
-
         # tvgids.tv subgenre to genre translation table
         self.source_cattrans[1] = {'euromillions': 'Amusement',
                                  'erotisch magazine': 'Amusement',
@@ -819,88 +699,6 @@ class Configure:
 
         self.new_cattrans[1] = []
 
-        # channels for which to look on rtl.nl
-        # RTLL = RTL Lounge, RTLT = RTL Telekids, RTCR = RTL Crime
-        self.source_channels[2] = {'0-4': 'RTL4',
-                                    '0-31': 'RTL5',
-                                    '0-46': 'RTL7',
-                                    '0-92': 'RTL8',
-                                    '0-408': 'RTLL',
-                                    '0-409': 'RTCR',
-                                    '0-465':'RTLZ',
-                                    '1-rtl-telekids': 'RTLT'}
-
-        # channels for which to look on teveblad.be
-        self.source_channels[3] = {'5': 'een',
-                                            '0-6': 'canvas',
-                                            '0-1': 'npo-1',
-                                            '0-2': 'npo-2',
-                                            '0-3': 'npo-3',
-                                            '0-49': 'vtm',
-                                            '0-60': 'vier',
-                                            '0-59': '2be',
-                                            '0-18': 'national-geographic',
-                                            '0-4': 'rtl4',
-                                            '0-31': 'rtl5',
-                                            '0-36': 'sbs6',
-                                            '0-20': 'tcm',
-                                            '0-21': 'cartoon-network',
-                                            '0-19': 'eurosport',
-                                            '0-89': 'nickelodeonnl',
-                                            '0-90': 'bvn-tv',
-                                            '0-15': 'la-une',
-                                            '0-16': 'la-deux',
-                                            '0-17': 'tv5',
-                                            '0-7': 'bbc1-nl',
-                                            '0-8': 'bbc2-nl',
-                                            '0-300': 'bbc3-nl',
-                                            '0-301': 'bbc4-nl',
-                                            '0-104': 'bbc-entertainment',
-                                            '0-26': 'cnn',
-                                            '0-86': 'bbc-world',
-                                            '0-9': 'ard',
-                                            '0-10': 'zdf',
-                                            '0-12': 'wdr',
-                                            '0-11': 'rtl',
-                                            '0-305': 'discovery-world',
-                                            '0-306': 'discovery-science',
-                                            '0-438': 'tlc',
-                                            '0-439': 'animal',
-                                            '0-413': 'historychannel',
-                                            '0-417': 'extreme',
-                                            '0-461': 'pebbletv',
-                                            '0-424': 'disneychannel',
-                                            '0-94': 'syfy',
-                                            '0-93': '13th-street',
-                                            '0-304': 'mgmmoviechannel',
-                                            '0-404': 'foxlife',
-                                            '0-436': 'eurosport-2',
-                                            '0-38': 'arte',
-                                            '0-25': 'mtv',
-                                            '1-ketnet-canvas-2': 'ketnet',
-                                            '1-discovery-vlaanderen': 'discovery',
-                                            '1-vijftv': 'vijf',
-                                            '1-op12': 'op12',
-                                            '1-vitaya': 'vitaya',
-                                            '1-acht': 'acht',
-                                            '1-jim': 'jim',
-                                            '1-tmf': 'tmf',
-                                            '1-njam': 'njam',
-                                            '1-life-tv': 'life!tv',
-                                            '1-france-2': 'france-2',
-                                            '1-france-3': 'france-3',
-                                            '1-tf1': 'tf1',
-                                            '1-sudwest-fernsehen': 'swr',
-                                            '1-rai-uno': 'rai',
-                                            '1-tv-e': 'tve',
-                                            '1-espn-america': 'espn',
-                                            '1-espn-classic': 'espn-america',
-                                            '1-prime-star': 'primestar',
-                                            '1-prime-action': 'primeaction',
-                                            '1-prime-fezztival': 'primefezztival',
-                                            '1-prime-series': 'primeseries',
-                                            '1-vtmkzoom': 'vtm-kzoom'}
-
         # teveblad.be genre translation table
         self.source_cattrans[3] = {'amusement'           : (u'Amusement', u''),
                                  'documentaire'      : (u'Informatief', u'Documentaire'),
@@ -917,32 +715,7 @@ class Configure:
 
         self.new_cattrans[3] = {}
 
-        # channels for which to look on npo.nl
-        self.source_channels[4] = {'0-1': u'263',
-                                           '0-2': u'264',
-                                           '0-3': u'265',
-                                           '1-journaal-24': u'279',
-                                           '0-70': u'280',
-                                           '0-410': u'281',
-                                           '1-politiek-24': u'282',
-                                           '0-316': u'283',
-                                           '0-81': u'284',
-                                           '1-zappelin': u'288',
-                                           '0-66': u'290',
-                                           '0-109': u'266',
-                                           '0-108': u'267',
-                                           '0-110': u'268',
-                                           '0-111': u'269',
-                                           '0-112': u'270',
-                                           '0-113': u'271',
-                                           '0-114': u'272',
-                                           '0-100': u'273',
-                                           '0-103': u'274',
-                                           '0-101': u'275',
-                                           '0-102': u'276',
-                                           '0-115': u'277',
-                                           '0-116': u'278'}
-
+        # npo.nl genre translation table
         self.source_cattrans[4] = {('nieuws-actualiteiten', ): (u'nieuws/actualiteiten', u''),
                                      ('amusement', ): (u'amusement', u''),
                                      ('amusement', 'komisch', ): (u'amusement', u'komedie'),
@@ -1005,205 +778,7 @@ class Configure:
         self.new_cattrans[4] = {}
         self.npo_fill = 'Programmainfo en Reclame'
 
-        # channels for which to look on horizon.tv
-        self.source_channels[5] = {'0-1': u'24443942983',
-                                           '0-2': u'24443942987',
-                                           '0-3': u'672816167173',
-                                           '0-66': u'24443943064',
-                                           '0-70': u'24443943108',
-                                           '0-81': u'24443943160',
-                                           '0-316': u'24443943102',
-                                           '0-410': u'24443943148',
-                                           '1-journaal-24': u'24443943149',
-                                           '1-politiek-24': u'24443943152',
-                                           '1-zappelin': u'564193831242',
-                                           '0-4': u'24443943096',
-                                           '0-31': u'24443943146',
-                                           '0-46': u'24443943014',
-                                           '0-92': u'24443943182',
-                                           '0-408': u'24443943060',
-                                           '0-409': u'24443943033',
-                                           '1-rtl-telekids': u'24443943100',
-                                           '0-36': u'24443943184',
-                                           '0-37': u'24443943091',
-                                           '1-veronica': u'24443943190',
-                                           '0-460': u'566369831211',
-                                           '0-440': u'120746535305',
-                                           '0-5': u'24443943058',
-                                           '0-6': u'555680807173',
-                                           '1-ketnet-canvas-2': u'24443943087',
-                                           '0-40': u'24443943004',
-                                           '0-100': u'24443943078',
-                                           '0-101': u'24443943071',
-                                           '0-102': u'24443943075',
-                                           '0-103': u'24443943063',
-                                           '0-108': u'24443943192',
-                                           '0-109': u'24443943144',
-                                           '0-110': u'24443943187',
-                                           '0-111': u'24443943043',
-                                           '0-112': u'24443943141',
-                                           '0-113': u'24443943001',
-                                           '0-114': u'24443943069',
-                                           '0-115': u'24443943061',
-                                           '0-116': u'24443943178',
-                                           '0-7': u'24443942999',
-                                           '0-8': u'560453158983',
-                                           '0-26': u'561138215261',
-                                           '0-86': u'24443943049',
-                                           '0-104': u'24443943099',
-                                           '0-9': u'429332519216',
-                                           '0-10': u'429332519214',
-                                           '0-11': u'555680807174',
-                                           '0-12': u'24443943112',
-                                           '0-13': u'24443943105',
-                                           '0-28': u'24443942986',
-                                           '0-38': u'24443943121',
-                                           '0-435': u'540738087345',
-                                           '1-amc': u'563391527030',
-                                           '0-439': u'24443943106',
-                                           '0-428': u'24443943156',
-                                           '0-21': u'24443943186',
-                                           '0-317': u'565790759340',
-                                           '0-91': u'24443943012',
-                                           '0-306': u'24443943097',
-                                           '0-305': u'24443943084',
-                                           '0-29': u'24443943009',
-                                           '0-424': u'24443942993',
-                                           '1-disney-junior': u'541838374997',
-                                           '0-311': u'24443943086',
-                                           '0-413': u'540738087343',
-                                           '0-404': u'560453158985',
-                                           '0-414': u'24443943110',
-                                           '1-jimjam': u'24443942995',
-                                           '0-25': u'24443943006',
-                                           '0-416': u'540738087344',
-                                           '0-18': u'24443943035',
-                                           '0-312': u'24443942992',
-                                           '0-89': u'542836775318',
-                                           '0-461': u'560453158987',
-                                           '0-438': u'562458663437',
-                                           '0-17': u'24443943054',
-                                           '0-19': u'24443943029',
-                                           '0-436': u'561138215257',
-                                           '0-417': u'24443943122',
-                                           '0-148': u'119414823233',
-                                           '1-eredivisie-live-2': u'119414823227',
-                                           '1-eredivisie-live-3': u'119414823235',
-                                           '1-eredivisie-live-4': u'119414823230',
-                                           '1-fox-sports-5-eredivisie': u'555680807172',
-                                           '1-fox-sports-6': u'606274087106',
-                                           '0-99': u'24443943161',
-                                           '0-419': u'24443943140',
-                                           '1-sport-1-2': u'24443943164',
-                                           '1-sport-1-extra-1': u'40301607426',
-                                           '1-sport1-extra-2': u'24443943189',
-                                           '1-sport1-racing': u'24443943143',
-                                           '0-411': u'24443943173',
-                                           '0-39': u'540738087342',
-                                           '0-24': u'562458663436',
-                                           '0-430': u'153935399225',
-                                           '0-107': u'185866791162',
-                                           '0-431': u'540738087341',
-                                           '0-432': u'555680807176',
-                                           '0-433': u'560453158986',
-                                           '0-32': u'24443943081',
-                                           '0-313': u'24443943095',
-                                           '0-315': u'24443943111',
-                                           '0-317': u'672816167176',
-                                           '0-406': u'24443943124',
-                                           '0-407': u'545453607330',
-                                           '0-408': u'672816167174',
-                                           '0-415': u'564193831244',
-                                           '0-422': u'24443943027',
-                                           '0-423': u'561138215259',
-                                           '0-427': u'24443943136',
-                                           '0-429': u'24443943188',
-                                           '0-434': u'24443943019',
-                                           '0-437': u'24443943077',
-                                           '0-462': u'24443943072',
-                                           '0-465': u'660696615380',
-                                           '0-466': u'675503655063',
-                                           '1-tv-e': u'672816167175'}
-                                           #~ '0-34': u'24443943190',
-                                           #~ '0-300': u'24443943013',
-                                           #~ '0-301': u'24443943080',
-                                           #~ '0-3': u'24443943037',
-                                           #~ '': u'100% NL TV 606274087100',
-                                           #~ '': u'192TV 24443943155',
-                                           #~ '': u'2M 606274087098',
-                                           #~ '': u'Aljazeera 565790759345',
-                                           #~ '': u'Baby TV 561138215256',
-                                           #~ '': u'CNBC Europe 24443943051',
-                                           #~ '': u'CCTV News 544430119366',
-                                           #~ '': u'CI 561793575034',
-                                           #~ '': u'DJAZZ.tv 560453158982',
-                                           #~ '': u'DanceTrippin 24443943025',
-                                           #~ '': u'Family7 24443943174',
-                                           #~ '': u'Fashion TV 24443943044',
-                                           #~ '': u'Horse & Country TV 606274087102',
-                                           #~ '': u'MBC 565790759344',
-                                           #~ '': u'MTV Live 606274087099',
-                                           #~ '': u'MTV Music 24 24443943214',
-                                           #~ '': u'Mediaset Italia 555680807175',
-                                           #~ '': u'Mezzo 24443943129',
-                                           #~ '': u'Motors TV 24443943016',
-                                           #~ '': u'MyZen 24443943145',
-                                           #~ '': u'Nick Hits 24443943216',
-                                           #~ '': u'Nicktoons 24443942994',
-                                           #~ '': u'RT 529739815221',
-                                           #~ '': u'RTV-7 24443943118',
-                                           #~ '': u'SLAMTV 24443943138',
-                                           #~ '': u'Stingray LiteTV 24443943150',
-                                           #~ '': u'TV538 561138215258',
-                                           #~ '': u'TVM Europe 647417383035',
-                                           #~ '': u'The Indonesian Channel 544216614964',
-                                           #~ '': u'VH1 Classic 24443943039',
-                                           #~ '': u'XITE 24443943028',
-                                           #~ '': u'FOX Sports 6 606274087106',
-                                           #~ '': u'Zender van de Maand 24443943085',
-                                           #~ '': u'SET Asia 606274087104',
-                                           #~ '': u'STAR Gold 429332519213',
-                                           #~ '': u'STAR Plus 24443943030',
-                                           #~ '': u'Zee Cinema 24443943185',
-                                           #~ '': u'Zee TV 24443943023',
-                                           #~ '': u'Zing 564193831245',
-                                           #~ '': u'ATV Avrupa 24443943153',
-                                           #~ '': u'Euro D 24443943109',
-                                           #~ '': u'Euro Star 24443943092',
-                                           #~ '': u'Kral TV 606274087105',
-                                           #~ '': u'Samanyolu Avrupa 24443943090',
-                                           #~ '': u'Show TV 606274087101',
-                                           #~ '': u'Planet Türk 606274087103',
-                                           #~ '': u'Habertürk 24443942998',
-                                           #~ '': u'TGRT EU 560453158988',
-                                           #~ '': u'Brazzers TV Europe 330522663235',
-                                           #~ '': u'MvH Hard 457547303396',
-                                           #~ '': u'MvH Soft 541628455136',
-                                           #~ '': u'PassieXXX 24443943083',
-                                           #~ '': u'Penthouse 606274087107',
-                                           #~ '': u'X-MO 24443943126',
-                                           #~ '': u'OUTTV 545453607331',
-
-                                           #~ '': u'Dummy 565790759338',
-                                           #~ '': u'Erotiek Still 615722023372',
-                                           #~ '': u'Eventkanaal 24443943133',
-                                           #~ '': u'FOX Sports Info 614261799194',
-                                           #~ '': u'Testbeeld 24443943135',
-                                           #~ '': u'Ziggo TV 123063846982',
-                                           #~ '': u'Ziggo Zenderoverzicht 614261799193',
-                                           #~ '': u'Ziggo Live Events 624196647052',
-                                           #~ '': u'Ziggo Live Events FOX Sports 635928103346',
-                                           #~ '': u'Ziggo Live Events FOX Sports 635928103347',
-                                           #~ '': u'Ziggo Live Events FOX Sports 635928103348',
-                                           #~ '': u'Ziggo Live Events FOX Sports 635928103349',
-                                           #~ '': u'Ziggo Live Events FOX Sports 635928103351',
-                                           #~ '': u'Ziggo Live Events Sport1 112676391039',
-                                           #~ '': u'Ziggo Live Events Sport1 155550759273',
-                                           #~ '': u'Ziggo Live Events Sport1 24443942974',
-                                           #~ '': u'Ziggo Live Events Sport1 24443942980',
-                                           #~ '': u'Ziggo Live Events Sport1 635928103350',
-                                           #~ '': u'Ziggo Live Events Sport1 635928103352',
-
+        # horizon.tv genre translation table
         self.source_cattrans[5] ={('13946319', ): ('nieuws/actualiteiten',''),
                                      ('13946319', '13946323'): ('informatief', 'Documentaire'),
                                      ('13946319', '13946324'): ('informatief', 'Discussie'),
@@ -1230,86 +805,7 @@ class Configure:
                                      ('13948023', '13948033'): ('serie/soap', 'detectiveserie')}
         self.new_cattrans[5] = {}
 
-        # channels for which to look on humo.be
-        self.source_channels[6] = {'0-5': '22',
-                                            '0-6': '18',
-                                            '0-60': '2',
-                                            '0-49': '6',
-                                            '0-59': '40',
-                                            '1-vijftv': '4',
-                                            '0-18': '26',
-                                            '1-discovery-vlaanderen': '20',
-                                            '1-vitaya': '38',
-                                            '1-acht': '8',
-                                            '0-1': '30',
-                                            '0-2': '32',
-                                            '0-3': '34',
-                                            '0-19': '49',
-                                            '1-njam': '28',
-                                            '0-7': '10',
-                                            '0-8': '12',
-                                            '0-15': '67',
-                                            '0-16': '61',
-                                            '1-france-2': '51',
-                                            '1-france-3': '53',
-                                            '0-9': '43',
-                                            '0-10': '105',
-                                            '1-jim': '55',
-                                            '1-ketnet-canvas-2': '59',
-                                            '1-vtmkzoom': '101',
-                                            '0-12': '103',
-                                            '0-21': '109',
-                                            '1-tf1': '95',
-                                            '1-rai-uno': '85',
-                                            '1-tv-e': '99',
-                                            '1-rtl-tvi': '87',
-                                            '1-amc': '107',
-                                            '1-tmf': '97'}
-                                            #~ '0-424': '47',
-                                            #~ '0-38': '45',
-                                            #~ '0-438': '36',
-                                            #~ 65 La Trois
-                                            #~ 93 Sundance
-                                            #~ 91 studio100 tv
-
-                                            #~ '0-89': '73',
-                                            #~ '0-25': '69',
-                                            #~ '0-300': '345',
-                                            #~ '0-301': '347',
-                                            #~ '0-413': '191',
-                                            #~ '0-417': '187',
-                                            #~ '1-espn-america': '183',
-                                            #~ '1-espn-classic': '181',
-                                            #~ '1-discovery-hd': '177',
-                                            #~ '0-305': '173',
-                                            #~ '0-306': '169',
-                                            #~ '0-21': '167',
-                                            #~ '0-439': '163',
-                                            #~ '1-life-tv': '193',
-                                            #~ '0-304': '195',
-                                            #~ '1-prime-action': '199',
-                                            #~ '0-20': '269',
-                                            #~ '0-94': '253',
-                                            #~ '1-e-entertainment': '239',
-                                            #~ '1-prime-star': '205',
-                                            #~ '1-prime-series': '203',
-                                            #~ '1-prime-fezztival': '201',
-                                            #~ '0-93': '159',
-                                            #~ '0-32': '151',
-                                            #~ '1-france-4': '71',
-                                            #~ '0-26': '15',
-                                            #~ '0-86': '17',
-                                            #~ '0-17': '97',
-                                            #~ '1-sudwest-fernsehen': '147',
-                                            #~ '0-36': '145',
-                                            #~ '0-31': '143',
-                                            #~ '0-4': '141',
-                                            #~ '0-11': '139',
-                                            #~ '0-37': '127',
-                                            #~ '0-436': '119',
-                                            #~ '0-90': '111',
-
-         #Channel group names as used in tvgids.tv
+        # humo.be genre translation table
         self.source_cattrans[6] = {'nieuws'       : (u'Nieuws/Actualiteiten', u''),
                                  'current-affairs': (u'Nieuws/Actualiteiten', u'Actualiteiten'),
                                  'magazine'              : (u'Magazine', u''),
@@ -1340,75 +836,7 @@ class Configure:
 
         self.new_cattrans[6] = {}
 
-        # channels for which to look on vpro.nl
-        self.source_channels[7] = {u'0-1': u'npo_1',
-                                                u'0-2': u'npo_2',
-                                                u'0-3': u'npo_3',
-                                                u'0-81': u'npo_doc',
-                                                u'0-70': u'npo_cultura',
-                                                u'0-4': u'rtl_4',
-                                                u'0-31': u'rtl_5',
-                                                u'0-46': u'rtl_7',
-                                                u'0-92': u'rtl_8',
-                                                u'0-37': u'net_5',
-                                                u'0-36': u'sbs_6',
-                                                u'0-34': u'veronica_jetix',
-                                                u'0-460': u'sbs_9',
-                                                u'0-5': u'een',
-                                                u'1-ketnet-canvas-2': u'ketnet',
-                                                u'0-406': u'ons',
-                                                u'0-6': u'vrt_canvas',
-                                                u'0-7': u'bbc_1',
-                                                u'0-8': u'bbc_2',
-                                                u'0-300': u'bbc_three',
-                                                u'0-301': u'bbc_four',
-                                                u'0-9': u'ard',
-                                                u'0-10': u'zdf',
-                                                u'0-38': u'arte',
-                                                u'0-17': u'tv_5_monde_europe',
-                                                u'0-13': u'n3_ndr',
-                                                u'0-12': u'wdr_fehrsehen',
-                                                u'0-428': u'brava_nl',
-                                                u'5-24443943129': u'mezzo',
-                                                u'0-19': u'eurosport',
-                                                u'0-431': u'hbo_1',
-                                                u'0-91': u'comedy_central',
-                                                u'0-404': u'fox',
-                                                u'0-93': u'13th_street',
-                                                u'0-94': u'syfy',
-                                                u'0-29': u'discovery_channel',
-                                                u'0-18': u'national_geographic',
-                                                u'0-438': u'tlc',
-                                                u'0-435': u'24_kitchen',
-                                                u'4-292': u'radio_1',
-                                                u'4-293': u'radio_2',
-                                                u'4-294': u'3fm',
-                                                u'4-295': u'radio_4',
-                                                u'4-296': u'radio_5',
-                                                u'4-297': u'radio_6'}
-                                                #~ u'0-': u'bnr_nieuwsradio',
-                                                #~ u'0-': u'klara',
-                                                #~ u'0-': u'ndr3',
-                                                #~ u'0-': u'wdr3',
-                                                #~ u'0-': u'bbc_radio_3',
-                                                #~ u'0-': u'893_radio_west',
-                                                #~ u'0-': u'arrow_classic_rock',
-                                                #~ u'0-': u'classic_fm',
-                                                #~ u'0-': u'r_omroep_brabant',
-                                                #~ u'0-': u'r_omroep_zeeland',
-                                                #~ u'0-': u'q-music',
-                                                #~ u'0-': u'radio_538',
-                                                #~ u'0-': u'radio_gelderland',
-                                                #~ u'0-': u'radio_m_utrecht',
-                                                #~ u'0-': u'radio_noord',
-                                                #~ u'0-': u'radio_oost',
-                                                #~ u'0-': u'radio_rijnmond',
-                                                #~ u'0-': u'radio_veronica',
-                                                #~ u'0-': u'sky_radio',
-                                                #~ u'0-': u'slam_fm',
-                                                #~ u'0-': u'vrt-radio_1',
-                                                #~ u'0-': u'vrt-radio_2',
-
+        # vpro.nl genre translation table
         self.source_cattrans[7] ={('g3011', ): ('jeugd', ''),
                                      ('g3012', ): ('film', ''),
                                      ('g3013', ): ('serie/soap', ''),
@@ -1425,83 +853,7 @@ class Configure:
                                      ('g3018', ): ('informatief', 'Documentaire')}
         self.new_cattrans[7] = {}
 
-        # channels for which to look on nieuwsblad.be
-        self.source_channels[8] = {u'0-1': u'npo1',
-                                                u'0-2': u'npo2',
-                                                u'0-3': u'npo3',
-                                                u'0-37': u'net5',
-                                                u'0-36': u'sbs6',
-                                                u'0-34': u'veronica',
-                                                u'0-5': u'een',
-                                                u'0-6': u'canvas',
-                                                u'0-60': u'vier',
-                                                u'1-vijftv': u'vijf',
-                                                u'1-acht': u'acht',
-                                                u'0-49': u'vtm',
-                                                u'0-59': u'2be',
-                                                u'1-vitaya': u'vitaya',
-                                                u'1-jim': u'jim',
-                                                u'1-kanaalz': u'kanaal-z',
-                                                u'1-vtmkzoom': u'vtmkzoom',
-                                                u'6-73': u'nickelodeon',
-                                                u'0-90': u'bvn',
-                                                u'6-87': u'rtl',
-                                                u'0-11': u'rtl-plus-international',
-                                                u'0-7': u'bbc-1',
-                                                u'0-8': u'bbc-2',
-                                                u'0-300': u'bbc3',
-                                                u'0-301': u'bbc4',
-                                                u'0-86': u'bbc-world',
-                                                u'1-itv-1': u'itv',
-                                                u'0-26': u'cnn',
-                                                u'0-9': u'ard',
-                                                u'0-10': u'zdf',
-                                                u'0-12': u'wdr',
-                                                u'1-sudwest-fernsehen': u'swr',
-                                                u'6-45': u'arte',
-                                                u'0-15': u'la-une',
-                                                u'0-16': u'la-deux',
-                                                u'1-tf1': u'tf1',
-                                                u'1-france-2': u'france2',
-                                                u'1-france-3': u'france3',
-                                                u'0-17': u'tv5-monde',
-                                                u'1-club-rtl': u'club-rtl',
-                                                u'1-discovery-vlaanderen': u'discovery-channel',
-                                                u'0-422': u'euronews',
-                                                u'6-97': u'tmf',
-                                                u'6-69': u'mtv',
-                                                u'0-18': u'natgeografic',
-                                                u'6-93': u'sundance-channel',
-                                                u'0-19': u'eurosport1',
-                                                u'0-436': u'eurosport-2',
-                                                u'0-21': u'cartoon-network',
-                                                u'1-prime-star': u'prime-star',
-                                                u'1-prime-series': u'prime-series',
-                                                u'1-prime-fezztival': u'prime-fezztival',
-                                                u'1-prime-family': u'prime-family',
-                                                u'1-prime-action': u'prime-action',
-                                                u'1-tv-e': u'tveint',
-                                                u'0-32': u'trt-turk',
-                                                u'1-rai-uno': u'raiuno'}
-                                                #~ u'1-ketnet-canvas-2': u'ketnet',
-
         #Channel group names as used in tvgids.tv
-        self.chan_groups = {1: 'Nederlands',
-                                          2: 'Vlaams',
-                                          3: 'Engels',
-                                          4: 'Duits',
-                                          5: 'Frans',
-                                          6: 'Nederlands Regionaal',
-                                          7: 'Nederlands Overig',
-                                          8: 'Vlaams Regionaal',
-                                          9: 'Vlaams Overig',
-                                         10: 'Internationaal',
-                                         11: 'Radio Nederlands',
-                                         12: 'Radio Vlaams',
-                                         13: 'Radio Overig',
-                                          0: 'Actieve Zenders',
-                                         99: 'Overig'}
-
         self.group_names = {1: 'Nederlandse kanalen',
                                           2: 'Vlaamse kanalen',
                                           3: 'Engelse kanalen',
@@ -1518,10 +870,6 @@ class Configure:
                                          99: 'Overig kanalen',
                                          -1: 'Alleen geselecteerde kanalen'}
 
-        self.combined_channels = {'5-24443943013': ['0-300'],
-                                                     '5-24443943080': ['0-301', '1-cbeebies'],
-                                                     '1-veronica': ['0-34', '0-311'],
-                                                     '1-ketnet-canvas-2': ['8-ketnet', '8-eenplus']}
         # DO NOT CHANGE THIS!
         self.configversion = None
         self.__CONFIG_SECTIONS__ = { 1: u'Configuration',
@@ -1542,7 +890,6 @@ class Configure:
                                                              11: u'vpro.nl genres'}
 
         self.sources = {}
-        self.detail_ids = []
 
     # end Init()
 
@@ -1987,9 +1334,11 @@ class Configure:
                             self.opt_dict[cfg_option] = cfg_value
 
                         else:
-                            self.opt_dict[cfg_option] = 'none'                    # Integer Values
+                            self.opt_dict[cfg_option] = 'none'
+
+                    # Integer Values
                     elif cfg_option in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', \
-                      'max_overlap', 'desc_length', 'disable_source', 'disable_detail_source'):
+                      'max_overlap', 'desc_length', 'disable_source', 'disable_detail_source', 'data_version'):
                         try:
                             cfg_value = int(cfg_value)
 
@@ -2349,25 +1698,6 @@ class Configure:
         # These channels contain no data!
         source_keys = {}
         reverse_channels = {}
-        empty_channels = {}
-        empty_channels[0] = ('83','308','309','310','20','65','401','403','412')
-        empty_channels[1] = ('eurosport-hd', 'la-une-hd', 'tf1-hd', 'vtm-hd', 'nat-geo-hd', 'tmf', 'life-tv', \
-            'espn-america', 'espn-classic', 'canal-z', 'disney-playhouse', 'exqi-sport-culture', \
-            'prime-sport', 'vitaliteit', 'vtmkzoom-2', 'ketnet-op12', 'cnbc-europe', 'virgin-1', 'rtlz')
-        empty_channels[2] = []
-        empty_channels[3] = ('rtl4', 'rtl5', 'sbs6', 'tv5monde-europe', 'cnn', 'tcm', 'cartoon-network', \
-            'rtp-international', 'foxlife', 'discovery-id', 'studio100-tv', 'fashion-one', 'tnt-benelux', \
-            'historychannel', 'nickelodeonnl', 'bbc-world', 'mgmmoviechannel', 'discovery-world', \
-            'discovery-science', 'sport-10', 'culture-7', 'espn', 'pebbletv', 'lacht', '13th-street', \
-            'live!tv', 'stories', 'op12', 'actua-tv', 'espn-america', 'swr', '', 'mtv', 'tmf', 'cultuur-7')
-        empty_channels[4] = []
-        empty_channels[5] = ['565790759338', '615722023372', '24443943133', '614261799194', '24443943135', \
-            '123063846982', '614261799193', '624196647052', '635928103346', '635928103347', '635928103348', \
-            '635928103349', '635928103351', '112676391039', '155550759273', '24443942974', '24443942980', \
-            '635928103350', '635928103352']
-        empty_channels[6] = []
-        empty_channels[7] = []
-        empty_channels[8] = ['op-12']
         # download the json feed
         xml_output.channelsource[0].init_channels()
         xml_output.channelsource[0].get_channels()
@@ -2379,7 +1709,7 @@ class Configure:
 
         source_keys[0] = []
         for chan_scid in xml_output.channelsource[0].all_channels.keys():
-            if (chan_scid.lower() in empty_channels[0]):
+            if (chan_scid.lower() in self.empty_channels[0]):
                 continue
 
             source_keys[0].append(chan_scid)
@@ -2397,13 +1727,13 @@ class Configure:
                 self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chan_scid]['name'])
 
             self.channels[chanid].source_id[0] = chan_scid
-            if int(chan_scid) in xml_output.logo_names:
-                self.channels[chanid].icon_source = xml_output.logo_names[int(chan_scid)][0]
-                if xml_output.logo_names[int(chan_scid)][0] == 4:
-                    self.channels[chanid].icon = xml_output.logo_names[int(chan_scid)][1] + '.png'
+            if chanid in xml_output.logo_names:
+                self.channels[chanid].icon_source = int(xml_output.logo_names[chanid][0])
+                if xml_output.logo_names[chanid][0] == '4':
+                    self.channels[chanid].icon = xml_output.logo_names[chanid][1] + '.png'
 
                 else:
-                    self.channels[chanid].icon = xml_output.logo_names[int(chan_scid)][1] + '.gif'
+                    self.channels[chanid].icon = xml_output.logo_names[chanid][1] + '.gif'
 
         # Get the other sources
         for index in (1, 6, 5, 2, 4, 7, 8):
@@ -2421,7 +1751,7 @@ class Configure:
                 reverse_channels[index][v]['chan_scid'] = unicode(i[1])
 
             for chan_scid in xml_output.channelsource[index].all_channels.keys():
-                if not (chan_scid in empty_channels[index]):
+                if not (chan_scid in self.empty_channels[index]):
                     source_keys[index].append(chan_scid)
 
         for index in (1, 6, 5, 2, 4, 7, 8):
@@ -2450,11 +1780,11 @@ class Configure:
                     chan['hd'] = False
 
                 # These channels are for show, but we like the icons from source 2, 6 and 5!
-                if (chan_scid in empty_channels[index]):
+                if (chan_scid in self.empty_channels[index]):
                     chan['scid'] = ''
 
                 if not chanid in self.channels:
-                    if (chan_scid in empty_channels[index]):
+                    if (chan_scid in self.empty_channels[index]):
                         continue
 
                     self.channels[chanid] = Channel_Config(chanid, chan['name'] )
@@ -2464,6 +1794,12 @@ class Configure:
 
                 self.channels[chanid].source_id[index] = chan_scid
                 # Set the group
+                if index in self.channel_grouping:
+                    for g in self.channel_grouping[index]:
+                        if chan_scid in self.channel_grouping[index][g]:
+                            channel['group'] = g
+                            break
+
                 if self.channels[chanid].group >= 99:
                     self.channels[chanid].group = channel['group'] if 'group' in channel else 99
 
@@ -2494,14 +1830,14 @@ class Configure:
         for channel in self.channels.values():
             # Set a source 4 icon if present and not allready set to 0 or 2
             if channel.icon_source in (-1, 1, 3):
-                if channel.chanid in xml_output.logo_names.keys() and xml_output.logo_names[channel.chanid][0] == 4:
+                if channel.chanid in xml_output.logo_names.keys() and xml_output.logo_names[channel.chanid][0] == '4':
                     channel.icon_source = 4
                     channel.icon = '%s.png' % xml_output.logo_names[channel.chanid][1]
 
-                elif channel.source_id[0] != '' and int(channel.source_id[0]) in xml_output.logo_names.keys() \
-                  and xml_output.logo_names[int(channel.source_id[0])][0] == 4:
+                elif channel.source_id[0] != '' and '0-%s' % (channel.source_id[0]) in xml_output.logo_names.keys() \
+                  and xml_output.logo_names['0-%s' % (channel.source_id[0])][0] == '4':
                     channel.icon_source = 4
-                    channel.icon = '%s.png' % xml_output.logo_names[int(channel.source_id[0])][1]
+                    channel.icon = '%s.png' % xml_output.logo_names['0-%s' % (channel.source_id[0])][1]
 
             # mark HD channels
             if channel.chan_name[-3:].lower() == ' hd':
@@ -2533,6 +1869,96 @@ class Configure:
 
     # end get_channels()
 
+    def get_page(self, url, encoding = "default encoding"):
+        """
+        Wrapper around get_page_internal to catch the
+        timeout exception
+        """
+        try:
+            fu = FetchURL(url, encoding)
+            fu.start()
+            fu.join(self.global_timeout)
+            page = fu.result
+            if (page == None) or (page.replace('\n','') == '') or (page.replace('\n','') =='{}'):
+                with xml_output.output_lock:
+                    xml_output.fail_count += 1
+
+                return None
+
+            else:
+                return page
+
+        except(urllib.URLError, socket.timeout):
+            log('get_page timed out on (>%s s): %s\n' % (self.global_timeout, url), 1, 1)
+            with xml_output.output_lock:
+                xml_output.fail_count += 1
+
+            return None
+    # end get_page()
+
+    def get_sourcematching_file(self, with_configdata = False):
+        try:
+            url = 'https://raw.githubusercontent.com/tvgrabbers/tvgrabnlpy/master/sourcematching.json'
+            githubdata = json.loads(self.get_page(url, 'utf-8'))
+            dv = int(githubdata["data_version"])
+            nv = githubdata["program_version"]
+            pv = u'%s.%s.%s' % (self.major, self.minor, self.patch)
+            if pv < nv or (pv == nv and (self.alfa or self.beta)):
+                log(['There is a newer stable release available on github!\n',
+                    'Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n'], 0)
+                if "version_message" in githubdata and githubdata["version_message"] != "":
+                    log(githubdata["version_message"], 0)
+
+            elif not with_configdata and (not "data_version" in self.opt_dict or dv > self.opt_dict["data_version"]):
+                log(['The channel/source matching data on github is newer!\n',
+                    "Run with '--configure' to implement it\n"], 0)
+
+            self.combined_channels = githubdata["combined_channels"]
+            self.groupslot_names = githubdata["groupslot_names"]
+            xml_output.logo_provider = githubdata["logo_provider"]
+            for v in githubdata["user_agents"]:
+                if not v in self.user_agents:
+                    self.user_agents.append(v)
+
+            self.ttvdb_aliasses = {}
+            for p, v in githubdata["ttvdb_aliasses"].items():
+                self.ttvdb_aliasses[p] = v
+
+            if with_configdata:
+                self.opt_dict["data_version"] = dv
+                self.chan_group_sorted = []
+                self.chan_groups = {}
+                for g, v in githubdata["channel_groups"].items():
+                    self.chan_group_sorted.append(int(g))
+                    self.chan_groups[int(g)] = v
+
+                self.chan_group_sorted.sort()
+                self.source_channels = {}
+                for s, v in githubdata["source_channels"].items():
+                    self.source_channels[int(s)] = v
+
+                self.empty_channels = {}
+                for s, v in githubdata["empty_channels"].items():
+                    self.empty_channels[int(s)] = v
+
+                self.channel_grouping = {}
+                for s, v in githubdata["channel_grouping"].items():
+                    self.channel_grouping[int(s)] = {}
+                    for g, clist in v.items():
+                        self.channel_grouping[int(s)][int(g)] = clist
+
+                xml_output.logo_names = githubdata["logo_names"]
+                self.rtl_channellist = githubdata["rtl_channellist"]
+
+        except:
+            print traceback.print_exc()
+            log(['Error reading the datafile on github.\n'], 0)
+            if with_configdata:
+                log(['Unable to continue with configure!\n'], 0)
+                return 2
+
+    # get_sourcematching_file()
+
     def validate_commandline(self):
         """Read the commandline and validate the values"""
         if self.read_commandline() == 0:
@@ -2558,6 +1984,10 @@ class Configure:
             self.log_file = self.args.config_file+'.log'
 
         x = self.validate_option('config_file')
+        if x != None:
+            return(x)
+
+        x = self.get_sourcematching_file(self.args.configure)
         if x != None:
             return(x)
 
@@ -3193,6 +2623,8 @@ class Configure:
         f.write(u'# Options not shown here can not be set this way.\n')
         f.write(u'\n')
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[1])
+        f.write(u'# DO NOT CHANGE THIS VALUE!\n')
+        f.write(u'data_version = %s\n' % self.opt_dict['data_version'])
         if self.write_info_files:
             f.write(u'write_info_files = True\n')
             f.write(u'\n')
@@ -3448,7 +2880,7 @@ class Configure:
                 self.get_channels()
                 chan_added = []
                 chan_list = {}
-                for g in self.chan_groups.keys():
+                for g in self.chan_group_sorted:
                     chan_list[unicode(g)] =[]
 
                 if self.configversion <= 2.0:
@@ -3515,7 +2947,7 @@ class Configure:
 
                     for item in configlines['3remarks']:
                         chan = re.sub('#', '', item)
-                        if chan.strip() in self.chan_groups.values():
+                        if chan.strip() in self.chan_group_sorted:
                             continue
 
                         chan = re.split(';', chan)
@@ -3551,7 +2983,7 @@ class Configure:
 
         if add_channels:
             chan_list = {}
-            for g in self.chan_groups.keys():
+            for g in self.chan_group_sorted:
                 chan_list[unicode(g)] =[]
 
             for chanid, channel in self.channels.items():
@@ -3561,7 +2993,7 @@ class Configure:
                 chan_list[unicode(channel.group)].append(get_channel_string(chanid))
 
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
-        for g in self.chan_groups.keys():
+        for g in self.chan_group_sorted:
             f.write('\n')
             f.write('# %s\n' % self.chan_groups[g])
             chan_list[unicode(g)].sort(key=lambda channel: (channel['chan_string']))
@@ -5802,7 +5234,6 @@ class FetchData(Thread):
                     config.sources[self.source] ={}
                     config.sources[self.source]['ID'] = self.detail_id if (self.detail_id != '') else ''
                     config.sources[self.source]['url'] = self.detail_url if (self.detail_url != '') else ''
-                    config.detail_ids.append(self.detail_id)
 
                 self.init_json()
                 # Load and proccess al the program pages
@@ -6202,32 +5633,6 @@ class FetchData(Thread):
                 tdict['video'][subkey] = False
 
         return tdict
-
-    def get_page(self, url, encoding = "default encoding"):
-        """
-        Wrapper around get_page_internal to catch the
-        timeout exception
-        """
-        try:
-            fu = FetchURL(url, encoding)
-            fu.start()
-            fu.join(config.global_timeout)
-            page = fu.result
-            if (page == None) or (page.replace('\n','') == '') or (page.replace('\n','') =='{}'):
-                with xml_output.output_lock:
-                    xml_output.fail_count += 1
-
-                return None
-
-            else:
-                return page
-
-        except(urllib.URLError, socket.timeout):
-            log('get_page timed out on (>%s s): %s\n' % (config.global_timeout, url), 1, 1)
-            with xml_output.output_lock:
-                xml_output.fail_count += 1
-
-            return None
 
     def unescape(self, text):
         # Removes HTML or XML character references and entities from a text string.
@@ -7811,7 +7216,7 @@ class tvgids_JSON(FetchData):
         """
 
         # download the json feed
-        total = self.get_page(self.get_url(), 'utf-8')
+        total = config.get_page(self.get_url(), 'utf-8')
         if total == None:
             log("Don't write configuration file\n")
             return 69  # EX_UNAVAILABLE
@@ -7866,7 +7271,7 @@ class tvgids_JSON(FetchData):
                     first_fetched = True
 
                 # get the raw programming for the day
-                strdata = self.get_page(channel_url, 'utf-8')
+                strdata = config.get_page(channel_url, 'utf-8')
                 if strdata == None or strdata.replace('\n','') == '{}':
                     log("No data on tvgids.nl for day=%d\n" % (offset))
                     self.fail_count += 1
@@ -7972,7 +7377,7 @@ class tvgids_JSON(FetchData):
     def load_detailpage(self, tdict):
 
         try:
-            strdata = self.get_page(tdict[self.detail_url])
+            strdata = config.get_page(tdict[self.detail_url])
             if strdata == None:
                 log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
                 return
@@ -8181,7 +7586,7 @@ class tvgids_JSON(FetchData):
         try:
             # We first get the json url
             url = 'http://www.tvgids.nl/json/lists/program.php?id=%s' % tdict[self.detail_id][3:]
-            strdata = self.get_page(url, 'utf-8')
+            strdata = config.get_page(url, 'utf-8')
             if strdata == None or strdata.replace('\n','') == '{}':
                 return None
 
@@ -8410,7 +7815,7 @@ class tvgidstv_HTML(FetchData):
         """
 
         try:
-            strdata = self.get_page(self.get_url())
+            strdata = config.get_page(self.get_url())
             if strdata == None:
                 self.fail_count += 1
                 return
@@ -8439,9 +7844,6 @@ class tvgidstv_HTML(FetchData):
                     if group_name == config.chan_groups[id]:
                         self.all_channels[chanid]['group'] = id
                         break
-
-                if chanid in ('cbeebies', ):
-                    self.all_channels[chanid]['group'] = 3
 
                 if chanid == 'veronica':
                     self.all_channels[chanid]['name'] = 'Veronica / Disney XD'
@@ -8581,7 +7983,7 @@ class tvgidstv_HTML(FetchData):
                         # get the raw programming for the day
                         try:
                             channel_url = self.get_url(channel, offset)
-                            strdata = self.get_page(channel_url)
+                            strdata = config.get_page(channel_url)
 
                             if strdata == None:
                                 log("Skip channel=%s on tvgids.tv, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
@@ -8736,7 +8138,7 @@ class tvgidstv_HTML(FetchData):
     def load_detailpage(self, tdict):
 
         try:
-            strdata = self.get_page(tdict[self.detail_url])
+            strdata = config.get_page(tdict[self.detail_url])
             if strdata == None:
                 return
 
@@ -8937,15 +8339,7 @@ class rtl_JSON(FetchData):
             return '%s&abstract_key=%s&days_ahead=%s' % ( rtl_abstract, abstract, days)
 
     def get_channels(self):
-
-        self.all_channels = {'RTL4': {'name': 'RTL 4', 'icon': 'logo_rtl4_med_dark.png', 'icongrp': 3, 'group': 1},
-                                         'RTL5': {'name': 'RTL 5', 'icon': 'logo_rtl5.png', 'icongrp': 3, 'group': 1},
-                                         'RTL7': {'name': 'RTL 7', 'icon': 'logo_rtl7_trans.png', 'icongrp': 3, 'group': 1},
-                                         'RTL8': {'name': 'RTL 8', 'icon': 'logo_rtl8.png', 'icongrp': 3, 'group': 1},
-                                         'RTLL': {'name': 'RTL Lounge', 'icon': 'logo_rtllounge.png', 'icongrp': 3, 'group': 7},
-                                         'RTCR': {'name': 'RTL Crime', 'icon': 'logo_rtlcrime.png', 'icongrp': 3, 'group': 7},
-                                         'RTLZ': {'name': 'RTL Z', 'icon': 'logo_rtlz.png', 'icongrp': 3, 'group': 1},
-                                         'RTLT': {'name': 'RTL Telekids', 'icon': 'logo_telekids.png', 'icongrp': 3, 'group': 7}}
+        self.all_channels = config.rtl_channellist
 
     def load_pages(self):
 
@@ -8957,12 +8351,12 @@ class rtl_JSON(FetchData):
         channel_url = self.get_url()
 
         # get the raw programming for the day
-        strdata = self.get_page(channel_url, 'utf-8')
+        strdata = config.get_page(channel_url, 'utf-8')
 
         if strdata == None or strdata.replace('\n','') == '{}':
             # Wait a while and try again
             time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-            strdata = self.get_page(channel_url, 'utf-8')
+            strdata = config.get_page(channel_url, 'utf-8')
             if strdata == None or strdata.replace('\n','') == '{}':
                 log("Error loading rtl json data\n")
                 self.fail_count += 1
@@ -9289,7 +8683,7 @@ class teveblad_HTML(FetchData):
         """
 
         try:
-            strdata = self.get_page(self.get_url())
+            strdata = config.get_page(self.get_url())
             if strdata == None:
                 self.fail_count += 1
                 htmldata = self.read_channelfile()
@@ -9443,7 +8837,7 @@ class teveblad_HTML(FetchData):
                         channel_url =self.get_url(scan_date, group_values['url'], True)
 
                         # get the raw programming for the day
-                        strdata = self.get_page(channel_url, encoding = 'utf-8')
+                        strdata = config.get_page(channel_url, encoding = 'utf-8')
 
                         if strdata == None:
                             log("Skip %s page on teveblad.be, day=%d. No data!\n" % (group_page, offset))
@@ -9714,7 +9108,7 @@ class teveblad_HTML(FetchData):
                     channel_url =self.get_url(scan_date, channel)
 
                     # get the raw programming for the day
-                    strdata = self.get_page(channel_url)
+                    strdata = config.get_page(channel_url)
 
                     if strdata == None:
                         log("Skip channel=%s on teveblad.be, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
@@ -10018,7 +9412,7 @@ class npo_HTML(FetchData):
 
     def get_channels(self):
         try:
-            strdata = self.get_page(self.get_url())
+            strdata = config.get_page(self.get_url())
             strdata = self.clean_html(strdata)
             htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
             self.get_channel_lineup(htmldata)
@@ -10231,7 +9625,7 @@ class npo_HTML(FetchData):
                 channel_url = self.get_url(offset)
 
                 # get the raw programming for the day
-                strdata = self.get_page(channel_url)
+                strdata = config.get_page(channel_url)
                 if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
                     log("No data on npo.nl for day=%d\n" % (offset))
                     self.fail_count += 1
@@ -10335,7 +9729,7 @@ class npo_HTML(FetchData):
             channel_url = self.get_url(offset, None, True)
 
             # get the raw programming for the day
-            strdata = self.get_page(channel_url)
+            strdata = config.get_page(channel_url)
             if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
                 log("No data on npo.nl for day=%d\n" % (offset))
                 self.fail_count += 1
@@ -10564,7 +9958,7 @@ class horizon_JSON(FetchData):
         """
 
         # download the json feed
-        total = self.get_page(self.get_url(), 'utf-8')
+        total = config.get_page(self.get_url(), 'utf-8')
         if total == None:
             log("Don't write configuration file\n")
             return 69  # EX_UNAVAILABLE
@@ -10577,17 +9971,6 @@ class horizon_JSON(FetchData):
             for schedule in channel['stationSchedules']:
                 chanid = schedule['station']['id']
                 self.all_channels[chanid] = {}
-                if chanid in ('24443943153', '647417383034', '561138215259', '565790759345',
-                                    '24443942998', '606274087103', '606274087104', '24443943090',
-                                    '672816167175', '24443943185', '24443943023', '564193831245',
-                                    '429332519213', '24443943030', '606274087101', '24443943109',
-                                    '24443943092', '606274087105', '560453158988', '555680807175',
-                                    '544430119366', '565790759344', '529739815221', '647417383035'):
-                    self.all_channels[chanid]['group'] = 10
-
-                elif chanid in ('24443943080', '24443943013', '24443943111', '24443943051',):
-                    self.all_channels[chanid]['group'] = 3
-
                 self.all_channels[chanid]['name'] = self.unescape(schedule['station']['title']).strip()
                 if self.all_channels[chanid]['name'][-3:] == ' HD':
                     self.all_channels[chanid]['name'] = self.all_channels[chanid]['name'][:-3].strip()
@@ -10642,7 +10025,7 @@ class horizon_JSON(FetchData):
                     channel_url = self.get_url('day', channel, start, end)
 
                     # get the raw programming for the day
-                    strdata = self.get_page(channel_url, 'utf-8')
+                    strdata = config.get_page(channel_url, 'utf-8')
                     if strdata == None or strdata.replace('\n','') == '{}':
                         log("No data on horizon.tv channel %s page=%d\n" % (config.channels[chanid].chan_name, page_count))
                         self.fail_count += 1
@@ -10868,7 +10251,7 @@ class humo_JSON(FetchData):
         """
 
         # download the json feed
-        total = self.get_page(self.get_url(), 'utf-8')
+        total = config.get_page(self.get_url(), 'utf-8')
         if total == None:
             log("Don't write configuration file\n")
             return 69  # EX_UNAVAILABLE
@@ -10888,19 +10271,11 @@ class humo_JSON(FetchData):
                 self.all_channels[chanid]['name'] = channel['display_name']
                 self.all_channels[chanid]['icon'] = icon[-1]
                 self.all_channels[chanid]['fetch_grp'] = grp_code
-                if chanid in ('59', ):
-                    self.all_channels[chanid]['group'] = 2
+                if chanid in ('111', '36', '69', '73', '47'):
+                    self.all_channels[chanid]['name'] += ' Vlaanderen'
 
                 if chanid == '97':
                     self.all_channels[chanid]['name'] = 'Comedy Central Vlaanderen'
-                    self.all_channels[chanid]['group'] = 9
-
-                if chanid in ('111', '36', '69', '73', '47'):
-                    self.all_channels[chanid]['name'] += ' Vlaanderen'
-                    self.all_channels[chanid]['group'] = 9
-
-                if chanid in ('65', '87', '45'):
-                    self.all_channels[chanid]['group'] = 5
 
     def load_pages(self):
 
@@ -10936,7 +10311,7 @@ class humo_JSON(FetchData):
                         first_fetched = True
 
                     # get the raw programming for the day
-                    strdata = self.get_page(channel_url, 'utf-8')
+                    strdata = config.get_page(channel_url, 'utf-8')
                     if strdata == None or strdata.replace('\n','') == '{}':
                         log("No data on humo.be %s-page for day=%d attempt %s\n" % (retry[0], offset, retry[1]))
                         self.fail_count += 1
@@ -11155,7 +10530,7 @@ class vpro_HTML(FetchData):
     def get_channels(self):
 
         try:
-            strdata = self.get_page(self.get_url())
+            strdata = config.get_page(self.get_url())
             strdata = self.clean_html(strdata)
             self.get_available_days(strdata)
             self.get_channel_lineup(strdata)
@@ -11176,14 +10551,7 @@ class vpro_HTML(FetchData):
             scid =re.sub('[!(),]', '', scid)
             #~ scid = '%s-%s' % (self.proc_id, scid)
             if c.attrib['class'] == "epg-source-radio epg-channel-name":
-                if scid in ('vrt_radio_1', 'vrt_radio_2', 'klara', ):
-                    grp = 12
-
-                elif scid in ('bbc_radio_3', 'ndr_3', 'wdr_3', 'wdr3', ):
-                    grp = 13
-
-                else:
-                    grp = 11
+                grp = 11
 
             else:
                 grp = 99
@@ -11444,7 +10812,7 @@ class vpro_HTML(FetchData):
                 channel_url = self.get_url(offset)
 
                 # get the raw programming for the day
-                strdata = self.get_page(channel_url)
+                strdata = config.get_page(channel_url)
                 if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
                     log("No data on vpro.nl for day=%d\n" % (offset))
                     self.fail_count += 1
@@ -11695,7 +11063,7 @@ class nieuwsblad_HTML(FetchData):
         """
 
         try:
-            strdata = self.get_page(self.get_url('base'))
+            strdata = config.get_page(self.get_url('base'))
             self.get_channel_lineup(strdata)
 
         except:
@@ -11715,7 +11083,7 @@ class nieuwsblad_HTML(FetchData):
         self.chan_names = {}
         self.page_strings = {}
         try:
-            strdata = self.get_page(self.get_url('zenders'))
+            strdata = config.get_page(self.get_url('zenders'))
             strdata = self.getchannels.search(strdata).group(1)
             strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
             strdata = self.clean_html('<div><div>' + strdata).encode('utf-8')
@@ -11780,7 +11148,7 @@ class nieuwsblad_HTML(FetchData):
         changroup = 99
         try:
             if not isinstance(chandata, (str, unicode)):
-                chandata = self.get_page(self.get_url('base'))
+                chandata = config.get_page(self.get_url('base'))
 
             strdata = self.getchannelgroups.search(chandata).group(1)
             strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
@@ -11828,15 +11196,6 @@ class nieuwsblad_HTML(FetchData):
                             self.all_channels[chanid]['pagegrp'] = pagegrp
                             self.page_strings[pagegrp].append(chanid)
                             self.all_channels[chanid]['group'] = changroup
-                            if chanid in ('atv', 'avs', 'rtv', 'wtv', 'tvbrussel', 'tvlimburg', 'tv-oost', 'rob-tv', 'ring-tv',  'focus'):
-                                self.all_channels[chanid]['group'] = 8
-
-                            if chanid in ('eenplus', ):
-                                self.all_channels[chanid]['group'] = 2
-
-                            if chanid in ('lacht', 'libelle-tv', 'jim', 'kanaal-z', 'vtmkzoom',
-                                    'sporting-1', 'sporting-2', 'play-sports-1', 'play-sports-2', 'nickelodeon', 'mtv', 'tmf'):
-                                self.all_channels[chanid]['group'] = 9
 
         except:
             self.fail_count += 1
@@ -11888,7 +11247,7 @@ class nieuwsblad_HTML(FetchData):
                     # get the raw programming for the day
                     try:
                         channel_url = self.get_url(channel, start)
-                        strdata = self.get_page(channel_url)
+                        strdata = config.get_page(channel_url)
 
                         if strdata == None:
                             log("Skip channel=%s on nieuwsblad.be. No data!\n" % (config.channels[chanid].chan_name))
@@ -12556,207 +11915,6 @@ class XMLoutput:
                                         'http://www-assets.npo.nl/uploads/',
                                         'http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/']
 
-                                    #~ 1 : [0, 'ned1'],
-                                    #~ 2 : [0, 'ned2'],
-                                    #~ 3 : [0, 'ned3'],
-                                    #~ 4 : [0, 'rtl4'],
-                                    #~ 5 : [0, 'een'],
-                                    #~ 6 : [0, 'canvas_color'],
-                                    #~ 7 : [0, 'bbc1'],
-                                    #~ 8 : [0, 'bbc2'],
-                                    #~ 9 : [0,'ard'],
-                                    #~ 10 : [0,'zdf'],
-                                    #~ 12 : [0, 'wdr'],
-                                    #~ 24 : [0, 'canal+red'],
-                                    #~ 26 : [0, 'cnn'],
-                                    #~ 31 : [0, 'rtl5'],
-                                    #~ 34 : [0, 'veronica'],
-                                    #~ 36 : [0, 'sbs6'],
-                                    #~ 37 : [0, 'net5'],
-                                    #~ 39 : [0, 'canal+blue'],
-                                    #~ 40 : [0, 'at5'],
-                                    #~ 46 : [0, 'rtl7'],
-                                    #~ 86 : [0, 'bbc-world'],
-                                    #~ 92 : [0, 'rtl8'],
-                                    #~ 100 : [0, 'rtvu'],
-                                    #~ 101 : [0, 'tvwest'],
-                                    #~ 102 : [0, 'tvrijnmond'],
-                                    #~ 103 : [0, 'rtvnh'],
-                                    #~ 107 : [0, 'canal+yellow'],
-                                    #~ 108 : [0, 'tvnoord'],
-                                    #~ 109 : [0, 'omropfryslan'],
-                                    #~ 114 : [0, 'omroepbrabant'],
-                                    #~ 300 : [0, 'bbc3'],
-                                    #~ 301 : [0, 'bbc4'],
-                                    #~ 13 : [1, 'ndr'],
-                                    #~ 28 : [1, 'sat1'],
-                                    #~ 38 : [1, 'arte'],
-                                    #~ 99 : [1, 'sport1_1'],
-                                    #~ 104 : [1, 'bbcprime'],
-                                    #~ 105 : [1, 'spiceplatinum'],
-
-        self.logo_names = {
-                                    1 : [4, 'npo1'],
-                                    2 : [4, 'npo2'],
-                                    3 : [4, 'npo3'],
-                                    4 : [4, 'rtl4_1'],
-                                    5 : [4, 'een'],
-                                    6 : [4, 'canvas'],
-                                    7 : [4, 'bbc1'],
-                                    8 : [4, 'bbc_two'],
-                                    9 : [4, 'ard'],
-                                    10 : [4, 'zdf'],
-                                    11 : [1, 'rtl'],
-                                    12 : [4, 'wdr'],
-                                    13 : [4, 'ndr'],
-                                    14 : [1, 'srsudwest'],
-                                    15 : [1, 'rtbf1'],
-                                    16 : [1, 'rtbf2'],
-                                    17 : [0, 'tv5'],
-                                    18 : [0, 'ngc'],
-                                    19 : [1, 'eurosport'],
-                                    20 : [1, 'tcm'],
-                                    21 : [0, 'cartoonnetwork'],
-                                    24 : [4, 'film1_premiere'],
-                                    25 : [0, 'mtv-color'],
-                                    26 : [4, 'cnn'],
-                                    27 : [0, 'rai'],
-                                    28 : [4, 'sat_1'],
-                                    29 : [0, 'discover-spacey'],
-                                    31 : [4, 'rtl_5_1'],
-                                    32 : [0, 'trt'],
-                                    34 : [4, 'veronica_disney_xd'],
-                                    35 : [0, 'tmf'],
-                                    36 : [4, 'sbs6_1'],
-                                    37 : [4, 'net5'],
-                                    38 : [4, 'arte'],
-                                    39 : [4, 'film1_comedykids_sd'],
-                                    40 : [4, 'at5'],
-                                    46 : [4, 'rtl7'],
-                                    49 : [1, 'vtm'],
-                                    50 : [1, '3sat'],
-                                    58 : [1, 'pro7'],
-                                    59 : [1, 'kanaal2'],
-                                    60 : [1, 'vt4'],
-                                    65 : [0, 'animal-planet'],
-                                    66 : [4, 'npo_humor'],
-                                    70 : [4, 'npo_cultura'],
-                                    73 : [1, 'mezzo'],
-                                    81 : [4, 'npo_doc'],
-                                    86 : [4, 'bbc_world_news'],
-                                    87 : [1, 'tve'],
-                                    89 : [1, 'nick'],
-                                    90 : [0, 'bvn'],
-                                    91 : [0, 'comedy_central'],
-                                    92 : [4, 'rtl_8_1'],
-                                    93 : [4, '13th_street'],
-                                    94 : [4, 'syfy_universal'],
-                                    99 : [4, 'sport1'],
-                                    100 : [4, 'rtvutrecht'],
-                                    101 : [4, 'tv_west'],
-                                    102 : [4, 'tv_rijnmond'],
-                                    103 : [4, 'rtv_nh'],
-                                    104 : [4, 'bbc_entertainment'],
-                                    105 : [4, 'private_spice'],
-                                    107 : [4, 'film1_sundance'],
-                                    108 : [4, 'rtv_noord'],
-                                    109 : [4, 'omroep_friesland'],
-                                    110 : [4, 'rtv_drenthe'],
-                                    111 : [4, 'rtv_oost'],
-                                    112 : [4, 'omroep_gelderland'],
-                                    113 : [4, 'omroep_flevoland'],
-                                    114 : [4, 'omroep_brabant'],
-                                    115 : [4, 'omroep_limburg'],
-                                    116 : [4, 'omroep_zeeland'],
-                                    148 : [4, 'fox_sports_ere_1_sd'],
-                                    300 : [4, 'bbc_three'],
-                                    301 : [4, 'bbc_four'],
-                                    304 : [4, 'mgm'],
-                                    311 : [4, 'disney_xd'],
-                                    312 : [4, 'nick_jr'],
-                                    313 : [4, 'boomerang_1'],
-                                    315 : [4, 'cbs_reality'],
-                                    316 : [4, 'npo_best'],
-                                    317 : [4, 'comedy_central_family1'],
-                                    406 : [4, 'nostalgienet'],
-                                    407 : [4, 'outtv_v2'],
-                                    408 : [4, 'rtl_lounge1'],
-                                    409 : [4, 'rtlcrime'],
-                                    410 : [4, 'npo_101'],
-                                    411 : [4, 'film1_action'],
-                                    413 : [4, 'history'],
-                                    414 : [4, 'investigation_discovery_2'],
-                                    415 : [4, 'travel_channel_new'],
-                                    416 : [4, 'nat_geo_wild'],
-                                    419 : [4, 'sport1_golf'],
-                                    420 : [4, 'sport1_tennis'],
-                                    422 : [4, 'euronews'],
-                                    423 : [4, 'al_jazeera_english1'],
-                                    427 : [4, 'mtv_brand_new'],
-                                    428 : [4, 'bravanl'],
-                                    429 : [4, 'tv_oranje'],
-                                    430 : [4, 'film1_spotlight_sd'],
-                                    431 : [4, 'hbo_sd'],
-                                    432 : [4, 'hbo_2sd'],
-                                    433 : [4, 'hbo_3sd'],
-                                    434 : [4, 'dusk_24'],
-                                    435 : [4, '24_kitchen'],
-                                    437 : [4, 'comedy_central_extra1'],
-                                    440 : [4, 'fox'],
-                                    460 : [4, 'sbs9'],
-                                    462 : [4, 'shortstv'],
-                                    '1-zone-realty' : [4, 'zone_reality'],
-                                    '1-animal-planet-hd' : [4, 'animal_planet_hd'],
-                                    '1-cbeebies' : [4, 'bbc_cbeebies'],
-                                    '1-discovery-hd' : [4, 'discovery_hd'],
-                                    '1-ketnet-canvas-2' : [4, 'ketnet_canvas'],
-                                    '1-sport-1-extra-1' : [4, 'sport1_extra1'],
-                                    '1-sport1-extra-2' : [4, 'sport1_extra2'],
-                                    '1-sport-1-2' : [4, 'sport1_voetbal'],
-                                    '1-zone_reality' : [4, 'zone_reality'],
-                                    '1-rtl_telekids' : [4, 'rtl_telekids'],
-                                    '1-jimjam' : [4, 'jimjam'],
-                                    '1-zappelin' : [4, 'npo_zapp_xtra'],
-                                    '1-politiek-24' : [4, 'npo_politiek'],
-                                    '1-journaal-24' : [4, 'npo_nieuws'],
-                                    '1-history-hd' : [4, 'history_hd'],
-                                    '1-goed-tv' : [4, 'goedtv'],
-                                    '1-eredivisie-live-2' : [4, 'fox_sports2'],
-                                    '1-eredivisie-live-3' : [4, 'fox_sports_ere_3_sd'],
-                                    '1-eredivisie-live-4' : [4, 'fox_sports4'],
-                                    '1-fox-sports-5-eredivisie' : [4, 'fox_sports_ere_5_sd'],
-                                    '1-fox-sports-6': [4, 'fox_sports6'],
-                                    '1-e-entertainment' : [4, 'e_entertainment'],
-                                    '1-sky-1' : [4, 'sky_news'],
-                                    '1-sky-2' : [4, 'sky_news'],
-                                    '1-sky-sports-1' : [4, 'sky_news'],
-                                    '1-sky-sports-2' : [4, 'sky_news'],
-                                    '1-sky-sports-3' : [4, 'sky_news'],
-                                    '1-sky-sports-4' : [4, 'sky_news'],
-                                    '1-sky-sports-news' : [4, 'sky_news'],
-                                    '1-bbc-hd' : [4, 'bbc_hd'],
-                                    '7-893_radio_west': [4, 'radio_west'],
-                                    '7-r_omroep_brabant': [4, 'radio_omroep_brabant'],
-                                    '7-r_omroep_zeeland': [4, 'radio_omroep_zeeland'],
-                                    '7-radio_gelderland': [4, 'radio_omroep_gelderland'],
-                                    '7-radio_m_utrecht': [4, 'radio_utrecht'],
-                                    '7-radio_noord': [4, 'radio_noord'],
-                                    '7-radio_oost': [4, 'radio_oost'],
-                                    '7-radio_rijnmond': [4, 'radio_rijnmond'],
-                                    '7-arrow_classic_rock': [4, 'radio_arrow_classic_rock'],
-                                    '7-bnr_nieuwsradio': [4, 'radio_bnr'],
-                                    '7-classic_fm': [4, 'radio_classicfm'],
-                                    '7-q-music': [4, 'radio_q_music'],
-                                    '7-radio_538': [4, 'radio_538'],
-                                    '7-radio_veronica': [4, 'radio_veronica'],
-                                    '7-slam_fm': [4, 'radio_slam_fm'],
-                                    '7-sky_radio': [4, 'radio_sky_radio'],
-                                    '7-bbc_radio_3': [4, 'radio_bbcradio3'],
-                                    '7-vrt_radio_1': [4, 'radio_vrt1'],
-                                    '7-vrt_radio_2': [4, 'radio_vrt2'],
-                                    '7-klara': [4, 'radio_vrtklara'],
-                                    '7-wdr3': [4, 'radio_wdr_5']}
-
         self.source_count = 9
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be',
                                   4: 'npo.nl', 5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be'}
@@ -13173,6 +12331,7 @@ def main():
         #~ config.opt_dict['offset'] = 0
         #~ config.opt_dict['days'] = 1
         #~ test.load_pages()
+        #~ config.get_sourcematching_file()
         #~ return
 
         # Start the seperate fetching threads
