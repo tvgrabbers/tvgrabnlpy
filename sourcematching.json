@@ -551,7 +551,7 @@
 		"RTLL": {"name": "RTL Lounge", "icon": "logo_rtllounge.png", "icongrp": 3},
 		"RTCR": {"name": "RTL Crime", "icon": "logo_rtlcrime.png", "icongrp": 3},
 		"RTLZ": {"name": "RTL Z", "icon": "logo_rtlz.png", "icongrp": 3},
-		"RTLT": {"name": "RTL Telekids", "icon": "logo_telekids.png", "icongrp": 3}}
+		"RTLT": {"name": "RTL Telekids", "icon": "logo_telekids.png", "icongrp": 3}},
 	"logo_provider":[
 		"http://graphics.tudelft.nl/~paul/logos/gif/64x64/",
 		"http://static.tvgids.nl/gfx/zenders/",
