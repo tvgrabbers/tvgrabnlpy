@@ -389,15 +389,6 @@ class Configure:
 
         # A selection of user agents we will impersonate, in an attempt to be less
         # conspicuous to the tvgids.nl police.
-        #~ self.user_agents = [ 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)',
-               #~ 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
-               #~ 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322)',
-               #~ 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.7) Gecko/20060909 Firefox/1.5.0.7',
-               #~ 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)',
-               #~ 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.9) Gecko/20071105 Firefox/2.0.0.9',
-               #~ 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
-               #~ 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.8) Gecko/20071022 Ubuntu/7.10 (gutsy) Firefox/2.0.0.8']
-
         self.user_agents = [ 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
                'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.19) Gecko/20081216 Ubuntu/8.04 (hardy) Firefox/2.0.0.19',
                'Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko',
@@ -852,6 +843,17 @@ class Configure:
                                      ('g301727', ): (u'informatief, wetenschap', u''),
                                      ('g3018', ): ('informatief', 'Documentaire')}
         self.new_cattrans[7] = {}
+
+        # The following two list get replaced by their sourcematching counterparts
+        # Program group names to exclude from a primesource if the counterpart contains details
+        self.groupslot_names = ("ochtend- en dagprogramma's", "ochtend - en dagprogramma's",
+                                                "nachtprogramma's", "kinderprogramma's", "kinder-tv", "kindertijd",
+                                                "pause", "geen programmagegevens beschikbaar.")
+
+        self.combined_channels = {'5-24443943013': ['0-300'],
+                                                     '5-24443943080': ['0-301', '1-cbeebies'],
+                                                     '1-veronica': ['0-34', '0-311'],
+                                                     '1-ketnet-canvas-2': ['8-ketnet', '8-eenplus']}
 
         #Channel group names as used in tvgids.tv
         self.group_names = {1: 'Nederlandse kanalen',
@@ -1901,21 +1903,23 @@ class Configure:
 
     def get_sourcematching_file(self, with_configdata = False):
         try:
+            self.ttvdb_aliasses = {}
             url = 'https://raw.githubusercontent.com/tvgrabbers/tvgrabnlpy/master/sourcematching.json'
             githubdata = json.loads(self.get_page(url, 'utf-8'))
-            if "warning_message" in githubdata and githubdata["warning_message"] != "":
-                log(githubdata["warning_message"], 0)
-
             dv = int(githubdata["data_version"])
             nv = githubdata["program_version"]
             pv = u'%s.%s.%s' % (self.major, self.minor, self.patch)
             if pv < nv or (pv == nv and (self.alfa or self.beta)):
-                log(['There is a newer stable release available on github!\n',
-                    'Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n'], 0)
                 if "version_message" in githubdata and githubdata["version_message"] != "":
                     log(githubdata["version_message"], 0)
 
+                log(['There is a newer stable release available on github!\n',
+                    'Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n'], 0)
+
             elif not with_configdata and (not "data_version" in self.opt_dict or dv > self.opt_dict["data_version"]):
+                if "warning_message" in githubdata and githubdata["warning_message"] != "":
+                    log(githubdata["warning_message"], 0)
+
                 log(['The channel/source matching data on github is newer!\n',
                     "Run with '--configure' to implement it\n"], 0)
 
@@ -1926,7 +1930,6 @@ class Configure:
                 if not v in self.user_agents:
                     self.user_agents.append(v)
 
-            self.ttvdb_aliasses = {}
             for p, v in githubdata["ttvdb_aliasses"].items():
                 self.ttvdb_aliasses[p] = v
 
@@ -1958,8 +1961,7 @@ class Configure:
                 self.channel_rename = githubdata["channel_rename"]
 
         except:
-            print traceback.print_exc()
-            log(['Error reading the datafile on github.\n'], 0)
+            log(['Error reading the datafile on github.\n', traceback.print_exc()], 0)
             if with_configdata:
                 log(['Unable to continue with configure!\n'], 0)
                 return 2
@@ -2266,20 +2268,28 @@ class Configure:
 
             elif channel.source_id[2] != '' \
                 and not (2 in self.opt_dict['disable_source'] or 2 in channel.opt_dict['disable_source']):
+                    # RTL channels
                     channel.opt_dict['prime_source'] = 2
+
+            elif channel.group == 6 and channel.source_id[5] != '':
+                # Dutch Regional channels
+                channel.opt_dict['prime_source'] = 5
 
             elif channel.source_id[4] != '' \
                 and not (4 in self.opt_dict['disable_source'] or 4 in channel.opt_dict['disable_source']):
+                    # NPO source
                     channel.opt_dict['prime_source'] = 4
 
             elif (channel.source_id[6] != '') and ((channel.group == 2) or (channel.group == 8))  \
                 and not (6 in self.opt_dict['disable_source'] or 6 in channel.opt_dict['disable_source']):
-                channel.opt_dict['prime_source'] = 6
+                    # Flemish channels
+                    channel.opt_dict['prime_source'] = 6
 
             else:
                 for value in xml_output.prime_source_order:
                     if channel.source_id[value] != '' \
                         and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
+                            # The first available
                             channel.opt_dict['prime_source'] = value
                             break
 
@@ -6730,7 +6740,8 @@ class FetchData(Thread):
         for tdict in info[:]:
             if (tdict['name'].lower() in config.groupslot_names) \
               or (chanid in ('0-1', '0-2', '0-3') and  tdict['name'].lower() == 'kro kindertijd') \
-              or (chanid in ('0-34','1-veronica') and (tdict['name'].lower() == 'disney xd' or tdict['name'].lower() == 'disney')):
+              or (chanid in ('0-34','1-veronica', "0-311") and \
+              (tdict['name'].lower() == 'disney xd' or tdict['name'].lower() == 'disney')):
                 # These are group names. We move them aside to not get hit by merge_match
                 info_groups.append(tdict)
                 if tdict in info: info.remove(tdict)
@@ -6762,7 +6773,8 @@ class FetchData(Thread):
         for tdict in programs[:]:
             if (tdict['name'].lower() in config.groupslot_names) \
               or (chanid in ('0-1', '0-2', '0-3') and  tdict['name'].lower() == 'kro kindertijd') \
-              or (chanid in ('0-34','1-veronica') and (tdict['name'].lower() == 'disney xd' or tdict['name'].lower() == 'disney')):
+              or (chanid in ('0-34','1-veronica', "0-311") and \
+              (tdict['name'].lower() == 'disney xd' or tdict['name'].lower() == 'disney')):
                 # These are group names. We move them aside to not get hit by merge_match
                 prog_groups.append(tdict)
                 if tdict in programs: programs.remove(tdict)
@@ -12330,7 +12342,6 @@ def main():
         #~ config.opt_dict['offset'] = 0
         #~ config.opt_dict['days'] = 1
         #~ test.load_pages()
-        #~ config.get_sourcematching_file()
         #~ return
 
         # Start the seperate fetching threads
