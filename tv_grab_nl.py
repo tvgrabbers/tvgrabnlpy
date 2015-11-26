@@ -1925,10 +1925,14 @@ class Configure:
                 log(['The channel/source matching data on github is newer!\n',
                     "Run with '--configure' to implement it\n"], 0)
 
+            for c in xml_output.channelsource.keys():
+                if c not in githubdata["active_sources"]:
+                    self.validate_option('disable_source', value = c)
+
+            xml_output.source_order = githubdata["active_sources"]
             self.combined_channels = githubdata["combined_channels"]
             self.groupslot_names = githubdata["groupslot_names"]
             xml_output.logo_provider = githubdata["logo_provider"]
-            xml_output.source_order = githubdata["active_sources"]
             self.prime_source = githubdata["prime_source"]
             self.ttvdb_aliasses = githubdata["ttvdb_aliasses"]
             for s, v in githubdata["prime_source_groups"].items():
