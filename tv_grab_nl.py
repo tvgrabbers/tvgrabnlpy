@@ -1928,6 +1928,7 @@ class Configure:
             self.combined_channels = githubdata["combined_channels"]
             self.groupslot_names = githubdata["groupslot_names"]
             xml_output.logo_provider = githubdata["logo_provider"]
+            xml_output.source_order = githubdata["active_sources"]
             self.prime_source = githubdata["prime_source"]
             self.ttvdb_aliasses = githubdata["ttvdb_aliasses"]
             for s, v in githubdata["prime_source_groups"].items():
@@ -11927,7 +11928,7 @@ class XMLoutput:
         self.source_count = 9
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be',
                                   4: 'npo.nl', 5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be'}
-        self.source_order = (7, 0, 1, 5, 6, 8, 2, 4)
+        self.source_order = [7, 0, 1, 5, 6, 8, 2, 4]
         self.source_count = len(self.sources)
         self.detail_sources = (0, 1)
         self.prime_source_order = (2, 7, 0, 5, 4, 1, 6, 8)
