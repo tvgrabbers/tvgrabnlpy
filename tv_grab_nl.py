@@ -1448,7 +1448,7 @@ class Configure:
                             self.channels[chanid].opt_dict[i] = v
 
                     # set the default prime_source
-                    self.validate_option('prime_source', self.channels[chanid], -1)
+                    #~ self.validate_option('prime_source', self.channels[chanid], -1)
                     # Set active if not remarked out
                     self.channels[chanid].active = active
                     if active:
@@ -1531,7 +1531,12 @@ class Configure:
                                 continue
 
                             else:
-                                self.validate_option(cfg_option, self.channels[chanid], cfg_value)
+                                if cfg_option == 'prime_source':
+                                    # We have to validate this value after reading sourcematching.json
+                                    self.channels[chanid].prevalidate_opt[cfg_option] = cfg_value
+
+                                else:
+                                    self.validate_option(cfg_option, self.channels[chanid], cfg_value)
 
                 except:
                     log(['Invalid line in %s section of config file %s:' % (section, self.config_file),'%r\n' % (line), traceback.format_exc()])
@@ -1724,7 +1729,6 @@ class Configure:
             chan['name'] = xml_output.channelsource[0].all_channels[chan_scid]['name']
             chan['hd'] = False
             db_channel_source.append(chan)
-            #~ xml_output.program_cache.cache_request.put({'task':'add', 'channel': chan})
             if not chanid in self.channels.keys():
                 self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chan_scid]['name'])
 
@@ -1853,10 +1857,6 @@ class Configure:
               and xml_output.channelsource[5].all_channels[channel.source_id[5]]['HD']:
                 channel.opt_dict['mark_hd'] = True
 
-            #~ if channel.source_id[3] != '' and channel.source_id[3] in xml_output.channelsource[3].all_channels \
-              #~ and xml_output.channelsource[3].all_channels[channel.source_id[3]]['HD']:
-                #~ channel.opt_dict['mark_hd'] = True
-
             # set the default prime_source
             self.validate_option('prime_source', channel, -1)
             if channel.source_id[0] in ('3',):
@@ -1905,6 +1905,7 @@ class Configure:
         try:
             self.ttvdb_aliasses = {}
             self.prime_source = {}
+            self.prime_source_groups = {}
             url = 'https://raw.githubusercontent.com/tvgrabbers/tvgrabnlpy/master/sourcematching.json'
             githubdata = json.loads(self.get_page(url, 'utf-8'))
             dv = int(githubdata["data_version"])
@@ -1928,12 +1929,13 @@ class Configure:
             self.groupslot_names = githubdata["groupslot_names"]
             xml_output.logo_provider = githubdata["logo_provider"]
             self.prime_source = githubdata["prime_source"]
+            self.ttvdb_aliasses = githubdata["ttvdb_aliasses"]
+            for s, v in githubdata["prime_source_groups"].items():
+                self.prime_source_groups[int(s)] = v
+
             for v in githubdata["user_agents"]:
                 if not v in self.user_agents:
                     self.user_agents.append(v)
-
-            for p, v in githubdata["ttvdb_aliasses"].items():
-                self.ttvdb_aliasses[p] = v
 
             if with_configdata:
                 self.opt_dict["data_version"] = dv
@@ -2124,7 +2126,7 @@ class Configure:
 
     # end validate_commandline()
 
-    def validate_option(self, option, channel = None, value = None, stdoutput = True):
+    def validate_option(self, option, channel = None, value = None, stdoutput = True, check_default = False):
         """Validate an option"""
         if not (channel == None or channel in self.channels.values()):
             return
@@ -2261,46 +2263,47 @@ class Configure:
             if channel == None:
                 return
 
+            # First get the default
+            def_value = -1
+            if channel.group in self.prime_source_groups and channel.source_id[self.prime_source_groups[channel.group]] != '' \
+                and not (self.prime_source_groups[channel.group] in self.opt_dict['disable_source'] \
+                or self.prime_source_groups[channel.group] in channel.opt_dict['disable_source']):
+                    # A group default in sourcematching.json
+                    def_value = self.prime_source_groups[channel.group]
+
+            else:
+                for s in xml_output.prime_source_order:
+                    if channel.source_id[s] != '' \
+                        and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source']):
+                            # The first available
+                            def_value = s
+                            break
+
+            # Now we check for a custom value
             if value == None:
                 value = channel.opt_dict['prime_source']
 
             if value in xml_output.channelsource.keys() and channel.source_id[value] != '' \
-                and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
-                    channel.opt_dict['prime_source'] = value
+                and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']) \
+                and value != def_value:
+                    # It's a valid custom value not equal to the default
+                    pass
 
             elif channel.chanid in self.prime_source.keys() and channel.source_id[self.prime_source[channel.chanid]] != '' \
                 and not (self.prime_source[channel.chanid] in self.opt_dict['disable_source'] \
                 or self.prime_source[channel.chanid] in channel.opt_dict['disable_source']):
-                    channel.opt_dict['prime_source'] = self.prime_source[channel.chanid]
-
-            elif channel.source_id[2] != '' \
-                and not (2 in self.opt_dict['disable_source'] or 2 in channel.opt_dict['disable_source']):
-                    # RTL channels
-                    channel.opt_dict['prime_source'] = 2
-
-            elif channel.group == 6 and channel.source_id[5] != '' \
-                and not (5 in self.opt_dict['disable_source'] or 5 in channel.opt_dict['disable_source']):
-                # Dutch Regional channels
-                channel.opt_dict['prime_source'] = 5
-
-            elif channel.source_id[4] != '' \
-                and not (4 in self.opt_dict['disable_source'] or 4 in channel.opt_dict['disable_source']):
-                    # NPO source
-                    channel.opt_dict['prime_source'] = 4
-
-            elif (channel.source_id[6] != '') and ((channel.group == 2) or (channel.group == 8))  \
-                and not (6 in self.opt_dict['disable_source'] or 6 in channel.opt_dict['disable_source']):
-                    # Flemish channels
-                    channel.opt_dict['prime_source'] = 6
+                    # Use an override in sourcematching.json
+                    value = self.prime_source[channel.chanid]
 
             else:
-                for value in xml_output.prime_source_order:
-                    if channel.source_id[value] != '' \
-                        and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
-                            # The first available
-                            channel.opt_dict['prime_source'] = value
-                            break
+                # We use the default
+                value = def_value
 
+            if check_default:
+                return bool((value == def_value) or (value == -1))
+
+            else:
+                channel.opt_dict['prime_source'] = value
 
         elif option == 'prefered_description':
             if channel == None:
@@ -2569,18 +2572,13 @@ class Configure:
 
                 log_array.append(u'  append_tvgidstv = False\n')
 
-            src_id = chan_def.opt_dict['prime_source']
-            if src_id != -1:
-                for index in xml_output.source_order:
-                    if chan_def.source_id[index] != '':
-                        if src_id != index:
-                            if not chan_name_written:
-                                log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                                chan_name_written = True
+            if not self.validate_option('prime_source', chan_def, check_default = True):
+                if not chan_name_written:
+                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
+                    chan_name_written = True
 
-                            log_array.append(u'  prime_source = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
-
-                        break
+                src_id = chan_def.opt_dict['prime_source']
+                log_array.append(u'  prime_source = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
 
             src_id = chan_def.opt_dict['prefered_description']
             if src_id != -1:
@@ -2758,9 +2756,6 @@ class Configure:
             if active == None:
                 active = chan.active
 
-            if self.args.group_active_channels and active:
-                chan.group = 0
-
             if chan_string == None:
                 chan_string = '%s;%s;%s' % (chan.chan_name, chan.group, chanid)
 
@@ -2917,10 +2912,8 @@ class Configure:
 
                         if chan[0].strip() in self.channels.keys():
                             chanid = chan[0].strip()
-                            if self.args.group_active_channels:
-                                self.channels[chanid].group = 0
-
-                            chan_list[unicode(self.channels[chanid].group)].append(get_channel_string(chanid, True, '%s;%s;%s' % \
+                            grp = u'0' if self.args.group_active_channels else unicode(self.channels[chanid].group)
+                            chan_list[grp].append(get_channel_string(chanid, True, '%s;%s;%s' % \
                                 (chan[1], self.channels[chanid].group, chanid)))
                             chan_added.append(chanid)
 
@@ -2955,10 +2948,8 @@ class Configure:
                             for index in range(min(xml_output.source_count,len(chan) - 4)):
                                 if (chan[index + 2].strip() !='') and (chan[index + 2].strip() == channel.source_id[index]):
                                     chan_found = True
-                                    if self.args.group_active_channels:
-                                        chan[1] = '0'
-
-                                    chan_list[chan[1]].append(get_channel_string(chanid, True, '%s;%s;%s' % \
+                                    grp = u'0' if self.args.group_active_channels else chan[1]
+                                    chan_list[grp].append(get_channel_string(chanid, True, '%s;%s;%s' % \
                                         (chan[0], chan[1], chanid), '%s;%s' % (chan[-2], chan[-1])))
                                     chan_added.append(chanid)
                                     chan_found = True
@@ -3012,10 +3003,8 @@ class Configure:
                 chan_list[unicode(g)] =[]
 
             for chanid, channel in self.channels.items():
-                if self.args.group_active_channels and channel.active:
-                    channel.group = 0
-
-                chan_list[unicode(channel.group)].append(get_channel_string(chanid))
+                grp = u'0' if self.args.group_active_channels and channel.active else unicode(channel.group)
+                chan_list[grp].append(get_channel_string(chanid))
 
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
         for g in self.chan_group_sorted:
@@ -3084,20 +3073,14 @@ class Configure:
 
                 f.write(u'append_tvgidstv = False\n')
 
-            opt_val = chan_def.opt_dict['prime_source']
-            if opt_val in chan_def.source_id.keys() and chan_def.source_id[opt_val] != '':
-                for index in range(xml_output.source_count):
-                    if chan_def.source_id[index] != '':
-                        if opt_val != index:
-                            if not chan_name_written:
-                                f.write(u'\n')
-                                f.write(u'# %s\n' % (chan_def.chan_name))
-                                f.write(u'[Channel %s]\n' % (chan_def.chanid))
-                                chan_name_written = True
+            if not self.validate_option('prime_source', chan_def, check_default = True):
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
 
-                            f.write(u'prime_source = %s\n' % opt_val)
-
-                        break
+                f.write(u'prime_source = %s\n' % chan_def.opt_dict['prime_source'])
 
             opt_val = chan_def.opt_dict['prefered_description']
             if opt_val in chan_def.source_id.keys() and chan_def.source_id[opt_val] != '':
@@ -11442,10 +11425,12 @@ class Channel_Config(Thread):
         self.current_prime = ''
 
         self.opt_dict = {}
+        self.prevalidate_opt = {}
         self.opt_dict['disable_source'] = []
         self.opt_dict['disable_detail_source'] = []
         self.opt_dict['disable_ttvdb'] = False
         self.opt_dict['prime_source'] = -1
+        self.prevalidate_opt['prime_source'] = -1
         self.opt_dict['prefered_description'] = -1
         self.opt_dict['append_tvgidstv'] = True
         self.opt_dict['fast'] = config.opt_dict['fast']
@@ -11462,10 +11447,15 @@ class Channel_Config(Thread):
 
     def validate_settings(self):
 
-        if not self.active:
+        if not self.active and not self.is_child:
             return
 
-        config.validate_option('prime_source', self)
+        if self.prevalidate_opt['prime_source'] == -1:
+            config.validate_option('prime_source', self)
+
+        else:
+            config.validate_option('prime_source', self, self.prevalidate_opt['prime_source'])
+
         config.validate_option('prefered_description', self)
         config.validate_option('overlap_strategy', self)
         config.validate_option('max_overlap', self)
@@ -11937,10 +11927,10 @@ class XMLoutput:
         self.source_count = 9
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be',
                                   4: 'npo.nl', 5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be'}
-        self.source_order = (0, 1, 7, 5, 6, 8, 2, 4)
+        self.source_order = (7, 0, 1, 5, 6, 8, 2, 4)
         self.source_count = len(self.sources)
         self.detail_sources = (0, 1)
-        self.prime_source_order = (0, 7, 1, 5, 6, 8)
+        self.prime_source_order = (2, 7, 0, 5, 4, 1, 6, 8)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
