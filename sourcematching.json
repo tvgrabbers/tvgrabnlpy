@@ -418,6 +418,15 @@
 		"6-73":"Nickelodeon Vlaanderen",
 		"6-111":"FOX Vlaanderen",
 		"6-97":"Comedy Central Vlaanderen"},
+	"prime_source":{
+		"0-466":"5",
+		"0-99":"5",
+		"0-419;":"5",
+		"1-sport1-racing":"5",
+		"1-sport-1-2":"5",
+		"1-sport-1-extra-1":"5",
+		"1-sport1-extra-2":"5",
+		"0-91":"7"},
 	"channel_grouping":{
 		"0":{
 			"1":[],
