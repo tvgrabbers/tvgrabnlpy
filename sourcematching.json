@@ -419,6 +419,11 @@
 		"6-73":"Nickelodeon Vlaanderen",
 		"6-111":"FOX Vlaanderen",
 		"6-97":"Comedy Central Vlaanderen"},
+	"prime_source_groups":{
+		"2":6,
+		"6":5,
+		"8":8,
+		"9":6},
 	"prime_source":{
 		"0-466":5,
 		"0-99":5,

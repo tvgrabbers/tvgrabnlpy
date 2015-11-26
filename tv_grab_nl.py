@@ -1904,6 +1904,7 @@ class Configure:
     def get_sourcematching_file(self, with_configdata = False):
         try:
             self.ttvdb_aliasses = {}
+            self.prime_source = {}
             url = 'https://raw.githubusercontent.com/tvgrabbers/tvgrabnlpy/master/sourcematching.json'
             githubdata = json.loads(self.get_page(url, 'utf-8'))
             dv = int(githubdata["data_version"])
@@ -1926,6 +1927,7 @@ class Configure:
             self.combined_channels = githubdata["combined_channels"]
             self.groupslot_names = githubdata["groupslot_names"]
             xml_output.logo_provider = githubdata["logo_provider"]
+            self.prime_source = githubdata["prime_source"]
             for v in githubdata["user_agents"]:
                 if not v in self.user_agents:
                     self.user_agents.append(v)
@@ -2266,12 +2268,18 @@ class Configure:
                 and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
                     channel.opt_dict['prime_source'] = value
 
+            elif channel.chanid in self.prime_source.keys() and channel.source_id[self.prime_source[channel.chanid]] != '' \
+                and not (self.prime_source[channel.chanid] in self.opt_dict['disable_source'] \
+                or self.prime_source[channel.chanid] in channel.opt_dict['disable_source']):
+                    channel.opt_dict['prime_source'] = self.prime_source[channel.chanid]
+
             elif channel.source_id[2] != '' \
                 and not (2 in self.opt_dict['disable_source'] or 2 in channel.opt_dict['disable_source']):
                     # RTL channels
                     channel.opt_dict['prime_source'] = 2
 
-            elif channel.group == 6 and channel.source_id[5] != '':
+            elif channel.group == 6 and channel.source_id[5] != '' \
+                and not (5 in self.opt_dict['disable_source'] or 5 in channel.opt_dict['disable_source']):
                 # Dutch Regional channels
                 channel.opt_dict['prime_source'] = 5
 
