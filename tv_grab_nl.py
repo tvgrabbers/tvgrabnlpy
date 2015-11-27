@@ -1938,6 +1938,10 @@ class Configure:
             self.combined_channels = githubdata["combined_channels"]
             self.groupslot_names = githubdata["groupslot_names"]
             self.ttvdb_aliasses = githubdata["ttvdb_aliasses"]
+            for t in githubdata["notitlesplit"]:
+                if not t in self.notitlesplit:
+                    self.notitlesplit.append(t)
+
             self.prime_source = githubdata["prime_source"]
             for s, v in githubdata["prime_source_groups"].items():
                 self.prime_source_groups[int(s)] = v
