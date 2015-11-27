@@ -10894,7 +10894,7 @@ class vpro_HTML(FetchData):
 
                     d = startdate.split('-')
                     startdate = datetime.date(int(d[0]), int(d[1]), int(d[2]))
-                    nextdate = datetime.date(int(d[0]), int(d[1]), int(d[2])+1)
+                    nextdate = startdate + datetime.timedelta(days=1)
                     if startdate.toordinal() - self.current_date != offset:
                         log('Error validating page for day:%s on vpro.nl\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, offset))
                         continue
