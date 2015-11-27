@@ -767,6 +767,7 @@
 		"1-veronica": ["0-34", "0-311"],
 		"1-ketnet-canvas-2": ["8-ketnet", "8-eenplus"]},
 	"ttvdb_aliasses":{"Castle": "Castle (2009)"},
+	"notitlesplit":[],
 	"groupslot_names":["ochtend- en dagprogramma's","ochtend - en dagprogramma 's",
 		"nachtprogramma's", "nachtprogrammering","kinderprogramma's","kinder-tv","kindertijd",
 		"pause","geen programmagegevens beschikbaar."],
