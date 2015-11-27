@@ -511,6 +511,9 @@ class Configure:
         # After configure, place the active channels in a separate group on top of the list
         self.opt_dict['group_active_channels'] = False
 
+        # Whether to always update Channel- names, groups and prime_sources settings from the sourcematching.json data
+        self.opt_dict['always_use_json'] = True
+
         self.weekdagen = ('zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag')
         # The values for the Kijkwijzer
         # Possible styles are
@@ -847,8 +850,8 @@ class Configure:
         # The following two list get replaced by their sourcematching counterparts
         # Program group names to exclude from a primesource if the counterpart contains details
         self.groupslot_names = ("ochtend- en dagprogramma's", "ochtend - en dagprogramma's",
-                                                "nachtprogramma's", "kinderprogramma's", "kinder-tv", "kindertijd",
-                                                "pause", "geen programmagegevens beschikbaar.")
+                                                "nachtprogramma's", "nachtprogrammering", "kinderprogramma's",
+                                                "kinder-tv", "kindertijd", "pause", "geen programmagegevens beschikbaar.")
 
         self.combined_channels = {'5-24443943013': ['0-300'],
                                                      '5-24443943080': ['0-301', '1-cbeebies'],
@@ -1304,7 +1307,7 @@ class Configure:
                 cfg_option = a[0].lower().strip()
                 # Boolean Values
                 if cfg_option in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', \
-                  'mark_hd', 'use_utc', 'disable_ttvdb', 'use_split_episodes', 'group_active_channels'):
+                  'mark_hd', 'use_utc', 'disable_ttvdb', 'use_split_episodes', 'group_active_channels', 'always_use_json'):
                     if len(a) == 1:
                         self.opt_dict[cfg_option] = True
 
@@ -1800,11 +1803,12 @@ class Configure:
 
                 self.channels[chanid].source_id[index] = chan_scid
                 # Set the group
-                if index in self.channel_grouping:
-                    for g in self.channel_grouping[index]:
-                        if chan_scid in self.channel_grouping[index][g]:
-                            channel['group'] = g
-                            break
+                if ((not self.opt_dict['always_use_json'] and self.channels[chanid].group >= 99)
+                    or self.opt_dict['always_use_json']) and index in self.channel_grouping:
+                        for g in self.channel_grouping[index]:
+                            if chan_scid in self.channel_grouping[index][g]:
+                                channel['group'] = g
+                                break
 
                 if self.channels[chanid].group >= 99:
                     self.channels[chanid].group = channel['group'] if 'group' in channel else 99
@@ -1835,7 +1839,7 @@ class Configure:
 
         for channel in self.channels.values():
             # Some channel title renaming
-            if channel.chanid in self.channel_rename.keys():
+            if self.opt_dict['always_use_json'] and channel.chanid in self.channel_rename.keys():
                 channel.chan_name = self.channel_rename[channel.chanid]
 
             # Set a source 4 icon if present and not allready set to 0 or 2
@@ -1908,6 +1912,7 @@ class Configure:
             self.prime_source_groups = {}
             url = 'https://raw.githubusercontent.com/tvgrabbers/tvgrabnlpy/master/sourcematching.json'
             githubdata = json.loads(self.get_page(url, 'utf-8'))
+            # Check on data or program updates
             dv = int(githubdata["data_version"])
             nv = githubdata["program_version"]
             pv = u'%s.%s.%s' % (self.major, self.minor, self.patch)
@@ -1925,16 +1930,18 @@ class Configure:
                 log(['The channel/source matching data on github is newer!\n',
                     "Run with '--configure' to implement it\n"], 0)
 
+            # Check on disabled sources
             for c in xml_output.channelsource.keys():
                 if c not in githubdata["active_sources"]:
                     self.validate_option('disable_source', value = c)
 
             xml_output.source_order = githubdata["active_sources"]
+            # Read in the tables needed for normal grabbing
+            xml_output.logo_provider = githubdata["logo_provider"]
             self.combined_channels = githubdata["combined_channels"]
             self.groupslot_names = githubdata["groupslot_names"]
-            xml_output.logo_provider = githubdata["logo_provider"]
-            self.prime_source = githubdata["prime_source"]
             self.ttvdb_aliasses = githubdata["ttvdb_aliasses"]
+            self.prime_source = githubdata["prime_source"]
             for s, v in githubdata["prime_source_groups"].items():
                 self.prime_source_groups[int(s)] = v
 
@@ -1942,6 +1949,7 @@ class Configure:
                 if not v in self.user_agents:
                     self.user_agents.append(v)
 
+            # Read the tables only needed during configuring
             if with_configdata:
                 self.opt_dict["data_version"] = dv
                 self.chan_group_sorted = []
@@ -2288,21 +2296,31 @@ class Configure:
             if value == None:
                 value = channel.opt_dict['prime_source']
 
+            custom_value = None
             if value in xml_output.channelsource.keys() and channel.source_id[value] != '' \
                 and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']) \
                 and value != def_value:
                     # It's a valid custom value not equal to the default
-                    pass
+                    custom_value = value
 
-            elif channel.chanid in self.prime_source.keys() and channel.source_id[self.prime_source[channel.chanid]] != '' \
+            json_value = None
+            if channel.chanid in self.prime_source.keys() and channel.source_id[self.prime_source[channel.chanid]] != '' \
                 and not (self.prime_source[channel.chanid] in self.opt_dict['disable_source'] \
                 or self.prime_source[channel.chanid] in channel.opt_dict['disable_source']):
                     # Use an override in sourcematching.json
-                    value = self.prime_source[channel.chanid]
+                    json_value = self.prime_source[channel.chanid]
+
+            if self.opt_dict['always_use_json']:
+                for v in (json_value, custom_value, def_value):
+                    if v != None:
+                        value = v
+                        break
 
             else:
-                # We use the default
-                value = def_value
+                for v in (custom_value, json_value, def_value):
+                    if v != None:
+                        value = v
+                        break
 
             if check_default:
                 return bool((value == def_value) or (value == -1))
@@ -2653,6 +2671,9 @@ class Configure:
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[1])
         f.write(u'# DO NOT CHANGE THIS VALUE!\n')
         f.write(u'data_version = %s\n' % self.opt_dict['data_version'])
+        f.write(u'# Set always_use_json to False to retain Channelnames, Channelgroups \n')
+        f.write(u'# and prime_source as set in this Configuration file\n')
+        f.write(u'always_use_json = %s\n' % self.opt_dict['always_use_json'])
         if self.write_info_files:
             f.write(u'write_info_files = True\n')
             f.write(u'\n')
