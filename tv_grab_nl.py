@@ -1798,9 +1798,6 @@ class Configure:
 
                     self.channels[chanid] = Channel_Config(chanid, chan['name'] )
 
-                elif index in(2, 4):
-                    self.channels[chanid].chan_name = chan['name']
-
                 self.channels[chanid].source_id[index] = chan_scid
                 # Set the group
                 if ((not self.opt_dict['always_use_json'] and self.channels[chanid].group >= 99)
@@ -2674,6 +2671,7 @@ class Configure:
         f.write(u'# Set always_use_json to False to retain Channelnames, Channelgroups \n')
         f.write(u'# and prime_source as set in this Configuration file\n')
         f.write(u'always_use_json = %s\n' % self.opt_dict['always_use_json'])
+        f.write(u'group_active_channels = %s\n' % self.opt_dict['group_active_channels'])
         if self.write_info_files:
             f.write(u'write_info_files = True\n')
             f.write(u'\n')
@@ -2726,7 +2724,6 @@ class Configure:
         f.write(u"#   none  : don't add any\n")
         f.write(u'kijkwijzerstijl = %s\n' % self.opt_dict['kijkwijzerstijl'])
         f.write(u'use_split_episodes = %s\n' % self.opt_dict['use_split_episodes'])
-        f.write(u'group_active_channels = %s\n' % self.opt_dict['group_active_channels'])
         f.write(u'\n')
 
         f.write(u'# These are the channeldefinitions. You can disable a channel by placing\n')
