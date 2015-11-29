@@ -2566,17 +2566,19 @@ class Configure:
 
         log_array.append(u'Channel specific settings other then the above:')
         for chan_def in self.channels.values():
-            if not chan_def.active:
+            if not (chan_def.active or chan_def.is_child):
                 continue
 
-            chan_name_written = False
+            log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
+            src_id = chan_def.opt_dict['prime_source']
+            log_array.append(u'  prime_source = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
+            if not self.opt_dict['always_use_json'] and chan_def.chanid in self.prime_source and self.prime_source[chan_def.chanid] != src_id:
+                log_array.append(u'  prime_source setting: %s (%s) in sourcematching.json not used\n' % \
+                    (self.prime_source[chan_def.chanid], xml_output.channelsource[self.prime_source[chan_def.chanid]].source))
+
             for index in chan_def.opt_dict['disable_source']:
                 if index in self.opt_dict['disable_source']:
                     continue
-
-                if not chan_name_written:
-                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                    chan_name_written = True
 
                 log_array.append(u'  Source %s (%s) disabled\n' % (index, xml_output.channelsource[index].source))
 
@@ -2584,58 +2586,28 @@ class Configure:
                 if index in chan_def.opt_dict['disable_source'] or index in self.opt_dict['disable_source'] or index in self.opt_dict['disable_detail_source']:
                     continue
 
-                if not chan_name_written:
-                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                    chan_name_written = True
-
                 log_array.append(u'  Detail Source %s (%s) disabled\n' % (index, xml_output.channelsource[index].source))
 
             if not chan_def.opt_dict['append_tvgidstv']:
-                if not chan_name_written:
-                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                    chan_name_written = True
-
                 log_array.append(u'  append_tvgidstv = False\n')
-
-            if not self.validate_option('prime_source', chan_def, check_default = True):
-                if not chan_name_written:
-                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                    chan_name_written = True
-
-                src_id = chan_def.opt_dict['prime_source']
-                log_array.append(u'  prime_source = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
 
             src_id = chan_def.opt_dict['prefered_description']
             if src_id != -1:
                 if src_id in chan_def.source_id.keys() and chan_def.source_id[src_id] != '':
-                    if src_id != index:
-                        if not chan_name_written:
-                            log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                            chan_name_written = True
-
-                        log_array.append(u'  prefered_description = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
+                    log_array.append(u'  prefered_description = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
 
             if chan_def.opt_dict['add_hd_id']:
-                if not chan_name_written:
-                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                    chan_name_written = True
-
                 log_array.append(u'  add_hd_id = True\n')
 
-            if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
-                if not chan_name_written:
-                    log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                    chan_name_written = True
+            elif chan_def.opt_dict['mark_hd']:
+                log_array.append(u'  mark_hd = True\n')
 
+            if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
                 log_array.append(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']))
 
             for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', \
-              'cattrans', 'mark_hd', 'disable_ttvdb', 'use_split_episodes'):
+              'cattrans', 'disable_ttvdb', 'use_split_episodes'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
-                    if not chan_name_written:
-                        log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-                        chan_name_written = True
-
                     log_array.append(u'  %s = %s\n' % (val, chan_def.opt_dict[val]))
 
         log_array.append(u' \n')
