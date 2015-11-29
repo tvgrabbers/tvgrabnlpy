@@ -1942,6 +1942,7 @@ class Configure:
                 if not t in self.notitlesplit:
                     self.notitlesplit.append(t)
 
+            xml_output.prime_source_order = githubdata["prime_source_order"]
             self.prime_source = githubdata["prime_source"]
             for s, v in githubdata["prime_source_groups"].items():
                 self.prime_source_groups[int(s)] = v
