@@ -350,9 +350,9 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 6
-        self.patchdate = u'20151129'
+        self.patchdate = u'20151130'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
@@ -2655,8 +2655,10 @@ class Configure:
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[1])
         f.write(u'# DO NOT CHANGE THIS VALUE!\n')
         f.write(u'data_version = %s\n' % self.opt_dict['data_version'])
-        f.write(u'# Set always_use_json to False to retain Channelnames, Channelgroups \n')
-        f.write(u'# and prime_source as set in this Configuration file\n')
+        f.write(u'# Set always_use_json to False to ignore Channelname, Channelgroup \n')
+        f.write(u'# and prime_source set in sourcematching.json if they are set different\n')
+        f.write(u'# in this configuration file. If you do not have set any of those yourself\n')
+        f.write(u'# leave the value to True to profite from all updates.\n')
         f.write(u'always_use_json = %s\n' % self.opt_dict['always_use_json'])
         f.write(u'group_active_channels = %s\n' % self.opt_dict['group_active_channels'])
         if self.write_info_files:
@@ -2733,15 +2735,16 @@ class Configure:
         f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
         f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
         f.write(u'#     add_hd_id: if set to True will create two listings for the given channel.\n')
-        f.write(u'#     One normal on without HD tagging and one with \'-hd\' added to the ID\n')
+        f.write(u'#     One normal one without HD tagging and one with \'-hd\' added to the ID\n')
         f.write(u'#     and with the HD tags. This will overrule any setting of mark_hd\n')
         f.write(u'# Integer values:\n')
         f.write(u'#   slowdays, max_overlap, desc_length, prime_source, prefered_description\n')
         f.write(u'#   disable_source, disable_detail_source\n')
-        f.write(u'#     prime_source (0-4) is the source whose timings are dominant\n')
-        f.write(u'#     It defaults to the first available source or 2 for rtl channels\n')
-        f.write(u'#     4 for NPO channels and 6 for group 2 and 9 (Flemmisch) channels\n')
-        f.write(u'#     prefered_description (0-3) is the source whose description, if present,\n')
+        f.write(u'#     prime_source (0-8) is the source whose timings and titles are dominant\n')
+        f.write(u'#     It defaults to 2 for rtl channels, 4 for NPO channels, 5 for Dutch regional\n')
+        f.write(u'#     and 6 for group 2 and 9 (Flemmisch) channels or else the first available\n')
+        f.write(u'#     source as set in sourcematching.json (2, 4, 7, 0, 5, 1, 6, 8)\n')
+        f.write(u'#     prefered_description (0-8) is the source whose description, if present,\n')
         f.write(u'#     is used. It defaults to the longest description found.\n')
         f.write(u'#     with disable_source and disable_detail_source you can disable a source\n')
         f.write(u'#     for that channel either al together or only for the detail fetches\n')
