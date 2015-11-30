@@ -3,7 +3,7 @@
 	"program_version":"2.2.6",
 	"version_message":"",
 	"warning_message":"",
-	"active_sources":[7,0,1,5,6,8,2,4],
+	"active_sources":[7,0,1,5,6,8,2,4,9],
 	"channel_groups":{
 		"0":"Actieve Zenders",
 		"1":"Nederlands",
@@ -419,7 +419,7 @@
 		"6-73":"Nickelodeon Vlaanderen",
 		"6-111":"FOX Vlaanderen",
 		"6-97":"Comedy Central Vlaanderen"},
-	"prime_source_order":[2,4,7,0,5,1,6,8],
+	"prime_source_order":[2,4,7,0,5,1,6,8,9],
 	"prime_source_groups":{
 		"2":6,
 		"6":5,
