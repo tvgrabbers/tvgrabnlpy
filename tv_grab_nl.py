@@ -1932,7 +1932,12 @@ class Configure:
                 if c not in githubdata["active_sources"]:
                     self.validate_option('disable_source', value = c)
 
-            xml_output.source_order = githubdata["active_sources"]
+            # Remove any source thatś not (jet) there
+            xml_output.source_order = []
+            for s in githubdata["active_sources"]:
+                if s in xml_output.channelsource.keys():
+                    xml_output.source_order.append(s)
+
             # Read in the tables needed for normal grabbing
             xml_output.logo_provider = githubdata["logo_provider"]
             self.combined_channels = githubdata["combined_channels"]
@@ -1942,7 +1947,12 @@ class Configure:
                 if not t in self.notitlesplit:
                     self.notitlesplit.append(t)
 
-            xml_output.prime_source_order = githubdata["prime_source_order"]
+            # Remove any source thatś not (jet) there
+            xml_output.prime_source_order = []
+            for s in githubdata["prime_source_order"]:
+                if s in xml_output.channelsource.keys():
+                    xml_output.prime_source_order.append(s)
+
             self.prime_source = githubdata["prime_source"]
             for s, v in githubdata["prime_source_groups"].items():
                 self.prime_source_groups[int(s)] = v
@@ -8161,7 +8171,7 @@ class tvgidstv_HTML(FetchData):
             log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict[self.detail_url]))
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                infofiles.write_raw_string(strdata + '\n')
+                infofiles.write_raw_string(strdata + u'\n')
 
             return None
 
@@ -10924,7 +10934,7 @@ class vpro_HTML(FetchData):
 class nieuwsblad_HTML(FetchData):
     """
     Get all available days of programming for the requested channels
-    from the npo.nl page. Based on FetchData Class
+    from the nieuwsblad.be page. Based on FetchData Class
     """
     def init_channels(self):
         """ General Site layout
