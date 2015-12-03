@@ -1720,6 +1720,9 @@ class Configure:
         source_keys[0] = []
         for chan_scid in xml_output.channelsource[0].all_channels.keys():
             if (chan_scid.lower() in self.empty_channels[0]):
+                if config.write_info_files:
+                    infofiles.addto_detail_list(u'Empty channel on tvgids.nl => %s (%s)' % (chan_scid, xml_output.channelsource[0].all_channels[chan_scid]['name']))
+
                 continue
 
             source_keys[0].append(chan_scid)
@@ -1732,6 +1735,10 @@ class Configure:
             chan['name'] = xml_output.channelsource[0].all_channels[chan_scid]['name']
             chan['hd'] = False
             db_channel_source.append(chan)
+            if not chanid in self.source_channels[0].keys():
+                if config.write_info_files:
+                    infofiles.addto_detail_list(u'New channel on tvgids.nl => %s (%s)' % (chan_scid, chan['name']))
+
             if not chanid in self.channels.keys():
                 self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chan_scid]['name'])
 
@@ -1745,7 +1752,7 @@ class Configure:
                     self.channels[chanid].icon = xml_output.logo_names[chanid][1] + '.gif'
 
         # Get the other sources
-        for index in (1, 6, 5, 2, 4, 7, 8):
+        for index in (1, 6, 5, 2, 4, 7, 9, 8):
             xml_output.channelsource[index].init_channels()
             xml_output.channelsource[index].get_channels()
             # a dict with coresponding source, id and chanid
@@ -1763,15 +1770,19 @@ class Configure:
                 if not (chan_scid in self.empty_channels[index]):
                     source_keys[index].append(chan_scid)
 
-        for index in (1, 6, 5, 2, 4, 7, 8):
+        for index in (1, 6, 5, 2, 4, 7, 9, 8):
             for chan_scid, channel in xml_output.channelsource[index].all_channels.items():
-                if chan_scid in reverse_channels[index].keys() and \
-                  reverse_channels[index][chan_scid]['chan_scid'] in source_keys[reverse_channels[index][chan_scid]['source']]:
+                if chan_scid in reverse_channels[index].keys():
                     chanid = reverse_channels[index][chan_scid]['chanid']
-
 
                 else:
                     chanid = '%s-%s' % (index, chan_scid)
+                    if config.write_info_files:
+                        if chan_scid in self.empty_channels[index]:
+                            infofiles.addto_detail_list(u'Empty channel on %s => %s (%s)' % (xml_output.channelsource[index].source, chan_scid,channel['name']))
+
+                        else:
+                            infofiles.addto_detail_list(u'New channel on %s => %s (%s)' % (xml_output.channelsource[index].source, chan_scid,channel['name']))
 
                 chan ={}
                 chan['chanid'] = chanid
@@ -5585,11 +5596,12 @@ class FetchData(Thread):
         self.text_values = ('channelid', 'source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', 'rtl-ID', \
-              'npo-ID', 'horizon-ID', 'humo-ID', 'vpro-ID', 'nb-ID', 'nl-url', 'tv-url', 'rtl-url', 'be-url', 'npo-url',  \
-              'horizon-url', 'humo-url', 'vpro-url', 'nb-url', 'infourl', 'audio', 'star-rating', 'country', 'omroep')
+              'npo-ID', 'horizon-ID', 'humo-ID', 'vpro-ID', 'nb-ID', 'primo-ID', 'nl-url', 'tv-url', \
+              'rtl-url', 'be-url', 'npo-url', 'horizon-url', 'humo-url', 'vpro-url', 'nb-url', \
+              'primo-url', 'infourl', 'audio', 'star-rating', 'country', 'omroep')
         self.datetime_values = ('start-time', 'stop-time')
         self.date_values = ('airdate', )
-        self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'rerun', 'teletekst', \
+        self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'primo-fetched', 'rerun', 'teletekst', \
               'new', 'last-chance', 'premiere')
         self.num_values = ('season', 'episode', 'offset')
         self.dict_values = ('credits', 'video')
@@ -5744,6 +5756,15 @@ class FetchData(Thread):
             for tdict in self.program_data[chanid][:]:
                 if tdict['start-time'] == tdict['stop-time']:
                     self.program_data[chanid].remove(tdict)
+
+    def get_timestamp(self, offset):
+        tsnu = (int(time.time()/86400)) * 86400
+        day =  datetime.datetime.fromtimestamp(tsnu)
+        datenu = int(tsnu - CET_CEST.utcoffset(day).total_seconds())
+        if time.time() -  tsnu < CET_CEST.utcoffset(day).total_seconds():
+            datenu += 86400
+
+        return datenu + offset * 86400
 
     def get_offset(self, date):
         """Return the offset from today"""
@@ -11383,6 +11404,242 @@ class nieuwsblad_HTML(FetchData):
 
 # end nieuwsblad_HTML
 
+class primo_HTML(FetchData):
+    """
+    Get all available days of programming for the requested channels
+    from the primo.eu page. Based on FetchData Class
+    """
+    def init_channels(self):
+
+        # These regexes fetch the relevant data out of the nieuwsblad.be pages, which then will be parsed to the ElementTree
+        self.getmain = re.compile('<!--- HEADER SECTION -->(.*?)<!-- USER PROFILE-->',re.DOTALL)
+        self.getchannelstring = re.compile('(.*?) channel channel-(.*?) channel-.*?')
+        self.getprogduur = re.compile('width:(\d+)px;')
+
+        self.chanids = {}
+        for chanid, channel in config.channels.iteritems():
+            self.program_data[chanid] = []
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '':
+                    self.channels[chanid] = channel.source_id[self.proc_id]
+                    self.chanids[channel.source_id[self.proc_id]] = chanid
+
+                if channel.chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[channel.chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            self.chanids[config.channels[c].source_id[self.proc_id]] = c
+                            config.channels[c].is_child = True
+
+    def get_url(self, offset = 0, detail = None):
+        base_url = 'http://www.primo.eu'
+        if offset == 'channels':
+            return base_url + "/Tv%20programma's%20in%20volledig%20scherm%20bekijken"
+
+        elif detail == None and isinstance(offset, int):
+            date = self.get_timestamp(offset)
+            return '%s/tv-programs-full-view/%s/all/all' % (base_url, date)
+
+        else:
+            return u'%s/tvprograms/ajaxcallback/%s' % (base_url,  detail)
+
+    def get_channels(self):
+        """
+        Get a list of all available channels and store these
+        in all_channels.
+        """
+
+        try:
+            strdata = config.get_page(self.get_url('channels'))
+            self.get_channel_lineup(strdata)
+
+        except:
+            self.fail_count += 1
+            log(traceback.format_exc())
+
+    def get_channel_lineup(self, chandata):
+
+        self.all_channels = {}
+        self.chan_names = {}
+        try:
+            if not isinstance(chandata, (str, unicode)):
+                chandata = config.get_page(self.get_url(0))
+
+            strdata = self.getmain.search(chandata).group(1)
+            strdata = self.clean_html(strdata).encode('utf-8')
+            htmldata = ET.fromstring(strdata)
+            htmldata = htmldata.find('div/div[@id="tvprograms-main"]/div[@id="tvprograms"]')
+            for item in htmldata.findall('div[@id="program-channel-programs"]/div/div/div'):
+                if item.get("style") != None:
+                    continue
+
+                chan_string = self.getchannelstring.search(item.get("class"))
+                chanid = chan_string.group(1)
+                cname = chan_string.group(2)
+                icon_search = 'div[@id="program-channels-list-main"]/div/ul/li/div/a/img[@class="%s"]' % chanid
+                icon = re.split('/',htmldata.find(icon_search).get("src"))[-1]
+                if not chanid in self.all_channels.keys():
+                    self.all_channels[chanid] = {}
+                    self.all_channels[chanid]['name'] = cname
+                    self.all_channels[chanid]['icon'] = icon
+                    self.all_channels[chanid]['icongrp'] = 9
+
+        except:
+            self.fail_count += 1
+            log(traceback.format_exc())
+
+    def load_pages(self):
+        if config.opt_dict['offset'] > 7:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+
+            return
+
+        try:
+            for retry in (0, 1):
+                for offset in range( config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 8)):
+                    failure_count = 0
+                    if self.quit:
+                        return
+
+                    # Check if it is allready loaded
+                    if self.day_loaded[0][offset] != False:
+                        continue
+
+                    log(['\n', 'Now fetching channels from primo.eu for day %s of %s\n' % \
+                        (offset, config.opt_dict['days'])], 2)
+
+                    # get the raw programming for the day
+                    try:
+                        channel_url = self.get_url(offset)
+                        strdata = config.get_page(channel_url)
+
+                        if strdata == None:
+                            log("Skip day=%s on primo.eu. No data!\n" % (offset))
+                            failure_count += 1
+                            self.fail_count += 1
+                            continue
+
+                    except:
+                        log('Error: "%s" reading the primo.eu basepage for day %s.\n' % \
+                            (sys.exc_info()[1], offset))
+                        failure_count += 1
+                        self.fail_count += 1
+                        continue
+
+                    try:
+                        strdata =self.getmain.search(strdata).group(1)
+                        strdata = self.clean_html(strdata)
+                        htmldata = ET.fromstring(strdata.encode('utf-8'))
+                        htmldata = htmldata.find('div/div[@id="tvprograms-main"]/div[@id="tvprograms"]')
+                        sel_date = htmldata.findtext('div[@id="program-header-top"]/div/div[@id="dates"]/ul/li[@class="selected-date"]/a/span[@class="day"]')
+                        if sel_date in ('', None) or datetime.date.fromordinal(self.current_date + offset).day != int(sel_date):
+                            log("Skip day=%d. Wrong date: %s!\n" % (offset, sel_date))
+                            failure_count += 1
+                            self.fail_count += 1
+                            continue
+
+
+                    except:
+                        log(["Error extracting ElementTree for day:%s on primo.eu\n" % (offset)])
+
+                        if config.write_info_files:
+                            infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                            infofiles.write_raw_string(strdata)
+
+                        failure_count += 1
+                        self.fail_count += 1
+                        continue
+
+                    for chan in htmldata.findall('div[@id="program-channel-programs"]/div/div/div'):
+                        if chan.get("style") != None:
+                            continue
+
+                        scid = self.getchannelstring.search(chan.get("class")).group(1)
+                        if not scid in self.chanids.keys():
+                            continue
+
+                        chanid = self.chanids[scid]
+                        date_offset = offset -1
+                        last_end = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + offset), datetime.time(hour=6, tzinfo=CET_CEST))
+                        for d in chan.findall('div[@class="hour hour-"]'):
+                            date_offset+=1
+                            scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                            for p in d.findall('div'):
+                                tdict = self.checkout_program_dict()
+                                tdict['source'] = u'primo'
+                                tdict['channelid'] = chanid
+                                tdict['channel'] = config.channels[chanid].chan_name
+                                pid = p.find('h3').get('id')
+                                tdict[self.detail_id] = u'primo-%s' % pid  if pid != None else ''
+                                tdict[self.detail_url] = self.get_url(detail = pid)  if pid != None else ''
+
+                                # The Title
+                                tdict['name'] = self.empersant(p.findtext('h3').strip())
+                                tdict = self.check_title_name(tdict)
+                                if  tdict['name'] == None or tdict['name'] == '':
+                                    log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                                    continue
+
+                                # Get the starttime and make sure the midnight date change is properly crossed
+                                ptime = p.findtext('span', '')
+                                pduur = int(self.getprogduur.search(p.get('style')).group(1))*12
+                                if ptime == '':
+                                    tdict['start-time'] = last_end
+                                    tdict['stop-time'] = last_end + datetime.timedelta(seconds=pduur)
+
+                                else:
+                                    ptime = ptime.split('-')
+                                    pstart = ptime[0].strip().split('.')
+                                    prog_time = datetime.time(hour=int(pstart[0]), minute=int(pstart[1]), tzinfo=CET_CEST)
+                                    tdict['offset'] = date_offset
+                                    tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
+                                    pstop = ptime[1].strip().split('.')
+                                    prog_time = datetime.time(hour=int(pstop[0]), minute=int(pstop[1]), tzinfo=CET_CEST)
+                                    tdict['offset'] = date_offset
+                                    tdict['stop-time'] = datetime.datetime.combine(scan_date, prog_time)
+                                    if tdict['stop-time'] < tdict['start-time']:
+                                        tdict['stop-time'] = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + date_offset + 1), prog_time)
+
+                                last_end = tdict['stop-time']
+
+                                # and append the program to the list of programs
+                                with self.source_lock:
+                                    self.program_data[chanid].append(tdict)
+
+                    self.base_count += 1
+                    self.day_loaded[0][offset] = True
+                    # be nice to nieuwsblad.be
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+                if failure_count == 0 or retry == 1:
+                    for chanid in self.program_data:
+                        self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+                        self.parse_programs(chanid, 0, 'None')
+                        self.channel_loaded[chanid] = True
+                        config.channels[chanid].source_data[self.proc_id].set()
+                        with self.source_lock:
+                            for tdict in self.program_data[chanid]:
+                                self.program_by_id[tdict[self.detail_id]] = tdict
+
+                        try:
+                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+                        except:
+                            pass
+
+                    return
+
+        except:
+            log(['\n', 'An unexpected error has occured in the %s thread\n' %  (self.source), traceback.format_exc()], 0)
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+
+# end primo_HTML
+
 class Channel_Config(Thread):
     """
     Class that holds the Channel definitions and manages the data retrieval and processing
@@ -11935,15 +12192,16 @@ class XMLoutput:
                                         'https://www.horizon.tv/static-images/',
                                         'http://img.humo.be/q100/w100/h100/epglogos/',
                                         'http://www-assets.npo.nl/uploads/',
-                                        'http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/']
+                                        'http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/',
+                                        'http://www.primo.eu/sites/all/modules/primo_integrations/tv-logos/']
 
-        self.source_count = 9
-        self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be',
-                                  4: 'npo.nl', 5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be'}
-        self.source_order = [7, 0, 1, 5, 6, 8, 2, 4]
+        self.source_count = 10
+        self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl',
+                                  5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be', 9:'primo.eu'}
+        self.source_order = [7, 0, 1, 5, 9, 6, 8, 2, 4]
         self.source_count = len(self.sources)
         self.detail_sources = (0, 1)
-        self.prime_source_order = (2, 7, 0, 5, 4, 1, 6, 8)
+        self.prime_source_order = (2, 7, 0, 5, 4, 1, 9, 6, 8)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
@@ -11954,6 +12212,7 @@ class XMLoutput:
         self.channelsource[6] = humo_JSON(6, 'humo.be', 'humo-ID', 'humo-url', True)
         self.channelsource[7] = vpro_HTML(7, 'vpro.nl', 'vpro-ID', 'vpro-url')
         self.channelsource[8] = nieuwsblad_HTML(8, 'nieuwsblad.be', 'nb-ID', 'nb-url')
+        self.channelsource[9] = primo_HTML(9, 'primo.eu', 'primo-ID', 'primo-url', False, 'primo-fetched', True)
         self.output_lock = Lock()
         self.cache_return = Queue()
         self.ttvdb = theTVDB()
