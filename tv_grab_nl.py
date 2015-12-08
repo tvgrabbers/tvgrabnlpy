@@ -350,7 +350,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 7
-        self.patchdate = u'20151203'
+        self.patchdate = u'20151208'
         self.alfa = False
         self.beta = True
 
@@ -547,15 +547,107 @@ class Configure:
         # The keys are the roles used by tvgids.nl (lowercase please)
         self.roletrans = {'regisseur'                         : 'director',
                              'regie'                                        : 'director',
+                             'met'                                            : 'actor',
                              'acteurs'                                    : 'actor',
                              'acteursnamen_rolverdeling': 'actor',
+                             'gastacteur'                              : 'guest',
                              'scenario'                                  : 'writer',
                              'scenario schrijver'              : 'writer',
                              'componist'                                : 'composer',
                              'presentatie'                            : 'presenter',
                              'presentator'                            : 'presenter',
                              'verslaggever'                          : 'reporter',
-                             'commentaar'                              : 'commentator'}
+                             'commentaar'                              : 'commentator',
+                             'adapter'                                    : 'adapter',
+                             'producer'                                  : 'producer',
+                             'editor'                                      : 'editor'}
+
+        # A list of countries with their 2 digit version:
+        self.coutrytrans = {'ARE':'AE',
+                                        'VAE':'AE',
+                                        'ARG':'AR',
+                                        'AUS':'AU',
+                                        'AUT':'AT',
+                                        'OOS':'AT',
+                                        'A':'AT',
+                                        'B':'BE',
+                                        'BEL':'BE',
+                                        'BLR':'BY',
+                                        'BGD':'BD',
+                                        'BRA':'BR',
+                                        'CAN':'CA',
+                                        'CHE':'CH',
+                                        'ZWI':'CH',
+                                        'CHN':'CN',
+                                        'COL':'CO',
+                                        'CUB':'CU',
+                                        'CYPRUS':'CY',
+                                        'CZE':'CZ',
+                                        'TSJ':'CZ',
+                                        'CS':'CZ',
+                                        'DEU':'DE',
+                                        'DDR':'DE',
+                                        'D':'DE',
+                                        'DNK':'DK',
+                                        'ESP':'ES',
+                                        'SP':'ES',
+                                        'FIN':'FI',
+                                        'F':'FR',
+                                        'FRA':'FR',
+                                        'GBR':'GB',
+                                        'GRC':'GR',
+                                        'HK':'HK',
+                                        'HRV':'HR',
+                                        'H':'HU',
+                                        'KRO':'HR',
+                                        'IRL':'IE',
+                                        'IER':'IE',
+                                        'IRN':'IR',
+                                        'I':'IT',
+                                        'IJS':'IS',
+                                        'ITA':'IT',
+                                        'IDN':'ID',
+                                        'IND':'IN',
+                                        'INDIA':'IN',
+                                        'ISR':'IL',
+                                        'JAM':'JM',
+                                        'JPN':'JP',
+                                        'J':'JP',
+                                        'KHM':'KH',
+                                        'LAO':'LA',
+                                        'LTU':'LT',
+                                        'LIT':'LT',
+                                        'LUX':'LU',
+                                        'L':'LU',
+                                        'M':'MT',
+                                        'MEX':'MX',
+                                        'MNE':'MN',
+                                        'NLD':'NL',
+                                        'NOR':'NO',
+                                        'N':'NO',
+                                        'NZL':'NZ',
+                                        'PAL':'PS',
+                                        'PER':'PE',
+                                        'POL':'PL',
+                                        'PRT':'PT',
+                                        'P':'PT',
+                                        'PSE':'PS',
+                                        'Q':'QA',
+                                        'ROM':'RO',
+                                        'RUS':'RU',
+                                        'SRB':'RS',
+                                        'SVK':'SK',
+                                        'SWE':'SE',
+                                        'ZWE':'SE',
+                                        'SYR':'SY',
+                                        'TUN':'TN',
+                                        'TZA':'TZ',
+                                        'USA':'US',
+                                        'VS':'US',
+                                        'ZK':'KR',
+                                        'ZAF':'ZA',
+                                        'RSA':'ZA'}
+                                        #~ '':'',
 
         # List of titles not to split with title_split().
         # these are mainly spin-off series like NCIS: Los Angeles
@@ -846,6 +938,39 @@ class Configure:
                                      ('g301727', ): (u'informatief, wetenschap', u''),
                                      ('g3018', ): ('informatief', 'Documentaire')}
         self.new_cattrans[7] = {}
+
+        # vpro.nl genre translation table
+        self.source_cattrans[8] ={}
+        self.new_cattrans[8] = {}
+
+        # vpro.nl genre translation table
+        self.source_cattrans[9] ={'actua': ('nieuws/actualiteiten', 'actua'),
+                                     'amusement': ('amusement', ''),
+                                     'documentaire': ('documentaire', ''),
+                                     'film': ('film', ''),
+                                     'kortfilm': ('film', ''),
+                                     'magazine': ('magazine', ''),
+                                     'muziek': ('muziek', ''),
+                                     'nieuws': ('nieuws/actualiteiten', 'nieuws'),
+                                     'reality-tv': ('amusement', 'realityprogramma'),
+                                     'religie': ('religieus', ''),
+                                     'reportage': ('nieuws/actualiteiten', 'reportage'),
+                                     'serie': ('serie/soap', ''),
+                                     'spel': ('amusement', 'spelshow'),
+                                     'sport': ('sport', ''),
+                                     'talkshow': ('amusement', 'talkshow'),
+                                     'varia': ('informatief', 'varia'),
+                                     'zwart/wit film': ('film', ''),
+                                     ('serie', 'advocatenreeks'): (u'serie/soap', u''),
+                                     ('serie', 'dramareeks'): (u'serie/soap', u''),
+                                     ('serie', 'komische reeks'): (u'serie/soap', u''),
+                                     ('serie', 'minireeks'): (u'serie/soap', u''),
+                                     ('serie', 'misdaadreeks'): (u'serie/soap', u''),
+                                     ('serie', 'soapreeks'): (u'serie/soap', u''),
+                                     ('serie', 'thrillerreeks'): (u'serie/soap', u''),
+                                     ('serie', 'tragikomische reeks'): (u'serie/soap', u''),
+                                     ('serie', 'ziekenhuisreeks'): (u'serie/soap', u'')}
+        self.new_cattrans[9] = {}
 
         # The following two list get replaced by their sourcematching counterparts
         # Program group names to exclude from a primesource if the counterpart contains details
@@ -5235,6 +5360,87 @@ class FetchData(Thread):
 
     def run(self):
         """The grabing thread"""
+        self.testlist = ((1, 0), (9, 0,), (1, 9))
+        def check_queue():
+            # If the queue is empty
+            if self.detail_request.empty():
+                time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                # and if we are not tvgids.nl we wait for followup requests from other failures failures
+                for q_no in self.testlist:
+                    if (self.proc_id == q_no[0]) and xml_output.channelsource[q_no[1]].is_alive():
+                        return 0
+
+                # Check if all channels are ready
+                for channel in config.channels.values():
+                    if channel.is_alive() and not channel.detail_data.is_set():
+                        break
+
+                # All channels are ready, so if there is nothing in the queue
+                else:
+                    self.ready = True
+                    return -1
+
+                # OK we have been sitting idle for 30 minutes, So we tell all channels they won get anything more!
+                if (datetime.datetime.now() - self.lastrequest).total_seconds() > idle_timeout:
+                    if self.proc_id == 1:
+                        for channel in config.channels.values():
+                            if channel.is_alive() and not channel.detail_data.is_set():
+                                channel.detail_data.set()
+                                log('Channel %s seems to be waiting for %s lost detail requests from %s.\nSetting it to ready\n' % \
+                                    (channel.chan_name, channel.counters['fetch'][1], self.source))
+
+                    self.ready = True
+                    return -1
+
+                else:
+                    return 0
+
+            self.lastrequest = datetime.datetime.now()
+            try:
+                return self.detail_request.get()
+
+            except Empty:
+                return 0
+
+        def check_ttvdb(tdict, parent):
+            if not (config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']) and \
+              tdict['genre'].lower() == u'serie/soap' and tdict['titel aflevering'] != '' and tdict['season'] == 0:
+                # We do a ttvdb lookup
+                parent.update_counter('fetch', -1)
+                xml_output.ttvdb.detail_request.put({'tdict':tdict, 'parent': parent, 'task': 'update_ep_info'})
+
+            else:
+                with parent.channel_lock:
+                    parent.detailed_programs.append(tdict)
+
+        def check_other_sources(tdict, cache_id, logstring, parent):
+            if (self.proc_id in (0, 9)) and (cache_id != None):
+                # Check the cache again
+                xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': tdict[cache_id]})
+                cached_program = self.cache_return.get(True)
+                if cached_program == 'quit':
+                    self.ready = True
+                    return -1
+
+            for q_no in self.testlist:
+                if cached_program != None and self.proc_id == q_no[1] and \
+                  cached_program[xml_output.channelsource[q_no[0]].detail_check]:
+                    log(u'      [cached] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+                    tdict= parent.use_cache(tdict, cached_program)
+                    parent.update_counter('cache')
+                    parent.update_counter('fetch', self.proc_id, False)
+                    check_ttvdb(tdict, parent)
+                    return 0
+
+                # If there is an url we'll try tvgids.tv
+                elif self.proc_id == q_no[1] and xml_output.channelsource[q_no[0]].detail_processor and \
+                  q_no[0] not in parent.opt_dict['disable_detail_source'] and \
+                  tdict[xml_output.channelsource[q_no[0]].detail_url] != '':
+                    xml_output.channelsource[q_no[0]].detail_request.put({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent, 'last_one': False})
+                    parent.update_counter('fetch', q_no[0])
+                    parent.update_counter('fetch', self.proc_id, False)
+                    return 0
+
         # First some generic initiation that couldn't be done earlier in __init__
         # Specifics can be done in init_channels and init_json which are called here
         tdict = self.checkout_program_dict()
@@ -5290,55 +5496,27 @@ class FetchData(Thread):
             if self.detail_processor and  not self.proc_id in config.opt_dict['disable_detail_source']:
                 # We process detail requests, so we loop till we are finished
                 self.cookyblock = False
-                lastrequest = datetime.datetime.now()
+                self.lastrequest = datetime.datetime.now()
                 while True:
                     if self.quit:
                         self.ready = True
                         break
 
-                    # If the queue is empty
-                    if self.detail_request.empty():
-                        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-                        # and if we are tvgids.tv we wait for followup requests from tvgids.nl failures
-                        if (self.proc_id == 1) and xml_output.channelsource[0].is_alive():
-                            continue
+                    queue_val = check_queue()
+                    if queue_val == -1:
+                        break
 
-                        # Check if all channels are ready
-                        for channel in config.channels.values():
-                            if channel.is_alive() and not channel.detail_data.is_set():
-                                break
-
-                        # All channels are ready, so if there is nothing in the queue
-                        else:
-                            self.ready = True
-                            break
-
-                        # OK we have been sitting idle for 30 minutes, So we tell all channels they won get anything more!
-                        if (datetime.datetime.now() - lastrequest).total_seconds() > idle_timeout:
-                            if self.proc_id == 1:
-                                for channel in config.channels.values():
-                                    if channel.is_alive() and not channel.detail_data.is_set():
-                                        channel.detail_data.set()
-                                        log('Channel %s seems to be waiting for %s lost detail requests from %s.\nSetting it to ready\n' % \
-                                            (channel.chan_name, channel.counters['fetch'][1], self.source))
-
-                            self.ready = True
-                            break
-
-                        else:
-                            continue
-
-                    lastrequest = datetime.datetime.now()
-                    try:
-                        tdict = self.detail_request.get()
-
-                    except Empty:
+                    if queue_val == 0 or not isinstance(queue_val, dict):
                         continue
 
+                    tdict = queue_val
                     parent = tdict['parent']
                     # Is this the closing item for the channel?
                     if ('last_one' in tdict) and tdict['last_one']:
-                        if self.proc_id == 0 and parent.counters['fetch'][1] > 0:
+                        if self.proc_id == 0 and parent.counters['fetch'][9] > 0:
+                            xml_output.channelsource[1].detail_request.put(tdict)
+
+                        elif self.proc_id == 9 and parent.counters['fetch'][1] > 0:
                             xml_output.channelsource[1].detail_request.put(tdict)
 
                         elif parent.counters['fetch'][-1] > 0 and not (config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']):
@@ -5355,7 +5533,7 @@ class FetchData(Thread):
                     chanid = tdict['channelid']
                     # be nice to the source site
                     time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-                    # First if the cookyblock is not encountered try the html detail page
+                    # First if the cookyblock is not encountered try the html detail page (only tvgids.nl, the others only have html)
                     if not self.cookyblock:
                         try:
                             detailed_program = self.load_detailpage(tdict)
@@ -5386,56 +5564,20 @@ class FetchData(Thread):
                     # It failed!
                     if detailed_program == None:
                         # If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the cache again
-                        if (self.proc_id == 0) and (cache_id != None):
-                            # Check the cache again
-                            xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': tdict[cache_id]})
-                            cached_program = self.cache_return.get(True)
-                            if cached_program == 'quit':
-                                self.ready = True
-                                break
-
-                            if cached_program != None and cached_program[xml_output.channelsource[1].detail_check]:
-                                log(u'      [cached] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
-                                tdict= parent.use_cache(tdict, cached_program)
-                                if not (config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']) and \
-                                  tdict['genre'].lower() == u'serie/soap' and tdict['titel aflevering'] != '' and tdict['season'] == 0:
-                                    # We do a ttvdb lookup
-                                    parent.update_counter('fetch', -1)
-                                    xml_output.ttvdb.detail_request.put({'tdict':tdict, 'parent': parent, 'task': 'update_ep_info'})
-
-                                else:
-                                    with parent.channel_lock:
-                                        parent.detailed_programs.append(tdict)
-
-                                parent.update_counter('cache')
-                                parent.update_counter('fetch', self.proc_id, False)
-                                continue
-
-                            # If there is an url we'll try tvgids.tv
-                            elif xml_output.channelsource[1].detail_processor and \
-                                    1 not in parent.opt_dict['disable_detail_source'] and \
-                                    tdict[xml_output.channelsource[1].detail_url] != '':
-                                xml_output.channelsource[1].detail_request.put({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent, 'last_one': False})
-                                parent.update_counter('fetch', 1)
-                                parent.update_counter('fetch', self.proc_id, False)
-                                continue
-
-                        # It failed!
-                        else:
+                        if self.proc_id == 1:
                             log(u'[fetch failed or timed out] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
-                            if not (config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']) and \
-                              tdict['genre'].lower() == u'serie/soap' and tdict['titel aflevering'] != '' and tdict['season'] == 0:
-                                # We do a ttvdb lookup
-                                parent.update_counter('fetch', -1)
-                                xml_output.ttvdb.detail_request.put({'tdict':tdict, 'parent': parent, 'task': 'update_ep_info'})
-
-                            else:
-                                with parent.channel_lock:
-                                    parent.detailed_programs.append(tdict)
-
                             parent.update_counter('fail')
                             parent.update_counter('fetch', self.proc_id, False)
+                            check_ttvdb(tdict, parent)
                             continue
+
+                        else:
+                            ret_val = check_other_sources(tdict, cache_id, logstring, parent)
+                            if ret_val == -1:
+                                break
+
+                            else:
+                                continue
 
                     # Success
                     else:
@@ -5445,22 +5587,15 @@ class FetchData(Thread):
 
                         detailed_program[xml_output.channelsource[self.proc_id].detail_check] = True
                         detailed_program['ID'] = detailed_program[xml_output.channelsource[self.proc_id].detail_id]
-                        if not (config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']) and \
-                          detailed_program['genre'].lower() == u'serie/soap' and detailed_program['titel aflevering'] != '' \
-                          and detailed_program['season'] == 0:
-                            # We do a ttvdb lookup
-                            parent.update_counter('fetch', -1)
-                            xml_output.ttvdb.detail_request.put({'tdict':detailed_program, 'parent': parent, 'task': 'update_ep_info'})
-
-                        else:
-                            with parent.channel_lock:
-                                parent.detailed_programs.append(detailed_program)
-
+                        check_ttvdb(detailed_program, parent)
                         if self.proc_id == 0:
                             log(u'[normal fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
 
                         elif self.proc_id == 1:
                             log(u'   [.tv fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+
+                        elif self.proc_id == 9:
+                            log(u' [primo fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
 
                         parent.update_counter('fetched', self.proc_id)
                         parent.update_counter('fetch', self.proc_id, False)
@@ -10414,12 +10549,20 @@ class humo_JSON(FetchData):
                                 tdict['jaar van premiere'] = item['program']['year']
 
                             if 'countries' in item['program'].keys():
-                                #~ tdict[''] = item['program']['countries']
-                                if config.write_info_files:
-                                    pstr = u'new humo county => '
-                                    for cstr in item['program']['countries']:
-                                        pstr = pstr + u', ' + cstr
-                                    infofiles.addto_detail_list(pstr)
+                                #~ tdict['country'] = item['program']['countries']
+                                for cstr in item['program']['countries']:
+                                    cstr = cstr.upper().strip()
+                                    if '(' in cstr:
+                                        cstr = cstr.split('(')[1][:-1]
+
+                                    if cstr in config.coutrytrans.values():
+                                        pass
+
+                                    elif cstr in config.coutrytrans.keys():
+                                        pass
+
+                                    elif config.write_info_files:
+                                        infofiles.addto_detail_list(u'new country => %s' % (cstr))
 
                             if 'credits' in item['program'].keys():
                                 for role in item['program']['credits']:
@@ -10640,11 +10783,17 @@ class vpro_HTML(FetchData):
 
             elif subg2 != None:
                 # group(1) is country
-                if config.write_info_files:
-                    pstr = u'new vpro county => '
-                    #~ for cstr in item['program']['countries']:
-                        #~ pstr = pstr + u', ' + cstr
-                    infofiles.addto_detail_list(pstr + subg2.group(1))
+                #~ tdict['country']
+                cstr = re.split('/', subg2.group(1))
+                for c in cstr:
+                    if c in config.coutrytrans.values():
+                        pass
+
+                    elif c in config.coutrytrans.keys():
+                        pass
+
+                    elif config.write_info_files:
+                        infofiles.addto_detail_list(u'new country => %s' % (c))
 
                 tdict['jaar van premiere'] = subg2.group(2)
                 tdict['subgenre'] = subg2.group(3)
@@ -11638,6 +11787,130 @@ class primo_HTML(FetchData):
                 self.channel_loaded[chanid] = True
                 config.channels[chanid].source_data[self.proc_id].set()
 
+    def load_detailpage(self, tdict):
+        try:
+            strdata = config.get_page(tdict[self.detail_url], 'utf-8')
+            if strdata == None:
+                return
+
+            strdata = self.clean_html('<root>' + strdata + '</root>').encode('utf-8')
+        except:
+            log(['Error Fetching detailpage %s\n' % tdict[self.detail_url], traceback.format_exc()])
+            return None
+
+        try:
+            htmldata = ET.fromstring(strdata)
+
+        except:
+            log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict[self.detail_url]))
+            if config.write_info_files:
+                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                infofiles.write_raw_string(strdata + u'\n')
+
+            return None
+
+        try:
+            for d in htmldata.findall('div/div[@class="details"]/div'):
+                dlabel = d.findtext('label')[:-1].lower().strip()
+                ddata = self.empersant(d.findtext('span')).strip()
+                if ddata in (None, '-'):
+                    ddata = ''
+
+                try:
+                    if dlabel in ("programmanaam", "datum en tijd", "zender"):
+                        continue
+
+                    elif dlabel == "synopsis":
+                        tdict['description'] = ddata
+
+                    elif dlabel == "titel aflevering":
+                        tdict['titel aflevering'] = ddata if ((ddata != tdict['name'])) else ''
+                        tdict = self.check_title_name(tdict)
+
+                    elif dlabel == "nr. aflevering":
+                        tdict['episode'] = 0 if (ddata  == '') else int(ddata)
+
+                    elif dlabel == "seizoen":
+                        tdict['season'] = 0 if (ddata == '') else int(ddata)
+
+
+                    elif dlabel in  config.roletrans.keys():
+                        if not config.roletrans[dlabel] in tdict['credits']:
+                            tdict['credits'][config.roletrans[dlabel]] = []
+
+                        for p in d.findall('span'):
+                            name = self.empersant(p.text).split('(')[0].strip()
+                            if not name in tdict['credits'][config.roletrans[dlabel]]:
+                                tdict['credits'][config.roletrans[dlabel]].append(name)
+
+                    elif dlabel == "jaar":
+                        tdict['jaar van premiere'] = ddata
+
+                    elif dlabel == "land":
+                        #~ tdict['country']
+                        ddata = re.sub('.', '', ddata).upper()
+                        ddata = re.split(',', ddata)
+                        for c in ddata:
+                            if c in config.coutrytrans.values():
+                                pass
+
+                            elif c in config.coutrytrans.keys():
+                                pass
+
+                            elif config.write_info_files:
+                                infofiles.addto_detail_list(u'new country => %s' % (c))
+
+                    elif dlabel == "genre":
+                        genre = ddata if len(ddata) > 2 else ''
+
+                    elif dlabel == "samenvatting":
+                        subgenre = ddata if len(ddata) <= 25 else ''
+
+                    #~ elif dlabel == "rating":
+                        #~ pass
+
+                    #~ elif dlabel == "minimumleeftijd":
+                        #~ pass
+
+                    #~ elif dlabel == "":
+                        #~ pass
+
+                    elif config.write_info_files:
+                        infofiles.addto_detail_list(u'new primo-tag => %s: %s' % (dlabel, ddata))
+
+                except:
+                    continue
+
+            if (genre, subgenre) in config.source_cattrans[self.proc_id].keys():
+                tdict['genre'] = config.source_cattrans[self.proc_id][(genre, subgenre)][0]
+                tdict['subgenre'] = subgenre if config.source_cattrans[self.proc_id][(genre, subgenre)][1] == '' else config.source_cattrans[self.proc_id][(genre, subgenre)][1]
+
+            elif genre in config.source_cattrans[self.proc_id].keys():
+                tdict['genre'] = config.source_cattrans[self.proc_id][genre][0]
+                tdict['subgenre'] = subgenre if config.source_cattrans[self.proc_id][genre][1] == '' else config.source_cattrans[self.proc_id][genre][1]
+                if config.write_info_files and subgenre != '':
+                    infofiles.addto_detail_list(u'new primo-subgenre => %s: %s' % (genre, subgenre))
+
+            elif genre != '':
+                tdict['genre'] = genre
+                tdict['subgenre'] = subgenre
+                if config.write_info_files and subgenre != '':
+                    infofiles.addto_detail_list(u'new primo-genre => %s: %s' % (genre, subgenre))
+
+            else:
+                tdict['genre'] = 'overige'
+                tdict['subgenre'] = ''
+
+        except:
+            log(['Error processing Primo.eu detailpage:%s\n' % (tdict[self.detail_url]), traceback.format_exc()])
+            return
+
+        tdict['ID'] = tdict[self.detail_id]
+        tdict[self.detail_check] = True
+
+        return tdict
+
+
 # end primo_HTML
 
 class Channel_Config(Thread):
@@ -11850,10 +12123,14 @@ class Channel_Config(Thread):
                         return
 
                     # Check if the sources are still alive
-                    if not (xml_output.channelsource[0].is_alive() or xml_output.channelsource[1].is_alive()):
+                    for s in xml_output.detail_sources:
+                        if xml_output.channelsource[s].is_alive():
+                            break
+
+                    else:
                         self.detail_data.set()
-                        log('sources: %s and %s died.\n So we stop waiting for the pending details for channel %s\n' \
-                            % (xml_output.channelsource[0].source, xml_output.channelsource[1].source, self.chan_name))
+                        log('Detail sources: %s, %s and %s died.\n So we stop waiting for the pending details for channel %s\n' \
+                            % (xml_output.channelsource[0].source, xml_output.channelsource[1].source, xml_output.channelsource[9].source, self.chan_name))
 
                 self.all_programs = self.detailed_programs
 
@@ -11876,6 +12153,7 @@ class Channel_Config(Thread):
             else:
                 log_array.append('%6.0f detail fetch(es) from tvgids.nl\n' % self.counters['fetched'][0])
                 log_array.append('%6.0f detail fetch(es) from tvgids.tv\n' % self.counters['fetched'][1])
+                log_array.append('%6.0f detail fetch(es) from primo.eu\n' % self.counters['fetched'][9])
                 log_array.append('%6.0f failure(s)\n' % self.counters['fail'])
                 log_array.append('%6.0f without detail info\n' % self.counters['none'])
                 log_array.append('\n')
@@ -11884,6 +12162,7 @@ class Channel_Config(Thread):
                 log_array.append('\n')
                 log_array.append('%6.0f left in the tvgids.nl queue to process\n' % (xml_output.channelsource[0].detail_request.qsize()))
                 log_array.append('%6.0f left in the tvgids.tv queue to process\n' % (xml_output.channelsource[1].detail_request.qsize()))
+                log_array.append('%6.0f left in the primo.eu queue to process\n' % (xml_output.channelsource[9].detail_request.qsize()))
 
             log_array.append('\n')
             log(log_array, 4, 3)
@@ -12083,9 +12362,13 @@ class Channel_Config(Thread):
                     return
 
                 # check if it contains detail info from tvgids.nl or (if no nl-url known, or in no_fetch mode) tvgids.tv
-                if cached_program != None and (cached_program[xml_output.channelsource[0].detail_check] \
-                  or ((p[xml_output.channelsource[0].detail_url] == '') and cached_program[xml_output.channelsource[1].detail_check]) \
-                  or (no_fetch and cached_program[xml_output.channelsource[1].detail_check])):
+                if cached_program != None and \
+                    (no_fetch or \
+                        cached_program[xml_output.channelsource[0].detail_check] or \
+                        (p[xml_output.channelsource[0].detail_url] == '' and \
+                            (cached_program[xml_output.channelsource[9].detail_check] or \
+                                (p[xml_output.channelsource[9].detail_url] == '' and \
+                                cached_program[xml_output.channelsource[1].detail_check])))):
                         log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                         self.update_counter('cache')
                         p = self.use_cache(p, cached_program)
@@ -12099,7 +12382,9 @@ class Channel_Config(Thread):
                         continue
 
             # Either we are fast-mode, outside slowdays or there is no url. So we continue
-            no_detail_fetch = (no_fetch or ((p[xml_output.channelsource[0].detail_url] == '') and (p[xml_output.channelsource[1].detail_url] == '')))
+            no_detail_fetch = (no_fetch or ((p[xml_output.channelsource[0].detail_url] == '') and \
+                                                                (p[xml_output.channelsource[9].detail_url] == '') and \
+                                                                (p[xml_output.channelsource[1].detail_url] == '')))
 
             if no_detail_fetch:
                 log(u'    [no fetch] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
@@ -12200,7 +12485,7 @@ class XMLoutput:
                                   5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be', 9:'primo.eu'}
         self.source_order = [7, 0, 1, 5, 9, 6, 8, 2, 4]
         self.source_count = len(self.sources)
-        self.detail_sources = (0, 1)
+        self.detail_sources = (0, 9, 1)
         self.prime_source_order = (2, 7, 0, 5, 4, 1, 9, 6, 8)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
