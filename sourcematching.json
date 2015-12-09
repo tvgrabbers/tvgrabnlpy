@@ -3,11 +3,12 @@
 	"program_version":"2.2.6",
 	"version_message":"",
 	"warning_message":[
-		"For xmltvID 6-97 the sourceid for Nieuwsblad.be has changed from tmf",
+		"TV5 Monde FBS has been split off from TV5 Monde Europe. \n",
+		"For xmltvID 6-97 the sourceid for Nieuwsblad.be has changed from tmf ",
 		"to it's present name comedy-central (Flemish listing).",
-		"There is a new channel Spike (467) on tvgids.nl.",
-		"This channel shares with Nickelodeon on Ziggo.",
-		"We're looking at combining them."],
+		"There is a new channel Spike (467) on tvgids.nl. ",
+		"This channel shares with Nickelodeon on Ziggo. ",
+		"We're looking at combining them. "],
 	"active_sources":[7,0,1,5,6,8,2,4,9],
 	"channel_groups":{
 		"0":"Actieve Zenders",
