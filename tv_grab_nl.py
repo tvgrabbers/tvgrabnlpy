@@ -2050,18 +2050,28 @@ class Configure:
             nv = githubdata["program_version"]
             pv = u'%s.%s.%s' % (self.major, self.minor, self.patch)
             if pv < nv or (pv == nv and (self.alfa or self.beta)):
-                if "version_message" in githubdata and githubdata["version_message"] != "":
-                    log(githubdata["version_message"], 0)
+                loglist = ['There is a newer stable release available on github!\n']
+                if "version_message" in githubdata:
+                    if isinstance(githubdata["version_message"], (str, unicode)):
+                        loglist.append(githubdata["version_message"])
 
-                log(['There is a newer stable release available on github!\n',
-                    'Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n'], 0)
+                    elif isinstance(githubdata["version_message"], list):
+                        loglist.extend(githubdata["version_message"])
+
+                loglist.append("Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n")
+                log(loglist, 0)
 
             elif not with_configdata and (not "data_version" in self.opt_dict or dv > self.opt_dict["data_version"]):
-                if "warning_message" in githubdata and githubdata["warning_message"] != "":
-                    log(githubdata["warning_message"], 0)
+                loglist = ['The channel/source matching data on github is newer!\n']
+                if "warning_message" in githubdata:
+                    if isinstance(githubdata["warning_message"], (str, unicode)):
+                        loglist.append(githubdata["warning_message"])
 
-                log(['The channel/source matching data on github is newer!\n',
-                    "Run with '--configure' to implement it\n"], 0)
+                    elif isinstance(githubdata["warning_message"], list):
+                        loglist.extend(githubdata["warning_message"])
+
+                loglist.append("Run with '--configure' to implement it\n")
+                log(loglist, 0)
 
             # Check on disabled sources
             for c in xml_output.channelsource.keys():
@@ -5326,6 +5336,7 @@ class FetchData(Thread):
     It runs as a separate thread for every source
     """
     current_date = datetime.date.today().toordinal()
+    #~ current_date = datetime.datetime.now(CET_CEST).date().toordinal()
 
     def __init__(self, proc_id, source, detail_id, detail_url = '', isjson = False, detail_check = '', detail_processor = False):
         Thread.__init__(self)
@@ -5414,6 +5425,7 @@ class FetchData(Thread):
                     parent.detailed_programs.append(tdict)
 
         def check_other_sources(tdict, cache_id, logstring, parent):
+            cached_program = None
             if (self.proc_id in (0, 9)) and (cache_id != None):
                 # Check the cache again
                 xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': tdict[cache_id]})
@@ -11685,7 +11697,7 @@ class primo_HTML(FetchData):
                         htmldata = htmldata.find('div/div[@id="tvprograms-main"]/div[@id="tvprograms"]')
                         sel_date = htmldata.findtext('div[@id="program-header-top"]/div/div[@id="dates"]/ul/li[@class="selected-date"]/a/span[@class="day"]')
                         if sel_date in ('', None) or datetime.date.fromordinal(self.current_date + offset).day != int(sel_date):
-                            log("Skip day=%d. Wrong date: %s!\n" % (offset, sel_date))
+                            log("Skip day=%d on Primo.eu. Wrong date: %s!\n" % (offset, sel_date))
                             failure_count += 1
                             self.fail_count += 1
                             continue
@@ -11810,6 +11822,8 @@ class primo_HTML(FetchData):
             return None
 
         try:
+            genre = ''
+            subgenre = ''
             for d in htmldata.findall('div/div[@class="details"]/div'):
                 dlabel = d.findtext('label')[:-1].lower().strip()
                 ddata = self.empersant(d.findtext('span')).strip()
