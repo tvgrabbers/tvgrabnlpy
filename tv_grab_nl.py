@@ -350,7 +350,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 7
-        self.patchdate = u'20151208'
+        self.patchdate = u'20151209'
         self.alfa = False
         self.beta = True
 
@@ -542,6 +542,16 @@ class Configure:
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/drugs_transp.png'},
                         'd': {'code': 'Discriminatie','text': 'Discriminatie',
                         'icon':'http://tvgidsassets.nl/img/kijkwijzer/discriminatie_transp.png'}}
+
+        self.tvkijkwijzer = {'AL':'1',
+                                      '6':'2',
+                                      '9':'9',
+                                      '12':'3',
+                                      '16':'4',
+                                      'angst':'a',
+                                      'geweld':'g',
+                                      'seks':'s',
+                                      'taal':'t'}
 
         # Create a role translation dictionary for the xmltv credits part
         # The keys are the roles used by tvgids.nl (lowercase please)
@@ -813,6 +823,8 @@ class Configure:
                                      ('informatief', 'consumenten-informatie', ): (u'informatief', u'consument'),
                                      ('informatief', 'spel-quiz', ): (u'informatief', u'quiz'),
                                      ('informatief', 'koken-eten', ): (u'informatief', u'kookprogramma'),
+                                     ('informatief', 'natuur', ): (u'natuur', u''),
+                                     ('informatief', 'religieus' ): (u'religieus', u''),
                                      ('religieus', ): (u'religieus', u''),
                                      ('jeugd', ): (u'jeugd', u''),
                                      ('jeugd', 'animatie', ): (u'jeugd', u'animatieserie'),
@@ -931,11 +943,15 @@ class Configure:
                                      ('g3016', ): ('amusement',''),
                                      ('g3017', ): ('informatief', ''),
                                      ('g301721', ): ('Nieuws/Actualiteiten', ''),
+                                     ('g3017','g301721'): ('Nieuws/Actualiteiten', ''),
                                      ('g301724', ): (u'kunst/cultuur', u''),
                                      ('g3017', 'g301724'): (u'informatief', u'kunst/cultuur'),
-                                     ('g301725', ): (u'natuur', u''),
+                                     ('g301725'): (u'natuur', u''),
+                                     ('g3017', 'g301725', ): (u'natuur', u''),
                                      ('g301726', ): (u'religieus', u''),
+                                     ('g3017', 'g301726' ): (u'religieus', u''),
                                      ('g301727', ): (u'informatief, wetenschap', u''),
+                                     ('g3017', 'g301727',): (u'informatief, wetenschap', u''),
                                      ('g3018', ): ('informatief', 'Documentaire')}
         self.new_cattrans[7] = {}
 
@@ -961,15 +977,21 @@ class Configure:
                                      'talkshow': ('amusement', 'talkshow'),
                                      'varia': ('informatief', 'varia'),
                                      'zwart/wit film': ('film', ''),
-                                     ('serie', 'advocatenreeks'): (u'serie/soap', u''),
-                                     ('serie', 'dramareeks'): (u'serie/soap', u''),
-                                     ('serie', 'komische reeks'): (u'serie/soap', u''),
-                                     ('serie', 'minireeks'): (u'serie/soap', u''),
-                                     ('serie', 'misdaadreeks'): (u'serie/soap', u''),
-                                     ('serie', 'soapreeks'): (u'serie/soap', u''),
-                                     ('serie', 'thrillerreeks'): (u'serie/soap', u''),
-                                     ('serie', 'tragikomische reeks'): (u'serie/soap', u''),
-                                     ('serie', 'ziekenhuisreeks'): (u'serie/soap', u'')}
+                                     ('serie', 'actiereeks'): (u'serie/soap', u'actieserie'),
+                                     ('serie', 'advocatenreeks'): (u'serie/soap', u'advocatenserie'),
+                                     ('serie', 'avonturenreeks'): (u'serie/soap', u'avonturenserie'),
+                                     ('serie', 'detectivereeks'): (u'serie/soap', u'detectiveserie'),
+                                     ('serie', 'dramareeks'): (u'serie/soap', u'dramaserie'),
+                                     ('serie', 'fictiereeks'): (u'serie/soap', u'fictieserie'),
+                                     ('serie', 'jeugdreeks'): (u'jeugd', u'serie'),
+                                     ('serie', 'komische reeks'): (u'serie/soap', u'comedyserie'),
+                                     ('serie', 'minireeks'): (u'serie/soap', u'miniserie'),
+                                     ('serie', 'misdaadreeks'): (u'serie/soap', u'misdaadserie'),
+                                     ('serie', 'romantische reeks'): (u'serie/soap', u'romantische serie'),
+                                     ('serie', 'soapreeks'): (u'serie/soap', u'soap'),
+                                     ('serie', 'thrillerreeks'): (u'serie/soap', u'thrillerserie'),
+                                     ('serie', 'tragikomische reeks'): (u'serie/soap', u'tragikomische serie'),
+                                     ('serie', 'ziekenhuisreeks'): (u'serie/soap', u'ziekenhuisserie')}
         self.new_cattrans[9] = {}
 
         # The following two list get replaced by their sourcematching counterparts
@@ -1017,7 +1039,8 @@ class Configure:
                                                              8: u'npo.nl genres',
                                                              9: u'horizon.tv genres',
                                                              10: u'humo.be genres',
-                                                             11: u'vpro.nl genres'}
+                                                             11: u'vpro.nl genres',
+                                                             13: u'primo.eu genres'}
 
         self.sources = {}
 
@@ -1782,7 +1805,7 @@ class Configure:
                     if len(a) == 1:
                         continue
                     self.roletrans[a[0].lower().strip()] = a[1].strip()
-                elif type in (8, 9, 10):
+                elif type in (8, 9, 10, 11, 13):
                     source = type - 4
                     # split of the translation (if present) or supply an empty one
                     a = line.split('=',1)
@@ -3360,7 +3383,7 @@ class Configure:
         f.write(u'# converted according to the list further down.\n')
         f.write(u"# Notice you don't see any Movie category in the horizon list. This is ruled by\n")
         f.write(u'# a separate flag\n')
-        for index in (4, 5, 6, 7):
+        for index in (4, 5, 6, 7, 9):
             f.write(u'\n')
             f.write(u'[%s]\n' % self.__DEFAULT_SECTIONS__[index+4])
 
@@ -4825,7 +4848,7 @@ class FetchURL(Thread):
             self.result = self.get_page_internal(self.url, self.encoding)
 
         except:
-            log('An unexpected error "%s" has occured while fetching page: %s\n' %  (sys.exc_info()[1], self.url), 0)
+            log('An unexpected error "%s:%s" has occured while fetching page: %s\n' %  (sys.exc_info()[0], sys.exc_info()[1], self.url), 0)
             return None
 
     def find_html_encoding(self, httphead, htmlhead, default_encoding="default encoding"):
@@ -4840,7 +4863,7 @@ class FetchURL(Thread):
         if m:
             return m.group(1)
 
-        if default_encoding == "default encoding":
+        elif default_encoding == "default encoding":
             return config.httpencoding
 
         else:
@@ -4864,7 +4887,6 @@ class FetchURL(Thread):
             encoding = self.find_html_encoding(fp, bytes, encoding)
 
             try:
-                #~ log ('parse %s as %s\n' % (url, encoding))
                 page = bytes.decode(encoding, 'replace')
 
             except:
@@ -4880,6 +4902,10 @@ class FetchURL(Thread):
 
         except (urllib.HTTPError) as e:
             log('Cannot parse url %s: code=%s\n' % (url, e.code), 1, 1)
+            return None
+
+        except (socket.error):
+            log('Cannot retrieve full url %s: %s\n' % (url, sys.exc_info()[1]), 1, 1)
             return None
 
 # end FetchURL
@@ -5336,7 +5362,6 @@ class FetchData(Thread):
     It runs as a separate thread for every source
     """
     current_date = datetime.date.today().toordinal()
-    #~ current_date = datetime.datetime.now(CET_CEST).date().toordinal()
 
     def __init__(self, proc_id, source, detail_id, detail_url = '', isjson = False, detail_check = '', detail_processor = False):
         Thread.__init__(self)
@@ -8412,6 +8437,17 @@ class tvgidstv_HTML(FetchData):
                         if durl != '':
                             tdict['infourl'] = durl
 
+                    elif datatype== 'kijkwijzer':
+                        kw_val = d.find('div').get('class').strip()
+                        if kw_val != None and len(kw_val) > 27:
+                            kw_val = kw_val[27:]
+                            if kw_val in config.tvkijkwijzer.keys():
+                                if config.tvkijkwijzer[kw_val] not in tdict['kijkwijzer']:
+                                    tdict['kijkwijzer'].append(config.tvkijkwijzer[kw_val])
+
+                            elif config.write_info_files:
+                                infofiles.addto_detail_list(unicode('new tvgids.tv kijkwijzer detail => ' + datatype + '=' + kw_val))
+
                     else:
                         if dtext != '':
                             if config.write_info_files:
@@ -10585,22 +10621,26 @@ class humo_JSON(FetchData):
                                         tdict['credits'][role['role']].append(self.unescape(role['name']))
 
                             if 'genres' in item['program'].keys():
-                                if item['program']['genres'][0] in config.source_cattrans[self.proc_id].keys():
+                                if item['program']['genres'][0] in config.source_cattrans[self.proc_id].keys() and \
+                                  config.source_cattrans[self.proc_id][item['program']['genres'][0]] != [u'Overige', u'']:
                                     tdict['genre'] = config.source_cattrans[self.proc_id][item['program']['genres'][0]][0]
                                     tdict['subgenre'] = config.source_cattrans[self.proc_id][item['program']['genres'][0]][1]
 
-                                elif 'sports-' in item['program']['genres'][0]:
-                                    tdict['genre'] = 'Sport'
-                                    sub = item['program']['genres'][0].split('-',1)[1].capitalize()
-                                    tdict['subgenre'] = sub
-                                    config.new_cattrans[self.proc_id][item['program']['genres'][0]] = (u'Sport', sub)
-
                                 else:
-                                    tdict['genre'] = 'Overige'
-                                    config.new_cattrans[self.proc_id][item['program']['genres'][0]] = (u'Overige', u'')
-                                    if config.write_info_files:
-                                        for gstr in item['program']['genres']:
-                                            infofiles.addto_detail_list('new humo genre => ' + gstr)
+                                    for g in  config.source_cattrans[self.proc_id].keys():
+                                        if g == item['program']['genres'][0][0:len(g)]:
+                                            tdict['genre'] = g
+                                            sub = '' if len(item['program']['genres'][0]) <= len(g)+1 else item['program']['genres'][0][len(g)+1:]
+                                            tdict['subgenre'] = sub
+                                            config.new_cattrans[self.proc_id][item['program']['genres'][0]] = (g, sub)
+                                            break
+
+                                    else:
+                                        tdict['genre'] = 'Overige'
+                                        config.new_cattrans[self.proc_id][item['program']['genres'][0]] = (u'Overige', u'')
+                                        if config.write_info_files:
+                                            for gstr in item['program']['genres']:
+                                                infofiles.addto_detail_list('new humo genre => ' + gstr)
 
                             else:
                                 tdict['genre'] = 'Overige'
@@ -11897,17 +11937,29 @@ class primo_HTML(FetchData):
 
             if (genre, subgenre) in config.source_cattrans[self.proc_id].keys():
                 tdict['genre'] = config.source_cattrans[self.proc_id][(genre, subgenre)][0]
-                tdict['subgenre'] = subgenre if config.source_cattrans[self.proc_id][(genre, subgenre)][1] == '' else config.source_cattrans[self.proc_id][(genre, subgenre)][1]
+                if config.source_cattrans[self.proc_id][(genre, subgenre)][1] == '':
+                    tdict['subgenre'] = subgenre
+
+                else:
+                    tdict['subgenre'] = config.source_cattrans[self.proc_id][(genre, subgenre)][1]
 
             elif genre in config.source_cattrans[self.proc_id].keys():
                 tdict['genre'] = config.source_cattrans[self.proc_id][genre][0]
-                tdict['subgenre'] = subgenre if config.source_cattrans[self.proc_id][genre][1] == '' else config.source_cattrans[self.proc_id][genre][1]
+                if config.source_cattrans[self.proc_id][genre][1] == '':
+                    tdict['subgenre'] = subgenre
+                    if subgenre != '':
+                        config.new_cattrans[self.proc_id][(genre, subgenre)] = (config.source_cattrans[self.proc_id][genre][0], subgenre)
+
+                else:
+                    tdict['subgenre'] = config.source_cattrans[self.proc_id][genre][1]
+
                 if config.write_info_files and subgenre != '':
                     infofiles.addto_detail_list(u'new primo-subgenre => %s: %s' % (genre, subgenre))
 
             elif genre != '':
                 tdict['genre'] = genre
                 tdict['subgenre'] = subgenre
+                config.new_cattrans[self.proc_id][(genre, subgenre)] = (genre, subgenre)
                 if config.write_info_files and subgenre != '':
                     infofiles.addto_detail_list(u'new primo-genre => %s: %s' % (genre, subgenre))
 
