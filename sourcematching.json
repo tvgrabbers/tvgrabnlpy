@@ -4,9 +4,9 @@
 	"version_message":"",
 	"warning_message":[
 		"TV5 Monde FBS has been split off from TV5 Monde Europe.\n",
--		"For xmltvID 6-97 the sourceid for Nieuwsblad.be has changed from tmf\n",
--		"to it's present name comedy-central (Flemish listing).\n",
--		"On Primo.eu it has changed to comedycentral.\n",
+		"For xmltvID 6-97 the sourceid for Nieuwsblad.be has changed from tmf\n",
+		"to it's present name comedy-central (Flemish listing).\n",
+		"On Primo.eu it has changed to comedycentral.\n",
 		"There is a new channel Spike (467) on tvgids.nl.\n",
 		"This channel shares with Nickelodeon. The new xmltvIDs are:\n",
 		"89: Only Nickelodeon Netherlands.\n",
