@@ -14,6 +14,18 @@
 		"467: Only Spike (21:00 - 2:30.\n",
 		"nickelodeon: Nickelodeon/Spike Netherlands.\n",
 		"8-nickelodeon: Nickelodeon/Spike Flanders.\n"],
+	"warning_message_2":{
+		"5":["For xmltvID 6-97 the sourceid for Nieuwsblad.be has changed from tmf\n",
+			"to it's replacement comedy-central (Flemish listing).\n",
+			"On Primo.eu it has changed to comedyscentral and on Humo to 113\n"],
+		"4":["There is a new channel Spike (467) on tvgids.nl.\n",
+			"This channel shares with Nickelodeon. The new xmltvIDs are:\n",
+			"89: Only Nickelodeon Netherlands.\n",
+			"6-73: Only Nickelodeon Flanders.\n",
+			"467: Only Spike (21:00 - 2:30.\n",
+			"nickelodeon: Nickelodeon/Spike Netherlands.\n",
+			"8-nickelodeon: Nickelodeon/Spike Flanders.\n"],
+		"2":["TV5 Monde FBS has been split off from TV5 Monde Europe.\n"]},
 	"active_sources":[7,0,1,5,6,8,2,4,9],
 	"channel_groups":{
 		"0":"Actieve Zenders",
@@ -989,7 +1001,7 @@
             "635928103349", "635928103350", "635928103351", "635928103352"],
 		"6":[],
 		"7":[],
-		"8":["op-12", "tv5", "bbc1"],
+		"8":["op-12", "tv5", "bbc1", "tmf"],
 		"9":[]},
 	"rtl_channellist":{
 		"RTL4": {"name": "RTL 4", "icon": "logo_rtl4_med_dark.png", "icongrp": 3},
