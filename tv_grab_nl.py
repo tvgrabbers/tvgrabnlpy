@@ -350,7 +350,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 7
-        self.patchdate = u'20151209'
+        self.patchdate = u'20151211'
         self.alfa = False
         self.beta = True
 
@@ -1849,6 +1849,9 @@ class Configure:
                 channel.group = 99
             for index in range(xml_output.source_count):
                 channel.source_id[index] = ''
+            if self.opt_dict['always_use_json'] and channel.icon_source != 99:
+                channel.icon_source = -1
+                channel.icon = ''
 
         db_icon = []
         db_channel = []
@@ -1859,6 +1862,9 @@ class Configure:
         # download the json feed
         xml_output.channelsource[0].init_channels()
         xml_output.channelsource[0].get_channels()
+        if config.write_info_files:
+            infofiles.check_new_channels(xml_output.channelsource[0])
+
         if not isinstance(self.channels, dict):
             self.channels = {}
 
@@ -1868,9 +1874,6 @@ class Configure:
         source_keys[0] = []
         for chan_scid in xml_output.channelsource[0].all_channels.keys():
             if (chan_scid.lower() in self.empty_channels[0]):
-                if config.write_info_files:
-                    infofiles.addto_detail_list(u'Empty channel on tvgids.nl => %s (%s)' % (chan_scid, xml_output.channelsource[0].all_channels[chan_scid]['name']))
-
                 continue
 
             source_keys[0].append(chan_scid)
@@ -1883,10 +1886,6 @@ class Configure:
             chan['name'] = xml_output.channelsource[0].all_channels[chan_scid]['name']
             chan['hd'] = False
             db_channel_source.append(chan)
-            if not chanid in self.source_channels[0].keys():
-                if config.write_info_files:
-                    infofiles.addto_detail_list(u'New channel on tvgids.nl => %s (%s)' % (chan_scid, chan['name']))
-
             if not chanid in self.channels.keys():
                 self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chan_scid]['name'])
 
@@ -1903,6 +1902,9 @@ class Configure:
         for index in (1, 6, 5, 2, 4, 7, 9, 8):
             xml_output.channelsource[index].init_channels()
             xml_output.channelsource[index].get_channels()
+            if config.write_info_files:
+                infofiles.check_new_channels(xml_output.channelsource[index])
+
             # a dict with coresponding source, id and chanid
             reverse_channels[index] = {}
             # a list of all ids for the source
@@ -1925,12 +1927,6 @@ class Configure:
 
                 else:
                     chanid = '%s-%s' % (index, chan_scid)
-                    if config.write_info_files:
-                        if chan_scid in self.empty_channels[index]:
-                            infofiles.addto_detail_list(u'Empty channel on %s => %s (%s)' % (xml_output.channelsource[index].source, chan_scid,channel['name']))
-
-                        else:
-                            infofiles.addto_detail_list(u'New channel on %s => %s (%s)' % (xml_output.channelsource[index].source, chan_scid,channel['name']))
 
                 chan ={}
                 chan['chanid'] = chanid
@@ -1980,7 +1976,7 @@ class Configure:
                 icon ={}
                 icon['sourceid'] = -1
                 icon['chanid'] = chanid
-                if 'icon' in channel:
+                if 'icon' in channel and channel['icon'] != '':
                     icon['sourceid'] = index if 'icongrp' not in channel else channel['icongrp']
                     icon['icon'] = channel['icon']
                     db_icon.append(icon)
@@ -2072,6 +2068,9 @@ class Configure:
             dv = int(githubdata["data_version"])
             nv = githubdata["program_version"]
             pv = u'%s.%s.%s' % (self.major, self.minor, self.patch)
+            if not "data_version" in self.opt_dict:
+                self.opt_dict["data_version"] = 0
+
             if pv < nv or (pv == nv and (self.alfa or self.beta)):
                 loglist = ['There is a newer stable release available on github!\n']
                 if "version_message" in githubdata:
@@ -2084,16 +2083,20 @@ class Configure:
                 loglist.append("Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n")
                 log(loglist, 0)
 
-            elif not with_configdata and (not "data_version" in self.opt_dict or dv > self.opt_dict["data_version"]):
+            elif dv > self.opt_dict["data_version"]:
                 loglist = ['The channel/source matching data on github is newer!\n']
-                if "warning_message" in githubdata:
-                    if isinstance(githubdata["warning_message"], (str, unicode)):
-                        loglist.append(githubdata["warning_message"])
+                if "warning_message_2" in githubdata:
+                    for v, tekst in githubdata["warning_message_2"].items():
+                        if int(v) > self.opt_dict["data_version"]:
+                            if isinstance(tekst, (str, unicode)):
+                                loglist.append(tekst)
 
-                    elif isinstance(githubdata["warning_message"], list):
-                        loglist.extend(githubdata["warning_message"])
+                            elif isinstance(tekst, list):
+                                loglist.extend(tekst)
 
-                loglist.append("Run with '--configure' to implement it\n")
+                if not with_configdata:
+                    loglist.append("Run with '--configure' to implement it\n")
+
                 log(loglist, 0)
 
             # Check on disabled sources
@@ -2133,30 +2136,31 @@ class Configure:
             # Read the tables only needed during configuring
             if with_configdata:
                 self.opt_dict["data_version"] = dv
-                self.chan_group_sorted = []
-                self.chan_groups = {}
-                for g, v in githubdata["channel_groups"].items():
-                    self.chan_group_sorted.append(int(g))
-                    self.chan_groups[int(g)] = v
 
-                self.chan_group_sorted.sort()
-                self.source_channels = {}
-                for s, v in githubdata["source_channels"].items():
-                    self.source_channels[int(s)] = v
+            self.chan_group_sorted = []
+            self.chan_groups = {}
+            for g, v in githubdata["channel_groups"].items():
+                self.chan_group_sorted.append(int(g))
+                self.chan_groups[int(g)] = v
 
-                self.empty_channels = {}
-                for s, v in githubdata["empty_channels"].items():
-                    self.empty_channels[int(s)] = v
+            self.chan_group_sorted.sort()
+            self.source_channels = {}
+            for s, v in githubdata["source_channels"].items():
+                self.source_channels[int(s)] = v
 
-                self.channel_grouping = {}
-                for s, v in githubdata["channel_grouping"].items():
-                    self.channel_grouping[int(s)] = {}
-                    for g, clist in v.items():
-                        self.channel_grouping[int(s)][int(g)] = clist
+            self.empty_channels = {}
+            for s, v in githubdata["empty_channels"].items():
+                self.empty_channels[int(s)] = v
 
-                xml_output.logo_names = githubdata["logo_names"]
-                self.rtl_channellist = githubdata["rtl_channellist"]
-                self.channel_rename = githubdata["channel_rename"]
+            self.channel_grouping = {}
+            for s, v in githubdata["channel_grouping"].items():
+                self.channel_grouping[int(s)] = {}
+                for g, clist in v.items():
+                    self.channel_grouping[int(s)][int(g)] = clist
+
+            xml_output.logo_names = githubdata["logo_names"]
+            self.rtl_channellist = githubdata["rtl_channellist"]
+            self.channel_rename = githubdata["channel_rename"]
 
         except:
             log(['Error reading the datafile on github.\n', traceback.print_exc()], 0)
@@ -3550,12 +3554,32 @@ class InfoFiles:
         self.raw_string = ''
         self.fetch_strings = {}
         self.info_lock = Lock()
+        self.cache_return = Queue()
 
     def open_files(self):
 
         if config.write_info_files:
             self.fetch_list = config.open_file(config.xmltv_dir + '/fetched-programs','w')
             self.raw_output =  config.open_file(config.xmltv_dir+'/raw_output', 'w')
+
+    def check_new_channels(self, source):
+        if not config.write_info_files:
+            return
+
+        if source.all_channels == {}:
+            source.get_channels()
+
+        #~ xml_output.program_cache.cache_request.put({'task':'query', 'parent': self,
+                                               #~ 'chan_scid': {'sourceid': str(source.proc_id)}})
+        #~ old_channels = self.cache_return.get(True)
+
+        for chan_scid, channel in source.all_channels.items():
+            if not (chan_scid in config.source_channels[source.proc_id].values() or chan_scid in config.empty_channels[source.proc_id]):
+                log( u'New channel on %s => %s (%s)\n' % (source.source, chan_scid, channel['name']))
+
+        for chanid, chan_scid in config.source_channels[source.proc_id].items():
+            if not (chan_scid in source.all_channels.keys() or chan_scid in config.empty_channels[source.proc_id]):
+                log( u'Removed channel on %s => %s (%s)\n' % (source.source, chan_scid, chanid))
 
     def addto_raw_string(self, string):
         if config.write_info_files:
@@ -3882,7 +3906,7 @@ class ProgramCache(Thread):
                         qanswer = None
 
                     else:
-                        for t in ('pid', 'ttvdb', 'ep_by_id', 'ep_by_title'):
+                        for t in ('pid', 'ttvdb', 'ttvdb_aliasses', 'ttvdb_langs', 'ep_by_id', 'ep_by_title', 'icon', 'chan_group', 'chan_scid'):
                             if t in crequest:
                                 qanswer = self.query(t, crequest[t])
                                 break
@@ -4560,13 +4584,26 @@ class ProgramCache(Thread):
 
                 return scids
 
-            else:
+            elif 'chanid' in item and 'sourceid' in item:
                 pcursor.execute(u"SELECT scid FROM channelsource WHERE chanid = ? and sourceid = ?", (item['chanid'], item['sourceid']))
                 r = pcursor.fetchone()
                 if r == None:
                     return
 
                 return scid
+
+            elif 'sourceid' in item:
+                pcursor.execute(u"SELECT scid, chanid, name FROM channelsource WHERE sourceid = ?", (item['sourceid']))
+                r = pcursor.fetchall()
+                scids = {}
+                if r != None:
+                    for g in r:
+                        if not g[0] in scids:
+                            scids[g[0]] ={}
+
+                        scids[g[0]] = {'chanid': g[1],'name': g[2]}
+
+                return scids
 
     def query_id(self, table='program', item=None):
         """
@@ -4904,7 +4941,7 @@ class FetchURL(Thread):
             log('Cannot parse url %s: code=%s\n' % (url, e.code), 1, 1)
             return None
 
-        except (socket.error):
+        except (httplib.IncompleteRead):
             log('Cannot retrieve full url %s: %s\n' % (url, sys.exc_info()[1]), 1, 1)
             return None
 
@@ -5530,6 +5567,9 @@ class FetchData(Thread):
                             for i in range(len(self.program_data[chanid])):
                                 self.program_data[chanid][i]['prefered description'] = self.program_data[chanid][i]['description']
 
+            if config.write_info_files:
+                infofiles.check_new_channels(self)
+
             if self.detail_processor and  not self.proc_id in config.opt_dict['disable_detail_source']:
                 # We process detail requests, so we loop till we are finished
                 self.cookyblock = False
@@ -5929,11 +5969,11 @@ class FetchData(Thread):
                 if tdict['start-time'] == tdict['stop-time']:
                     self.program_data[chanid].remove(tdict)
 
-    def get_timestamp(self, offset):
+    def get_datestamp(self, offset=0):
         tsnu = (int(time.time()/86400)) * 86400
         day =  datetime.datetime.fromtimestamp(tsnu)
         datenu = int(tsnu - CET_CEST.utcoffset(day).total_seconds())
-        if time.time() -  tsnu < CET_CEST.utcoffset(day).total_seconds():
+        if time.time() -  datenu > 86400:
             datenu += 86400
 
         return datenu + offset * 86400
@@ -8030,6 +8070,7 @@ class tvgidstv_HTML(FetchData):
         in all_channels.
         """
 
+        self.init_channels()
         try:
             strdata = config.get_page(self.get_url())
             if strdata == None:
@@ -10604,10 +10645,12 @@ class humo_JSON(FetchData):
                                         cstr = cstr.split('(')[1][:-1]
 
                                     if cstr in config.coutrytrans.values():
-                                        pass
+                                        tdict['country'] = cstr
+                                        break
 
                                     elif cstr in config.coutrytrans.keys():
-                                        pass
+                                        tdict['country'] = config.coutrytrans[cstr]
+                                        break
 
                                     elif config.write_info_files:
                                         infofiles.addto_detail_list(u'new country => %s' % (cstr))
@@ -10714,9 +10757,8 @@ class vpro_HTML(FetchData):
         """ General Site layout
         """
 
-        # These regexes are used to get the time offset (whiche day they see as today)
-        self.available_dates = re.compile('<div class="epg-available-days">(.*?)</div>',re.DOTALL)
         # These regexes fetch the relevant data out of the vpro.nl pages, which then will be parsed to the ElementTree
+        self.available_dates = re.compile('<div class="epg-available-days">(.*?)</div>',re.DOTALL)
         self.fetch_channellist = re.compile('<ul class="epg-channel-names">(.*?)</ul>',re.DOTALL)
         self.fetch_titels = re.compile('<h6 class="title">(.*?)</h6>',re.DOTALL)
         self.fetch_data = re.compile('<section class="section-with-layout component-theme theme-white">(.*?)</section>',re.DOTALL)
@@ -10760,6 +10802,7 @@ class vpro_HTML(FetchData):
 
     def get_channels(self):
 
+        self.init_channels()
         try:
             strdata = config.get_page(self.get_url())
             strdata = self.clean_html(strdata)
@@ -10767,7 +10810,7 @@ class vpro_HTML(FetchData):
             self.get_channel_lineup(strdata)
 
         except:
-            log(['An error ocured while retrieving the NPO channel info page.', traceback.format_exc()])
+            log(['An error ocured while retrieving the VPRO channel info page.', traceback.format_exc()])
 
     def get_channel_lineup(self, htmldata):
         chan_list = []
@@ -10839,10 +10882,12 @@ class vpro_HTML(FetchData):
                 cstr = re.split('/', subg2.group(1))
                 for c in cstr:
                     if c in config.coutrytrans.values():
-                        pass
+                        tdict['country'] = c
+                        break
 
                     elif c in config.coutrytrans.keys():
-                        pass
+                        tdict['country'] = config.coutrytrans[c]
+                        break
 
                     elif config.write_info_files:
                         infofiles.addto_detail_list(u'new country => %s' % (c))
@@ -11299,6 +11344,7 @@ class nieuwsblad_HTML(FetchData):
         in all_channels.
         """
 
+        self.init_channels()
         try:
             strdata = config.get_page(self.get_url('base'))
             self.get_channel_lineup(strdata)
@@ -11316,7 +11362,6 @@ class nieuwsblad_HTML(FetchData):
                                     'Engels': 3,
                                     'Overige': 99}
 
-        self.all_channels = {}
         self.chan_names = {}
         self.page_strings = {}
         try:
@@ -11447,7 +11492,6 @@ class nieuwsblad_HTML(FetchData):
 
             return
 
-        self.all_channels = None
         dayoffset = {}
         dayoffset['vandaag'] = 0
         dayoffset['morgen'] = 1
@@ -11492,7 +11536,7 @@ class nieuwsblad_HTML(FetchData):
                             self.fail_count += 1
                             continue
 
-                        if self.all_channels == None:
+                        if self.all_channels == {}:
                             self.get_channel_lineup(strdata)
 
                     except:
@@ -11639,7 +11683,7 @@ class primo_HTML(FetchData):
             return base_url + "/Tv%20programma's%20in%20volledig%20scherm%20bekijken"
 
         elif detail == None and isinstance(offset, int):
-            date = self.get_timestamp(offset)
+            date = self.get_datestamp(offset)
             return '%s/tv-programs-full-view/%s/all/all' % (base_url, date)
 
         else:
@@ -11651,6 +11695,7 @@ class primo_HTML(FetchData):
         in all_channels.
         """
 
+        self.init_channels()
         try:
             strdata = config.get_page(self.get_url('channels'))
             self.get_channel_lineup(strdata)
@@ -11661,8 +11706,6 @@ class primo_HTML(FetchData):
 
     def get_channel_lineup(self, chandata):
 
-        self.all_channels = {}
-        self.chan_names = {}
         try:
             if not isinstance(chandata, (str, unicode)):
                 chandata = config.get_page(self.get_url(0))
@@ -11679,7 +11722,13 @@ class primo_HTML(FetchData):
                 chanid = chan_string.group(1)
                 cname = chan_string.group(2)
                 icon_search = 'div[@id="program-channels-list-main"]/div/ul/li/div/a/img[@class="%s"]' % chanid
-                icon = re.split('/',htmldata.find(icon_search).get("src"))[-1]
+                icon = htmldata.find(icon_search)
+                if icon == None:
+                    icon = ''
+
+                else:
+                    icon = re.split('/',icon.get("src"))[-1]
+
                 if not chanid in self.all_channels.keys():
                     self.all_channels[chanid] = {}
                     self.all_channels[chanid]['name'] = cname
@@ -11723,6 +11772,9 @@ class primo_HTML(FetchData):
                             self.fail_count += 1
                             continue
 
+                        if self.all_channels == {}:
+                            self.get_channel_lineup(strdata)
+
                     except:
                         log('Error: "%s" reading the primo.eu basepage for day %s.\n' % \
                             (sys.exc_info()[1], offset))
@@ -11737,7 +11789,7 @@ class primo_HTML(FetchData):
                         htmldata = htmldata.find('div/div[@id="tvprograms-main"]/div[@id="tvprograms"]')
                         sel_date = htmldata.findtext('div[@id="program-header-top"]/div/div[@id="dates"]/ul/li[@class="selected-date"]/a/span[@class="day"]')
                         if sel_date in ('', None) or datetime.date.fromordinal(self.current_date + offset).day != int(sel_date):
-                            log("Skip day=%d on Primo.eu. Wrong date: %s!\n" % (offset, sel_date))
+                            log("Skip day=%d on Primo.eu. Wrong date: %s(timestamp: %s!\n" % (offset, sel_date, self.get_datestamp(offset)))
                             failure_count += 1
                             self.fail_count += 1
                             continue
@@ -11906,10 +11958,12 @@ class primo_HTML(FetchData):
                         ddata = re.split(',', ddata)
                         for c in ddata:
                             if c in config.coutrytrans.values():
-                                pass
+                                tdict['country'] = cstr
+                                break
 
                             elif c in config.coutrytrans.keys():
-                                pass
+                                tdict['country'] = config.coutrytrans[cstr]
+                                break
 
                             elif config.write_info_files:
                                 infofiles.addto_detail_list(u'new country => %s' % (c))
