@@ -127,7 +127,7 @@ description_text = """
 # Modules we need
 import re, sys, codecs, locale, argparse
 import time, datetime, random, io, json, shutil
-import os, os.path, pickle
+import os, os.path, pickle, smtplib
 import traceback, socket, sqlite3, difflib
 try:
     import urllib.request as urllib
@@ -142,6 +142,7 @@ from threading import Thread, Lock, Event, active_count
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
 from Queue import Queue, Empty
+from email.mime.text import MIMEText
 try:
     unichr(42)
 except NameError:
@@ -218,6 +219,7 @@ class Logging(Thread):
         self.graphic_frontend = False
         self.log_queue = Queue()
         self.log_output = None
+        self.log_string = []
         try:
             codecs.lookup(locale.getpreferredencoding())
             self.local_encoding = locale.getpreferredencoding()
@@ -234,6 +236,9 @@ class Logging(Thread):
         while True:
             try:
                 if self.quit and self.log_queue.empty():
+                    if config.opt_dict['mail_log']:
+                        config.send_mail(self.log_string, config.opt_dict['mail_log_address'])
+
                     return(0)
 
                 try:
@@ -307,9 +312,13 @@ class Logging(Thread):
                     for i in range(len(message)):
                         if message[i] != '':
                             self.log_output.write(now() + message[i] + '\n')
+                            if config.opt_dict['mail_log']:
+                                self.log_string.append(now() + message[i] + '\n')
 
                 else:
                     self.log_output.write(now() + message + '\n')
+                    if config.opt_dict['mail_log']:
+                        self.log_string.append(now() + message + '\n')
 
                 self.log_output.flush()
 
@@ -350,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 7
-        self.patchdate = u'20151211'
+        self.patchdate = u'20151214'
         self.alfa = False
         self.beta = True
 
@@ -428,6 +437,13 @@ class Configure:
 
         # where the output goes. None means to the screen (stdout)
         self.opt_dict['output_file'] = None
+
+        # some variables for mailing the log
+        self.opt_dict['mail_log'] = False
+        self.opt_dict['mailserver'] = 'localhost'
+        self.opt_dict['mailport'] = 25
+        self.opt_dict['mail_log_address'] = 'postmaster'
+        self.opt_dict['mail_info_address'] = None
 
         # how many seconds to wait before we timeout on a
         # url fetch, 10 seconds seems reasonable
@@ -1454,7 +1470,7 @@ class Configure:
                 a = re.split('=',line)
                 cfg_option = a[0].lower().strip()
                 # Boolean Values
-                if cfg_option in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', \
+                if cfg_option in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mail_log', \
                   'mark_hd', 'use_utc', 'disable_ttvdb', 'use_split_episodes', 'group_active_channels', 'always_use_json'):
                     if len(a) == 1:
                         self.opt_dict[cfg_option] = True
@@ -1465,14 +1481,19 @@ class Configure:
                     else:
                         self.opt_dict[cfg_option] = False
 
-                elif cfg_option == 'output_file':
-                    self.opt_dict['output_file'] = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1].strip()
+                # String values that can be None
+                elif cfg_option in ('output_file', 'mail_info_address'):
+                    self.opt_dict[cfg_option] = None if (len(a) == 1 or a[1].lower().strip() == 'none') else a[1].strip()
 
                 elif len(a) == 2:
                     cfg_value = a[1].lower().strip()
                     if cfg_option == 'use_npo':
                         if cfg_value in ('false', '0' , 'off'):
                             self.validate_option('disable_source', value = 4)
+
+                    # String values
+                    elif cfg_option in ('mailserver', 'mail_log_address'):
+                        self.opt_dict[cfg_option] = a[1].strip()
 
                     # Select Values
                     elif cfg_option == 'overlap_strategy':
@@ -1490,7 +1511,7 @@ class Configure:
                             self.opt_dict[cfg_option] = 'none'
 
                     # Integer Values
-                    elif cfg_option in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', \
+                    elif cfg_option in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'mailport', \
                       'max_overlap', 'desc_length', 'disable_source', 'disable_detail_source', 'data_version'):
                         try:
                             cfg_value = int(cfg_value)
@@ -2170,6 +2191,41 @@ class Configure:
 
     # get_sourcematching_file()
 
+    def send_mail(self, message, mail_address, subject=None):
+        try:
+            if isinstance(message, (list,tuple)):
+                msg = u''.join(message)
+
+            elif isinstance(message, (str,unicode)):
+                msg = unicode(message)
+
+            else:
+                return
+
+            if subject == None:
+                subject = 'Tv_grab_nl_py %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+
+            msg = MIMEText(msg, _charset='utf-8')
+            msg['Subject'] = subject
+            msg['From'] = mail_address
+            msg['To'] = mail_address
+            try:
+                mail = smtplib.SMTP(self.opt_dict['mailserver'], self.opt_dict['mailport'])
+
+            except:
+                sys.stderr.write(('Error mailing message: %s\n' % sys.exc_info()[1]).encode(logging.local_encoding, 'replace'))
+                return
+
+            mail.sendmail(mail_address, mail_address, msg.as_string())
+
+        except:
+            sys.stderr.write('Error mailing message\n'.encode(logging.local_encoding, 'replace'))
+            sys.stderr.write(traceback.format_exc())
+
+        mail.quit()
+
+    # send_mail()
+
     def validate_commandline(self):
         """Read the commandline and validate the values"""
         if self.read_commandline() == 0:
@@ -2836,6 +2892,9 @@ class Configure:
         f.write(u'group_active_channels = %s\n' % self.opt_dict['group_active_channels'])
         if self.write_info_files:
             f.write(u'write_info_files = True\n')
+            if self.opt_dict['mail_log'] and self.opt_dict['mail_info_address'] != None:
+                f.write(u'mail_info_address = %s\n' % self.opt_dict['mail_info_address'])
+
             f.write(u'\n')
         f.write(u'# This handles what goes to the log and screen\n')
         f.write(u'# 0 Nothing (use quiet mode to turns off screen output, but keep a log)\n')
@@ -2856,6 +2915,16 @@ class Configure:
         f.write(u'# 4 = Log matches\n')
         f.write(u'# 8 = Log group slots\n')
         f.write(u'match_log_level = %s\n' % self.opt_dict['match_log_level'])
+        f.write(u'mail_log = %s\n' % self.opt_dict['mail_log'])
+        f.write(u'# Set "mail_log" to True to send the log to the mailaddress below\n')
+        f.write(u'# Also set the mailserver and port apropriate\n')
+        f.write(u'# SSL/startTLS is NOT sopported at present. Neither is authentication\n')
+        f.write(u'# Make sure to first test on a console as mailing occures after \n')
+        f.write(u'# closing of the logfile!\n')
+
+        f.write(u'mail_log_address = %s\n' % self.opt_dict['mail_log_address'])
+        f.write(u'mailserver = %s\n' % self.opt_dict['mailserver'])
+        f.write(u'mailport = %s\n' % self.opt_dict['mailport'])
         f.write(u'\n')
         f.write(u'quiet = %s\n' % self.opt_dict['quiet'])
         f.write(u'output_file = %s\n' % self.opt_dict['output_file'])
@@ -3555,6 +3624,7 @@ class InfoFiles:
         self.fetch_strings = {}
         self.info_lock = Lock()
         self.cache_return = Queue()
+        self.lineup_changes = []
 
     def open_files(self):
 
@@ -3575,11 +3645,11 @@ class InfoFiles:
 
         for chan_scid, channel in source.all_channels.items():
             if not (chan_scid in config.source_channels[source.proc_id].values() or chan_scid in config.empty_channels[source.proc_id]):
-                log( u'New channel on %s => %s (%s)\n' % (source.source, chan_scid, channel['name']))
+                self.lineup_changes.append( u'New channel on %s => %s (%s)\n' % (source.source, chan_scid, channel['name']))
 
         for chanid, chan_scid in config.source_channels[source.proc_id].items():
             if not (chan_scid in source.all_channels.keys() or chan_scid in config.empty_channels[source.proc_id]):
-                log( u'Removed channel on %s => %s (%s)\n' % (source.source, chan_scid, chanid))
+                self.lineup_changes.append( u'Removed channel on %s => %s (%s)\n' % (source.source, chan_scid, chanid))
 
     def addto_raw_string(self, string):
         if config.write_info_files:
@@ -3684,6 +3754,12 @@ class InfoFiles:
     def close(self):
         if not config.write_info_files:
             return
+
+        if config.opt_dict['mail_log'] and len(self.lineup_changes) > 0:
+            if config.opt_dict['mail_info_address'] == None:
+                config.opt_dict['mail_info_address'] = config.opt_dict['mail_log_address']
+
+            config.send_mail(self.lineup_changes, config.opt_dict['mail_info_address'], 'Tv_grab_nl_py lineup changes')
 
         if self.fetch_list != None:
             for chanid in config.channels.keys():
@@ -5715,7 +5791,7 @@ class FetchData(Thread):
     # Dummys to be filled in by the sub-Classes
     def init_channels(self):
         """The specifig initiation code before starting with grabbing"""
-        pass
+        self.init_channel_source_ids(self)
 
     def init_json(self):
         """The specific initiation code if the source is json before starting with grabbing"""
@@ -5747,6 +5823,21 @@ class FetchData(Thread):
         return tdict
 
     # Helper functions
+    def init_channel_source_ids(self):
+        for chanid, channel in config.channels.iteritems():
+            self.program_data[chanid] = []
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                if channel.source_id[self.proc_id] != '' and chanid in config.source_channels[self.proc_id].keys():
+                    self.channels[chanid] = channel.source_id[self.proc_id]
+
+                if chanid in config.combined_channels.keys():
+                    for c in config.combined_channels[chanid]:
+                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
+                          and c in config.source_channels[self.proc_id].keys() \
+                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                            self.channels[c] = config.channels[c].source_id[self.proc_id]
+                            config.channels[c].is_child = True
+
     def checkout_program_dict(self, tdict = None):
         """
         Checkout a given dict for invalid values or
@@ -6749,7 +6840,7 @@ class FetchData(Thread):
 
         def set_main_id(tdict):
 
-            for s in xml_output.source_order:
+            for s in xml_output.sourceid_order:
                 if tdict[xml_output.channelsource[s].detail_id] != '':
                     tdict['ID'] = tdict[xml_output.channelsource[s].detail_id]
                     break
@@ -7414,19 +7505,7 @@ class tvgids_JSON(FetchData):
         self.url_channels = ''
         self.cooky_cnt = 0
 
-        for chanid, channel in config.channels.iteritems():
-            self.program_data[chanid] = []
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '':
-                    self.channels[chanid] = channel.source_id[self.proc_id]
-
-                if channel.chanid in config.combined_channels.keys():
-                    for c in config.combined_channels[channel.chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            config.channels[c].is_child = True
-
+        self.init_channel_source_ids()
         for channel in self.channels.values():
             if self.url_channels == '':
                 self.url_channels = channel
@@ -7989,18 +8068,7 @@ class tvgidstv_HTML(FetchData):
         self.daydata = re.compile('<div class="section-content">(.*?)<div class="advertisement">',re.DOTALL)
         self.detaildata = re.compile('<div class="section-title">(.*?)<div class="advertisement">',re.DOTALL)
 
-        for chanid, channel in config.channels.iteritems():
-            self.program_data[chanid] = []
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '':
-                    self.channels[chanid] = channel.source_id[self.proc_id]
-
-                if channel.chanid in config.combined_channels.keys():
-                    for c in config.combined_channels[channel.chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            config.channels[c].is_child = True
+        self.init_channel_source_ids()
 
     def get_url(self, channel = None, offset = 0, href = None):
 
@@ -8479,7 +8547,10 @@ class tvgidstv_HTML(FetchData):
                             tdict['infourl'] = durl
 
                     elif datatype== 'kijkwijzer':
-                        kw_val = d.find('div').get('class').strip()
+                        kw_val = d.find('div')
+                        if kw_val != None:
+                            kw_val = kw_val.get('class').strip()
+
                         if kw_val != None and len(kw_val) > 27:
                             kw_val = kw_val[27:]
                             if kw_val in config.tvkijkwijzer.keys():
@@ -8552,20 +8623,9 @@ class rtl_JSON(FetchData):
         self.page_loaded = False
         self.schedule = {}
 
-        for chanid, channel in config.channels.iteritems():
-            self.program_data[chanid] = []
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '':
-                    self.channels[chanid] = channel.source_id[self.proc_id]
-                    self.schedule[channel.source_id[self.proc_id]] =[]
-
-                if channel.chanid in config.combined_channels.keys():
-                    for c in config.combined_channels[channel.chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            self.schedule[config.channels[c].source_id[self.proc_id]] =[]
-                            config.channels[c].is_child = True
+        self.init_channel_source_ids()
+        for sourceid in self.channels.values():
+            self.schedule[sourceid] =[]
 
     def init_json(self):
 
@@ -8872,18 +8932,7 @@ class teveblad_HTML(FetchData):
                                     'div[@id="epg"]/div[@id="epg_c"]/div[@id="genrechanneloverview"]/'
         self.channelpath = basepath + 'div[@id="smallleftcol"]/div[@id="class="greyrounded"]'
 
-        for chanid, channel in config.channels.iteritems():
-            self.program_data[chanid] = []
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '':
-                    self.channels[chanid] = channel.source_id[self.proc_id]
-
-                if channel.chanid in config.combined_channels.keys():
-                    for c in config.combined_channels[channel.chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            config.channels[c].is_child = True
+        self.init_channel_source_ids()
 
     def get_url(self, date = '', channel = '', get_group = False):
 
@@ -9642,21 +9691,10 @@ class npo_HTML(FetchData):
             </div>
         """
 
+        self.init_channel_source_ids()
         self.chanids = {}
-        for chanid, channel in config.channels.iteritems():
-            self.program_data[chanid] = []
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '':
-                    self.channels[chanid] = channel.source_id[self.proc_id]
-                    self.chanids[channel.source_id[self.proc_id]] = chanid
-
-                if channel.chanid in config.combined_channels.keys():
-                    for c in config.combined_channels[channel.chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            self.chanids[config.channels[c].source_id[self.proc_id]] = c
-                            config.channels[c].is_child = True
+        for chanid, sourceid in self.channels.items():
+            self.chanids[sourceid] = chanid
 
     def get_url(self, offset = 0, href = None, vertical = False):
 
@@ -10183,22 +10221,8 @@ class horizon_JSON(FetchData):
     from the horizon.tv json pages. Based on FetchData
     """
     def init_channels(self):
-        # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
-        self.channels = {}
         self.url_channels = ''
-
-        for chanid, channel in config.channels.iteritems():
-            self.program_data[chanid] = []
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '':
-                    self.channels[chanid] = channel.source_id[self.proc_id]
-
-                if channel.chanid in config.combined_channels.keys():
-                    for c in config.combined_channels[channel.chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            config.channels[c].is_child = True
+        self.init_channel_source_ids()
 
     def init_json(self):
 
@@ -10467,23 +10491,10 @@ class humo_JSON(FetchData):
     """
     def init_channels(self):
 
-        self.channels = {}
+        self.init_channel_source_ids()
         self.chanids = {}
-
-        for chanid, channel in config.channels.iteritems():
-            self.program_data[chanid] = []
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '':
-                    self.channels[chanid] = channel.source_id[self.proc_id]
-                    self.chanids[channel.source_id[self.proc_id]] = chanid
-
-                if channel.chanid in config.combined_channels.keys():
-                    for c in config.combined_channels[channel.chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            self.chanids[config.channels[c].source_id[self.proc_id]] = c
-                            config.channels[c].is_child = True
+        for chanid, sourceid in self.channels.items():
+            self.chanids[sourceid] = chanid
 
     def init_json(self):
 
@@ -10773,22 +10784,11 @@ class vpro_HTML(FetchData):
         self.fetch_cast = re.compile('[Mm]et([. ]*): (.*?)e\.a\.')
         self.fetch_cast2 = re.compile('[Mm]et oa (.*?)\.')
 
+        self.init_channel_source_ids()
         self.availabe_days = []
         self.chanids = {}
-        for chanid, channel in config.channels.iteritems():
-            self.program_data[chanid] = []
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '':
-                    self.channels[chanid] = channel.source_id[self.proc_id]
-                    self.chanids[channel.source_id[self.proc_id]] = chanid
-
-                if channel.chanid in config.combined_channels.keys():
-                    for c in config.combined_channels[channel.chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            self.chanids[config.channels[c].source_id[self.proc_id]] = c
-                            config.channels[c].is_child = True
+        for chanid, sourceid in self.channels.items():
+            self.chanids[sourceid] = chanid
 
     def get_url(self, offset = None):
 
@@ -11309,18 +11309,7 @@ class nieuwsblad_HTML(FetchData):
         self.getprograms = re.compile("<!-- start block 'tvgids-left-center' -->(.*?)<!-- end block 'tvgids-left-center' -->",re.DOTALL)
         self.getchannelgroups = re.compile("<div id=\"accordion\" class=\"accordion\" data-accordion data-jq-plugin=\"accordion\">(.*?)<!-- end block 'tvgids-right-center' -->",re.DOTALL)
 
-        for chanid, channel in config.channels.iteritems():
-            self.program_data[chanid] = []
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '':
-                    self.channels[chanid] = channel.source_id[self.proc_id]
-
-                if channel.chanid in config.combined_channels.keys():
-                    for c in config.combined_channels[channel.chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            config.channels[c].is_child = True
+        self.init_channel_source_ids()
 
     def get_url(self, channel = None, offset = 0, chan_group = 0):
 
@@ -11661,21 +11650,10 @@ class primo_HTML(FetchData):
         self.getchannelstring = re.compile('(.*?) channel channel-(.*?) channel-.*?')
         self.getprogduur = re.compile('width:(\d+)px;')
 
+        self.init_channel_source_ids()
         self.chanids = {}
-        for chanid, channel in config.channels.iteritems():
-            self.program_data[chanid] = []
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '':
-                    self.channels[chanid] = channel.source_id[self.proc_id]
-                    self.chanids[channel.source_id[self.proc_id]] = chanid
-
-                if channel.chanid in config.combined_channels.keys():
-                    for c in config.combined_channels[channel.chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            self.chanids[config.channels[c].source_id[self.proc_id]] = c
-                            config.channels[c].is_child = True
+        for chanid, sourceid in self.channels.items():
+            self.chanids[sourceid] = chanid
 
     def get_url(self, offset = 0, detail = None):
         base_url = 'http://www.primo.eu'
@@ -12604,6 +12582,7 @@ class XMLoutput:
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl',
                                   5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be', 9:'primo.eu'}
         self.source_order = [7, 0, 1, 5, 9, 6, 8, 2, 4]
+        self.sourceid_order = [0, 9, 1, 2, 4, 7, 5, 6, 7, 8]
         self.source_count = len(self.sources)
         self.detail_sources = (0, 9, 1)
         self.prime_source_order = (2, 7, 0, 5, 4, 1, 9, 6, 8)
