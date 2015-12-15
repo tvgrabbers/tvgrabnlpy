@@ -10235,7 +10235,8 @@ class horizon_JSON(FetchData):
                 for icon in schedule['station']['images']:
                     if icon['assetType'] == 'station-logo-large' and icon['url'] != '':
                         icon = re.split('/', icon['url'])
-                        self.all_channels[chanid]['icon'] = '%s/%s/%s' % (icon[-3], icon[-2], icon[-1])
+                        #~ icon = '%s/%s/%s' % (icon[-3], icon[-2], icon[-1])
+                        self.all_channels[chanid]['icon'] = icon[-1].split('?')[0]
                         break
 
     def load_pages(self):
@@ -12539,7 +12540,7 @@ class XMLoutput:
                                         'http://s4.cdn.sanomamedia.be/a/epg/q100/w60/h/',
                                         'http://staticfiles.rtl.nl/styles/img/logos/',
                                         'http://212.142.41.211/ChannelLogos/02/',
-                                        'https://www.horizon.tv/static-images/',
+                                        'https://wp20-images-nl-dynamic.horizon.tv/ChannelLogos/02/',
                                         'http://img.humo.be/q100/w100/h100/epglogos/',
                                         'http://www-assets.npo.nl/uploads/',
                                         'http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/',
@@ -12659,7 +12660,24 @@ class XMLoutput:
             config.channels[chanid].chan_name, True))
         if (config.channels[chanid].opt_dict['logos']):
             if config.channels[chanid].icon_source in range(len(self.logo_provider)):
-                full_logo_url = self.logo_provider[config.channels[chanid].icon_source] + config.channels[chanid].icon
+                lpath = self.logo_provider[config.channels[chanid].icon_source]
+                lname = config.channels[chanid].icon
+                if config.channels[chanid].icon_source == 5 and lpath[-16:] == 'ChannelLogos/02/':
+                    if len(lname) > 16 and  lname[0:16] == 'ChannelLogos/02/':
+                        lname = lname[16:].split('?')[0]
+
+                    else:
+                        lname = lname.split('?')[0]
+
+                elif config.channels[chanid].icon_source == 5 and lpath[-16:] != 'ChannelLogos/02/':
+                    if len(lname) > 16 and  lname[0:16] == 'ChannelLogos/02/':
+                        lname = lname.split('?')[0]
+
+                    else:
+                        lpath = lpath + 'ChannelLogos/02/'
+                        lname = lname.split('?')[0]
+
+                full_logo_url = lpath + lname
                 self.xml_channels[xmltvid].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
 
             elif config.channels[chanid].icon_source == 99:
