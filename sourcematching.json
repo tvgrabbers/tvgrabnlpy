@@ -1,5 +1,5 @@
 {"description":"Dit bestand wordt vanaf versie 2.2.6 door configure van github gedownload en hoeft niet lokaal bewaard te worden",
-	"data_version":"6",
+	"data_version":"7",
 	"program_version":"2.2.6",
 	"version_message":"",
 	"warning_message":[
@@ -14,8 +14,12 @@
 		"467: Only Spike (21:00 - 2:30.\n",
 		"nickelodeon: Nickelodeon/Spike Netherlands.\n",
 		"8-nickelodeon: Nickelodeon/Spike Flanders.\n",
-		"Update on Ziggo Sport Racing (0-420/1-sport1-racing).\n"],
+		"Update on Ziggo Sport Racing (0-420/1-sport1-racing).\n",
+		"Horizon.tv (5) has changed the icon location and possibly iconnames.\n",
+		"The path is updated but to update the names run configure.\n"],
 	"warning_message_2":{
+		"7":["Horizon.tv (5) has changed the icon location and possibly iconnames.\n",
+			"The path is updated but to update the names run configure.\n"],
 		"6":["Update on Ziggo Sport Racing (0-420/1-sport1-racing).\n"],
 		"5":["For xmltvID 6-97 the sourceid for Nieuwsblad.be has changed from tmf\n",
 			"to it's replacement comedy-central (Flemish listing).\n",
