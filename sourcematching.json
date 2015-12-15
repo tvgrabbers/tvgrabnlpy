@@ -812,7 +812,9 @@
 			"9-tracetv": "tracetv"}},
 	"channel_rename":{
 		"0-17":"TV5 Monde Europe",
+		"0-99":"Ziggo Sport Select",
 		"0-304":"AMC",
+		"0-419":"Ziggo Sport Golf",
 		"0-420":"Ziggo Sport Racing",
 		"1-veronica":"Veronica / Disney XD",
 		"1-nickelodeon":"Nickelodeon/Spike",
@@ -832,17 +834,17 @@
 		"9":6,
 		"11":4},
 	"prime_source":{
-		"0-466":5,
+		"0-17":5,
 		"0-99":5,
 		"0-148":5,
 		"0-419":5,
 		"0-420":5,
 		"0-424":5,
+		"0-466":5,
 		"1-sport-1-2":5,
 		"1-sport-1-extra-1":5,
 		"1-sport1-extra-2":5,
-		"0-91":7,
-		"0-17":5},
+		"0-91":7},
 	"channel_grouping":{
 		"0":{
 			"1":[],
