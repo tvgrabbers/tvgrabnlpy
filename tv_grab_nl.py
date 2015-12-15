@@ -571,120 +571,29 @@ class Configure:
 
         # Create a role translation dictionary for the xmltv credits part
         # The keys are the roles used by tvgids.nl (lowercase please)
-        self.roletrans = {'regisseur'                         : 'director',
-                             'regie'                                        : 'director',
-                             'met'                                            : 'actor',
-                             'acteurs'                                    : 'actor',
-                             'acteursnamen_rolverdeling': 'actor',
-                             'gastacteur'                              : 'guest',
-                             'scenario'                                  : 'writer',
-                             'scenario schrijver'              : 'writer',
-                             'componist'                                : 'composer',
-                             'presentatie'                            : 'presenter',
-                             'presentator'                            : 'presenter',
-                             'verslaggever'                          : 'reporter',
-                             'commentaar'                              : 'commentator',
-                             'adapter'                                    : 'adapter',
-                             'producer'                                  : 'producer',
-                             'editor'                                      : 'editor'}
+        self.roletrans = {"regisseur"                         : "director",
+                             "regie"                                        : "director",
+                             "met"                                            : "actor",
+                             "acteurs"                                    : "actor",
+                             "acteursnamen_rolverdeling": "actor",
+                             "gastacteur"                              : "guest",
+                             "scenario"                                  : "writer",
+                             "scenario schrijver"              : "writer",
+                             "componist"                                : "composer",
+                             "presentatie"                            : "presenter",
+                             "presentator"                            : "presenter",
+                             "verslaggever"                          : "reporter",
+                             "commentaar"                              : "commentator",
+                             "adapter"                                    : "adapter",
+                             "producer"                                  : "producer",
+                             "editor"                                      : "editor"}
 
         # A list of countries with their 2 digit version:
-        self.coutrytrans = {'ARE':'AE',
-                                        'VAE':'AE',
-                                        'ARG':'AR',
-                                        'AUS':'AU',
-                                        'AUT':'AT',
-                                        'OOS':'AT',
-                                        'A':'AT',
-                                        'B':'BE',
-                                        'BEL':'BE',
-                                        'BLR':'BY',
-                                        'BGD':'BD',
-                                        'BRA':'BR',
-                                        'CAN':'CA',
-                                        'CHE':'CH',
-                                        'ZWI':'CH',
-                                        'CHN':'CN',
-                                        'COL':'CO',
-                                        'CUB':'CU',
-                                        'CYPRUS':'CY',
-                                        'CZE':'CZ',
-                                        'TSJ':'CZ',
-                                        'CS':'CZ',
-                                        'DEU':'DE',
-                                        'DDR':'DE',
-                                        'D':'DE',
-                                        'DNK':'DK',
-                                        'ESP':'ES',
-                                        'SP':'ES',
-                                        'FIN':'FI',
-                                        'F':'FR',
-                                        'FRA':'FR',
-                                        'GBR':'GB',
-                                        'GRC':'GR',
-                                        'HK':'HK',
-                                        'HRV':'HR',
-                                        'H':'HU',
-                                        'KRO':'HR',
-                                        'IRL':'IE',
-                                        'IER':'IE',
-                                        'IRN':'IR',
-                                        'I':'IT',
-                                        'IJS':'IS',
-                                        'ITA':'IT',
-                                        'IDN':'ID',
-                                        'IND':'IN',
-                                        'INDIA':'IN',
-                                        'ISR':'IL',
-                                        'JAM':'JM',
-                                        'JPN':'JP',
-                                        'J':'JP',
-                                        'KHM':'KH',
-                                        'LAO':'LA',
-                                        'LTU':'LT',
-                                        'LIT':'LT',
-                                        'LUX':'LU',
-                                        'L':'LU',
-                                        'M':'MT',
-                                        'MEX':'MX',
-                                        'MNE':'MN',
-                                        'NLD':'NL',
-                                        'NOR':'NO',
-                                        'N':'NO',
-                                        'NZL':'NZ',
-                                        'PAL':'PS',
-                                        'PER':'PE',
-                                        'POL':'PL',
-                                        'PRT':'PT',
-                                        'P':'PT',
-                                        'PSE':'PS',
-                                        'Q':'QA',
-                                        'ROM':'RO',
-                                        'RUS':'RU',
-                                        'SRB':'RS',
-                                        'SVK':'SK',
-                                        'SWE':'SE',
-                                        'ZWE':'SE',
-                                        'SYR':'SY',
-                                        'TUN':'TN',
-                                        'TZA':'TZ',
-                                        'USA':'US',
-                                        'VS':'US',
-                                        'ZK':'KR',
-                                        'ZAF':'ZA',
-                                        'RSA':'ZA'}
-                                        #~ '':'',
+        self.coutrytrans = {}
 
         # List of titles not to split with title_split().
         # these are mainly spin-off series like NCIS: Los Angeles
-        self.notitlesplit = [ u'ncis: los angeles',
-                                u'ncis: new orleans',
-                                u'csi: miami',
-                                u'csi: new york',
-                                u'law and order: special victims unit',
-                                u'law & order: special victims unit',
-                                u'law & order: criminal intent',
-                                u'law & order: svu']
+        self.notitlesplit = []
 
         # Parts to remove from a title
         self.groupnameremove = ['kro detectives', 'detectives', 'premiére']
@@ -2103,6 +2012,7 @@ class Configure:
             self.combined_channels = githubdata["combined_channels"]
             self.groupslot_names = githubdata["groupslot_names"]
             self.ttvdb_aliasses = githubdata["ttvdb_aliasses"]
+            self.coutrytrans = githubdata["coutrytrans"]
             for t in githubdata["notitlesplit"]:
                 if not t in self.notitlesplit:
                     self.notitlesplit.append(t)
@@ -3592,6 +3502,7 @@ class InfoFiles:
         self.info_lock = Lock()
         self.cache_return = Queue()
         self.lineup_changes = []
+        self.url_failure = []
 
     def open_files(self):
 
@@ -3617,6 +3528,9 @@ class InfoFiles:
         for chanid, chan_scid in config.source_channels[source.proc_id].items():
             if not (chan_scid in source.all_channels.keys() or chan_scid in config.empty_channels[source.proc_id]):
                 self.lineup_changes.append( u'Removed channel on %s => %s (%s)\n' % (source.source, chan_scid, chanid))
+
+    def add_url_failure(self, string):
+        self.url_failure.append(string)
 
     def addto_raw_string(self, string):
         if config.write_info_files:
@@ -3722,11 +3636,14 @@ class InfoFiles:
         if not config.write_info_files:
             return
 
-        if config.opt_dict['mail_log'] and len(self.lineup_changes) > 0:
-            if config.opt_dict['mail_info_address'] == None:
-                config.opt_dict['mail_info_address'] = config.opt_dict['mail_log_address']
+        if config.opt_dict['mail_info_address'] == None:
+            config.opt_dict['mail_info_address'] = config.opt_dict['mail_log_address']
 
+        if config.opt_dict['mail_log'] and len(self.lineup_changes) > 0:
             config.send_mail(self.lineup_changes, config.opt_dict['mail_info_address'], 'Tv_grab_nl_py lineup changes')
+
+        if config.opt_dict['mail_log'] and len(self.url_failure) > 0:
+            config.send_mail(self.url_failure, config.opt_dict['mail_info_address'], 'Tv_grab_nl_py url failures')
 
         if self.fetch_list != None:
             for chanid in config.channels.keys():
@@ -4929,6 +4846,9 @@ class FetchURL(Thread):
 
         except:
             log('An unexpected error "%s:%s" has occured while fetching page: %s\n' %  (sys.exc_info()[0], sys.exc_info()[1], self.url), 0)
+            if config.write_info_files:
+                infofiles.add_url_failure('$s,%s:\n  %s\n' % (sys.exc_info()[0], sys.exc_info()[1], self.url))
+
             return None
 
     def find_html_encoding(self, httphead, htmlhead, default_encoding="default encoding"):
@@ -4978,14 +4898,23 @@ class FetchURL(Thread):
 
         except (urllib.URLError) as e:
             log('Cannot open url %s: %s\n' % (url, e.reason), 1, 1)
+            if config.write_info_files:
+                infofiles.add_url_failure('URLError: %s\n' % url)
+
             return None
 
         except (urllib.HTTPError) as e:
             log('Cannot parse url %s: code=%s\n' % (url, e.code), 1, 1)
+            if config.write_info_files:
+                infofiles.add_url_failure('HTTPError: %s\n' % url)
+
             return None
 
         except (httplib.IncompleteRead):
             log('Cannot retrieve full url %s: %s\n' % (url, sys.exc_info()[1]), 1, 1)
+            if config.write_info_files:
+                infofiles.add_url_failure('IncompleteRead: %s\n' % url)
+
             return None
 
 # end FetchURL
@@ -12120,7 +12049,8 @@ class Channel_Config(Thread):
                         break
 
                 if len(xml_output.channelsource[index].program_data[self.chanid]) == 0:
-                    log('No Data from %s for channel: %s\n'% (xml_output.channelsource[index].source, self.chan_name))
+                    if not (index == 1 and 0 in self.merge_order):
+                        log('No Data from %s for channel: %s\n'% (xml_output.channelsource[index].source, self.chan_name))
 
                 elif self.source_data[index].is_set():
                     if xml_data == False:
