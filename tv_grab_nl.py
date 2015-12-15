@@ -1880,47 +1880,14 @@ class Configure:
         # These channels contain no data!
         source_keys = {}
         reverse_channels = {}
-        # download the json feed
-        xml_output.channelsource[0].init_channels()
-        xml_output.channelsource[0].get_channels()
-        if config.write_info_files:
-            infofiles.check_new_channels(xml_output.channelsource[0])
-
         if not isinstance(self.channels, dict):
             self.channels = {}
 
         for chanid, icon in xml_output.logo_names.items():
             db_icon.append({'sourceid': icon[0], 'chanid': str(chanid),'icon': icon[1]})
 
-        source_keys[0] = []
-        for chan_scid in xml_output.channelsource[0].all_channels.keys():
-            if (chan_scid.lower() in self.empty_channels[0]):
-                continue
-
-            source_keys[0].append(chan_scid)
-            chanid = '0-%s' % chan_scid
-            chan ={}
-            chan['chanid'] = chanid
-            chan['sourceid'] = 0
-            chan['scid'] = chan_scid
-            chan['cgroup'] = 99
-            chan['name'] = xml_output.channelsource[0].all_channels[chan_scid]['name']
-            chan['hd'] = False
-            db_channel_source.append(chan)
-            if not chanid in self.channels.keys():
-                self.channels[chanid] = Channel_Config(chanid, xml_output.channelsource[0].all_channels[chan_scid]['name'])
-
-            self.channels[chanid].source_id[0] = chan_scid
-            if chanid in xml_output.logo_names:
-                self.channels[chanid].icon_source = int(xml_output.logo_names[chanid][0])
-                if xml_output.logo_names[chanid][0] == '4':
-                    self.channels[chanid].icon = xml_output.logo_names[chanid][1] + '.png'
-
-                else:
-                    self.channels[chanid].icon = xml_output.logo_names[chanid][1] + '.gif'
-
-        # Get the other sources
-        for index in (1, 6, 5, 2, 4, 7, 9, 8):
+        # Get the sources
+        for index in (0, 1, 6, 5, 2, 4, 7, 9, 8):
             xml_output.channelsource[index].init_channels()
             xml_output.channelsource[index].get_channels()
             if config.write_info_files:
@@ -1941,7 +1908,7 @@ class Configure:
                 if not (chan_scid in self.empty_channels[index]):
                     source_keys[index].append(chan_scid)
 
-        for index in (1, 6, 5, 2, 4, 7, 9, 8):
+        for index in (0, 1, 6, 5, 2, 4, 7, 9, 8):
             for chan_scid, channel in xml_output.channelsource[index].all_channels.items():
                 if chan_scid in reverse_channels[index].keys():
                     chanid = reverse_channels[index][chan_scid]['chanid']
