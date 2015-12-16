@@ -11624,7 +11624,7 @@ class primo_HTML(FetchData):
 
         try:
             for retry in (0, 1):
-                for offset in range( config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 8)):
+                for offset in range( config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 7)):
                     failure_count = 0
                     if self.quit:
                         return
