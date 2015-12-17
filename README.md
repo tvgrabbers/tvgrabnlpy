@@ -37,6 +37,43 @@ Sinds versie 2.2:
 tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [horizon.tv](http://www.horizon.tv), [Humo.be](http://www.humo.be) and [VPRO.nl](http://www.vpro.nl) as a source.
 
 ###Release Notes Versie 2
+**p20151217**   version 2.2.7  
+* With a New Belgium Source Primo.eu. Supplying some extra Flemish channels and description etc. for channels, like the Flemish Regionals on nieuwsblad.be.
+* Some updates on handeling sourcematching.json
+* Some small updates.
+* Added log mailing option:
+set `mail_log = True` in your config and give a valid mailserver (default = localhost), mailport (default = 25) and mail_log_address (default = postmaster)
+You should test in a console as the log is already closed when sending it!
+* `sourcematching.json` moved to a separate repository https://github.com/tvgrabbers/sourcematching
+
+**p20151130**   version 2.2.6  
+* Updates on source linking and channelgrouping. Split between Dutch/Flemish listings and between French/German listings.  
+* New option `--group_active_channels` to add to `--configure` to group all active channels together on the top.
+* Added channel merging for combined channels like bbc3/cbbc and bbc4/cbeebies, Veronica/DisneyXD and Ketnet/Canvas+/Eén+. This can mean you have to change the XMLTVid.
+* The not merged XMLTVids are:
+  *  BBC 3:    300
+  *  BBC 4:    301
+  *  Cbeebies:    cbeebies
+  *  Ketnet:    8-ketnet
+  *  Eén+:    8-eenplus
+  *  Veronica:    34
+  *  Disney XD:    311  
+* The mergedd XMLTVids are:
+  *  BBC Three / CBBC:    5-24443943013
+  *  BBC Four / Cbeebies:    5-24443943080
+  *  Ketnet / Canvas+ / Eén+:    ketnet-canvas-2
+  *  Veronica / Disney XD:    veronica
+* All the data-tables needed by configure are moved to a separate file `sourcematching.json`. This file will be downloaded every run. This means also that the minimal required Python version has gone up to 2.7.9.
+Whenever this file is updated you get a message in your log to run `--configure`. Also when a new stable release is available you will get a message in your log!
+* Added config option `always_use_json`. This is by default on, but can be turned off if you have custom channel-names, groups or prime_sources. They then will be maintained, but also not all updates through `sourcematching.json` might come through. If a prime_source setting from `sourcematching.json` is ignored, it will be mentioned in your log.
+* Bugfix on vpro.nl source crashing on the end of the month.
+**p20151116**   version 2.2.5  
+* Especially for our Flemish users, nieuwsblad.be as a new source.  
+This adds some of the on humo.be removed channels AND Flemish Regional channels.  
+For now it has only time and title information (unless one of the other sources brings in more) and for 6 or 7 days ahead. Possibly at a later stage I can add the descriptions from their detail pages. But maybe someone knows a better source? Maybe also for extra (Flemish) radio channels?  
+* Further added new season/episode info from the tvgids.nl detail pages.  
+* And some fixes
+
 **p20151110**   version 2.2.4 
 * Updated humo.be source. See issue #46. xmltvid's originating from this source (starting with '6-') are no longer valid. They either changed or the channels where removed on the source!  
 * New vpro.nl source with especially more radio channels.  
