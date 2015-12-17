@@ -11,7 +11,7 @@
 
 ###Samenvatting
 
-tv_grab_nl_py is een [XMLTV](http://xmltv.org)-compatibele grabber voor Nederlandse en Vlaamse televisie die [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [horizon.tv](http://www.horizon.tv) [Humo.be](http://www.humo.be) en [VPRO.nl](http://www.vpro.nl) als bron gebruikt.
+tv_grab_nl_py is een [XMLTV](http://xmltv.org)-compatibele grabber voor Nederlandse en Vlaamse televisie die [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [Horizon.tv](http://www.horizon.tv), [Humo.be](http://www.humo.be), [VPRO.nl](http://www.vpro.nl), [NieuwsBlad.be](http://www.nieuwsblad.be) en [Primo.eu](http://www.primo.eu) als bron gebruikt.
 
 Prettige eigenschappen zijn:
   * detailinformatie wordt gecached
@@ -34,7 +34,7 @@ Sinds versie 2.2:
 
 ###English Summary
 
-tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [horizon.tv](http://www.horizon.tv), [Humo.be](http://www.humo.be) and [VPRO.nl](http://www.vpro.nl) as a source.
+tv_grab_nl_py is an [XMLTV](http://xmltv.org)-compatible grabber for Dutch and Flemish television that uses [TVGids.nl](http://www.tvgids.nl), [TVGids.tv](http://www.tvgids.tv), [RTL.nl](http://www.rtl.nl), [NPO.nl](http://www.npo.nl), [horizon.tv](http://www.horizon.tv), [Humo.be](http://www.humo.be), [VPRO.nl](http://www.vpro.nl), [Nieuwsblad.be](http://www.nieuwsblad.be) and [Primo.eu](http://www.primo.eu) as a source.
 
 ###Release Notes Versie 2
 **p20151217**   version 2.2.7  
