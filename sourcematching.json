@@ -1,7 +1,10 @@
 {"description":"Dit bestand wordt vanaf versie 2.2.6 door configure van github gedownload en hoeft niet lokaal bewaard te worden",
 	"data_version":"8",
-	"program_version":"2.2.6",
-	"version_message":"",
+	"program_version":"2.2.7",
+	"version_message":["With a new Flemish source Primo.eu. Supplying some extra Flemish channels\n",
+		"and description etc. for channels, like the Flemish Regionals on nieuwsblad.be.\n",
+		"Also new is the option to mail your log. See your updated configuration file\n",
+		"and the WIKI for details\n"],
 	"warning_message":[
 		"TV5 Monde FBS has been split off from TV5 Monde Europe.\n",
 		"For xmltvID 6-97 the sourceid for Nieuwsblad.be has changed from tmf\n",
