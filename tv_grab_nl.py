@@ -127,7 +127,7 @@ description_text = """
 # Modules we need
 import re, sys, codecs, locale, argparse
 import time, datetime, random, io, json, shutil
-import os, os.path, pickle, smtplib
+import os, os.path, pickle, smtplib, httplib
 import traceback, socket, sqlite3, difflib
 try:
     import urllib.request as urllib
@@ -359,9 +359,9 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 7
-        self.patchdate = u'20151214'
+        self.patchdate = u'20151217'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
@@ -1948,6 +1948,9 @@ class Configure:
 
         except(urllib.URLError, socket.timeout):
             log('get_page timed out on (>%s s): %s\n' % (self.global_timeout, url), 1, 1)
+            if self.write_info_files:
+                infofiles.add_url_failure('Fetch timeout: %s\n' % url)
+
             with xml_output.output_lock:
                 xml_output.fail_count += 1
 
@@ -1959,7 +1962,7 @@ class Configure:
             self.ttvdb_aliasses = {}
             self.prime_source = {}
             self.prime_source_groups = {}
-            url = 'https://raw.githubusercontent.com/tvgrabbers/tvgrabnlpy/master/sourcematching.json'
+            url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master/sourcematching.json'
             githubdata = json.loads(self.get_page(url, 'utf-8'))
             # Check on data or program updates
             dv = int(githubdata["data_version"])
