@@ -1843,6 +1843,7 @@ class Configure:
                 # These channels are for show, but we like the icons from source 2, 6 and 5!
                 if (chan_scid in self.empty_channels[index]):
                     chan['scid'] = ''
+                    chan_scid = ''
 
                 if not chanid in self.channels:
                     if (chan_scid in self.empty_channels[index]):
