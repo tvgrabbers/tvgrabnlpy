@@ -5726,17 +5726,32 @@ class FetchData(Thread):
     def init_channel_source_ids(self):
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
+            # Is the channel active and this source for the channel not disabled
             if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                if channel.source_id[self.proc_id] != '' and chanid in config.source_channels[self.proc_id].keys():
-                    self.channels[chanid] = channel.source_id[self.proc_id]
+                # Is there a sourceid for this channel
+                if channel.source_id[self.proc_id] != '':
+                    # Unless it is in empty channels we add it else set it ready
+                    if channel.source_id[self.proc_id] in config.empty_channels[self.proc_id]:
+                        self.channel_loaded[chanid] = True
+                        config.channels[chanid].source_data[self.proc_id].set()
 
+                    else:
+                        self.channels[chanid] = channel.source_id[self.proc_id]
+
+                # Does the channel have child channels
                 if chanid in config.combined_channels.keys():
+                    # Then see if any of the childs has a sourceid for this source and does not have this source disabled
                     for c in config.combined_channels[chanid]:
-                        if c in config.channels and config.channels[c].source_id[self.proc_id] != '' \
-                          and c in config.source_channels[self.proc_id].keys() \
+                        if c in config.channels.keys() and config.channels[c].source_id[self.proc_id] != '' \
                           and not self.proc_id in config.channels[c].opt_dict['disable_source']:
-                            self.channels[c] = config.channels[c].source_id[self.proc_id]
-                            config.channels[c].is_child = True
+                            # Unless it is in empty channels we add and mark it as a child else set it ready
+                            if config.channels[c].source_id[self.proc_id] in config.empty_channels[self.proc_id]:
+                                self.channel_loaded[c] = True
+                                config.channels[c].source_data[self.proc_id].set()
+
+                            else
+                                self.channels[c] = config.channels[c].source_id[self.proc_id]
+                                config.channels[c].is_child = True
 
     def checkout_program_dict(self, tdict = None):
         """
