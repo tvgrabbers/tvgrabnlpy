@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 7
-        self.patchdate = u'20151217'
+        self.patchdate = u'20151218'
         self.alfa = False
         self.beta = False
 
@@ -5749,7 +5749,7 @@ class FetchData(Thread):
                                 self.channel_loaded[c] = True
                                 config.channels[c].source_data[self.proc_id].set()
 
-                            else
+                            else:
                                 self.channels[c] = config.channels[c].source_id[self.proc_id]
                                 config.channels[c].is_child = True
 
