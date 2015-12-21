@@ -3521,10 +3521,6 @@ class InfoFiles:
         if source.all_channels == {}:
             source.get_channels()
 
-        #~ xml_output.program_cache.cache_request.put({'task':'query', 'parent': self,
-                                               #~ 'chan_scid': {'sourceid': str(source.proc_id)}})
-        #~ old_channels = self.cache_return.get(True)
-
         for chan_scid, channel in source.all_channels.items():
             if not (chan_scid in config.source_channels[source.proc_id].values() or chan_scid in config.empty_channels[source.proc_id]):
                 self.lineup_changes.append( u'New channel on %s => %s (%s)\n' % (source.source, chan_scid, channel['name']))
@@ -8056,7 +8052,6 @@ class tvgidstv_HTML(FetchData):
         in all_channels.
         """
 
-        self.init_channels()
         try:
             strdata = config.get_page(self.get_url())
             if strdata == None:
@@ -10721,7 +10716,6 @@ class vpro_HTML(FetchData):
 
     def get_channels(self):
 
-        self.init_channels()
         try:
             strdata = config.get_page(self.get_url())
             strdata = self.clean_html(strdata)
@@ -11252,7 +11246,6 @@ class nieuwsblad_HTML(FetchData):
         in all_channels.
         """
 
-        self.init_channels()
         try:
             strdata = config.get_page(self.get_url('base'))
             self.get_channel_lineup(strdata)
@@ -11592,7 +11585,6 @@ class primo_HTML(FetchData):
         in all_channels.
         """
 
-        self.init_channels()
         try:
             strdata = config.get_page(self.get_url('channels'))
             self.get_channel_lineup(strdata)
