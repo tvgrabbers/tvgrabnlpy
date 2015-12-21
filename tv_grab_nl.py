@@ -3453,7 +3453,7 @@ class Configure:
             infofiles.close()
 
         except:
-            log(['\n', 'An unexpected error has occured closing infofiles: %s\n' %  (sys.exc_info()[1])], 0)
+            log(['\n', 'An unexpected error has occured closing infofiles: %s\n' %  (traceback.print_exc())], 0)
 
         # Quiting any remaining Threads
             for source in xml_output.channelsource.values():
@@ -3658,7 +3658,7 @@ class InfoFiles:
 
                     if chanid in config.combined_channels:
                         for c in config.combined_channels[chanid]:
-                            if c in config.channels:
+                            if c in config.channels and config.channels[c].chan_name in self.fetch_strings[chanid]:
                                 self.fetch_list.write(self.fetch_strings[chanid][config.channels[c].chan_name])
 
 
@@ -6712,7 +6712,10 @@ class FetchData(Thread):
             tvgids_genre = tvgids_genre.lower().strip()
             tvgids_subgenre = tvgids_subgenre.lower().strip()
             other_genre = other_genre.lower().strip()
-            if  (tvgids_genre != '') and (other_genre == tvgids_genre):
+            if  (tvgids_genre == 'overige') or (other_genre == 'overige'):
+                return False
+
+            elif  (tvgids_genre != '') and (other_genre == tvgids_genre):
                 return True
 
             elif (other_genre == 'amusement'):
@@ -12065,14 +12068,15 @@ class Channel_Config(Thread):
 
                     # Check if the source is still alive
                     if not xml_output.channelsource[index].is_alive():
+                        self.source_data[index].set()
                         break
 
-                if len(xml_output.channelsource[index].program_data[self.chanid]) == 0:
-                    if not (index == 1 and 0 in self.merge_order):
-                        log('No Data from %s for channel: %s\n'% (xml_output.channelsource[index].source, self.chan_name))
+                if self.source_data[index].is_set():
+                    if len(xml_output.channelsource[index].program_data[self.chanid]) == 0:
+                        if not (index == 1 and 0 in self.merge_order):
+                            log('No Data from %s for channel: %s\n'% (xml_output.channelsource[index].source, self.chan_name))
 
-                elif self.source_data[index].is_set():
-                    if xml_data == False:
+                    elif xml_data == False:
                         # This is the first source with data, so we just take in the data
                         xml_data = True
                         prime_source = xml_output.channelsource[index].proc_id
