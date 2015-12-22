@@ -1959,10 +1959,51 @@ class Configure:
     # end get_page()
 
     def get_sourcematching_file(self, with_configdata = False):
+        def get_githubdict(gvar, intlevels = 0):
+            lvar = {}
+            try:
+                if not gvar in githubdata:
+                    return lvar.copy()
+
+                if intlevels == 0:
+                    return githubdata[gvar]
+
+                for s, v in githubdata[gvar].items():
+                    if intlevels == 1:
+                        lvar[int(s)] = v
+
+                    elif intlevels == 2:
+                        lvar[int(s)] = {}
+                        for g, clist in v.items():
+                            lvar[int(s)][int(g)] = clist
+
+                return lvar.copy()
+
+            except:
+                log('Error loading %s data from sourcematching!' % gvar)
+                return lvar.copy()
+
+        def get_githubdata(gvar, default = []):
+            try:
+                if not gvar in githubdata:
+                    if isinstance(default,(list, tuple)):
+                        return list(default)[:]
+
+                    else:
+                        return default
+
+                if isinstance(githubdata[gvar],list):
+                    lvar = default[:]
+                    for t in githubdata[gvar]:
+                        if not t in default:
+                            lvar.append(t)
+
+                    return lvar[:]
+
+            except:
+                return default
+
         try:
-            self.ttvdb_aliasses = {}
-            self.prime_source = {}
-            self.prime_source_groups = {}
             url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master/sourcematching.json'
             githubdata = json.loads(self.get_page(url, 'utf-8'))
             # Check on data or program updates
@@ -2000,75 +2041,55 @@ class Configure:
 
                 log(loglist, 0)
 
-            # Check on disabled sources
-            for c in xml_output.channelsource.keys():
-                if c not in githubdata["active_sources"]:
-                    self.validate_option('disable_source', value = c)
-
-            # Remove any source thatś not (jet) there
-            xml_output.source_order = []
-            for s in githubdata["active_sources"]:
-                if s in xml_output.channelsource.keys():
-                    xml_output.source_order.append(s)
-
-            # Read in the tables needed for normal grabbing
-            xml_output.logo_provider = githubdata["logo_provider"]
-            self.combined_channels = githubdata["combined_channels"]
-            self.groupslot_names = githubdata["groupslot_names"]
-            self.ttvdb_aliasses = githubdata["ttvdb_aliasses"]
-            self.coutrytrans = githubdata["coutrytrans"]
-            for t in githubdata["notitlesplit"]:
-                if not t in self.notitlesplit:
-                    self.notitlesplit.append(t)
-
-            # Remove any source thatś not (jet) there
-            xml_output.prime_source_order = []
-            for s in githubdata["prime_source_order"]:
-                if s in xml_output.channelsource.keys():
-                    xml_output.prime_source_order.append(s)
-
-            self.prime_source = githubdata["prime_source"]
-            for s, v in githubdata["prime_source_groups"].items():
-                self.prime_source_groups[int(s)] = v
-
-            for v in githubdata["user_agents"]:
-                if not v in self.user_agents:
-                    self.user_agents.append(v)
-
-            # Read the tables only needed during configuring
-            if with_configdata:
-                self.opt_dict["data_version"] = dv
-
-            self.chan_group_sorted = []
-            self.chan_groups = {}
-            for g, v in githubdata["channel_groups"].items():
-                self.chan_group_sorted.append(int(g))
-                self.chan_groups[int(g)] = v
-
-            self.chan_group_sorted.sort()
-            self.source_channels = {}
-            for s, v in githubdata["source_channels"].items():
-                self.source_channels[int(s)] = v
-
-            self.empty_channels = {}
-            for s, v in githubdata["empty_channels"].items():
-                self.empty_channels[int(s)] = v
-
-            self.channel_grouping = {}
-            for s, v in githubdata["channel_grouping"].items():
-                self.channel_grouping[int(s)] = {}
-                for g, clist in v.items():
-                    self.channel_grouping[int(s)][int(g)] = clist
-
-            xml_output.logo_names = githubdata["logo_names"]
-            self.rtl_channellist = githubdata["rtl_channellist"]
-            self.channel_rename = githubdata["channel_rename"]
-
         except:
+            githubdata = {}
             log(['Error reading the datafile on github.\n', traceback.print_exc()], 0)
             if with_configdata:
                 log(['Unable to continue with configure!\n'], 0)
                 return 2
+
+        # Check on disabled sources
+        active_sources = get_githubdata("active_sources")
+        for c in xml_output.channelsource.keys():
+            if c not in active_sources:
+                self.validate_option('disable_source', value = c)
+
+        # Remove any source that's not (jet) there
+        xml_output.source_order = active_sources[:]
+        for s in active_sources:
+            if not s in xml_output.channelsource.keys():
+                xml_output.source_order.remove(s)
+
+        # Remove any source that's not (jet) there
+        xml_output.prime_source_order = get_githubdata("prime_source_order")
+        for s in xml_output.prime_source_order[:]:
+            if not s in xml_output.channelsource.keys():
+                xml_output.prime_source_order.remove(s)
+
+        # Read in the tables needed for normal grabbing
+        xml_output.logo_provider = get_githubdata("logo_provider")
+        self.combined_channels = get_githubdict("combined_channels")
+        self.groupslot_names = get_githubdata("groupslot_names")
+        self.ttvdb_aliasses = get_githubdict("ttvdb_aliasses")
+        self.coutrytrans = get_githubdict("coutrytrans")
+        self.prime_source = get_githubdict("prime_source")
+        self.notitlesplit = get_githubdata("notitlesplit", self.notitlesplit)
+        self.user_agents = get_githubdata("user_agents", self.user_agents)
+
+        # Read the tables only needed during configuring
+        if with_configdata:
+            self.opt_dict["data_version"] = dv
+
+        xml_output.logo_names = get_githubdict("logo_names")
+        self.chan_groups = get_githubdict("channel_groups", 1)
+        self.chan_group_sorted = self.chan_groups.keys()
+        self.chan_group_sorted.sort()
+        self.prime_source_groups = get_githubdict("prime_source_groups", 1)
+        self.source_channels = get_githubdict("source_channels", 1)
+        self.empty_channels = get_githubdict("empty_channels", 1)
+        self.channel_grouping = get_githubdict("channel_grouping", 2)
+        self.rtl_channellist = get_githubdict("rtl_channellist")
+        self.channel_rename = get_githubdict("channel_rename")
 
     # get_sourcematching_file()
 
@@ -3528,6 +3549,10 @@ class InfoFiles:
         for chanid, chan_scid in config.source_channels[source.proc_id].items():
             if not (chan_scid in source.all_channels.keys() or chan_scid in config.empty_channels[source.proc_id]):
                 self.lineup_changes.append( u'Removed channel on %s => %s (%s)\n' % (source.source, chan_scid, chanid))
+
+        for chan_scid in config.empty_channels[source.proc_id]:
+            if not chan_scid in source.all_channels.keys():
+                self.lineup_changes.append( u"Empty channelID %s on %s doesn't exist\n" % (chan_scid, source.source))
 
     def add_url_failure(self, string):
         self.url_failure.append(string)
