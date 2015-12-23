@@ -1798,7 +1798,12 @@ class Configure:
         # Get the sources
         for index in (0, 1, 6, 5, 2, 4, 7, 9, 8):
             xml_output.channelsource[index].init_channels()
-            xml_output.channelsource[index].get_channels()
+            if xml_output.channelsource[index].get_channels() == 69:
+                log("Not all channel info could be retreived\n")
+                if not index in self.opt_dict['disable_source']:
+                    log("Try again in 15 minutes or disable the failing source")
+                    return 69
+
             if config.write_info_files:
                 infofiles.check_new_channels(xml_output.channelsource[index])
 
@@ -2075,6 +2080,7 @@ class Configure:
         self.prime_source = get_githubdict("prime_source")
         self.notitlesplit = get_githubdata("notitlesplit", self.notitlesplit)
         self.user_agents = get_githubdata("user_agents", self.user_agents)
+        self.no_genric_matching = get_githubdict("no_genric_matching", 1)
 
         # Read the tables only needed during configuring
         if with_configdata:
@@ -2246,7 +2252,9 @@ class Configure:
         if self.args.configure:
             self.args.group_active_channels = self.opt_dict['group_active_channels'] | self.args.group_active_channels
             log('Creating config file: %s\n' % self.config_file)
-            self.get_channels()
+            if self.get_channels() == 69:
+                return 69
+
             if not self.write_config(True):
                 log('Error writing new Config. Trying to restore an old one.\n')
                 try:
@@ -3165,6 +3173,9 @@ class Configure:
 
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
         for g in self.chan_group_sorted:
+            if g == 0 and not self.opt_dict['group_active_channels']:
+                continue
+
             f.write('\n')
             f.write('# %s\n' % self.chan_groups[g])
             chan_list[unicode(g)].sort(key=lambda channel: (channel['chan_string']))
@@ -7492,7 +7503,7 @@ class tvgids_JSON(FetchData):
         # download the json feed
         total = config.get_page(self.get_url(), 'utf-8')
         if total == None:
-            log("Don't write configuration file\n")
+            log("Unable to get channel info from %s\n" % self.source)
             return 69  # EX_UNAVAILABLE
 
         channel_list = json.loads(total)
@@ -8088,7 +8099,8 @@ class tvgidstv_HTML(FetchData):
 
         except:
             self.fail_count += 1
-            return None
+            log(["Unable to get channel info from %s\n" % self.source, traceback.format_exc()])
+            return 69  # EX_UNAVAILABLE
 
         self.all_channels ={}
         for changroup in htmldata.findall('div[@class="section"]'):
@@ -9659,7 +9671,9 @@ class npo_HTML(FetchData):
             self.get_channel_lineup(htmldata)
 
         except:
-            log(['An error ocured while retrieving the NPO channel info page.', traceback.format_exc()])
+            self.fail_count += 1
+            log(["Unable to get channel info from %s\n" % self.source, traceback.format_exc()])
+            return 69  # EX_UNAVAILABLE
 
     def get_channel_lineup(self, htmldata):
         chan_list = []
@@ -10187,7 +10201,8 @@ class horizon_JSON(FetchData):
         # download the json feed
         total = config.get_page(self.get_url(), 'utf-8')
         if total == None:
-            log("Don't write configuration file\n")
+            self.fail_count += 1
+            log("Unable to get channel info from %s\n" % self.source)
             return 69  # EX_UNAVAILABLE
 
         channel_list = json.loads(total)
@@ -10468,7 +10483,8 @@ class humo_JSON(FetchData):
         # download the json feed
         total = config.get_page(self.get_url(), 'utf-8')
         if total == None:
-            log("Don't write configuration file\n")
+            self.fail_count += 1
+            log("Unable to get channel info from %s\n" % self.source)
             return 69  # EX_UNAVAILABLE
 
         channel_list = json.loads(total)
@@ -10748,7 +10764,9 @@ class vpro_HTML(FetchData):
             self.get_channel_lineup(strdata)
 
         except:
-            log(['An error ocured while retrieving the VPRO channel info page.', traceback.format_exc()])
+            self.fail_count += 1
+            log(["Unable to get channel info from %s\n" % self.source, traceback.format_exc()])
+            return 69  # EX_UNAVAILABLE
 
     def get_channel_lineup(self, htmldata):
         chan_list = []
@@ -11277,7 +11295,8 @@ class nieuwsblad_HTML(FetchData):
 
         except:
             self.fail_count += 1
-            print traceback.format_exc()
+            log(["Unable to get channel info from %s\n" % self.source, traceback.format_exc()])
+            return 69  # EX_UNAVAILABLE
 
     def get_channel_lineup(self, chandata):
 
@@ -11612,11 +11631,14 @@ class primo_HTML(FetchData):
 
         try:
             strdata = config.get_page(self.get_url('channels'))
-            self.get_channel_lineup(strdata)
+            if self.get_channel_lineup(strdata) == 69:
+                log(["Unable to get channel info from %s\n" % self.source, traceback.format_exc()])
+                return 69  # EX_UNAVAILABLE
 
         except:
             self.fail_count += 1
-            log(traceback.format_exc())
+            log(["Unable to get channel info from %s\n" % self.source, traceback.format_exc()])
+            return 69  # EX_UNAVAILABLE
 
     def get_channel_lineup(self, chandata):
 
@@ -11652,6 +11674,7 @@ class primo_HTML(FetchData):
         except:
             self.fail_count += 1
             log(traceback.format_exc())
+            return 69
 
     def load_pages(self):
         if config.opt_dict['offset'] > 7:
