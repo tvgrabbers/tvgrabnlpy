@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 8
-        self.patchdate = u'20151220'
+        self.patchdate = u'20151222'
         self.alfa = True
         self.beta = True
 
@@ -1799,9 +1799,9 @@ class Configure:
         for index in (0, 1, 6, 5, 2, 4, 7, 9, 8):
             xml_output.channelsource[index].init_channels()
             if xml_output.channelsource[index].get_channels() == 69:
-                log("Not all channel info could be retreived\n")
+                log("Not all channel info could be retreived.\n")
                 if not index in self.opt_dict['disable_source']:
-                    log("Try again in 15 minutes or disable the failing source")
+                    log("Try again in 15 minutes or so; or disable the failing source.\n")
                     return 69
 
             if config.write_info_files:
@@ -6497,7 +6497,12 @@ class FetchData(Thread):
         Else the first available is used as set in xml_output.source_order
         """
 
+        no_genric_matching = False
         if prime_source in xml_output.channelsource:
+            cur_proc_id = config.channels[chanid].source_id[self.proc_id]
+            if cur_proc_id != '' and cur_proc_id in config.no_genric_matching[self.proc_id]:
+                no_genric_matching = True
+
             source_merge = True
             prime_source_name = xml_output.channelsource[prime_source].source
             other_source_name = self.source
@@ -6916,6 +6921,8 @@ class FetchData(Thread):
 
         # tdict is from info
         def check_match_to_info(tdict, pi, mstart, check_overlap = True, check_genre = True):
+            if no_genric_matching:
+                check_genre = False
 
             x = match_name(pi['name'], tdict['name'], pi['titel aflevering'])
             if x != None:
@@ -6930,7 +6937,7 @@ class FetchData(Thread):
             else:
                 return 0
 
-            if check_overlap:
+            if check_overlap and not no_genric_matching:
                 try:
                     mduur = (tdict['stop-time'] - tdict['start-time']).total_seconds()
                     pduur = (pi['stop-time'] - pi['start-time']).total_seconds()
@@ -6946,7 +6953,6 @@ class FetchData(Thread):
 
                     else:
                         merge_programs(tdict, pi, reverse_match=False, use_other_title = x)
-                        #~ add_using_tvgids_timing(tdict, pi, x)
 
                 except:
                     pass
@@ -7268,7 +7274,7 @@ class FetchData(Thread):
                         rcount += 1
 
             log_array.append('%6.0f programs generically matched on name to get genre\n' % rcount)
-            if rcount == 0:
+            if rcount == 0 or no_genric_matching:
                 break
 
         # Passing over generic timeslots that maybe detailed in the other
