@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 8
-        self.patchdate = u'20151222'
+        self.patchdate = u'20151223'
         self.alfa = True
         self.beta = True
 
@@ -1583,6 +1583,12 @@ class Configure:
                             if cfg_value in ('false', '0' , 'off'):
                                 self.validate_option('disable_source', self.channels[chanid], 4)
 
+                        # String values
+                        elif cfg_option in ('xmltvid_alias', ):
+                            self.channels[chanid].opt_dict[cfg_option] = cfg_value.strip()
+                            if cfg_option == 'xmltvid_alias':
+                                self.channels[chanid].xmltvid = cfg_value.strip()
+
                         # Select Values
                         elif cfg_option == 'overlap_strategy':
                             if cfg_value in ('average', 'stop', 'start'):
@@ -2431,17 +2437,27 @@ class Configure:
             def_value = -1
             if channel.group in self.prime_source_groups and channel.source_id[self.prime_source_groups[channel.group]] != '' \
                 and not (self.prime_source_groups[channel.group] in self.opt_dict['disable_source'] \
-                or self.prime_source_groups[channel.group] in channel.opt_dict['disable_source']):
+                or self.prime_source_groups[channel.group] in channel.opt_dict['disable_source'] \
+                or channel.source_id[self.prime_source_groups[channel.group]] in config.no_genric_matching[self.prime_source_groups[channel.group]]):
                     # A group default in sourcematching.json
                     def_value = self.prime_source_groups[channel.group]
 
             else:
                 for s in xml_output.prime_source_order:
                     if channel.source_id[s] != '' \
-                        and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source']):
-                            # The first available
+                        and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source'] \
+                        or channel.source_id[s] in config.no_genric_matching[s]):
+                            # The first available not set in no_genric_matching
                             def_value = s
                             break
+
+                else:
+                    for s in xml_output.prime_source_order:
+                        if channel.source_id[s] != '' \
+                            and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source']):
+                                # The first available
+                                def_value = s
+                                break
 
             # Now we check for a custom value
             if value == None:
@@ -2462,16 +2478,22 @@ class Configure:
                     json_value = self.prime_source[channel.chanid]
 
             if self.opt_dict['always_use_json']:
-                for v in (json_value, custom_value, def_value):
-                    if v != None:
+                for v in (json_value, custom_value):
+                    if v != None and not channel.source_id[v] in config.no_genric_matching[v]:
                         value = v
                         break
 
+                else:
+                    value = def_value
+
             else:
-                for v in (custom_value, json_value, def_value):
-                    if v != None:
+                for v in (custom_value, json_value):
+                    if v != None and not channel.source_id[v] in config.no_genric_matching[v]:
                         value = v
                         break
+
+                else:
+                    value = def_value
 
             if check_default:
                 return bool((value == def_value) or (value == -1))
@@ -2509,7 +2531,7 @@ class Configure:
 
             self.opt_dict['days'] = min(self.opt_dict['days'],(14 - self.opt_dict['offset']))
 
-            if self.opt_dict['slowdays'] == None:
+            if self.opt_dict['slowdays'] == None or self.opt_dict['slowdays'] > config.opt_dict['days']:
                 self.opt_dict['slowdays'] = config.opt_dict['days']
 
         elif option == 'output_file':
@@ -2713,12 +2735,15 @@ class Configure:
             elif index in self.opt_dict['disable_detail_source']:
                 log_array.append(u'No detailfetches from Source %s (%s)' % (index, xml_output.channelsource[index].source))
 
-        log_array.append(u'Channel specific settings other then the above:')
+        log_array.append(u'Channel specific settings other then the above (only for the active channels):')
         for chan_def in self.channels.values():
             if not (chan_def.active or chan_def.is_child):
                 continue
 
             log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
+            if chan_def.opt_dict['xmltvid_alias'] != None:
+                log_array.append(u'  xmltvID_alias = %s\n' % (chan_def.opt_dict['xmltvid_alias']))
+
             src_id = chan_def.opt_dict['prime_source']
             log_array.append(u'  prime_source = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
             if not self.opt_dict['always_use_json'] and chan_def.chanid in self.prime_source and self.prime_source[chan_def.chanid] != src_id:
@@ -2895,7 +2920,7 @@ class Configure:
         f.write(u'#     prime_source (0-8) is the source whose timings and titles are dominant\n')
         f.write(u'#     It defaults to 2 for rtl channels, 4 for NPO channels, 5 for Dutch regional\n')
         f.write(u'#     and 6 for group 2 and 9 (Flemmisch) channels or else the first available\n')
-        f.write(u'#     source as set in sourcematching.json (2, 4, 7, 0, 5, 1, 6, 8)\n')
+        f.write(u'#     source as set in sourcematching.json (2, 4, 7, 0, 5, 1, 9, 6, 8)\n')
         f.write(u'#     prefered_description (0-8) is the source whose description, if present,\n')
         f.write(u'#     is used. It defaults to the longest description found.\n')
         f.write(u'#     with disable_source and disable_detail_source you can disable a source\n')
@@ -2906,6 +2931,9 @@ class Configure:
         f.write(u'# String values:\n')
         f.write(u'#   overlap_strategy (With possible values): \n')
         f.write(u'#     average, stop, start; everything else sets it to none\n')
+        f.write(u'#   xmltvid_alias: This is a string value to be used in place of the chanid\n')
+        f.write(u'#     for the xmltvID. Be careful not to set it to an existing chanid.\n')
+        f.write(u'#     It can get set by configure on chanid changes! See also the WIKI\n')
         f.write(u'\n')
 
         def get_channel_string(chanid, active = None, chan_string = None, icon_string = None):
@@ -3240,6 +3268,15 @@ class Configure:
                     chan_name_written = True
 
                 f.write(u'append_tvgidstv = False\n')
+
+            if chan_def.opt_dict['xmltvid_alias'] != None and chan_def.opt_dict['xmltvid_alias'] != chan_def.chanid:
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
+
+                f.write(u'xmltvid_alias = %s\n' % (chan_def.opt_dict['xmltvid_alias']))
 
             if not self.validate_option('prime_source', chan_def, check_default = True):
                 if not chan_name_written:
@@ -12032,6 +12069,7 @@ class Channel_Config(Thread):
 
         self.opt_dict = {}
         self.prevalidate_opt = {}
+        self.opt_dict['xmltvid_alias'] = None
         self.opt_dict['disable_source'] = []
         self.opt_dict['disable_detail_source'] = []
         self.opt_dict['disable_ttvdb'] = False
@@ -12086,22 +12124,32 @@ class Channel_Config(Thread):
         try:
             # Create the merge order
             self.merge_order = []
+            last_merge = []
             if self.opt_dict['prime_source'] in xml_output.source_order \
               and (self.source_id[self.opt_dict['prime_source']] != '') \
               and not (self.opt_dict['prime_source'] in self.opt_dict['disable_source']) \
               and not (self.opt_dict['prime_source'] in config.opt_dict['disable_source']):
-                self.merge_order.append(self.opt_dict['prime_source'])
+                if self.source_id[self.opt_dict['prime_source']] in config.no_genric_matching[self.opt_dict['prime_source']]:
+                    last_merge.append(self.opt_dict['prime_source'])
+
+                else:
+                    self.merge_order.append(self.opt_dict['prime_source'])
 
             for index in xml_output.source_order:
                 if (self.source_id[index] != '') \
                   and index != self.opt_dict['prime_source'] \
                   and not (index in self.opt_dict['disable_source']) \
                   and not (index in config.opt_dict['disable_source']):
-                    self.merge_order.append(index)
+                    if self.source_id[index] in config.no_genric_matching[index]:
+                        last_merge.append(index)
+
+                    else:
+                        self.merge_order.append(index)
 
                 elif index != self.opt_dict['prime_source']:
                     self.source_data[index].set()
 
+            self.merge_order.extend(last_merge)
             xml_data = False
             # Retrieve and merge the data from the available sources.
             for index in self.merge_order:
