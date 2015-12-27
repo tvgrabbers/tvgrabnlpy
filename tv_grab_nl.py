@@ -487,6 +487,7 @@ class Configure:
         # enable this option if you were using tv_grab_nl, it adjusts the generated
         # xmltvid's so that everything works.
         self.opt_dict['compat'] = False
+        self.opt_dict['legacy_xmltvids'] = False
 
         # Maximum length in minutes of gaps/overlaps between programs to correct
         self.opt_dict['max_overlap'] = 10
@@ -976,13 +977,13 @@ class Configure:
         return tuple or string with version info
         """
         if as_string and self.alfa:
-            return u'%s (Version: %s.%s.%s-p%s-alpha)' % (self.name, self.major, self.minor, self.patch, self.patchdate)
+            return u'%s (Version: %s.%s.%s-p%s-alpha)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
 
         if as_string and self.beta:
-            return u'%s (Version: %s.%s.%s-p%s-beta)' % (self.name, self.major, self.minor, self.patch, self.patchdate)
+            return u'%s (Version: %s.%s.%s-p%s-beta)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
 
         if as_string and not self.beta:
-            return u'%s (Version: %s.%s.%s-p%s)' % (self.name, self.major, self.minor, self.patch, self.patchdate)
+            return u'%s (Version: %s.%s.%s-p%s)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
 
         else:
             return (self.name, self.major, self.minor, self.patch, self.patchdate, self.beta)
@@ -1180,6 +1181,10 @@ class Configure:
         parser.add_argument('-x', '--compat', action = 'store_true', default = None, dest = 'compat',
                         help = 'append tvgids.nl to the xmltv id\n(use this if you were using tv_grab_nl)')
 
+        parser.add_argument('-X', '--legacy_xmltvids', action = 'store_true', default = None, dest = 'legacy_xmltvids',
+                        help = 'remove as in pre 2.2.8 for source 0 and 1 the sourceid\n' +
+                                    'from the chanid to get the xmltvid.')
+
         parser.add_argument('-u', '--utc', action = 'store_true', default = None, dest = 'use_utc',
                         help = 'generate all data in UTC time (use with timezone "auto"\nin mythtv)')
 
@@ -1313,6 +1318,8 @@ class Configure:
         else:
             type = 0
             section = ''
+            if self.configversion < 2.208:
+                self.opt_dict['legacy_xmltvids'] = True
 
         # Read the configuration into the self.config_dict dictionary
         f.seek(0,0)
@@ -1380,7 +1387,8 @@ class Configure:
                 cfg_option = a[0].lower().strip()
                 # Boolean Values
                 if cfg_option in ('write_info_files', 'quiet', 'fast', 'compat', 'logos', 'cattrans', 'mail_log', \
-                  'mark_hd', 'use_utc', 'disable_ttvdb', 'use_split_episodes', 'group_active_channels', 'always_use_json'):
+                  'mark_hd', 'use_utc', 'disable_ttvdb', 'use_split_episodes', 'group_active_channels', \
+                  'always_use_json', 'legacy_xmltvids'):
                     if len(a) == 1:
                         self.opt_dict[cfg_option] = True
 
@@ -1567,7 +1575,7 @@ class Configure:
                     cfg_option = a[0].lower().strip()
                     # Boolean Values
                     if cfg_option in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', \
-                      'append_tvgidstv', 'disable_ttvdb', 'use_split_episodes'):
+                      'append_tvgidstv', 'disable_ttvdb', 'use_split_episodes', 'legacy_xmltvids'):
                         if len(a) == 1:
                             self.channels[chanid].opt_dict[cfg_option] = True
 
@@ -1586,8 +1594,6 @@ class Configure:
                         # String values
                         elif cfg_option in ('xmltvid_alias', ):
                             self.channels[chanid].opt_dict[cfg_option] = cfg_value.strip()
-                            if cfg_option == 'xmltvid_alias':
-                                self.channels[chanid].xmltvid = cfg_value.strip()
 
                         # Select Values
                         elif cfg_option == 'overlap_strategy':
@@ -2158,7 +2164,7 @@ class Configure:
                 self.validate_option(o)
                 return(0)
 
-        # Check config an log file
+        # Check config and log file
         if self.args.config_file != self.config_file:
             # use the provided name for configuration and logging
             self.config_file = self.args.config_file
@@ -2213,6 +2219,7 @@ class Configure:
             self.validate_option('disable_detail_source', value = s)
 
         for (a, o) in ((self.args.compat, 'compat'), \
+                              (self.args.legacy_xmltvids, 'legacy_xmltvids'), \
                               (self.args.fast, 'fast'), \
                               (self.args.logos, 'logos'), \
                               (self.args.mark_hd, 'mark_hd'), \
@@ -2719,6 +2726,7 @@ class Configure:
         log_array.append(u'days = %s' % (self.opt_dict['days']))
         log_array.append(u'slowdays = %s' % (self.opt_dict['slowdays']))
         log_array.append(u'compat = %s' % (self.opt_dict['compat']))
+        log_array.append(u'legacy_xmltvids = %s' % (self.opt_dict['legacy_xmltvids']))
         log_array.append(u'max_overlap = %s' % (self.opt_dict['max_overlap']))
         log_array.append(u'overlap_strategy = %s' % (self.opt_dict['overlap_strategy']))
         log_array.append(u'logos = %s' % (self.opt_dict['logos']))
@@ -2779,8 +2787,8 @@ class Configure:
             if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
                 log_array.append(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']))
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', \
-              'cattrans', 'disable_ttvdb', 'use_split_episodes'):
+            for val in ( 'fast', 'compat', 'legacy_xmltvids', 'max_overlap', 'overlap_strategy', \
+              'logos', 'desc_length', 'cattrans', 'disable_ttvdb', 'use_split_episodes'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     log_array.append(u'  %s = %s\n' % (val, chan_def.opt_dict[val]))
 
@@ -2802,7 +2810,7 @@ class Configure:
             return False
 
         f.write(u'# encoding: utf-8\n')
-        f.write(u'# configversion: %s.%s\n' % (self.major, self.minor))
+        f.write(u'# configversion: %s.%s%s\n' % (self.major, self.minor, '{:0>2}'.format(self.patch)))
         f.write(u'\n')
 
         # Save the options
@@ -2872,6 +2880,7 @@ class Configure:
 
         f.write(u'disable_ttvdb = %s\n' % self.opt_dict['disable_ttvdb'])
         f.write(u'compat = %s\n' % self.opt_dict['compat'])
+        f.write(u'legacy_xmltvids = %s\n' % self.opt_dict['legacy_xmltvids'])
         f.write(u'logos = %s\n' % self.opt_dict['logos'])
         f.write(u'use_utc = %s\n' % self.opt_dict['use_utc'])
         f.write(u'fast = %s\n' % self.opt_dict['fast'])
@@ -2906,8 +2915,8 @@ class Configure:
         f.write(u'# [Channel <channelID>], where <channelID> is the third item on the line, \n')
         f.write(u'# You can use the following tags:\n')
         f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
-        f.write(u'#   fast, compat, logos, cattrans, mark_hd, add_hd_id, append_tvgidstv\n')
-        f.write(u'#   disable_ttvdb, use_split_episodes\n')
+        f.write(u'#   fast, compat, legacy_xmltvids, logos, cattrans, mark_hd, add_hd_id,\n')
+        f.write(u'#   append_tvgidstv, disable_ttvdb, use_split_episodes\n')
         f.write(u'#     append_tvgidstv is True by default, which means: \'Don\'t get data\n')
         f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
         f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
@@ -3324,8 +3333,8 @@ class Configure:
 
                 f.write(u'disable_ttvdb = True\n')
 
-            for val in ( 'fast', 'compat', 'max_overlap', 'overlap_strategy', 'logos', 'desc_length', \
-              'cattrans', 'mark_hd', 'use_split_episodes'):
+            for val in ( 'fast', 'compat', 'legacy_xmltvids', 'max_overlap', 'overlap_strategy', \
+              'logos', 'desc_length', 'cattrans', 'mark_hd', 'use_split_episodes'):
                 if chan_def.opt_dict[val] != self.opt_dict[val]:
                     if not chan_name_written:
                         f.write(u'\n')
@@ -12037,8 +12046,7 @@ class Channel_Config(Thread):
         self.child_programs = []
         self.counter = 0
         self.chanid = chanid
-        self.xmltvid = chanid.split('-',1)
-        self.xmltvid = self.xmltvid[1] if int(self.xmltvid[0]) < 4 else chanid
+        self.xmltvid = self.chanid
         self.chan_name = name
         self.group = group
         self.source_id = {}
@@ -12080,6 +12088,7 @@ class Channel_Config(Thread):
         self.opt_dict['fast'] = config.opt_dict['fast']
         self.opt_dict['slowdays'] = config.opt_dict['slowdays']
         self.opt_dict['compat'] = config.opt_dict['compat']
+        self.opt_dict['legacy_xmltvids'] = config.opt_dict['legacy_xmltvids']
         self.opt_dict['max_overlap'] = config.opt_dict['max_overlap']
         self.opt_dict['overlap_strategy'] = config.opt_dict['overlap_strategy']
         self.opt_dict['logos'] = config.opt_dict['logos']
@@ -12107,6 +12116,13 @@ class Channel_Config(Thread):
         config.validate_option('slowdays', self)
         if self.group in (6, 8, 11, 12):
             self.opt_dict['disable_ttvdb'] = True
+
+        if self.opt_dict['xmltvid_alias'] != None:
+            self.xmltvid = self.opt_dict['xmltvid_alias']
+
+        elif (config.configversion < 2.208 or self.opt_dict['legacy_xmltvids'] == True):
+            xmltvid = self.chanid.split('-',1)
+            self.xmltvid = xmltvid[1] if int(xmltvid[0]) < 4 else self.chanid
 
     def run(self):
 
