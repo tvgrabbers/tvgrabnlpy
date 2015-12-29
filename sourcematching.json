@@ -4,7 +4,10 @@
 	"version_message":["With a new Flemish source Primo.eu. Supplying some extra Flemish channels\n",
 		"and description etc. for channels, like the Flemish Regionals on nieuwsblad.be.\n",
 		"Also new is the option to mail your log. See your updated configuration file\n",
-		"and the WIKI for details\n"],
+		"and the WIKI for details\n\n",
+		"As of version 2.2.7 the new datafile: sourcematching.json, has moved to its\n",
+		"own location. This present one won't get updated anymore and will be removed\n",
+		"somewhere in januari 2016. Please upgrade to 2.2.7 or higher!"],
 	"warning_message":[
 		"TV5 Monde FBS has been split off from TV5 Monde Europe.\n",
 		"For xmltvID 6-97 the sourceid for Nieuwsblad.be has changed from tmf\n",
