@@ -2126,6 +2126,7 @@ class Configure:
             if configuring:
                 if oldpresent:
                     logarray.append('We merged %s into %s\n' % (oldch['chanid'], newch))
+                    logarray.extend(oldch['message'])
                     # Initiate an alias if the old chanid is active
                     if oldactive and newactive:
                         logarray.append('Since both were active, we have not set an alias\n')
