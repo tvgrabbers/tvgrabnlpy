@@ -2172,7 +2172,7 @@ class Configure:
 
                     # And link the ids to the new chanid
                     for source, id in oldch['sources'].values():
-                        self.channels(newch).source_id[int(source)] = id
+                        self.channels[newch].source_id[int(source)] = id
 
             log(logarray, 0)
 
