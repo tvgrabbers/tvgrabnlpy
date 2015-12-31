@@ -2171,7 +2171,7 @@ class Configure:
                         self.combined_channels[newch].remove(oldch['chanid'])
 
                     # And link the ids to the new chanid
-                    for source, id in oldch['sources'].values():
+                    for source, id in oldch['sources'].items():
                         self.channels[newch].source_id[int(source)] = id
 
             log(logarray, 0)
@@ -6068,6 +6068,9 @@ class FetchData(Thread):
 
     def clean_html(self, data):
         """Process characters that interfere with ElementTree processing"""
+        if data == None:
+            return
+
         data = re.sub('&quot;', ' emprsant quot;', data)
         data = re.sub('&lt;', ' emprsant lt;', data)
         data = re.sub('&gt;', ' emprsant gt;', data)
@@ -11556,6 +11559,9 @@ class nieuwsblad_HTML(FetchData):
 
             return
 
+        if len(self.channels) == 0:
+            return
+
         dayoffset = {}
         dayoffset['vandaag'] = 0
         dayoffset['morgen'] = 1
@@ -11801,6 +11807,9 @@ class primo_HTML(FetchData):
                 self.channel_loaded[chanid] = True
                 config.channels[chanid].source_data[self.proc_id].set()
 
+            return
+
+        if len(self.channels) == 0:
             return
 
         try:
