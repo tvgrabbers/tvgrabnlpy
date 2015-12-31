@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 8
-        self.patchdate = u'20151223'
+        self.patchdate = u'20151230'
         self.alfa = True
         self.beta = True
 
@@ -1319,7 +1319,10 @@ class Configure:
             type = 0
             section = ''
             if self.configversion < 2.208:
+                log("Adding 'legacy_xmltvids = True'\n", 0)
                 self.opt_dict['legacy_xmltvids'] = True
+                if not self.args.configure:
+                    log("Run with '--configure' to make it permanent\n", 0)
 
         # Read the configuration into the self.config_dict dictionary
         f.seek(0,0)
@@ -1785,12 +1788,16 @@ class Configure:
         Get a list of all available channels and store these
         in a file.
         """
-        # First we clear out all existing source_id's, because they can have become invalid!
         for channel in self.channels.values():
-            if channel.group in (0, 8, 9, 10, 11):
-                channel.group = 99
+            # First we clear out all existing source_id's, because they can have become invalid!
             for index in range(xml_output.source_count):
                 channel.source_id[index] = ''
+
+            # These groupids have changed, so to be sure
+            if channel.group in (0, 8, 9, 10, 11):
+                channel.group = 99
+
+            # And all not custom set icons
             if self.opt_dict['always_use_json'] and channel.icon_source != 99:
                 channel.icon_source = -1
                 channel.icon = ''
@@ -1975,7 +1982,8 @@ class Configure:
             return None
     # end get_page()
 
-    def get_sourcematching_file(self, with_configdata = False):
+    def get_sourcematching_file(self, configuring = False):
+        # This gets grabed after reading the config
         def get_githubdict(gvar, intlevels = 0):
             lvar = {}
             try:
@@ -2053,7 +2061,7 @@ class Configure:
                             elif isinstance(tekst, list):
                                 loglist.extend(tekst)
 
-                if not with_configdata:
+                if not configuring:
                     loglist.append("Run with '--configure' to implement it\n")
 
                 log(loglist, 0)
@@ -2061,7 +2069,7 @@ class Configure:
         except:
             githubdata = {}
             log(['Error reading the datafile on github.\n', traceback.print_exc()], 0)
-            if with_configdata:
+            if configuring:
                 log(['Unable to continue with configure!\n'], 0)
                 return 2
 
@@ -2095,9 +2103,6 @@ class Configure:
         self.no_genric_matching = get_githubdict("no_genric_matching", 1)
 
         # Read the tables only needed during configuring
-        if with_configdata:
-            self.opt_dict["data_version"] = dv
-
         xml_output.logo_names = get_githubdict("logo_names")
         self.chan_groups = get_githubdict("channel_groups", 1)
         self.chan_group_sorted = self.chan_groups.keys()
@@ -2108,6 +2113,67 @@ class Configure:
         self.channel_grouping = get_githubdict("channel_grouping", 2)
         self.rtl_channellist = get_githubdict("rtl_channellist")
         self.channel_rename = get_githubdict("channel_rename")
+        self.merge_into = get_githubdict("merge_into")
+        if configuring:
+            self.opt_dict["data_version"] = dv
+
+        logarray = []
+        for newch, oldch  in self.merge_into.items():
+            newpresent = bool(newch in self.channels)
+            newactive = newpresent and self.channels[newch].active
+            oldpresent = bool(oldch['chanid'] in self.channels)
+            oldactive = oldpresent and self.channels[oldch['chanid']].active
+            if configuring:
+                if oldpresent:
+                    logarray.append('We merged %s into %s\n' % (oldch['chanid'], newch))
+                    # Initiate an alias if the old chanid is active
+                    if oldactive and newactive:
+                        logarray.append('Since both were active, we have not set an alias\n')
+                        logarray.append('If you want to use the old chanid %s as xmltvid\n' % oldch['chanid'])
+                        logarray.append('you have to add:\n')
+                        logarray.append('  xmltvid_alias = %s\n' % oldch['chanid'])
+                        logarray.append('to the channel configuration for %s\n' % newch)
+
+                    elif oldactive and self.channels[newch].opt_dict['xmltvid_alias'] == None:
+                        logarray.append('Since the old chanid was active, we have set an alias\n')
+                        logarray.append('  xmltvid_alias = %s\n' % oldch['chanid'])
+                        logarray.append('to the channel configuration for %s\n' % newch)
+                        self.channels[newch].opt_dict['xmltvid_alias'] = oldch['chanid']
+                        self.channels[newch].active = True
+
+                    elif oldactive:
+                        logarray.append('Since %s already has an xmltvid_alias set\n' % newch)
+                        logarray.append('we have not changed this.\n')
+                        logarray.append('If you want to use the old chanid %s as xmltvid\n' % oldch['chanid'])
+                        logarray.append('you have to change:\n')
+                        logarray.append('  xmltvid_alias = %s\n' % self.channels[newch].opt_dict['xmltvid_alias'])
+                        logarray.append('to:')
+                        logarray.append('  xmltvid_alias = %s\n' % oldch['chanid'])
+                        logarray.append('in the channel configuration for %s\n' % newch)
+                        self.channels[newch].active = True
+
+                    self.channels[oldch['chanid']].active = False
+                    logarray.append('We could not check for any selfset options on the old chanid: %s\n' % oldch['chanid'])
+                    logarray.append('So check the settings for the new chanid: %s\n' % newch)
+                    logarray.append('\n')
+
+                for source, id in oldch['sources'].items():
+                    # Link the ids from the old chanid to the new chanid
+                    if oldch['chanid'] in self.source_channels[int(source)]:
+                        self.source_channels[int(source)][newch] = self.source_channels[int(source)][oldch['chanid']]
+                        del self.source_channels[int(source)][oldch['chanid']]
+
+            else:
+                if newpresent:
+                    # Remove the old one from combined_channels if in there
+                    if newch in self.combined_channels.keys() and oldch['chanid'] in self.combined_channels[newch]:
+                        self.combined_channels[newch].remove(oldch['chanid'])
+
+                    # And link the ids to the new chanid
+                    for source, id in oldch['sources'].values():
+                        self.channels(newch).source_id[int(source)] = id
+
+            log(logarray, 0)
 
     # get_sourcematching_file()
 
