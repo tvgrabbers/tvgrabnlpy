@@ -359,8 +359,8 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 8
-        self.patchdate = u'20151230'
-        self.alfa = True
+        self.patchdate = u'20160101'
+        self.alfa = False
         self.beta = True
 
         self.cache_return = Queue()
