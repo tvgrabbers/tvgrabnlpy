@@ -360,7 +360,7 @@ class Configure:
         self.minor = 2
         self.patch = 8
         self.patchdate = u'20160101'
-        self.alfa = False
+        self.alfa = True
         self.beta = True
 
         self.cache_return = Queue()
@@ -1815,7 +1815,7 @@ class Configure:
             db_icon.append({'sourceid': icon[0], 'chanid': str(chanid),'icon': icon[1]})
 
         # Get the sources
-        for index in (0, 1, 6, 5, 2, 4, 7, 9, 8):
+        for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8):
             xml_output.channelsource[index].init_channels()
             if xml_output.channelsource[index].get_channels() == 69:
                 log("Not all channel info could be retreived.\n")
@@ -1841,7 +1841,7 @@ class Configure:
                 if not (chan_scid in self.empty_channels[index]):
                     source_keys[index].append(chan_scid)
 
-        for index in (0, 1, 6, 5, 2, 4, 7, 9, 8):
+        for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8):
             for chan_scid, channel in xml_output.channelsource[index].all_channels.items():
                 if chan_scid in reverse_channels[index].keys():
                     chanid = reverse_channels[index][chan_scid]['chanid']
@@ -1952,13 +1952,13 @@ class Configure:
 
     # end get_channels()
 
-    def get_page(self, url, encoding = "default encoding"):
+    def get_page(self, url, encoding = "default encoding", accept_header = None):
         """
         Wrapper around get_page_internal to catch the
         timeout exception
         """
         try:
-            fu = FetchURL(url, encoding)
+            fu = FetchURL(url, encoding, accept_header)
             fu.start()
             fu.join(self.global_timeout)
             page = fu.result
@@ -1982,7 +1982,7 @@ class Configure:
             return None
     # end get_page()
 
-    def get_sourcematching_file(self, configuring = False):
+    def get_sourcematching_file(self, configuring = False, show_info = True):
         # This gets grabed after reading the config
         def get_githubdict(gvar, intlevels = 0):
             lvar = {}
@@ -2048,7 +2048,8 @@ class Configure:
                         loglist.extend(githubdata["version_message"])
 
                 loglist.append("Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n")
-                log(loglist, 0)
+                if show_info:
+                    log(loglist, 0)
 
             elif dv > self.opt_dict["data_version"]:
                 loglist = ['The channel/source matching data on github is newer!\n']
@@ -2064,7 +2065,8 @@ class Configure:
                 if not configuring:
                     loglist.append("Run with '--configure' to implement it\n")
 
-                log(loglist, 0)
+                if show_info:
+                    log(loglist, 0)
 
         except:
             githubdata = {}
@@ -2446,6 +2448,7 @@ class Configure:
 
                 return tdict
         elif option == 'show_logo_sources':
+            self.get_sourcematching_file(show_info=False)
             if stdoutput:
                 print 'The available logo sources are:'
                 for i in range(len(xml_output.logo_provider)):
@@ -4980,11 +4983,12 @@ class FetchURL(Thread):
     """
     A simple thread to fetch a url with a timeout
     """
-    def __init__ (self, url, encoding = "default encoding"):
+    def __init__ (self, url, encoding = "default encoding", accept_header = None):
         Thread.__init__(self)
         self.url = url
         self.result = None
         self.encoding = encoding
+        self.accept_header = accept_header
 
     def run(self):
         with xml_output.output_lock:
@@ -5027,6 +5031,10 @@ class FetchURL(Thread):
         txtdata = None
         txtheaders = {'Keep-Alive' : '300',
                       'User-Agent' : config.user_agents[random.randint(0, len(config.user_agents)-1)] }
+
+        if self.accept_header != None:
+            txtheaders['Accept'] = self.accept_header
+
         try:
             rurl = urllib.Request(url, txtdata, txtheaders)
             fp = urllib.urlopen(rurl)
@@ -5835,7 +5843,7 @@ class FetchData(Thread):
 
     # Dummys to be filled in by the sub-Classes
     def init_channels(self):
-        """The specifig initiation code before starting with grabbing"""
+        """The specific initiation code before starting with grabbing"""
         self.init_channel_source_ids(self)
 
     def init_json(self):
@@ -5862,6 +5870,11 @@ class FetchData(Thread):
         """The code for the actual Grabbing and dataprocessing"""
         if len(self.channels) == 0 :
             return
+
+        else:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
 
     def load_detailpage(self, tdict):
         """The code for retreiving and processing a detail page"""
@@ -5959,9 +5972,9 @@ class FetchData(Thread):
         self.text_values = ('channelid', 'source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', 'rtl-ID', \
-              'npo-ID', 'horizon-ID', 'humo-ID', 'vpro-ID', 'nb-ID', 'primo-ID', 'nl-url', 'tv-url', \
-              'rtl-url', 'be-url', 'npo-url', 'horizon-url', 'humo-url', 'vpro-url', 'nb-url', \
-              'primo-url', 'infourl', 'audio', 'star-rating', 'country', 'omroep')
+              'npo-ID', 'horizon-ID', 'humo-ID', 'vpro-ID', 'nb-ID', 'primo-ID', 'vrt-ID', 'nl-url', \
+              'tv-url', 'rtl-url', 'be-url', 'npo-url', 'horizon-url', 'humo-url', 'vpro-url', 'nb-url', \
+              'primo-url', 'vrt-url', 'infourl', 'audio', 'star-rating', 'country', 'omroep')
         self.datetime_values = ('start-time', 'stop-time')
         self.date_values = ('airdate', )
         self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'primo-fetched', 'rerun', 'teletekst', \
@@ -12098,6 +12111,59 @@ class primo_HTML(FetchData):
 
 # end primo_HTML
 
+class vrt_JSON(FetchData):
+    def init_channels(self):
+        self.init_channel_source_ids()
+
+    def get_url(self, type = 'channels', offset = 0, id = None):
+
+        base_url = 'http://services.vrt.be/'
+
+        if type == 'channels':
+            return  u'%schannel/s' % (base_url)
+
+
+    def get_channels(self):
+        """
+        Get a list of all available channels and store these
+        in all_channels.
+        """
+
+        # download the json feed
+        total = config.get_page(self.get_url(), 'utf-8','application/vnd.channel.vrt.be.channels_1.1+json')
+        if total == None:
+            log("Unable to get channel info from %s\n" % self.source)
+            return 69  # EX_UNAVAILABLE
+
+        channel_list = json.loads(total)
+
+        # and create a file with the channels
+        self.all_channels ={}
+        for channel in channel_list['channels']:
+            # the json data has the channel names in XML entities.
+            chanid = channel['code']
+            self.all_channels[chanid] = {}
+            self.all_channels[chanid]['name'] = self.unescape(channel['displayName']).strip()
+            if channel['type'] == 'tv':
+                self.all_channels[chanid]['group'] = 2
+
+            elif channel['type'] == 'radio':
+                self.all_channels[chanid]['group'] = 12
+
+            else:
+                self.all_channels[chanid]['group'] = 99
+
+            icon = channel['logoUrl'].split('/')
+            if icon[2] == 'images.vrt.be':
+                self.all_channels[chanid]['icon'] =  '%s/%s' % (icon[-2] , icon[-1])
+                self.all_channels[chanid]['icongrp'] = 11
+
+            if icon[2] == 'services.vrt.be':
+                self.all_channels[chanid]['icon'] = icon[-1]
+                self.all_channels[chanid]['icongrp'] = 10
+
+# end vrt_JSON
+
 class Channel_Config(Thread):
     """
     Class that holds the Channel definitions and manages the data retrieval and processing
@@ -12685,14 +12751,15 @@ class XMLoutput:
                                         'http://2.nieuwsbladcdn.be/extra/assets/img/tvgids/',
                                         'http://www.primo.eu/sites/all/modules/primo_integrations/tv-logos/']
 
-        self.source_count = 10
+        self.source_count = 11
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl',
-                                  5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be', 9:'primo.eu'}
-        self.source_order = [7, 0, 1, 5, 9, 6, 8, 2, 4]
-        self.sourceid_order = [0, 9, 1, 2, 4, 7, 5, 6, 7, 8]
+                                  5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be', 9:'primo.eu',
+                                  10: 'vrt.be'}
+        self.source_order = [7, 0, 1, 5, 9, 6, 8, 2, 4, 10]
+        self.sourceid_order = [0, 9, 1, 2, 4, 7, 5, 6, 7, 8, 10]
         self.source_count = len(self.sources)
         self.detail_sources = (0, 9, 1)
-        self.prime_source_order = (2, 7, 0, 5, 4, 1, 9, 6, 8)
+        self.prime_source_order = (2, 4, 7, 0, 5, 1, 9, 6, 8, 10)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
@@ -12704,6 +12771,7 @@ class XMLoutput:
         self.channelsource[7] = vpro_HTML(7, 'vpro.nl', 'vpro-ID', 'vpro-url')
         self.channelsource[8] = nieuwsblad_HTML(8, 'nieuwsblad.be', 'nb-ID', 'nb-url')
         self.channelsource[9] = primo_HTML(9, 'primo.eu', 'primo-ID', 'primo-url', False, 'primo-fetched', True)
+        self.channelsource[10] = vrt_JSON(10, 'vrt.be', 'vrt-ID', 'vrt-url', True)
         self.output_lock = Lock()
         self.cache_return = Queue()
         self.ttvdb = theTVDB()
@@ -13114,12 +13182,13 @@ def main():
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
 
-        #~ test = nieuwsblad_HTML(8, 'nieuwsblad.be', 'nb-ID', 'nb-url')
+        #~ test = vrt_JSON(10, 'vrt.be', 'vrt-ID', 'vrt-url', True)
         #~ test.init_channels()
         #~ test.get_channels()
         #~ config.opt_dict['offset'] = 0
         #~ config.opt_dict['days'] = 1
         #~ test.load_pages()
+        #~ print config.get_page('http://services.vrt.be/channel/s', 'utf-8', 'application/vnd.channel.vrt.be.channels_1.0+json').encode('utf-8')
         #~ return
 
         # Start the seperate fetching threads
