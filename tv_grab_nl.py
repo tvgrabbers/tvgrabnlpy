@@ -1903,11 +1903,20 @@ class Configure:
                     icon['icon'] = channel['icon']
                     db_icon.append(icon)
 
-                    if self.channels[chanid].icon_source == -1 \
-                      or (index in (4, 5, 6) and self.channels[chanid].icon_source < 2) \
-                      or (index == 2 and self.channels[chanid].icon_source == 1):
+                for iconsource in xml_output.logo_source_preference:
+                    if self.channels[chanid].icon_source == iconsource:
+                        # A higher preference icon is already set
+                        break
+
+                    elif chanid in xml_output.logo_names.keys() and int(xml_output.logo_names[chanid][0]) == iconsource:
+                        self.channels[chanid].icon_source = int(xml_output.logo_names[chanid][0])
+                        self.channels[chanid].icon = xml_output.logo_names[chanid][1]
+                        break
+
+                    elif icon['sourceid'] == iconsource:
                         self.channels[chanid].icon_source = icon['sourceid']
                         self.channels[chanid].icon = icon['icon']
+                        break
 
                 db_channel_source.append(chan)
 
@@ -1915,17 +1924,6 @@ class Configure:
             # Some channel title renaming
             if self.opt_dict['always_use_json'] and channel.chanid in self.channel_rename.keys():
                 channel.chan_name = self.channel_rename[channel.chanid]
-
-            # Set a source 4 icon if present and not allready set to 0 or 2
-            if channel.icon_source in (-1, 1, 3):
-                if channel.chanid in xml_output.logo_names.keys() and xml_output.logo_names[channel.chanid][0] == '4':
-                    channel.icon_source = 4
-                    channel.icon = '%s.png' % xml_output.logo_names[channel.chanid][1]
-
-                elif channel.source_id[0] != '' and '0-%s' % (channel.source_id[0]) in xml_output.logo_names.keys() \
-                  and xml_output.logo_names['0-%s' % (channel.source_id[0])][0] == '4':
-                    channel.icon_source = 4
-                    channel.icon = '%s.png' % xml_output.logo_names['0-%s' % (channel.source_id[0])][1]
 
             # mark HD channels
             if channel.chan_name[-3:].lower() == ' hd':
@@ -2105,7 +2103,19 @@ class Configure:
         self.no_genric_matching = get_githubdict("no_genric_matching", 1)
 
         # Read the tables only needed during configuring
+        xml_output.logo_source_preference = get_githubdata("logo_source_preference")
         xml_output.logo_names = get_githubdict("logo_names")
+        for icon in xml_output.logo_names.values():
+            if icon[1][-4:] not in ('.png', '.jpg', '.gif'):
+                if icon[0] in ('0', '1'):
+                    icon[1] = icon[1] + '.gif'
+
+                elif icon[0] in ('2', '6'):
+                    icon[1] = icon[1] + '.jpg'
+
+                elif icon[0] in ('3', '4', '5', '7', '8', '10', '11'):
+                    icon[1] = icon[1] + '.png'
+
         self.chan_groups = get_githubdict("channel_groups", 1)
         self.chan_group_sorted = self.chan_groups.keys()
         self.chan_group_sorted.sort()
@@ -10667,7 +10677,7 @@ class humo_JSON(FetchData):
                         '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
                     if first_fetched:
-                        # be nice to tvgids.nl
+                        # be nice to humo.be
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
                         first_fetched = True
 
@@ -12115,13 +12125,16 @@ class vrt_JSON(FetchData):
     def init_channels(self):
         self.init_channel_source_ids()
 
-    def get_url(self, type = 'channels', offset = 0, id = None):
+    def get_url(self, chanid = 'channels'):
 
         base_url = 'http://services.vrt.be/'
 
-        if type == 'channels':
-            return  u'%schannel/s' % (base_url)
+        if chanid == 'channels':
+            return  [u'%schannel/s' % (base_url), 'application/vnd.channel.vrt.be.channels_1.1+json']
 
+        else:
+            return  [u'%sepg/schedules/thisweek?channel_code=%s&type=week' % (base_url, chanid),
+                            'application/vnd.epg.vrt.be.schedule_3.1+json']
 
     def get_channels(self):
         """
@@ -12130,7 +12143,8 @@ class vrt_JSON(FetchData):
         """
 
         # download the json feed
-        total = config.get_page(self.get_url(), 'utf-8','application/vnd.channel.vrt.be.channels_1.1+json')
+        url = self.get_url()
+        total = config.get_page(url[0], 'utf-8', url[1])
         if total == None:
             log("Unable to get channel info from %s\n" % self.source)
             return 69  # EX_UNAVAILABLE
@@ -12140,7 +12154,9 @@ class vrt_JSON(FetchData):
         # and create a file with the channels
         self.all_channels ={}
         for channel in channel_list['channels']:
-            # the json data has the channel names in XML entities.
+            if channel['state'] == 'inactive':
+                continue
+
             chanid = channel['code']
             self.all_channels[chanid] = {}
             self.all_channels[chanid]['name'] = self.unescape(channel['displayName']).strip()
@@ -12161,6 +12177,48 @@ class vrt_JSON(FetchData):
             if icon[2] == 'services.vrt.be':
                 self.all_channels[chanid]['icon'] = icon[-1]
                 self.all_channels[chanid]['icongrp'] = 10
+
+    #~ def load_pages(self):
+
+        #~ if config.opt_dict['offset'] > 7:
+            #~ for chanid in self.channels.keys():
+                #~ self.channel_loaded[chanid] = True
+                #~ config.channels[chanid].source_data[self.proc_id].set()
+
+            #~ return
+
+        #~ if len(self.channels) == 0 :
+            #~ return
+
+        #~ first_fetched = False
+        #~ try:
+            #~ for retry in (0, 1):
+                #~ if self.quit:
+                    #~ return
+
+
+
+
+
+
+            #~ for chanid in self.program_data:
+                #~ self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+                #~ self.parse_programs(chanid, 0, 'None')
+                #~ self.channel_loaded[chanid] = True
+                #~ config.channels[chanid].source_data[self.proc_id].set()
+                #~ try:
+                    #~ infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+                #~ except:
+                    #~ pass
+
+        #~ except:
+            #~ log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source), traceback.format_exc()], 0)
+
+            #~ for chanid in self.channels.keys():
+                #~ self.channel_loaded[chanid] = True
+                #~ config.channels[chanid].source_data[self.proc_id].set()
+            #~ return None
 
 # end vrt_JSON
 
@@ -12740,6 +12798,7 @@ class XMLoutput:
 
         # We have several sources of logos, the first provides the nice ones, but is not
         # complete. We use the tvgids logos to fill the missing bits.
+        self.logo_source_preference = [99, 4, 5, 6, 7, 8, 9, 10, 11, 3, 0, 1, 2]
         self.logo_provider = ['http://graphics.tudelft.nl/~paul/logos/gif/64x64/',
                                         'http://static.tvgids.nl/gfx/zenders/',
                                         'http://s4.cdn.sanomamedia.be/a/epg/q100/w60/h/',
@@ -13188,7 +13247,7 @@ def main():
         #~ config.opt_dict['offset'] = 0
         #~ config.opt_dict['days'] = 1
         #~ test.load_pages()
-        #~ print config.get_page('http://services.vrt.be/channel/s', 'utf-8', 'application/vnd.channel.vrt.be.channels_1.0+json').encode('utf-8')
+        #~ print config.get_page('http://services.vrt.be/epg/schedules/20160103?type=day&channel_code=O9', 'utf-8', 'application/vnd.epg.vrt.be.schedule_3.1+json').encode('utf-8')
         #~ return
 
         # Start the seperate fetching threads
