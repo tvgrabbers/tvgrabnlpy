@@ -10838,7 +10838,7 @@ class humo_JSON(FetchData):
                             with self.source_lock:
                                 self.program_data[chanid].append(tdict)
 
-            for chanid in self.program_data:
+            for chanid in self.channels.keys():
                 self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
                 self.parse_programs(chanid, 0, 'None')
                 self.channel_loaded[chanid] = True
@@ -11956,7 +11956,7 @@ class primo_HTML(FetchData):
                     time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
                 if failure_count == 0 or retry == 1:
-                    for chanid in self.program_data:
+                    for chanid in self.channels.keys():
                         self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
                         self.parse_programs(chanid, 0, 'None')
                         self.channel_loaded[chanid] = True
@@ -12216,6 +12216,11 @@ class vrt_JSON(FetchData):
             return
 
         first_fetched = False
+        failure_count = 0
+        groupitems = {}
+        for chanid in self.channels.keys():
+            groupitems[chanid] = 0
+
         try:
             first_day = int(datetime.date.fromordinal(self.current_date + config.opt_dict['offset']).strftime('%w'))
             first_day = config.opt_dict['offset'] + 1 - first_day if first_day > 0 else config.opt_dict['offset'] - 6
@@ -12240,7 +12245,6 @@ class vrt_JSON(FetchData):
                     if week_loaded[offset]:
                         continue
 
-                    print offset, fetch_range, fetch_range[offset]
                     if len(self.channels) == 1 :
                         url = self.get_url('week', fetch_range[offset], self.channels.values()[0])
 
@@ -12269,35 +12273,48 @@ class vrt_JSON(FetchData):
                     self.base_count += 1
                     week_loaded[offset] = True
                     jsondata = json.loads(strdata)
-                    for item in jsondata['events']:
-                        if not (item['date'] in fetch_dates and item['channel']['code'] in self.channels.values()):
+                    for p in jsondata['events']:
+                        if not (p['date'] in fetch_dates and p['channel']['code'] in self.channels.values()):
                             continue
 
-                        channel = item['channel']['code']
+                        channel = p['channel']['code']
                         chanid = self.chanids[channel]
                         tdict = self.checkout_program_dict()
-                        tdict[self.detail_id] = u'vrt-%s' % (item['code'])
-                        self.json_by_id[tdict[self.detail_id]] = item
+                        tdict[self.detail_id] = u'vrt-%s' % (p['code'])
+                        self.json_by_id[tdict[self.detail_id]] = p
                         tdict['source'] = 'vrt'
                         tdict['channelid'] = chanid
                         tdict['channel']  = config.channels[chanid].chan_name
 
                         # The Title
-                        tdict['name'] = self.unescape(item['title'])
+                        tdict['name'] = self.unescape(p['title'])
                         tdict = self.check_title_name(tdict)
-                        if  tdict['name'] == None or tdict['name'] == '':
-                            continue
 
                         # The timing
-                        tdict['start-time'] = self.get_datetime(item['startTime'])
-                        tdict['stop-time']  = self.get_datetime(item['endTime'], False)
-                        if tdict['start-time'] == None or tdict['stop-time'] == None:
+                        tdict['start-time'] = self.get_datetime(p['startTime'])
+                        tdict['stop-time']  = self.get_datetime(p['endTime'], False)
+                        if  tdict['name'] == None or tdict['name'] == '' or tdict['start-time'] == None or tdict['stop-time'] == None:
+                            print tdict['name'], tdict['start-time'], tdict['stop-time']
                             continue
 
                         tdict['offset'] = self.get_offset(tdict['start-time'])
+                        if 'group' in p.keys():
+                            tdict['group'] = p['group']
+                            groupitems[chanid] +=1
 
+                        #~ if 'episodeTitle' in p and p['episodeTitle'] not in ('', None,  tdict['name']):
+                            #~ print tdict['name'] , ':', p['episodeTitle'], p['type']
+                            #~ tdict[''] = p['']
 
+                        #~ else:
+                            #~ print p['type']
 
+                        #~ for item in p.keys():
+                            #~ if item in ('date', 'channel', 'programme', 'season', 'episode', 'brand', 'startTime', 'originalStartTime', 'endTime', 'onDemand', '', '', '', '', '', '', '',
+
+                            #~ if item in ('', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
+
+#~ [u'group', u'season', u'episode', u'seasonTitle', u'twitterHashTag', u'code', u'onAir', u'isRepeat', u'images', u'imagesLink', u'presenters', u'onDemandURL', u'duration', u'geoblocking', u'shortDescription', u'episodeNumber', u'hideSeasonNumber', u'onDemand', u'title', u'episodeOnDemandURL', u'playlistLink', u'episodeSequenceNumber', u'seasonEid', u'isLive', u'hasTTSubTitles', u'type', u'originalStartTime', u'channel', u'videoFormat', u'seasonNumber', u'description', u'brand', u'hidePrintedPress', u'bought', u'updateFlag', u'startTime', u'date', u'episodeTitle', u'playlistSiteURL', u'categories', u'hasAudioDescription', u'whatsonProductId', u'seasonNumberOfEpisodes', u'shortTitle', u'reconcileId', u'secondScreenURL', u'trailerPictureURL', u'standardGenres', u'websiteURL', u'cast', u'trailerURL', u'episodeEid', u'aspectRatio', u'endTime', u'pdc', u'hideEpisodeNumber', u'programme']
 
 
 
@@ -12309,8 +12326,52 @@ class vrt_JSON(FetchData):
                         with self.source_lock:
                             self.program_data[chanid].append(tdict)
 
-            for chanid in self.program_data:
-                self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+                if failure_count == 0:
+                    break
+
+            for chanid in self.channels.keys():
+                with self.source_lock:
+                    self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+                    if groupitems[chanid] > 0:
+                        group_start = False
+                        for p in self.program_data[chanid][:]:
+                            if 'group' in p.keys():
+                                # Collecting the group
+                                if not group_start:
+                                    group = []
+                                    start = p['start-time']
+                                    group_start = True
+
+                                group.append(p.copy())
+                                group_duur = p['stop-time'] - start
+
+                            elif group_start:
+                                # Repeating the group
+                                group_start = False
+                                group_eind = p['start-time']
+                                repeat = 0
+                                while True:
+                                    repeat+= 1
+                                    for g in group[:]:
+                                        gdict = g.copy()
+                                        gdict[self.detail_id] = ''
+                                        gdict['rerun'] = True
+                                        gdict['start-time'] += repeat*group_duur
+                                        gdict['stop-time'] += repeat*group_duur
+                                        if gdict['start-time'] < group_eind:
+                                            if gdict['stop-time'] > group_eind:
+                                                gdict['stop-time'] = group_eind
+
+                                            self.program_data[chanid].append(gdict)
+
+                                        else:
+                                            break
+
+                                    else:
+                                        continue
+
+                                    break
+
                 self.parse_programs(chanid, 0, 'None')
                 self.channel_loaded[chanid] = True
                 for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
