@@ -12124,16 +12124,32 @@ class primo_HTML(FetchData):
 class vrt_JSON(FetchData):
     def init_channels(self):
         self.init_channel_source_ids()
+        self.chanids = {}
+        for chanid, sourceid in self.channels.items():
+            self.chanids[sourceid] = chanid
 
-    def get_url(self, chanid = 'channels'):
+    def get_url(self, type = 'channels', offset = 0, chanid = None):
 
         base_url = 'http://services.vrt.be/'
+        scan_date = datetime.date.fromordinal(self.current_date + offset).strftime('%Y%m%d')
 
-        if chanid == 'channels':
+        if type == 'channels':
             return  [u'%schannel/s' % (base_url), 'application/vnd.channel.vrt.be.channels_1.1+json']
 
-        else:
-            return  [u'%sepg/schedules/thisweek?channel_code=%s&type=week' % (base_url, chanid),
+        elif type == 'week' and chanid == None:
+            return  [u'%sepg/schedules/%s?type=week' % (base_url, scan_date),
+                            'application/vnd.epg.vrt.be.schedule_3.1+json']
+
+        elif type == 'week':
+            return  [u'%sepg/schedules/%s?type=week&channel_code=%s' % (base_url, scan_date, chanid),
+                            'application/vnd.epg.vrt.be.schedule_3.1+json']
+
+        elif type == 'day' and chanid == None:
+            return  [u'%sepg/schedules/%s?type=day' % (base_url, scan_date),
+                            'application/vnd.epg.vrt.be.schedule_3.1+json']
+
+        elif type == 'day':
+            return  [u'%sepg/schedules/%s?type=day&channel_code=%s' % (base_url, scan_date, chanid),
                             'application/vnd.epg.vrt.be.schedule_3.1+json']
 
     def get_channels(self):
@@ -12178,47 +12194,136 @@ class vrt_JSON(FetchData):
                 self.all_channels[chanid]['icon'] = icon[-1]
                 self.all_channels[chanid]['icongrp'] = 10
 
-    #~ def load_pages(self):
+    def get_datetime(self, date_string, round_down = True):
+        date = datetime.datetime.strptime(date_string.split('.')[0], '%Y-%m-%dT%H:%M:%S').replace(tzinfo = UTC).astimezone(CET_CEST)
+        if date.second > 0 and round_down:
+            date = date.replace(second = 0)
 
-        #~ if config.opt_dict['offset'] > 7:
-            #~ for chanid in self.channels.keys():
-                #~ self.channel_loaded[chanid] = True
-                #~ config.channels[chanid].source_data[self.proc_id].set()
+        elif date.second > 0:
+            date = date.replace(second = 0) + datetime.timedelta(minutes = 1)
 
-            #~ return
+        return date
 
-        #~ if len(self.channels) == 0 :
-            #~ return
+    def load_pages(self):
 
-        #~ first_fetched = False
-        #~ try:
-            #~ for retry in (0, 1):
-                #~ if self.quit:
-                    #~ return
+        if config.opt_dict['offset'] > 14:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+
+            return
+
+        if len(self.channels) == 0 :
+            return
+
+        first_fetched = False
+        try:
+            fetch_range = range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days']), 7)
+            fetch_dates = []
+            for d in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
+                fetch_dates.append(datetime.date.fromordinal(self.current_date + d).strftime('%Y-%m-%d'))
+
+            for retry in (0, 1):
+                if self.quit:
+                    return
+
+                for offset in range(len(fetch_range)):
+                    if self.quit:
+                        return
+
+                    # Check if it is already loaded
+                    if self.day_loaded[0][offset]:
+                        continue
+
+                    if len(self.channels) == 1 :
+                        url = self.get_url('week', fetch_range[offset], self.channels.values()[0])
+
+                    else:
+                        url = self.get_url('week', fetch_range[offset])
+
+                    log(['\n', 'Now fetching %s channels from vrt.be.\n' % len(self.channels), \
+                        '    (week %s of %s).\n' % (offset, len(fetch_range))], 2)
+
+                    # get the raw programming for the day
+                    try:
+                        strdata = config.get_page(url[0], 'utf-8', url[1])
+
+                        if strdata == None:
+                            log("No data on vrt.be for week=%d!\n" % (offset))
+                            failure_count += 1
+                            self.fail_count += 1
+                            continue
+
+                    except:
+                        log('Error: "%s" reading the vrt.be json page for week=%d.\n' % (sys.exc_info()[1], offset))
+                        failure_count += 1
+                        self.fail_count += 1
+                        continue
+
+                    self.base_count += 1
+                    self.day_loaded[0][offset] = True
+                    jsondata = json.loads(strdata)
+                    for item in jsondata['events']:
+                        if not (item['date'] in fetch_dates and item['channel']['code'] in self.channels.values()):
+                            continue
+
+                        channel = item['channel']['code']
+                        chanid = self.chanids[channel]
+                        tdict = self.checkout_program_dict()
+                        tdict[self.detail_id] = u'vrt-%s' % (item['code'])
+                        self.json_by_id[tdict[self.detail_id]] = item
+                        tdict['source'] = 'vrt'
+                        tdict['channelid'] = chanid
+                        tdict['channel']  = config.channels[chanid].chan_name
+
+                        # The Title
+                        tdict['name'] = self.unescape(item['title'])
+                        tdict = self.check_title_name(tdict)
+                        if  tdict['name'] == None or tdict['name'] == '':
+                            continue
+
+                        # The timing
+                        tdict['start-time'] = self.get_datetime(item['startTime'])
+                        tdict['stop-time']  = self.get_datetime(item['endTime'], False)
+                        if tdict['start-time'] == None or tdict['stop-time'] == None:
+                            continue
+
+                        tdict['offset'] = self.get_offset(tdict['start-time'])
 
 
 
 
 
 
-            #~ for chanid in self.program_data:
-                #~ self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
-                #~ self.parse_programs(chanid, 0, 'None')
-                #~ self.channel_loaded[chanid] = True
-                #~ config.channels[chanid].source_data[self.proc_id].set()
-                #~ try:
-                    #~ infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
 
-                #~ except:
-                    #~ pass
 
-        #~ except:
-            #~ log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source), traceback.format_exc()], 0)
 
-            #~ for chanid in self.channels.keys():
-                #~ self.channel_loaded[chanid] = True
-                #~ config.channels[chanid].source_data[self.proc_id].set()
-            #~ return None
+
+
+                        with self.source_lock:
+                            self.program_data[chanid].append(tdict)
+
+            for chanid in self.program_data:
+                self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+                self.parse_programs(chanid, 0, 'None')
+                self.channel_loaded[chanid] = True
+                for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
+                    self.day_loaded[chanid][day] = True
+
+                config.channels[chanid].source_data[self.proc_id].set()
+                try:
+                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+                except:
+                    pass
+
+        except:
+            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source), traceback.format_exc()], 0)
+
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+            return None
 
 # end vrt_JSON
 
@@ -13247,7 +13352,6 @@ def main():
         #~ config.opt_dict['offset'] = 0
         #~ config.opt_dict['days'] = 1
         #~ test.load_pages()
-        #~ print config.get_page('http://services.vrt.be/epg/schedules/20160103?type=day&channel_code=O9', 'utf-8', 'application/vnd.epg.vrt.be.schedule_3.1+json').encode('utf-8')
         #~ return
 
         # Start the seperate fetching threads
