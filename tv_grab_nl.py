@@ -12196,11 +12196,10 @@ class vrt_JSON(FetchData):
 
     def get_datetime(self, date_string, round_down = True):
         date = datetime.datetime.strptime(date_string.split('.')[0], '%Y-%m-%dT%H:%M:%S').replace(tzinfo = UTC).astimezone(CET_CEST)
-        if date.second > 0 and round_down:
-            date = date.replace(second = 0)
-
-        elif date.second > 0:
-            date = date.replace(second = 0) + datetime.timedelta(minutes = 1)
+        seconds = date.second
+        date = date.replace(second = 0)
+        if seconds > 0 and not round_down:
+            date = date + datetime.timedelta(minutes = 1)
 
         return date
 
@@ -12218,7 +12217,13 @@ class vrt_JSON(FetchData):
 
         first_fetched = False
         try:
-            fetch_range = range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days']), 7)
+            first_day = int(datetime.date.fromordinal(self.current_date + config.opt_dict['offset']).strftime('%w'))
+            first_day = config.opt_dict['offset'] + 1 - first_day if first_day > 0 else config.opt_dict['offset'] - 6
+            fetch_range = range(first_day, (config.opt_dict['offset'] + config.opt_dict['days']), 7)
+            week_loaded = {}
+            for r in range(len(fetch_range)):
+                week_loaded[r] = False
+
             fetch_dates = []
             for d in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
                 fetch_dates.append(datetime.date.fromordinal(self.current_date + d).strftime('%Y-%m-%d'))
@@ -12232,9 +12237,10 @@ class vrt_JSON(FetchData):
                         return
 
                     # Check if it is already loaded
-                    if self.day_loaded[0][offset]:
+                    if week_loaded[offset]:
                         continue
 
+                    print offset, fetch_range, fetch_range[offset]
                     if len(self.channels) == 1 :
                         url = self.get_url('week', fetch_range[offset], self.channels.values()[0])
 
@@ -12261,7 +12267,7 @@ class vrt_JSON(FetchData):
                         continue
 
                     self.base_count += 1
-                    self.day_loaded[0][offset] = True
+                    week_loaded[offset] = True
                     jsondata = json.loads(strdata)
                     for item in jsondata['events']:
                         if not (item['date'] in fetch_dates and item['channel']['code'] in self.channels.values()):
