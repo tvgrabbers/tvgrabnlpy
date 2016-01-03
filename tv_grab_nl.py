@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 8
-        self.patchdate = u'20160102'
+        self.patchdate = u'20160103'
         self.alfa = True
         self.beta = True
 
@@ -484,6 +484,7 @@ class Configure:
         self.opt_dict['disable_source'] = []
         self.opt_dict['disable_detail_source'] = []
         self.opt_dict['disable_ttvdb'] = False
+        self.ttvdb_disabled_groups = (6, 8, 11, 12, 13)
         # enable this option if you were using tv_grab_nl, it adjusts the generated
         # xmltvid's so that everything works.
         self.opt_dict['compat'] = False
@@ -948,6 +949,7 @@ class Configure:
                                          99: 'Overig kanalen',
                                          -1: 'Alleen geselecteerde kanalen'}
 
+        self.group_order = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,99]
         # DO NOT CHANGE THIS!
         self.configversion = None
         self.__CONFIG_SECTIONS__ = { 1: u'Configuration',
@@ -2117,8 +2119,11 @@ class Configure:
                     icon[1] = icon[1] + '.png'
 
         self.chan_groups = get_githubdict("channel_groups", 1)
-        self.chan_group_sorted = self.chan_groups.keys()
-        self.chan_group_sorted.sort()
+        self.group_order = get_githubdata("group_order")
+        for g in self.chan_groups.keys():
+            if g not in self.group_order[:]:
+                self.group_order.append(g)
+
         self.prime_source_groups = get_githubdict("prime_source_groups", 1)
         self.source_channels = get_githubdict("source_channels", 1)
         self.empty_channels = get_githubdict("empty_channels", 1)
@@ -3182,7 +3187,7 @@ class Configure:
                 self.get_channels()
                 chan_added = []
                 chan_list = {}
-                for g in self.chan_group_sorted:
+                for g in self.group_order:
                     chan_list[unicode(g)] =[]
 
                 if self.configversion <= 2.0:
@@ -3245,7 +3250,7 @@ class Configure:
 
                     for item in configlines['3remarks']:
                         chan = re.sub('#', '', item)
-                        if chan.strip() in self.chan_group_sorted:
+                        if chan.strip() in self.group_order:
                             continue
 
                         chan = re.split(';', chan)
@@ -3281,7 +3286,7 @@ class Configure:
 
         if add_channels:
             chan_list = {}
-            for g in self.chan_group_sorted:
+            for g in self.group_order:
                 chan_list[unicode(g)] =[]
 
             for chanid, channel in self.channels.items():
@@ -3289,7 +3294,7 @@ class Configure:
                 chan_list[grp].append(get_channel_string(chanid))
 
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[3])
-        for g in self.chan_group_sorted:
+        for g in self.group_order:
             if g == 0 and not self.opt_dict['group_active_channels']:
                 continue
 
@@ -8260,7 +8265,7 @@ class tvgidstv_HTML(FetchData):
                 self.all_channels[chanid] = {}
                 self.all_channels[chanid]['name'] = name
                 self.all_channels[chanid]['group'] = 99
-                for id in config.chan_groups.keys():
+                for id in config.group_order:
                     if group_name == config.chan_groups[id]:
                         self.all_channels[chanid]['group'] = id
                         break
@@ -12486,7 +12491,7 @@ class Channel_Config(Thread):
         config.validate_option('max_overlap', self)
         config.validate_option('desc_length', self)
         config.validate_option('slowdays', self)
-        if self.group in (6, 8, 11, 12):
+        if self.group in config.ttvdb_disabled_groups:
             self.opt_dict['disable_ttvdb'] = True
 
         if self.opt_dict['xmltvid_alias'] != None:
