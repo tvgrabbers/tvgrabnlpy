@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 8
-        self.patchdate = u'20160103'
+        self.patchdate = u'20160104'
         self.alfa = True
         self.beta = True
 
@@ -570,6 +570,11 @@ class Configure:
                                       'geweld':'g',
                                       'seks':'s',
                                       'taal':'t'}
+
+        self.vrtkijkwijzer = {'6+':'2',
+                                      '9+':'9',
+                                      '12+':'3',
+                                      '16+':'4'}
 
         # Create a role translation dictionary for the xmltv credits part
         # The keys are the roles used by tvgids.nl (lowercase please)
@@ -1796,7 +1801,7 @@ class Configure:
                 channel.source_id[index] = ''
 
             # These groupids have changed, so to be sure
-            if channel.group in (0, 8, 9, 10, 11):
+            if self.opt_dict['always_use_json']:
                 channel.group = 99
 
             # And all not custom set icons
@@ -9861,13 +9866,13 @@ class npo_HTML(FetchData):
                         tag = c.find('a')
                         c = tag
                         if tag.get("alt") != None:
-                            cname = tag.get("alt")[9:]
+                            cname = self.empersant(tag.get("alt")[9:])
 
                         else:
-                            cname = tag.get("href").split('/')[-1]
+                            cname = self.empersant(tag.get("href").split('/')[-1])
 
                     else:
-                        cname = c.find('div').get("title")
+                        cname = self.empersant(c.find('div').get("title"))
 
                     try:
                         cicon = c.find('div[@class="larger-image channel-icon-wrapper"]').get('style')
@@ -9926,7 +9931,6 @@ class npo_HTML(FetchData):
 
                     # The Title
                     tdict['name'] = self.empersant(ptext.tail.strip())
-                    tdict = self.check_title_name(tdict)
 
                     ptime = ptime.split('-')
                     pstart = ptime[0].split(':')
@@ -9989,6 +9993,7 @@ class npo_HTML(FetchData):
                         tdict['genre'] = u'overige'
 
                     # and append the program to the list of programs
+                    tdict = self.check_title_name(tdict)
                     if last_added[chanid] != None and last_added[chanid]['name'] == tdict['name']:
                         with self.source_lock:
                             self.program_data[chanid][-1]['stop-time'] = tdict['stop-time']
@@ -10240,7 +10245,6 @@ class npo_HTML(FetchData):
 
                                 # The Title
                                 tdict['name'] = self.empersant(ptext)
-                                tdict = self.check_title_name(tdict)
 
                                 prog_time = datetime.time(int(pshour), int(psmin), 0 ,0 ,CET_CEST)
                                 if day_offset == 0 and phour < 6:
@@ -10281,6 +10285,7 @@ class npo_HTML(FetchData):
                                         infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
 
                                 # and append the program to the list of programs
+                                tdict = self.check_title_name(tdict)
                                 with self.source_lock:
                                     self.program_data[chanid].append(tdict)
 
@@ -10456,7 +10461,6 @@ class horizon_JSON(FetchData):
 
                         # The Title
                         tdict['name'] = self.unescape(item['program']['title'])
-                        tdict = self.check_title_name(tdict)
                         if  tdict['name'] == None or tdict['name'] == '':
                             log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
                             continue
@@ -10554,6 +10558,7 @@ class horizon_JSON(FetchData):
                                 infofiles.addto_detail_list(u'horizon categorie: %s => %s' %(cat['id'], cat['title'].capitalize()))
 
                         self.program_by_id[tdict[self.detail_id]] = tdict
+                        tdict = self.check_title_name(tdict)
                         with self.source_lock:
                             self.program_data[chanid].append(tdict)
 
@@ -10720,7 +10725,6 @@ class humo_JSON(FetchData):
 
                             # The Title
                             tdict['name'] = self.unescape(item['program']['title'])
-                            tdict = self.check_title_name(tdict)
                             if  tdict['name'] == None or tdict['name'] == '':
                                 log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
                                 continue
@@ -10839,6 +10843,7 @@ class humo_JSON(FetchData):
                                       #~ 'opinion', 'appreciation'):
                                         infofiles.addto_detail_list('new humo programitem => %s=%s' % (key, item['program'][key]))
 
+                            tdict = self.check_title_name(tdict)
                             self.program_by_id[tdict[self.detail_id]] = tdict
                             with self.source_lock:
                                 self.program_data[chanid].append(tdict)
@@ -10925,7 +10930,7 @@ class vpro_HTML(FetchData):
         htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
         for c in htmldata.findall('li'):
             channel_cnt+=1
-            name = c.text
+            name = self.empersant(c.text)
             scid =re.sub('[ /]', '_', name.lower())
             scid =re.sub('é', 'e', scid)
             scid =re.sub('[!(),]', '', scid)
@@ -11102,7 +11107,6 @@ class vpro_HTML(FetchData):
 
                     # The Title
                     tdict['name'] = self.empersant(ptext.strip())
-                    tdict = self.check_title_name(tdict)
 
                     pstart = re.sub('vpro', '', ptime).strip()
                     pstart = pstart.split(':')
@@ -11166,6 +11170,7 @@ class vpro_HTML(FetchData):
 
                     filter_desc(tdict)
                     # and append the program to the list of programs
+                    tdict = self.check_title_name(tdict)
                     with self.source_lock:
                         self.program_data[chanid].append(tdict)
 
@@ -11687,7 +11692,6 @@ class nieuwsblad_HTML(FetchData):
 
                             # The Title
                             tdict['name'] = self.empersant(p.findtext('div[@class="title"]/a').strip())
-                            tdict = self.check_title_name(tdict)
                             if  tdict['name'] == None or tdict['name'] == '':
                                 log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
                                 continue
@@ -11708,6 +11712,7 @@ class nieuwsblad_HTML(FetchData):
                             last_program = tdict['start-time']
 
                             # and append the program to the list of programs
+                            tdict = self.check_title_name(tdict)
                             with self.source_lock:
                                 self.program_data[chanid].append(tdict)
 
@@ -11924,7 +11929,6 @@ class primo_HTML(FetchData):
 
                                 # The Title
                                 tdict['name'] = self.empersant(p.findtext('h3').strip())
-                                tdict = self.check_title_name(tdict)
                                 if  tdict['name'] == None or tdict['name'] == '':
                                     log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
                                     continue
@@ -11952,6 +11956,7 @@ class primo_HTML(FetchData):
                                 last_end = tdict['stop-time']
 
                                 # and append the program to the list of programs
+                                tdict = self.check_title_name(tdict)
                                 with self.source_lock:
                                     self.program_data[chanid].append(tdict)
 
@@ -12293,13 +12298,11 @@ class vrt_JSON(FetchData):
 
                         # The Title
                         tdict['name'] = self.unescape(p['title'])
-                        tdict = self.check_title_name(tdict)
 
                         # The timing
                         tdict['start-time'] = self.get_datetime(p['startTime'])
                         tdict['stop-time']  = self.get_datetime(p['endTime'], False)
                         if  tdict['name'] == None or tdict['name'] == '' or tdict['start-time'] == None or tdict['stop-time'] == None:
-                            print tdict['name'], tdict['start-time'], tdict['stop-time']
                             continue
 
                         tdict['offset'] = self.get_offset(tdict['start-time'])
@@ -12307,27 +12310,82 @@ class vrt_JSON(FetchData):
                             tdict['group'] = p['group']
                             groupitems[chanid] +=1
 
-                        #~ if 'episodeTitle' in p and p['episodeTitle'] not in ('', None,  tdict['name']):
-                            #~ print tdict['name'] , ':', p['episodeTitle'], p['type']
-                            #~ tdict[''] = p['']
+                        if 'episodeTitle' in p and p['episodeTitle'] != None:
+                            if p['episodeTitle'].lower().strip() != tdict['name'].lower().strip():
+                                tdict['titel aflevering'] = p['episodeTitle'].strip()
 
-                        #~ else:
-                            #~ print p['type']
+                        tdict['video']['breedbeeld'] = True if 'aspectRatio' in p.keys() and p['aspectRatio'] == '16:9' else False
+                        tdict['video']['HD'] = True if 'videoFormat' in p.keys() and p['videoFormat'] == 'HD' else False
+                        tdict['teletekst'] = True if 'hasTTSubTitles' in p.keys() and p['hasTTSubTitles'] else False
+                        tdict['rerun'] = True if 'isRepeat' in p.keys() and p['isRepeat'] else False
 
-                        #~ for item in p.keys():
-                            #~ if item in ('date', 'channel', 'programme', 'season', 'episode', 'brand', 'startTime', 'originalStartTime', 'endTime', 'onDemand', '', '', '', '', '', '', '',
+                        if 'categories' in p.keys() and p['categories'] != None and p['categories'].strip() != '':
+                            if p['categories'].strip() in  config.vrtkijkwijzer:
+                                tdict['kijkwijzer'].append(config.vrtkijkwijzer[p['categories'].strip()])
 
-                            #~ if item in ('', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
+                            elif config.write_info_files:
+                                infofiles.addto_detail_list(u'new vrt categorie => %s' % (p['categories']))
 
-#~ [u'group', u'season', u'episode', u'seasonTitle', u'twitterHashTag', u'code', u'onAir', u'isRepeat', u'images', u'imagesLink', u'presenters', u'onDemandURL', u'duration', u'geoblocking', u'shortDescription', u'episodeNumber', u'hideSeasonNumber', u'onDemand', u'title', u'episodeOnDemandURL', u'playlistLink', u'episodeSequenceNumber', u'seasonEid', u'isLive', u'hasTTSubTitles', u'type', u'originalStartTime', u'channel', u'videoFormat', u'seasonNumber', u'description', u'brand', u'hidePrintedPress', u'bought', u'updateFlag', u'startTime', u'date', u'episodeTitle', u'playlistSiteURL', u'categories', u'hasAudioDescription', u'whatsonProductId', u'seasonNumberOfEpisodes', u'shortTitle', u'reconcileId', u'secondScreenURL', u'trailerPictureURL', u'standardGenres', u'websiteURL', u'cast', u'trailerURL', u'episodeEid', u'aspectRatio', u'endTime', u'pdc', u'hideEpisodeNumber', u'programme']
+                        if 'type' in p.keys():
+                            if p['type'] == 'Aflevering':
+                                pass
+
+                            elif p['type'] == 'Programma':
+                                pass
+
+                            elif p['type'] == 'Film':
+                                pass
+
+                            elif p['type'] == 'Sport':
+                                pass
+
+                            elif p['type'] == 'Volatiel':
+                                pass
+
+                            elif p['type'] == 'Nieuws':
+                                pass
+
+                            elif p['type'] == 'Weerbericht':
+                                pass
+
+                            elif p['type'] == 'Kansspelen':
+                                pass
+
+                            elif p['type'] == 'radio':
+                                pass
+
+                            elif p['type'] == 'Groep':
+                                pass
+
+                            elif config.write_info_files:
+                                infofiles.addto_detail_list(u'new vrt type => %s' % (p['type']))
+
+                        # Types
+                        # Aflevering, Nieuws, Sport, Programma, Film, Groep, Weerbericht, radio, Kansspelen, Volatiel,
+                        # MER, Feratel beelden, Volatiel programma - geen PDC, Main Transmission, Dia, NACHTLUS op MER
+                        # standardGenres
+                        # actua, sport, cultuur, film, docu, humor, series, ontspanning
 
 
+                        if config.write_info_files:
+                            if 'type' in p.keys() and 'seasonNumber' in p.keys() and 'episodeNumber' in p.keys():
+                                infofiles.addto_detail_list(u'new vrt type => %s, %s, %s' % (p['type'], p['seasonNumber'], p['episodeNumber']))
 
+                            for item in p.keys():
+                                if item.strip() not in (u'code', u'date', u'channel', u'programme', u'group', u'season', u'episode', u'brand',
+                                        u'twitterHashTag', u'onDemandURL', u'episodeOnDemandURL', u'websiteURL', u'secondScreenURL',
+                                        u'images', u'imagesLink', u'trailerURL', u'trailerPictureURL', u'playlistLink', u'playlistSiteURL',
+                                        u'onAir', u'geoblocking', u'isLive', u'hidePrintedPress', u'bought', u'onDemand',
+                                        u'updateFlag', u'whatsonProductId', u'reconcileId',u'pdc' ,
+                                        u'title', u'shortTitle', u'startTime', u'endTime', u'duration', u'originalStartTime',
+                                        u'seasonNumber', u'seasonEid', u'seasonTitle', u'seasonNumberOfEpisodes', u'hideSeasonNumber',
+                                        u'episodeNumber', u'episodeEid', u'episodeSequenceNumber', u'episodeTitle', u'hideEpisodeNumber',
+                                        u'aspectRatio', u'videoFormat', u'hasTTSubTitles', u'isRepeat',
+                                        u'presenters', u'cast', u'type', u'categories', u'standardGenres',
+                                        u'shortDescription', u'description', u'hasAudioDescription'):
+                                    infofiles.addto_detail_list(u'new vrt key => %s = %s' % (item, p[item]))
 
-
-
-
-
+                        tdict = self.check_title_name(tdict)
                         with self.source_lock:
                             self.program_data[chanid].append(tdict)
 
@@ -12337,6 +12395,7 @@ class vrt_JSON(FetchData):
             for chanid in self.channels.keys():
                 with self.source_lock:
                     self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+                    # 1 or more groups were encountered
                     if groupitems[chanid] > 0:
                         group_start = False
                         for p in self.program_data[chanid][:]:
@@ -12354,6 +12413,11 @@ class vrt_JSON(FetchData):
                                 # Repeating the group
                                 group_start = False
                                 group_eind = p['start-time']
+                                group_length = group_eind - start
+                                if group_length > datetime.timedelta(days = 1):
+                                    # Probably a week was not grabbed
+                                    group_eind -= datetime.timedelta(days = int(group_length.days))
+
                                 repeat = 0
                                 while True:
                                     repeat+= 1
