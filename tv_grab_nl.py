@@ -359,8 +359,8 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 8
-        self.patchdate = u'20160104'
-        self.alfa = True
+        self.patchdate = u'20160105'
+        self.alfa = False
         self.beta = True
 
         self.cache_return = Queue()
@@ -620,6 +620,7 @@ class Configure:
                              (u'amusement', u'muziekprogramma')        : u'Art/Music',
                              (u'amusement', u'dansprogramma')            : u'Art/Music',
                              (u'amusement', u'cabaret')                        : u'Art/Music',
+                             (u'amusement', u'variete')                        : u'Art/Music',
                              (u'amusement', u'sketches')                      : u'Art/Music',
                              (u'amusement', u'stand-up comedy')        : u'Art/Music',
                              (u'amusement', u'stand-up comedy, sketches'): u'Art/Music',
@@ -887,11 +888,11 @@ class Configure:
                                      ('g3018', ): ('informatief', 'Documentaire')}
         self.new_cattrans[7] = {}
 
-        # vpro.nl genre translation table
+        # nieuwsblad.be genre translation table
         self.source_cattrans[8] ={}
         self.new_cattrans[8] = {}
 
-        # vpro.nl genre translation table
+        # primo.eu genre translation table
         self.source_cattrans[9] ={'actua': ('nieuws/actualiteiten', 'actua'),
                                      'amusement': ('amusement', ''),
                                      'documentaire': ('documentaire', ''),
@@ -925,6 +926,33 @@ class Configure:
                                      ('serie', 'tragikomische reeks'): (u'serie/soap', u'tragikomische serie'),
                                      ('serie', 'ziekenhuisreeks'): (u'serie/soap', u'ziekenhuisserie')}
         self.new_cattrans[9] = {}
+
+        #vrt.be genre translation table
+        self.source_cattrans[10] ={(u'1',): (u'film', u''),
+                                                (u'2',): (u'nieuws/actualiteiten', u''),
+                                                (u'3',): (u'amusement', u''),
+                                                (u'3', u'1'): (u'amusement', u'spelshow'),
+                                                (u'4',): (u'sport', u''),
+                                                (u'5',): (u'jeugd', u''),
+                                                (u'6',): (u'muziek', u''),
+                                                (u'7',): (u'kunst en cultuur', u''),
+                                                (u'7', u'3'): (u'religieus', u''),
+                                                (u'8',): (u'documentaire', u''),
+                                                (u'8', u'2'): (u'informatief', u'economie'),
+                                                (u'9',): (u'informatief', u''),
+                                                (u'10',): (u'informatief', u''),
+                                                (u'13', ): (u'serie/soap', u''),
+                                                (u'13', u'1'): (u'serie/soap', u''),
+                                                (u'13', u'2'): (u'serie/soap', u'detectiveserie'),
+                                                (u'13', u'3'): (u'serie/soap', u'actieserie'),
+                                                (u'13', u'4'): (u'serie/soap', u'sciencefictionserie'),
+                                                (u'13', u'5'): (u'serie/soap', u'komedieserie'),
+                                                (u'13', u'6'): (u'serie/soap', u'soap'),
+                                                (u'13', u'8'): (u'serie/soap', u'animatieserie'),
+                                                (u'14',): (u'informatief', u''),
+                                                (u'14', u'1'): (u'informatief', u'realityprogramma'),
+                                                (u'14', u'3'): (u'informatief', u'docusoap')}
+        self.new_cattrans[10] = {}
 
         # The following two list get replaced by their sourcematching counterparts
         # Program group names to exclude from a primesource if the counterpart contains details
@@ -973,7 +1001,8 @@ class Configure:
                                                              9: u'horizon.tv genres',
                                                              10: u'humo.be genres',
                                                              11: u'vpro.nl genres',
-                                                             13: u'primo.eu genres'}
+                                                             13: u'primo.eu genres',
+                                                             14: u'vrt.be genres'}
 
         self.sources = {}
 
@@ -1757,7 +1786,7 @@ class Configure:
                     if len(a) == 1:
                         continue
                     self.roletrans[a[0].lower().strip()] = a[1].strip()
-                elif type in (8, 9, 10, 11, 13):
+                elif type in (8, 9, 10, 11, 13, 14):
                     source = type - 4
                     # split of the translation (if present) or supply an empty one
                     a = line.split('=',1)
@@ -3500,12 +3529,12 @@ class Configure:
             f.write(u'%s\n' % string)
 
         f.write(u'\n')
-        f.write(u'# These are the translation lists for npo.nl, horizon.tv, humo.be and vpro.nl genres\n')
-        f.write(u'# to tvgids.nl genre:subgenre. If you have cattrans enabled, they will next be\n')
-        f.write(u'# converted according to the list further down.\n')
+        f.write(u'# These are the translation lists for npo.nl, horizon.tv, humo.be, vpro.nl,\n')
+        f.write(u'# primo.eu and vrt.be genres to tvgids.nl genre:subgenre. If you have cattrans\n')
+        f.write(u'# enabled, they will next be converted according to the list further down.\n')
         f.write(u"# Notice you don't see any Movie category in the horizon list. This is ruled by\n")
         f.write(u'# a separate flag\n')
-        for index in (4, 5, 6, 7, 9):
+        for index in (4, 5, 6, 7, 9, 10):
             f.write(u'\n')
             f.write(u'[%s]\n' % self.__DEFAULT_SECTIONS__[index+4])
 
@@ -7689,7 +7718,7 @@ class tvgids_JSON(FetchData):
             dl[chanid] =[]
             dd[chanid] =[]
 
-        first_fetched = False
+        first_fetch = True
 
         for retry in (0, 1):
             for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 4)):
@@ -7705,11 +7734,11 @@ class tvgids_JSON(FetchData):
 
                 channel_url = self.get_url('day', offset)
 
-                if first_fetched:
+                if not first_fetch:
                     # be nice to tvgids.nl
                     time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                    first_fetch = false
 
-                first_fetched = True
                 # get the raw programming for the day
                 strdata = config.get_page(channel_url, 'utf-8')
                 if strdata == None or strdata.replace('\n','') == '{}':
@@ -8367,6 +8396,7 @@ class tvgidstv_HTML(FetchData):
         return tdict
 
     def load_pages(self):
+        first_fetch = True
         try:
             for retry in (0, 1):
                 channel_cnt = 0
@@ -8409,6 +8439,11 @@ class tvgidstv_HTML(FetchData):
                             (config.channels[chanid].chan_name, config.channels[chanid].xmltvid , (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
                             '    (channel %s of %s) for day %s of %s.\n' % \
                             (channel_cnt, len(self.channels), offset, config.opt_dict['days'])], 2)
+                        if not first_fetch:
+                            # be nice to tvgids.tv
+                            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                            first_fetch = false
+
                         # get the raw programming for the day
                         try:
                             channel_url = self.get_url(channel, offset)
@@ -8532,8 +8567,6 @@ class tvgidstv_HTML(FetchData):
 
                         self.base_count += 1
                         self.day_loaded[chanid][offset] = True
-                        # be nice to tvgids.tv
-                        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
                     if len(self.program_data[chanid]) == 0:
                         config.channels[chanid].source_data[self.proc_id].set()
@@ -8782,12 +8815,14 @@ class rtl_JSON(FetchData):
 
         channel_url = self.get_url()
 
+        # be nice to rtl.nl
+        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+        first_fetch = false
+
         # get the raw programming for the day
         strdata = config.get_page(channel_url, 'utf-8')
 
         if strdata == None or strdata.replace('\n','') == '{}':
-            # Wait a while and try again
-            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
             strdata = config.get_page(channel_url, 'utf-8')
             if strdata == None or strdata.replace('\n','') == '{}':
                 log("Error loading rtl json data\n")
@@ -9907,6 +9942,7 @@ class npo_HTML(FetchData):
 
     def load_pages(self):
 
+        first_fetch = True
         def get_programs(xml, chanid, omroep = True):
             try:
                 tdict = None
@@ -10036,6 +10072,11 @@ class npo_HTML(FetchData):
 
                 channel_url = self.get_url(offset)
 
+                if not first_fetch:
+                    # be nice to npo.nl
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                    first_fetch = false
+
                 # get the raw programming for the day
                 strdata = config.get_page(channel_url)
                 if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
@@ -10096,9 +10137,7 @@ class npo_HTML(FetchData):
                 except:
                     log(traceback.format_exc())
 
-                # be nice to npo.nl
                 self.day_loaded[0][offset] = True
-                time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
         for chanid in self.channels.keys():
             self.channel_loaded[chanid] = True
@@ -10121,6 +10160,7 @@ class npo_HTML(FetchData):
 
     def load_pages_vertical(self):
 
+        first_fetch = True
         if config.opt_dict['offset'] > 3:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -10139,6 +10179,11 @@ class npo_HTML(FetchData):
             '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
             channel_url = self.get_url(offset, None, True)
+
+            if not first_fetch:
+                # be nice to npo.nl
+                time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                first_fetch = false
 
             # get the raw programming for the day
             strdata = config.get_page(channel_url)
@@ -10301,8 +10346,6 @@ class npo_HTML(FetchData):
             for chanid in self.channels.keys():
                 self.day_loaded[chanid][offset] = True
 
-            # be nice to npo.nl
-            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
         for chanid in self.channels.keys():
             with self.source_lock:
@@ -10383,6 +10426,7 @@ class horizon_JSON(FetchData):
                         break
 
     def load_pages(self):
+        first_fetch = True
         if config.opt_dict['offset'] > 7:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -10423,6 +10467,10 @@ class horizon_JSON(FetchData):
                         ( channel_cnt, len(self.channels), config.opt_dict['days'], page_count)], 2)
 
                     channel_url = self.get_url('day', channel, start, end)
+                    if not first_fetch:
+                        # be nice to horizon.tv
+                        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                        first_fetch = false
 
                     # get the raw programming for the day
                     strdata = config.get_page(channel_url, 'utf-8')
@@ -10564,8 +10612,6 @@ class horizon_JSON(FetchData):
                         with self.source_lock:
                             self.program_data[chanid].append(tdict)
 
-                    # be nice to teveblad.be
-                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
                     if int(program_list['entryCount']) < 100:
                         break
 
@@ -10672,7 +10718,7 @@ class humo_JSON(FetchData):
         if len(self.channels) == 0 :
             return
 
-        first_fetched = False
+        first_fetch = True
         try:
             for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 8)):
                 rest_channels = self.chanids.keys()
@@ -10688,11 +10734,11 @@ class humo_JSON(FetchData):
                     log(['\n', 'Now fetching %s channels from humo.be\n' % retry[0], \
                         '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
 
-                    if first_fetched:
+                    if not first_fetch:
                         # be nice to humo.be
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                        first_fetch = False
 
-                    first_fetched = True
                     # get the raw programming for the day
                     strdata = config.get_page(channel_url, 'utf-8')
                     if strdata == None or strdata.replace('\n','') == '{}':
@@ -10895,6 +10941,7 @@ class vpro_HTML(FetchData):
         self.fetch_presenter = re.compile('[Pp]resentatie([. ]*): (.*?)\.')
         self.fetch_cast = re.compile('[Mm]et([. ]*): (.*?)e\.a\.')
         self.fetch_cast2 = re.compile('[Mm]et oa (.*?)\.')
+        self.fetch_genre_codes = re.compile("(g[0-9]+)")
 
         self.init_channel_source_ids()
         self.availabe_days = []
@@ -11129,19 +11176,12 @@ class vpro_HTML(FetchData):
                     if not omroep in ('', None):
                         tdict['omroep'] = self.empersant(omroep)
 
-                    pgenre = re.sub('epg-program', '', p.get('class','')).strip()
-                    if pgenre != None and pgenre !=  '':
-                        pgenre = re.sub(' +', ' ', re.sub('g', ' g', re.sub('gvpro', '', pgenre.lower())).strip())
-                        pg = pgenre.split(' ')
-                        if len(pg) == 1 or pg[1].strip() == 'gvpro':
-                            pg = (pg[0].strip(), )
-
-                        elif len(pg) == 2:
-                            if pg[0].strip() == 'gvpro':
-                                pg = (pg[1].strip(), )
-
-                            else:
-                                pg = (pg[0].strip(), pg[1].strip())
+                    pgenre = p.get('class','')
+                    pg = self.fetch_genre_codes.findall(pgenre)
+                    if len(pg) > 0:
+                        pg = tuple(pg)
+                        if len(pg) > 2:
+                            pg = pg[0:2]
 
                         if pg in config.source_cattrans[self.proc_id].keys():
                             tdict['genre'] = config.source_cattrans[self.proc_id][pg][0].capitalize()
@@ -12148,6 +12188,9 @@ class vrt_JSON(FetchData):
         if type == 'channels':
             return  [u'%schannel/s' % (base_url), 'application/vnd.channel.vrt.be.channels_1.1+json']
 
+        elif type == 'genres':
+            return  [u'%sepg/standardgenres' % (base_url), 'application/vnd.epg.vrt.be.standardgenres_1.0+json']
+
         elif type == 'week' and chanid == None:
             return  [u'%sepg/schedules/%s?type=week' % (base_url, scan_date),
                             'application/vnd.epg.vrt.be.schedule_3.1+json']
@@ -12215,6 +12258,36 @@ class vrt_JSON(FetchData):
 
         return date
 
+    def get_standaardgenres(self):
+        url = self.get_url('genres')
+        total = config.get_page(url[0], 'utf-8', url[1])
+        genredict = json.loads(total)
+        vrt_genres = {}
+        dvb_genres = {}
+        ebu_genres = {}
+        for g in genredict['standardGenres']:
+            vrt_genres[g['code']] = {}
+            vrt_genres[g['code']]['type'] = [g['type']]
+            vrt_genres[g['code']]['eid'] = [g['eid']]
+            vrt_genres[g['code']]['type'] = [g['type']]
+            vrt_genres[g['code']]['name'] = [g['name']]
+            eid = g['eid'].split('.')
+            name =  g['name'].split('>')
+            if g['type'] == 'DVB':
+                if eid[1] == '0':
+                    #~ eid[1] = ''
+                    eid.pop(1)
+                    name[1] = ''
+
+                dvb_genres[tuple(eid)] = tuple(name)
+
+            elif g['type'] == 'EBU':
+                pass
+
+        gkeys = dvb_genres.keys()
+        for k in sorted(dvb_genres.keys()):
+            print u'%s: %s,' % (k, dvb_genres[k])
+
     def load_pages(self):
 
         if config.opt_dict['offset'] > 14:
@@ -12227,7 +12300,7 @@ class vrt_JSON(FetchData):
         if len(self.channels) == 0 :
             return
 
-        first_fetched = False
+        first_fetch = True
         groupitems = {}
         week_loaded = {}
         fetch_dates = []
@@ -12267,11 +12340,11 @@ class vrt_JSON(FetchData):
                             '    (channel %s of %s) for week %s of %s).\n' % \
                             (channel_cnt, len(self.channels), offset, len(fetch_range))], 2)
 
-                        # be nice to tvgids.nl
-                        if not first_fetched:
+                        # be nice to vrt.be
+                        if not first_fetch:
                             time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+                            first_fetch = False
 
-                        first_fetched = True
                         # get the raw programming for the day
                         try:
                             strdata = config.get_page(url[0], 'utf-8', url[1])
@@ -12321,11 +12394,61 @@ class vrt_JSON(FetchData):
                                 if p['episodeTitle'].lower().strip() != tdict['name'].lower().strip():
                                     tdict['titel aflevering'] = p['episodeTitle'].strip()
 
+                            # Types
+                            # Aflevering, Nieuws, Sport, Programma, Film, Groep, Weerbericht, radio, Kansspelen, Volatiel,
+                            # MER, Feratel beelden, Volatiel programma - geen PDC, Main Transmission, Dia, NACHTLUS op MER
+                            if p['type'] in ('Aflevering', 'Programma'):
+                                if 'seasonNumber' in p and p['seasonNumber'] not in ('', None):
+                                    try:
+                                        tdict['season'] = int(p['seasonNumber'])
+
+                                    except:
+                                        pass
+
+                                if 'episodeNumber' in p and p['episodeNumber'] not in ('', None):
+                                    try:
+                                        tdict['episode'] = int(p['episodeNumber'])
+
+                                    except:
+                                        pass
+
+                            if 'presenters' in p and isinstance(p['presenters'], list):
+                                if not 'presenter' in tdict['credits']:
+                                    tdict['credits']['presenter'] = []
+
+                                for d in p['presenters']:
+                                    if 'name' in d:
+                                        tdict['credits']['presenter'].append(d['name'])
+
+                            #~ if config.write_info_files:
+                                #~ if 'cast' in p and p['cast'] != '':
+                                    #~ infofiles.addto_detail_list(u'new vrt cast => %s' % (p['cast']))
+
+                            # standardGenres
+                            # actua, sport, cultuur, film, docu, humor, series, ontspanning
+                            if 'standardGenres' in p.keys() and isinstance(p['standardGenres'], dict):
+                                if p['standardGenres']['type'] == 'DVB':
+                                    pg = p['standardGenres']['eid'].split('.')
+                                    pn =  p['standardGenres']['name'].split('>')
+                                    if pg in config.source_cattrans[self.proc_id].keys():
+                                        tdict['genre'] = config.source_cattrans[self.proc_id][pg][0].capitalize()
+                                        tdict['subgenre'] = config.source_cattrans[self.proc_id][pg][1].capitalize()
+
+                                    elif (pg[0].lower(), ) in config.source_cattrans[self.proc_id].keys():
+                                        tdict['genre'] = config.source_cattrans[self.proc_id][(pg[0].lower(), )][0].capitalize()
+                                        sg = config.source_cattrans[self.proc_id][(pg[0].lower(), )][1]
+                                        tdict['subgenre'] = pn[1] if sg == '' else sg.capitalize()
+                                        config.new_cattrans[self.proc_id][(pg[0], pg[1])] = (tdict['genre'], tdict['subgenre'])
+
+                                    else:
+                                        tdict['genre'] = u'overige'
+                                        tdict['subgenre'] = pn[1]
+                                        config.new_cattrans[self.proc_id][pg] = (u'Overige', pn[1])
+
                             tdict['video']['breedbeeld'] = True if 'aspectRatio' in p.keys() and p['aspectRatio'] == '16:9' else False
                             tdict['video']['HD'] = True if 'videoFormat' in p.keys() and p['videoFormat'] == 'HD' else False
                             tdict['teletekst'] = True if 'hasTTSubTitles' in p.keys() and p['hasTTSubTitles'] else False
                             tdict['rerun'] = True if 'isRepeat' in p.keys() and p['isRepeat'] else False
-
                             if 'categories' in p.keys() and p['categories'] != None and p['categories'].strip() != '':
                                 if p['categories'].strip() in  config.vrtkijkwijzer:
                                     tdict['kijkwijzer'].append(config.vrtkijkwijzer[p['categories'].strip()])
@@ -12333,51 +12456,7 @@ class vrt_JSON(FetchData):
                                 elif config.write_info_files:
                                     infofiles.addto_detail_list(u'new vrt categorie => %s' % (p['categories']))
 
-                            if 'type' in p.keys():
-                                if p['type'] == 'Aflevering':
-                                    pass
-
-                                elif p['type'] == 'Programma':
-                                    pass
-
-                                elif p['type'] == 'Film':
-                                    pass
-
-                                elif p['type'] == 'Sport':
-                                    pass
-
-                                elif p['type'] == 'Volatiel':
-                                    pass
-
-                                elif p['type'] == 'Nieuws':
-                                    pass
-
-                                elif p['type'] == 'Weerbericht':
-                                    pass
-
-                                elif p['type'] == 'Kansspelen':
-                                    pass
-
-                                elif p['type'] == 'radio':
-                                    pass
-
-                                elif p['type'] == 'Groep':
-                                    pass
-
-                                elif config.write_info_files:
-                                    infofiles.addto_detail_list(u'new vrt type => %s' % (p['type']))
-
-                            # Types
-                            # Aflevering, Nieuws, Sport, Programma, Film, Groep, Weerbericht, radio, Kansspelen, Volatiel,
-                            # MER, Feratel beelden, Volatiel programma - geen PDC, Main Transmission, Dia, NACHTLUS op MER
-                            # standardGenres
-                            # actua, sport, cultuur, film, docu, humor, series, ontspanning
-
-
                             if config.write_info_files:
-                                if 'type' in p.keys() and 'seasonNumber' in p.keys() and 'episodeNumber' in p.keys():
-                                    infofiles.addto_detail_list(u'new vrt type => %s, %s, %s' % (p['type'], p['seasonNumber'], p['episodeNumber']))
-
                                 for item in p.keys():
                                     if item.strip() not in (u'code', u'date', u'channel', u'programme', u'group', u'season', u'episode', u'brand',
                                             u'twitterHashTag', u'onDemandURL', u'episodeOnDemandURL', u'websiteURL', u'secondScreenURL',
@@ -13487,7 +13566,7 @@ def main():
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
 
         #~ test = vrt_JSON(10, 'vrt.be', 'vrt-ID', 'vrt-url', True)
-        #~ test.init_channels()
+        #~ test.get_standaardgenres()
         #~ test.get_channels()
         #~ config.opt_dict['offset'] = 0
         #~ config.opt_dict['days'] = 1
