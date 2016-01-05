@@ -7708,8 +7708,8 @@ class tvgids_JSON(FetchData):
                 if first_fetched:
                     # be nice to tvgids.nl
                     time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-                    first_fetched = True
 
+                first_fetched = True
                 # get the raw programming for the day
                 strdata = config.get_page(channel_url, 'utf-8')
                 if strdata == None or strdata.replace('\n','') == '{}':
@@ -8400,7 +8400,9 @@ class tvgidstv_HTML(FetchData):
                     for offset in fetch_range:
                         # Check if it is allready loaded
                         if self.day_loaded[chanid][offset] != False or \
-                          (config.channels[chanid].opt_dict['append_tvgidstv'] and xml_output.channelsource[0].day_loaded[chanid][offset]):
+                          (config.channels[chanid].opt_dict['append_tvgidstv'] and \
+                          chanid in xml_output.channelsource[0].day_loaded and \
+                          xml_output.channelsource[0].day_loaded[chanid][offset]):
                             continue
 
                         log(['\n', 'Now fetching %s(xmltvid=%s%s) from tvgids.tv\n' % \
@@ -10689,8 +10691,8 @@ class humo_JSON(FetchData):
                     if first_fetched:
                         # be nice to humo.be
                         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-                        first_fetched = True
 
+                    first_fetched = True
                     # get the raw programming for the day
                     strdata = config.get_page(channel_url, 'utf-8')
                     if strdata == None or strdata.replace('\n','') == '{}':
@@ -12226,232 +12228,234 @@ class vrt_JSON(FetchData):
             return
 
         first_fetched = False
-        failure_count = 0
         groupitems = {}
+        week_loaded = {}
+        fetch_dates = []
+        first_day = int(datetime.date.fromordinal(self.current_date + config.opt_dict['offset']).strftime('%w'))
+        first_day = config.opt_dict['offset'] + 1 - first_day if first_day > 0 else config.opt_dict['offset'] - 6
+        fetch_range = range(first_day, (config.opt_dict['offset'] + config.opt_dict['days']), 7)
+        for d in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
+            fetch_dates.append(datetime.date.fromordinal(self.current_date + d).strftime('%Y-%m-%d'))
+
         for chanid in self.channels.keys():
             groupitems[chanid] = 0
+            week_loaded[chanid] = {}
+            for r in range(len(fetch_range)):
+                week_loaded[chanid][r] = False
 
         try:
-            first_day = int(datetime.date.fromordinal(self.current_date + config.opt_dict['offset']).strftime('%w'))
-            first_day = config.opt_dict['offset'] + 1 - first_day if first_day > 0 else config.opt_dict['offset'] - 6
-            fetch_range = range(first_day, (config.opt_dict['offset'] + config.opt_dict['days']), 7)
-            week_loaded = {}
-            for r in range(len(fetch_range)):
-                week_loaded[r] = False
-
-            fetch_dates = []
-            for d in range(config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
-                fetch_dates.append(datetime.date.fromordinal(self.current_date + d).strftime('%Y-%m-%d'))
-
             for retry in (0, 1):
-                if self.quit:
-                    return
-
-                for offset in range(len(fetch_range)):
+                channel_cnt = 0
+                for chanid, channel in self.channels.items():
+                    channel_cnt += 1
+                    failure_count = 0
                     if self.quit:
                         return
 
-                    # Check if it is already loaded
-                    if week_loaded[offset]:
-                        continue
+                    for offset in range(len(fetch_range)):
+                        if self.quit:
+                            return
 
-                    if len(self.channels) == 1 :
-                        url = self.get_url('week', fetch_range[offset], self.channels.values()[0])
+                        # Check if it is already loaded
+                        if week_loaded[chanid][offset]:
+                            continue
 
-                    else:
-                        url = self.get_url('week', fetch_range[offset])
+                        url = self.get_url('week', fetch_range[offset], channel)
+                        log(['\n', 'Now fetching %s(xmltvid=%s%s) from vrt.be\n' % \
+                            (config.channels[chanid].chan_name, config.channels[chanid].xmltvid , \
+                            (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                            '    (channel %s of %s) for week %s of %s).\n' % \
+                            (channel_cnt, len(self.channels), offset, len(fetch_range))], 2)
 
-                    log(['\n', 'Now fetching %s channels from vrt.be.\n' % len(self.channels), \
-                        '    (week %s of %s).\n' % (offset, len(fetch_range))], 2)
+                        # be nice to tvgids.nl
+                        if not first_fetched:
+                            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
-                    # get the raw programming for the day
-                    try:
-                        strdata = config.get_page(url[0], 'utf-8', url[1])
+                        first_fetched = True
+                        # get the raw programming for the day
+                        try:
+                            strdata = config.get_page(url[0], 'utf-8', url[1])
 
-                        if strdata == None:
-                            log("No data on vrt.be for week=%d!\n" % (offset))
+                            if strdata == None:
+                                log("No data on vrt.be for %s, week=%d!\n" % (config.channels[chanid].chan_name, offset))
+                                failure_count += 1
+                                self.fail_count += 1
+                                continue
+
+                        except:
+                            log('Error: "%s" reading the vrt.be json page for %s, week=%d.\n' % \
+                                (sys.exc_info()[1], config.channels[chanid].chan_name, offset))
                             failure_count += 1
                             self.fail_count += 1
                             continue
 
-                    except:
-                        log('Error: "%s" reading the vrt.be json page for week=%d.\n' % (sys.exc_info()[1], offset))
-                        failure_count += 1
-                        self.fail_count += 1
-                        continue
+                        self.base_count += 1
+                        week_loaded[chanid][offset] = True
+                        jsondata = json.loads(strdata)
+                        for p in jsondata['events']:
+                            if not (p['date'] in fetch_dates and p['channel']['code'] in self.channels.values()):
+                                continue
 
-                    self.base_count += 1
-                    week_loaded[offset] = True
-                    jsondata = json.loads(strdata)
-                    for p in jsondata['events']:
-                        if not (p['date'] in fetch_dates and p['channel']['code'] in self.channels.values()):
-                            continue
+                            tdict = self.checkout_program_dict()
+                            tdict[self.detail_id] = u'vrt-%s' % (p['code'])
+                            self.json_by_id[tdict[self.detail_id]] = p
+                            tdict['source'] = 'vrt'
+                            tdict['channelid'] = chanid
+                            tdict['channel']  = config.channels[chanid].chan_name
 
-                        channel = p['channel']['code']
-                        chanid = self.chanids[channel]
-                        tdict = self.checkout_program_dict()
-                        tdict[self.detail_id] = u'vrt-%s' % (p['code'])
-                        self.json_by_id[tdict[self.detail_id]] = p
-                        tdict['source'] = 'vrt'
-                        tdict['channelid'] = chanid
-                        tdict['channel']  = config.channels[chanid].chan_name
+                            # The Title
+                            tdict['name'] = self.unescape(p['title'])
 
-                        # The Title
-                        tdict['name'] = self.unescape(p['title'])
+                            # The timing
+                            tdict['start-time'] = self.get_datetime(p['startTime'])
+                            tdict['stop-time']  = self.get_datetime(p['endTime'], False)
+                            if  tdict['name'] == None or tdict['name'] == '' or tdict['start-time'] == None or tdict['stop-time'] == None:
+                                continue
 
-                        # The timing
-                        tdict['start-time'] = self.get_datetime(p['startTime'])
-                        tdict['stop-time']  = self.get_datetime(p['endTime'], False)
-                        if  tdict['name'] == None or tdict['name'] == '' or tdict['start-time'] == None or tdict['stop-time'] == None:
-                            continue
-
-                        tdict['offset'] = self.get_offset(tdict['start-time'])
-                        if 'group' in p.keys():
-                            tdict['group'] = p['group']
-                            groupitems[chanid] +=1
-
-                        if 'episodeTitle' in p and p['episodeTitle'] != None:
-                            if p['episodeTitle'].lower().strip() != tdict['name'].lower().strip():
-                                tdict['titel aflevering'] = p['episodeTitle'].strip()
-
-                        tdict['video']['breedbeeld'] = True if 'aspectRatio' in p.keys() and p['aspectRatio'] == '16:9' else False
-                        tdict['video']['HD'] = True if 'videoFormat' in p.keys() and p['videoFormat'] == 'HD' else False
-                        tdict['teletekst'] = True if 'hasTTSubTitles' in p.keys() and p['hasTTSubTitles'] else False
-                        tdict['rerun'] = True if 'isRepeat' in p.keys() and p['isRepeat'] else False
-
-                        if 'categories' in p.keys() and p['categories'] != None and p['categories'].strip() != '':
-                            if p['categories'].strip() in  config.vrtkijkwijzer:
-                                tdict['kijkwijzer'].append(config.vrtkijkwijzer[p['categories'].strip()])
-
-                            elif config.write_info_files:
-                                infofiles.addto_detail_list(u'new vrt categorie => %s' % (p['categories']))
-
-                        if 'type' in p.keys():
-                            if p['type'] == 'Aflevering':
-                                pass
-
-                            elif p['type'] == 'Programma':
-                                pass
-
-                            elif p['type'] == 'Film':
-                                pass
-
-                            elif p['type'] == 'Sport':
-                                pass
-
-                            elif p['type'] == 'Volatiel':
-                                pass
-
-                            elif p['type'] == 'Nieuws':
-                                pass
-
-                            elif p['type'] == 'Weerbericht':
-                                pass
-
-                            elif p['type'] == 'Kansspelen':
-                                pass
-
-                            elif p['type'] == 'radio':
-                                pass
-
-                            elif p['type'] == 'Groep':
-                                pass
-
-                            elif config.write_info_files:
-                                infofiles.addto_detail_list(u'new vrt type => %s' % (p['type']))
-
-                        # Types
-                        # Aflevering, Nieuws, Sport, Programma, Film, Groep, Weerbericht, radio, Kansspelen, Volatiel,
-                        # MER, Feratel beelden, Volatiel programma - geen PDC, Main Transmission, Dia, NACHTLUS op MER
-                        # standardGenres
-                        # actua, sport, cultuur, film, docu, humor, series, ontspanning
-
-
-                        if config.write_info_files:
-                            if 'type' in p.keys() and 'seasonNumber' in p.keys() and 'episodeNumber' in p.keys():
-                                infofiles.addto_detail_list(u'new vrt type => %s, %s, %s' % (p['type'], p['seasonNumber'], p['episodeNumber']))
-
-                            for item in p.keys():
-                                if item.strip() not in (u'code', u'date', u'channel', u'programme', u'group', u'season', u'episode', u'brand',
-                                        u'twitterHashTag', u'onDemandURL', u'episodeOnDemandURL', u'websiteURL', u'secondScreenURL',
-                                        u'images', u'imagesLink', u'trailerURL', u'trailerPictureURL', u'playlistLink', u'playlistSiteURL',
-                                        u'onAir', u'geoblocking', u'isLive', u'hidePrintedPress', u'bought', u'onDemand',
-                                        u'updateFlag', u'whatsonProductId', u'reconcileId',u'pdc' ,
-                                        u'title', u'shortTitle', u'startTime', u'endTime', u'duration', u'originalStartTime',
-                                        u'seasonNumber', u'seasonEid', u'seasonTitle', u'seasonNumberOfEpisodes', u'hideSeasonNumber',
-                                        u'episodeNumber', u'episodeEid', u'episodeSequenceNumber', u'episodeTitle', u'hideEpisodeNumber',
-                                        u'aspectRatio', u'videoFormat', u'hasTTSubTitles', u'isRepeat',
-                                        u'presenters', u'cast', u'type', u'categories', u'standardGenres',
-                                        u'shortDescription', u'description', u'hasAudioDescription'):
-                                    infofiles.addto_detail_list(u'new vrt key => %s = %s' % (item, p[item]))
-
-                        tdict = self.check_title_name(tdict)
-                        with self.source_lock:
-                            self.program_data[chanid].append(tdict)
-
-                if failure_count == 0:
-                    break
-
-            for chanid in self.channels.keys():
-                with self.source_lock:
-                    self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
-                    # 1 or more groups were encountered
-                    if groupitems[chanid] > 0:
-                        group_start = False
-                        for p in self.program_data[chanid][:]:
+                            tdict['offset'] = self.get_offset(tdict['start-time'])
                             if 'group' in p.keys():
-                                # Collecting the group
-                                if not group_start:
-                                    group = []
-                                    start = p['start-time']
-                                    group_start = True
+                                tdict['group'] = p['group']
+                                groupitems[chanid] +=1
 
-                                group.append(p.copy())
-                                group_duur = p['stop-time'] - start
+                            if 'episodeTitle' in p and p['episodeTitle'] != None:
+                                if p['episodeTitle'].lower().strip() != tdict['name'].lower().strip():
+                                    tdict['titel aflevering'] = p['episodeTitle'].strip()
 
-                            elif group_start:
-                                # Repeating the group
+                            tdict['video']['breedbeeld'] = True if 'aspectRatio' in p.keys() and p['aspectRatio'] == '16:9' else False
+                            tdict['video']['HD'] = True if 'videoFormat' in p.keys() and p['videoFormat'] == 'HD' else False
+                            tdict['teletekst'] = True if 'hasTTSubTitles' in p.keys() and p['hasTTSubTitles'] else False
+                            tdict['rerun'] = True if 'isRepeat' in p.keys() and p['isRepeat'] else False
+
+                            if 'categories' in p.keys() and p['categories'] != None and p['categories'].strip() != '':
+                                if p['categories'].strip() in  config.vrtkijkwijzer:
+                                    tdict['kijkwijzer'].append(config.vrtkijkwijzer[p['categories'].strip()])
+
+                                elif config.write_info_files:
+                                    infofiles.addto_detail_list(u'new vrt categorie => %s' % (p['categories']))
+
+                            if 'type' in p.keys():
+                                if p['type'] == 'Aflevering':
+                                    pass
+
+                                elif p['type'] == 'Programma':
+                                    pass
+
+                                elif p['type'] == 'Film':
+                                    pass
+
+                                elif p['type'] == 'Sport':
+                                    pass
+
+                                elif p['type'] == 'Volatiel':
+                                    pass
+
+                                elif p['type'] == 'Nieuws':
+                                    pass
+
+                                elif p['type'] == 'Weerbericht':
+                                    pass
+
+                                elif p['type'] == 'Kansspelen':
+                                    pass
+
+                                elif p['type'] == 'radio':
+                                    pass
+
+                                elif p['type'] == 'Groep':
+                                    pass
+
+                                elif config.write_info_files:
+                                    infofiles.addto_detail_list(u'new vrt type => %s' % (p['type']))
+
+                            # Types
+                            # Aflevering, Nieuws, Sport, Programma, Film, Groep, Weerbericht, radio, Kansspelen, Volatiel,
+                            # MER, Feratel beelden, Volatiel programma - geen PDC, Main Transmission, Dia, NACHTLUS op MER
+                            # standardGenres
+                            # actua, sport, cultuur, film, docu, humor, series, ontspanning
+
+
+                            if config.write_info_files:
+                                if 'type' in p.keys() and 'seasonNumber' in p.keys() and 'episodeNumber' in p.keys():
+                                    infofiles.addto_detail_list(u'new vrt type => %s, %s, %s' % (p['type'], p['seasonNumber'], p['episodeNumber']))
+
+                                for item in p.keys():
+                                    if item.strip() not in (u'code', u'date', u'channel', u'programme', u'group', u'season', u'episode', u'brand',
+                                            u'twitterHashTag', u'onDemandURL', u'episodeOnDemandURL', u'websiteURL', u'secondScreenURL',
+                                            u'images', u'imagesLink', u'trailerURL', u'trailerPictureURL', u'playlistLink', u'playlistSiteURL',
+                                            u'onAir', u'geoblocking', u'isLive', u'hidePrintedPress', u'bought', u'onDemand',
+                                            u'updateFlag', u'whatsonProductId', u'reconcileId',u'pdc' ,
+                                            u'title', u'shortTitle', u'startTime', u'endTime', u'duration', u'originalStartTime',
+                                            u'seasonNumber', u'seasonEid', u'seasonTitle', u'seasonNumberOfEpisodes', u'hideSeasonNumber',
+                                            u'episodeNumber', u'episodeEid', u'episodeSequenceNumber', u'episodeTitle', u'hideEpisodeNumber',
+                                            u'aspectRatio', u'videoFormat', u'hasTTSubTitles', u'isRepeat',
+                                            u'presenters', u'cast', u'type', u'categories', u'standardGenres',
+                                            u'shortDescription', u'description', u'hasAudioDescription'):
+                                        infofiles.addto_detail_list(u'new vrt key => %s = %s' % (item, p[item]))
+
+                            tdict = self.check_title_name(tdict)
+                            with self.source_lock:
+                                self.program_data[chanid].append(tdict)
+
+                    if failure_count == 0 or retry == 1:
+                        with self.source_lock:
+                            self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+                            # 1 or more groups were encountered
+                            if groupitems[chanid] > 0:
                                 group_start = False
-                                group_eind = p['start-time']
-                                group_length = group_eind - start
-                                if group_length > datetime.timedelta(days = 1):
-                                    # Probably a week was not grabbed
-                                    group_eind -= datetime.timedelta(days = int(group_length.days))
+                                for p in self.program_data[chanid][:]:
+                                    if 'group' in p.keys():
+                                        # Collecting the group
+                                        if not group_start:
+                                            group = []
+                                            start = p['start-time']
+                                            group_start = True
 
-                                repeat = 0
-                                while True:
-                                    repeat+= 1
-                                    for g in group[:]:
-                                        gdict = g.copy()
-                                        gdict[self.detail_id] = ''
-                                        gdict['rerun'] = True
-                                        gdict['start-time'] += repeat*group_duur
-                                        gdict['stop-time'] += repeat*group_duur
-                                        if gdict['start-time'] < group_eind:
-                                            if gdict['stop-time'] > group_eind:
-                                                gdict['stop-time'] = group_eind
+                                        group.append(p.copy())
+                                        group_duur = p['stop-time'] - start
 
-                                            self.program_data[chanid].append(gdict)
+                                    elif group_start:
+                                        # Repeating the group
+                                        group_start = False
+                                        group_eind = p['start-time']
+                                        group_length = group_eind - start
+                                        if group_length > datetime.timedelta(days = 1):
+                                            # Probably a week was not grabbed
+                                            group_eind -= datetime.timedelta(days = int(group_length.days))
 
-                                        else:
+                                        repeat = 0
+                                        while True:
+                                            repeat+= 1
+                                            for g in group[:]:
+                                                gdict = g.copy()
+                                                gdict[self.detail_id] = ''
+                                                gdict['rerun'] = True
+                                                gdict['start-time'] += repeat*group_duur
+                                                gdict['stop-time'] += repeat*group_duur
+                                                if gdict['start-time'] < group_eind:
+                                                    if gdict['stop-time'] > group_eind:
+                                                        gdict['stop-time'] = group_eind
+
+                                                    self.program_data[chanid].append(gdict)
+
+                                                else:
+                                                    break
+
+                                            else:
+                                                continue
+
                                             break
 
-                                    else:
-                                        continue
+                        self.parse_programs(chanid, 0, 'None')
+                        self.channel_loaded[chanid] = True
+                        for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
+                            self.day_loaded[chanid][day] = True
 
-                                    break
+                        config.channels[chanid].source_data[self.proc_id].set()
+                        try:
+                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
 
-                self.parse_programs(chanid, 0, 'None')
-                self.channel_loaded[chanid] = True
-                for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
-                    self.day_loaded[chanid][day] = True
-
-                config.channels[chanid].source_data[self.proc_id].set()
-                try:
-                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
-
-                except:
-                    pass
+                        except:
+                            pass
 
         except:
             log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source), traceback.format_exc()], 0)
