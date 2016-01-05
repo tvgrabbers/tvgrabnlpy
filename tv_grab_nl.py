@@ -8817,12 +8817,13 @@ class rtl_JSON(FetchData):
 
         # be nice to rtl.nl
         time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-        first_fetch = false
 
         # get the raw programming for the day
         strdata = config.get_page(channel_url, 'utf-8')
 
         if strdata == None or strdata.replace('\n','') == '{}':
+            # Wait a while and try again
+            time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
             strdata = config.get_page(channel_url, 'utf-8')
             if strdata == None or strdata.replace('\n','') == '{}':
                 log("Error loading rtl json data\n")
