@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 8
-        self.patchdate = u'20160105'
+        self.patchdate = u'20160106'
         self.alfa = False
         self.beta = True
 
@@ -11038,8 +11038,6 @@ class vpro_HTML(FetchData):
                     tdict['credits']['director'].append(d)
 
             elif subg2 != None:
-                # group(1) is country
-                #~ tdict['country']
                 cstr = re.split('/', subg2.group(1))
                 for c in cstr:
                     if c in config.coutrytrans.values():
@@ -12176,6 +12174,7 @@ class primo_HTML(FetchData):
 
 class vrt_JSON(FetchData):
     def init_channels(self):
+        self.fetch_headers = re.compile('([A-Z][a-z]+:)')
         self.init_channel_source_ids()
         self.chanids = {}
         for chanid, sourceid in self.channels.items():
@@ -12421,9 +12420,30 @@ class vrt_JSON(FetchData):
                                     if 'name' in d:
                                         tdict['credits']['presenter'].append(d['name'])
 
-                            #~ if config.write_info_files:
-                                #~ if 'cast' in p and p['cast'] != '':
-                                    #~ infofiles.addto_detail_list(u'new vrt cast => %s' % (p['cast']))
+                            if 'cast' in p and p['cast'] not in ('', None):
+                                headers = self.fetch_headers.findall(p['cast'])
+                                for h in range(len(headers)):
+                                    crole = headers[h].split(':')[0].lower()
+                                    if h == len(headers) - 1:
+                                        csearch = headers[h] + '(.*)'
+
+                                    else:
+                                        csearch = headers[h] + '(.*?)' + headers[h+1]
+
+                                    cstr = re.sub('\) ([A-Z])', '), \g<1>', \
+                                            re.sub(' en ', ', ', \
+                                            re.sub('e\.a\.', '', \
+                                            re.search(csearch, p['cast']).group(1)))).split(',')
+
+                                    if crole in config.roletrans.keys():
+                                        if not crole in tdict['credits']:
+                                            tdict['credits'][crole] = []
+
+                                        for cn in cstr:
+                                            tdict['credits'][crole].append(cn.split('(')[0].strip())
+
+                                    elif config.write_info_files:
+                                        infofiles.addto_detail_list(u'new vrt cast => %s = %s' % (item, p[item]))
 
                             # standardGenres
                             # actua, sport, cultuur, film, docu, humor, series, ontspanning
