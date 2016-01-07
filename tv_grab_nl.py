@@ -7098,7 +7098,7 @@ class FetchData(Thread):
         # merge_programs()
 
         # tdict is from info
-        def check_match_to_info(tdict, pi, mstart, check_overlap = True, check_genre = True):
+        def check_match_to_info(tdict, pi, mstart, check_overlap = True, check_genre = True, auto_merge = True):
             if no_genric_matching:
                 check_genre = False
 
@@ -7129,11 +7129,15 @@ class FetchData(Thread):
                         merge_match.append({'type': 2, 'tdict': tdict, 'prog': pi, 'match': x})
                         if tdict in info: info.remove(tdict)
 
-                    else:
+                    elif auto_merge:
                         merge_programs(tdict, pi, reverse_match=False, use_other_title = x)
 
                 except:
-                    pass
+                    if auto_merge:
+                        merge_programs(tdict, pi, reverse_match=False, use_other_title = x)
+
+            elif auto_merge:
+                merge_programs(tdict, pi, reverse_match=False, use_other_title = x)
 
             if pi in programs: programs.remove(pi)
             if mstart in prog_starttimes: del prog_starttimes[mstart]
@@ -7369,21 +7373,34 @@ class FetchData(Thread):
                                 pset.append(pp)
 
                     if len(pset) > 1:
+                        twin_ncount = 0
+                        twin_gcount = 0
+                        for pp in pset[:]:
+                            if pp != tdict:
+                                x = check_match_to_info(pp, pi, None, False, check_genre = source_merge, auto_merge = False)
+                                if x == 0:
+                                    # No match. Remove it
+                                    pset.remove(pp)
+
+                                elif x == 1:
+                                    # It matches on name
+                                    twin_ncount += 1
+
+                                elif x == 2:
+                                    # It matches on genre
+                                    twin_gcount += 1
+
+                    if len(pset) > 1:
                         if config.channels[chanid].opt_dict['use_split_episodes']:
+                            ncount += twin_ncount
+                            gcount += twin_gcount
                             for pp in pset:
                                 if pp == tdict:
                                     # The original match
                                     merge_programs(pp, pi)
 
                                 else:
-                                    x = check_match_to_info(pp, pi, None, False, check_genre = source_merge)
-                                    if x == 1:
-                                        merge_programs(pp, pi, copy_ids = False)
-                                        ncount += 1
-
-                                    elif x == 2:
-                                        merge_programs(pp, pi, copy_ids = False)
-                                        gcount += 1
+                                    merge_programs(pp, pi, copy_ids = False)
 
                         else:
                             # So we have to use the timings from programs
@@ -7412,7 +7429,27 @@ class FetchData(Thread):
                             # Stoptime overlap more than 50%
                                 pset.append(pp)
 
+                    if len(pset) > 1:
+                        twin_ncount = 0
+                        twin_gcount = 0
+                        for pp in pset[:]:
+                            if pp != pi:
+                                x = check_match_to_info(tdict, pp, None, False, check_genre = source_merge, auto_merge = False)
+                                if x == 0:
+                                    # No match. Remove it
+                                    pset.remove(pp)
+
+                                elif x == 1:
+                                    # It matches on name
+                                    twin_ncount += 1
+
+                                elif x == 2:
+                                    # It matches on genre
+                                    twin_gcount += 1
+
                     if len(pset) > 1 and config.channels[chanid].opt_dict['use_split_episodes']:
+                        ncount += twin_ncount
+                        gcount += twin_gcount
                         # So we have to use the timings from programs
                         for pp in pset:
                             if pp == pi:
@@ -7420,14 +7457,7 @@ class FetchData(Thread):
                                 merge_programs(pp, tdict, reverse_match = True)
 
                             else:
-                                x = check_match_to_info(tdict, pp, None, False, check_genre = source_merge)
-                                if x == 1:
-                                    merge_programs(pp, tdict, reverse_match = True, copy_ids = False)
-                                    ncount += 1
-
-                                elif x == 2:
-                                    merge_programs(pp, tdict, reverse_match = True, copy_ids = False)
-                                    gcount += 1
+                                merge_programs(pp, tdict, reverse_match = True, copy_ids = False)
 
                     else:
                         merge_programs(tdict, pi)
