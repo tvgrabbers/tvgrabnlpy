@@ -359,8 +359,8 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 8
-        self.patchdate = u'2016010'
-        self.alfa = True
+        self.patchdate = u'20160110'
+        self.alfa = False
         self.beta = True
 
         self.cache_return = Queue()
@@ -1778,6 +1778,10 @@ class Configure:
                     a = re.split('=',line)
                     if len(a) == 1:
                         continue
+
+                    if len(a[1]) > 20:
+                        continue
+
                     self.source_cattrans[1][a[1].lower().strip()] = a[0].strip()
 
                 elif type == 7:
@@ -1785,6 +1789,7 @@ class Configure:
                     a = re.split('=',line)
                     if len(a) == 1:
                         continue
+
                     self.roletrans[a[0].lower().strip()] = a[1].strip()
                 elif type in (8, 9, 10, 11, 13, 14):
                     source = type - 4
@@ -5608,6 +5613,7 @@ class FetchData(Thread):
         self.base_count = 0
         self.detail_count = 0
         self.fail_count = 0
+        self.fetch_string_parts = re.compile("(.*?[.?!:]+ |.*?\Z)")
 
     def run(self):
         """The grabing thread"""
@@ -6252,6 +6258,51 @@ class FetchData(Thread):
         program['name'] = ptitle
         program['titel aflevering'] = psubtitle
         return program
+
+    def get_string_parts(self, sstring, header_items = None):
+        if not isinstance(header_items, (list, tuple)):
+            header_items = []
+
+        test_items = []
+        for hi in header_items:
+            if isinstance(hi, (str, unicode)):
+                test_items.append((hi.lower(), hi))
+
+            elif isinstance(hi, (list, tuple)):
+                if len(hi) > 0 and isinstance(hi[0], (str, unicode)):
+                    hi0 = hi[0].lower()
+                    if len(hi) > 1 and isinstance(hi[1], (str, unicode)):
+                        hi1 = hi[1]
+
+                    else:
+                        hi1 = hi[0]
+
+                    test_items.append((hi0, hi1))
+
+        string_parts = self.fetch_string_parts.findall(sstring)
+        string_items = {}
+        act_item = 'start'
+        string_items[act_item] = []
+        for dp in string_parts:
+            if dp.strip() == '':
+                continue
+
+            if dp.strip()[-1] == ':':
+                act_item = dp.strip()[0:-1].lower()
+                string_items[act_item] = []
+
+            else:
+                for ti in test_items:
+                    if dp.strip().lower()[0:len(ti[0])] == ti[0]:
+                        act_item = ti[1]
+                        string_items[act_item] = []
+                        string_items[act_item].append(dp[len(ti[0]):].strip())
+                        break
+
+                else:
+                    string_items[act_item].append(dp.strip())
+
+        return string_items
 
     def filter_description(self,ETitem, ETfind, tdict):
         """
@@ -10962,17 +11013,13 @@ class vpro_HTML(FetchData):
         self.fetch_channellist = re.compile('<ul class="epg-channel-names">(.*?)</ul>',re.DOTALL)
         self.fetch_titels = re.compile('<h6 class="title">(.*?)</h6>',re.DOTALL)
         self.fetch_data = re.compile('<section class="section-with-layout component-theme theme-white">(.*?)</section>',re.DOTALL)
+        self.fetch_genre_codes = re.compile("(g[0-9]+)")
+        self.fetch_descr_parts = re.compile("(.*?[\.:]+ |.*?[\.:]+\Z)")
+
         self.fetch_subgenre = re.compile('^(.*?) uit (\d{4}) van (.*?)(over .*?\.|waarin .*?\.|voor .*?\.|\.)')
         self.fetch_subgenre2 = re.compile('^([A-Z/]+) (\d{4})\. ?(.*?) van (.*?)\.')
-        self.fetch_startline = re.compile('^(.*?)\.')
         self.fetch_subgenre3 = re.compile('^(.*?) uit (\d{4})')
         self.fetch_subgenre4 = re.compile('^(.*?) (naar|waarin|over).*?')
-        self.fetch_subtitle = re.compile('[Aa]fl([. ]*)(\d*): (.*?)[.?!]')
-        self.fetch_episode = re.compile('[Aa]flevering([. ]*): (\d+) van (\d+)\.')
-        self.fetch_presenter = re.compile('[Pp]resentatie([. ]*): (.*?)\.')
-        self.fetch_cast = re.compile('[Mm]et([. ]*): (.*?)e\.a\.')
-        self.fetch_cast2 = re.compile('[Mm]et oa (.*?)\.')
-        self.fetch_genre_codes = re.compile("(g[0-9]+)")
 
         self.init_channel_source_ids()
         self.availabe_days = []
@@ -11042,122 +11089,115 @@ class vpro_HTML(FetchData):
             if tdict['description'] == '':
                 return
 
-            # Get subgenre, and possibly jaar van premiere, regisseur, country
-            subg = self.fetch_subgenre.search(tdict['description'])
-            subg2 = self.fetch_subgenre2.search(tdict['description'])
-            startline = self.fetch_startline.search(tdict['description'])
-            if startline == None:
-                startline = ''
-                subg3 = None
-                subg4 = None
+            desc_items = self.get_string_parts(tdict['description'], ('met oa',))
+            for di, dt in desc_items.items():
+                if len(dt) == 0:
+                    continue
 
-            else:
-                startline = startline.group(1)
-                subg3 = self.fetch_subgenre3.search(startline)
-                subg4 = self.fetch_subgenre4.search(startline)
+                # Get subgenre, and possibly jaar van premiere, regisseur, country
+                if di == 'start':
+                    subg = self.fetch_subgenre.search(dt[0])
+                    subg2 = self.fetch_subgenre2.search(dt[0])
+                    subg3 = self.fetch_subgenre3.search(dt[0])
+                    subg4 = self.fetch_subgenre4.search(dt[0])
+                    if subg != None:
+                        tdict['subgenre'] = subg.group(1)
+                        tdict['jaar van premiere'] = subg.group(2)
+                        direct = re.sub(' en ',  ' , ', subg.group(3))
+                        direct = re.split(',', direct)
+                        if not 'director' in tdict['credits']:
+                            tdict['credits']['director'] = []
 
-            if subg != None:
-                tdict['subgenre'] = subg.group(1)
-                tdict['jaar van premiere'] = subg.group(2)
-                direct = re.sub(' en ',  ' , ', subg.group(3))
-                direct = re.split(',', direct)
-                if not 'director' in tdict['credits']:
-                    tdict['credits']['director'] = []
+                        for d in direct:
+                            tdict['credits']['director'].append(d)
 
-                for d in direct:
-                    tdict['credits']['director'].append(d)
+                    elif subg2 != None:
+                        cstr = re.split('/', subg2.group(1))
+                        for c in cstr:
+                            if c in config.coutrytrans.values():
+                                tdict['country'] = c
+                                break
 
-            elif subg2 != None:
-                cstr = re.split('/', subg2.group(1))
-                for c in cstr:
-                    if c in config.coutrytrans.values():
-                        tdict['country'] = c
-                        break
+                            elif c in config.coutrytrans.keys():
+                                tdict['country'] = config.coutrytrans[c]
+                                break
 
-                    elif c in config.coutrytrans.keys():
-                        tdict['country'] = config.coutrytrans[c]
-                        break
+                            elif config.write_info_files:
+                                infofiles.addto_detail_list(u'new country => %s' % (c))
 
-                    elif config.write_info_files:
-                        infofiles.addto_detail_list(u'new country => %s' % (c))
+                        tdict['jaar van premiere'] = subg2.group(2)
+                        tdict['subgenre'] = subg2.group(3)
+                        direct = re.sub(' en ',  ' , ', subg2.group(4))
+                        direct = re.split(',', direct)
+                        if not 'director' in tdict['credits']:
+                            tdict['credits']['director'] = []
 
-                tdict['jaar van premiere'] = subg2.group(2)
-                tdict['subgenre'] = subg2.group(3)
-                direct = re.sub(' en ',  ' , ', subg2.group(4))
-                direct = re.split(',', direct)
-                if not 'director' in tdict['credits']:
-                    tdict['credits']['director'] = []
+                        for d in direct:
+                            dtest = re.split(' ', d)
+                            if dtest[0] in ('gebaseerd', 'naar', ) or len(dtest) > 5:
+                                continue
 
-                for d in direct:
-                    dtest = re.split(' ', d)
-                    if dtest[0] in ('gebaseerd', 'naar', ) or len(dtest) > 5:
-                        continue
+                            tdict['credits']['director'].append(d)
 
-                    tdict['credits']['director'].append(d)
+                    elif subg3 != None:
+                        tdict['subgenre'] = subg3.group(1)
+                        tdict['jaar van premiere'] = subg3.group(2)
 
-            elif subg3 != None:
-                tdict['subgenre'] = subg3.group(1)
-                tdict['jaar van premiere'] = subg3.group(2)
+                    elif dt[0][0:3] == 'Afl' or dt[0][0:7] == 'Overige':
+                        pass
 
-            elif tdict['description'][0:3] == 'Afl' or tdict['description'][0:7] == 'Overige':
-                pass
+                    elif subg4 != None:
+                        subg5 = re.split(' ', subg4.group(1))
+                        if len(subg5) <= 4:
+                            tdict['subgenre'] = subg4.group(1)
 
-            elif subg4 != None:
-                subg5 = re.split(' ', subg4.group(1))
-                if len(subg5) <= 4:
-                    tdict['subgenre'] = subg4.group(1)
+                    else:
+                        subg6 = re.split(' ', dt[0])
+                        if len(subg6) <= 4:
+                            tdict['subgenre'] = dt[0]
 
-            else:
-                subg6 = re.split(' ', startline)
-                if len(subg6) <= 4:
-                    tdict['subgenre'] = startline
 
-            # Get the episode Number
-            ep = self.fetch_episode.search(tdict['description'])
-            if ep != None:
-                tdict['episode'] = int(ep.group(2))
+                # Get any roles
+                elif di in config.roletrans.keys():
+                    role = config.roletrans[di]
+                    if not role in tdict['credits']:
+                        tdict['credits'][role] = []
 
-            # Get the subtitle and possibly an episode number
-            subt = self.fetch_subtitle.search(tdict['description'])
-            if subt != None:
-                tdict['titel aflevering'] = subt.group(3)
-                if subt.group(2) != '' and tdict['episode'] == 0:
-                    tdict['episode'] = int(subt.group(2))
+                    cast = re.sub('e\.a\.',  '', dt[0])
+                    cast = re.sub(' en ',  ' , ', cast)
+                    cast = re.split(',', cast)
+                    for cn in cast:
+                        tdict['credits'][role].append(cn.split('(')[0].strip())
 
-            # Get the Presenter
-            pres = self.fetch_presenter.search(tdict['description'])
-            if pres != None:
-                pres = re.sub(' en ',  ' , ', pres.group(2))
-                pres = re.split(',', pres)
-                if not 'presenter' in tdict['credits']:
-                    tdict['credits']['presenter'] = []
+                # Get the episode Number
+                elif di == 'aflevering':
+                    ep = re.search('[0-9]+', dt[0])
+                    if ep != None:
+                        tdict['episode'] = int(ep.group(0))
 
-                for p in pres:
-                    tdict['credits']['presenter'].append(p)
+                # Get the subtitle and possibly an episode number
+                elif di[0:3] == 'afl':
+                    tdict['titel aflevering'] = dt[0].strip()
+                    ep = re.search('[0-9]+', di)
+                    if ep != None and tdict['episode'] == 0:
+                        tdict['episode'] = int(ep.group(0))
 
-            # Get the acters
-            if tdict['genre'] == 'Sport':
-                return
+                elif di[0:9] == 'vertaling':
+                    pass
 
-            cast = self.fetch_cast.search(tdict['description'])
-            cast2 = self.fetch_cast2.search(tdict['description'])
-            if cast != None:
-                cast = re.sub(' en ',  ' , ', cast.group(2))
+                elif di not in ('met oa', ) and config.write_info_files:
+                    infofiles.addto_detail_list(u'new vpro descr item => %s' % (di))
+
+            # Alternative Acters list
+            if 'met oa' in desc_items and not 'met'in desc_items:
+                role = config.roletrans['met']
+                if not role in tdict['credits']:
+                    tdict['credits'][role] = []
+
+                cast = re.sub(' en ',  ' , ', desc_items['met oa'][0])
                 cast = re.split(',', cast)
-                if not 'actor' in tdict['credits']:
-                    tdict['credits']['actor'] = []
-
-                for p in cast:
-                    tdict['credits']['actor'].append(p)
-
-            elif cast2 != None:
-                cast2 = re.sub(' en ',  ' , ', cast2.group(1))
-                cast2 = re.split(',', cast2)
-                if not 'actor' in tdict['credits']:
-                    tdict['credits']['actor'] = []
-
-                for p in cast2:
-                    tdict['credits']['actor'].append(p)
+                for cn in cast:
+                    tdict['credits'][role].append(cn.split('(')[0].strip())
 
         def get_programs(xml, chanid):
             try:
@@ -11309,10 +11349,6 @@ class vpro_HTML(FetchData):
                 except:
                     log('Error extracting ElementTree for day:%s on vpro.nl\n' % (offset))
                     self.fail_count += 1
-                    #~ print traceback.format_exc()
-                    #~ p = re.split('\n', noquote)
-                    #~ print p[23993]
-                    #~ print p[24005]
                     if config.write_info_files:
                         infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                         infofiles.write_raw_string(noquote)
@@ -11652,7 +11688,7 @@ class nieuwsblad_HTML(FetchData):
 
         except:
             self.fail_count += 1
-            print traceback.format_exc()
+            log(traceback.format_exc())
 
 
     def load_pages(self):
@@ -12451,29 +12487,24 @@ class vrt_JSON(FetchData):
                                         tdict['credits']['presenter'].append(d['name'])
 
                             if 'cast' in p and p['cast'] not in ('', None):
-                                headers = self.fetch_headers.findall(p['cast'])
-                                for h in range(len(headers)):
-                                    crole = headers[h].split(':')[0].lower()
-                                    if h == len(headers) - 1:
-                                        csearch = headers[h] + '(.*)'
+                                cast_items = self.get_string_parts(p['cast'])
+                                for crole, cast in cast_items.items():
+                                    if len(cast) == 0:
+                                        continue
 
-                                    else:
-                                        csearch = headers[h] + '(.*?)' + headers[h+1]
+                                    elif crole in config.roletrans.keys():
+                                        role = config.roletrans[crole]
+                                        if not role in tdict['credits']:
+                                            tdict['credits'][role] = []
 
-                                    cstr = re.sub('\) ([A-Z])', '), \g<1>', \
-                                            re.sub(' en ', ', ', \
-                                            re.sub('e\.a\.', '', \
-                                            re.search(csearch, p['cast']).group(1)))).split(',')
-
-                                    if crole in config.roletrans.keys():
-                                        if not crole in tdict['credits']:
-                                            tdict['credits'][crole] = []
-
-                                        for cn in cstr:
-                                            tdict['credits'][crole].append(cn.split('(')[0].strip())
+                                        cast = re.sub('\) ([A-Z])', '), \g<1>', \
+                                                re.sub(' en ', ', ', \
+                                                re.sub('e\.a\.', '', cast[0]))).split(',')
+                                        for cn in cast:
+                                            tdict['credits'][role].append(cn.split('(')[0].strip())
 
                                     elif config.write_info_files:
-                                        infofiles.addto_detail_list(u'new vrt cast => %s = %s' % (item, p[item]))
+                                        infofiles.addto_detail_list(u'new vrt cast item => %s = %s' % (item, p[item]))
 
                             # standardGenres
                             # actua, sport, cultuur, film, docu, humor, series, ontspanning
