@@ -7295,12 +7295,12 @@ class FetchData(Thread):
 
         # Sort both lists on starttime and get their ranges
         info.sort(key=lambda program: (program['start-time'],program['stop-time']))
-        infostarttime = info[0]['start-time'] - datetime.timedelta(0, 0, 0, 0, 10)
-        infoendtime = info[-1]['stop-time'] + datetime.timedelta(0, 0, 0, 0, 10)
+        infostarttime = info[0]['start-time'] + datetime.timedelta(seconds = 5)
+        infoendtime = info[-1]['stop-time'] - datetime.timedelta(seconds = 5)
 
         programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
-        progstarttime = programs[0]['start-time'] - datetime.timedelta(0, 0, 0, 0, 10)
-        progendtime = programs[-1]['stop-time'] + datetime.timedelta(0, 0, 0, 0, 10)
+        progstarttime = programs[0]['start-time'] + datetime.timedelta(seconds = 5)
+        progendtime = programs[-1]['stop-time'] - datetime.timedelta(seconds = 5)
 
         log_array.append('%6.0f programs in %s for range: %s - %s, \n' % \
             (len(info), prime_source_name.ljust(11), infostarttime.strftime('%d-%b %H:%M'), infoendtime.strftime('%d-%b %H:%M')))
@@ -7325,7 +7325,8 @@ class FetchData(Thread):
         # Get existing gaps in info larger then 'max_overlap'
         for index in range(1, len(info)):
             if (info[index]['start-time'] -  info[index -1]['stop-time']).total_seconds()  > config.channels[chanid].opt_dict['max_overlap']*60:
-                info_gaps.append({'start-time': info[index -1]['stop-time'],'stop-time': info[index]['start-time']})
+                info_gaps.append({'start-time': info[index -1]['stop-time'] - datetime.timedelta(seconds = 5 ),
+                                                'stop-time': info[index]['start-time'] + datetime.timedelta(seconds = 5 )})
 
         # And we create a list of starttimes and of names for matching
         for tdict in info[:]:
