@@ -359,9 +359,9 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 8
-        self.patchdate = u'20160110'
+        self.patchdate = u'20160112'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
@@ -2134,7 +2134,19 @@ class Configure:
 
         # Read in the tables needed for normal grabbing
         xml_output.logo_provider = get_githubdata("logo_provider")
-        self.combined_channels = get_githubdict("combined_channels")
+        combined_channels = get_githubdict("combined_channels_2")
+        self.combined_channels = {}
+        for chanid, chanlist in combined_channels.items():
+            clist = []
+            for child in chanlist:
+                if isinstance(child, dict) and 'chanid' in child:
+                    clist.append(child)
+
+                elif isinstance(child, (str, unicode)):
+                    clist.append({'chanid': child})
+
+            self.combined_channels[chanid] = clist
+
         self.groupslot_names = get_githubdata("groupslot_names")
         self.ttvdb_aliasses = get_githubdict("ttvdb_aliasses")
         self.coutrytrans = get_githubdict("coutrytrans")
@@ -2223,8 +2235,11 @@ class Configure:
             else:
                 if newpresent:
                     # Remove the old one from combined_channels if in there
-                    if newch in self.combined_channels.keys() and oldch['chanid'] in self.combined_channels[newch]:
-                        self.combined_channels[newch].remove(oldch['chanid'])
+                    if newch in self.combined_channels.keys():
+                        for c in self.combined_channels[newch]:
+                            if c['chanid'] == oldch['chanid']:
+                                self.combined_channels[newch].remove(c)
+                                break
 
                     # And link the ids to the new chanid
                     for source, id in oldch['sources'].items():
@@ -3858,10 +3873,10 @@ class InfoFiles:
                         if xml_output.channelsource[s].source in self.fetch_strings[chanid].keys():
                             self.fetch_list.write(self.fetch_strings[chanid][xml_output.channelsource[s].source])
 
-                    if chanid in config.combined_channels:
+                    if chanid in config.combined_channels.keys():
                         for c in config.combined_channels[chanid]:
-                            if c in config.channels and config.channels[c].chan_name in self.fetch_strings[chanid]:
-                                self.fetch_list.write(self.fetch_strings[chanid][config.channels[c].chan_name])
+                            if c['chanid'] in config.channels and config.channels[c['chanid']].chan_name in self.fetch_strings[chanid]:
+                                self.fetch_list.write(self.fetch_strings[chanid][config.channels[c['chanid']].chan_name])
 
 
             self.fetch_list.close()
@@ -5955,16 +5970,16 @@ class FetchData(Thread):
                 if chanid in config.combined_channels.keys():
                     # Then see if any of the childs has a sourceid for this source and does not have this source disabled
                     for c in config.combined_channels[chanid]:
-                        if c in config.channels.keys() and config.channels[c].source_id[self.proc_id] != '' \
-                          and not self.proc_id in config.channels[c].opt_dict['disable_source']:
+                        if c['chanid'] in config.channels.keys() and config.channels[c['chanid']].source_id[self.proc_id] != '' \
+                          and not self.proc_id in config.channels[c['chanid']].opt_dict['disable_source']:
                             # Unless it is in empty channels we add and mark it as a child else set it ready
-                            if config.channels[c].source_id[self.proc_id] in config.empty_channels[self.proc_id]:
-                                self.channel_loaded[c] = True
-                                config.channels[c].source_data[self.proc_id].set()
+                            if config.channels[c['chanid']].source_id[self.proc_id] in config.empty_channels[self.proc_id]:
+                                self.channel_loaded[c['chanid']] = True
+                                config.channels[c['chanid']].source_data[self.proc_id].set()
 
                             else:
-                                self.channels[c] = config.channels[c].source_id[self.proc_id]
-                                config.channels[c].is_child = True
+                                self.channels[c['chanid']] = config.channels[c['chanid']].source_id[self.proc_id]
+                                config.channels[c['chanid']].is_child = True
 
     def checkout_program_dict(self, tdict = None):
         """
@@ -12809,31 +12824,31 @@ class Channel_Config(Thread):
 
             if self.chanid in config.combined_channels.keys():
                 for c in config.combined_channels[self.chanid]:
-                    if c in config.channels:
-                        while not config.channels[c].child_data.is_set():
+                    if c['chanid'] in config.channels:
+                        while not config.channels[c['chanid']].child_data.is_set():
                             # Wait till the event is set by the child, but check every 5 seconds for an unexpected break or wether the child is still alive
-                            config.channels[c].child_data.wait(5)
+                            config.channels[c['chanid']].child_data.wait(5)
                             if self.quit:
                                 self.ready = True
                                 return
 
                             # Check if the child is still alive
-                            if not config.channels[c].is_alive():
+                            if not config.channels[c['chanid']].is_alive():
                                 break
 
-                        if len(config.channels[c].child_programs) == 0:
-                            log('No Data from %s for channel: %s\n'% (config.channels[c].chan_name, self.chan_name))
+                        if len(config.channels[c['chanid']].child_programs) == 0:
+                            log('No Data from %s for channel: %s\n'% (config.channels[c['chanid']].chan_name, self.chan_name))
 
                         elif self.child_data.is_set():
                             if xml_data == False:
                                 # This is the first source with data, so we just take in the data
                                 xml_data = True
-                                self.all_programs = config.channels[c].child_programs
+                                self.all_programs = config.channels[c['chanid']].child_programs
 
                             else:
                                 # There is already data, so we merge the incomming data into that
                                 xml_data = True
-                                xml_output.channelsource[0].merge_sources(self.chanid,  c, self.counter)
+                                xml_output.channelsource[0].merge_sources(self.chanid,  c['chanid'], self.counter)
                                 xml_output.channelsource[0].parse_programs(self.chanid, 1, 'None')
                                 for i in range(0, len(self.all_programs)):
                                     self.all_programs[i] = xml_output.channelsource[0].checkout_program_dict(self.all_programs[i])
