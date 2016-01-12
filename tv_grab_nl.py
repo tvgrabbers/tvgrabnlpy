@@ -358,10 +358,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 8
+        self.patch = 9
         self.patchdate = u'20160112'
-        self.alfa = False
-        self.beta = False
+        self.alfa = True
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
@@ -1856,7 +1856,7 @@ class Configure:
             db_icon.append({'sourceid': icon[0], 'chanid': str(chanid),'icon': icon[1]})
 
         # Get the sources
-        for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8):
+        for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8, 11):
             xml_output.channelsource[index].init_channels()
             if xml_output.channelsource[index].get_channels() == 69:
                 log("Not all channel info could be retreived.\n")
@@ -1882,7 +1882,7 @@ class Configure:
                 if not (chan_scid in self.empty_channels[index]):
                     source_keys[index].append(chan_scid)
 
-        for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8):
+        for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8, 11):
             for chan_scid, channel in xml_output.channelsource[index].all_channels.items():
                 if chan_scid in reverse_channels[index].keys():
                     chanid = reverse_channels[index][chan_scid]['chanid']
@@ -2140,6 +2140,30 @@ class Configure:
             clist = []
             for child in chanlist:
                 if isinstance(child, dict) and 'chanid' in child:
+                    if 'start' in child:
+                        try:
+                            st = child['start'].split(':')
+                            child['start'] = datetime.time(int(st[0]), int(st[1]), tzinfo=CET_CEST)
+                        except:
+                            traceback.print_exc()
+                            log('Invalid starttime for %s in combined channel: %s\n' % (child['chanid'], chanid))
+                            del child['start']
+
+                    if 'end' in child:
+                        try:
+                            st = child['end'].split(':')
+                            child['end'] = datetime.time(int(st[0]), int(st[1]), tzinfo=CET_CEST)
+                        except:
+                            traceback.print_exc()
+                            log('Invalid endtime for %s in combined channel: %s\n' % (child['chanid'], chanid))
+                            del child['end']
+
+                    if 'start' in child and not 'end' in child:
+                        child['end'] = datetime.time(24, 0, tzinfo=CET_CEST)
+
+                    elif 'end' in child and not 'start' in child:
+                        child['start'] = datetime.time(0, 0, tzinfo=CET_CEST)
+
                     clist.append(child)
 
                 elif isinstance(child, (str, unicode)):
@@ -2175,11 +2199,16 @@ class Configure:
             if g not in self.group_order[:]:
                 self.group_order.append(g)
 
+        for g in self.group_order:
+            if g not in self.chan_groups.keys():
+                self.chan_groups[g] = 'Channel groep %s' % g
+
         self.prime_source_groups = get_githubdict("prime_source_groups", 1)
         self.source_channels = get_githubdict("source_channels", 1)
         self.empty_channels = get_githubdict("empty_channels", 1)
         self.channel_grouping = get_githubdict("channel_grouping", 2)
         self.rtl_channellist = get_githubdict("rtl_channellist")
+        self.virtual_channellist = get_githubdict("virtual_channellist")
         self.channel_rename = get_githubdict("channel_rename")
         self.merge_into = get_githubdict("merge_into")
         if configuring:
@@ -6042,9 +6071,10 @@ class FetchData(Thread):
         self.text_values = ('channelid', 'source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', 'rtl-ID', \
-              'npo-ID', 'horizon-ID', 'humo-ID', 'vpro-ID', 'nb-ID', 'primo-ID', 'vrt-ID', 'nl-url', \
-              'tv-url', 'rtl-url', 'be-url', 'npo-url', 'horizon-url', 'humo-url', 'vpro-url', 'nb-url', \
-              'primo-url', 'vrt-url', 'infourl', 'audio', 'star-rating', 'country', 'omroep')
+              'npo-ID', 'horizon-ID', 'humo-ID', 'vpro-ID', 'nb-ID', 'primo-ID', 'vrt-ID', 'virtual-ID', \
+              'nl-url', 'tv-url', 'rtl-url', 'be-url', 'npo-url', 'horizon-url', 'humo-url', 'vpro-url', \
+              'nb-url', 'primo-url', 'vrt-url', 'virtual-url', 'infourl', 'audio', 'star-rating', \
+              'country', 'omroep')
         self.datetime_values = ('start-time', 'stop-time')
         self.date_values = ('airdate', )
         self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'primo-fetched', 'rerun', 'teletekst', \
@@ -6733,7 +6763,7 @@ class FetchData(Thread):
         elif mode == 1:
             config.channels[chanid].all_programs = good_programs
 
-    def merge_sources(self, chanid, prime_source, counter = 0):
+    def merge_sources(self, chanid, prime_source, counter = 0, merge_channel = None):
         """
         Try to match the channel info from the sources into the prime source.  If No prime_source is set
         If available: rtl.nl is used for the rtl channels, npo.nl for the npo and regional channels and teveblad.be
@@ -6742,7 +6772,7 @@ class FetchData(Thread):
         """
 
         no_genric_matching = False
-        if prime_source in xml_output.channelsource:
+        if merge_channel == None:
             cur_proc_id = config.channels[chanid].source_id[self.proc_id]
             if cur_proc_id != '' and cur_proc_id in config.no_genric_matching[self.proc_id]:
                 no_genric_matching = True
@@ -6770,16 +6800,45 @@ class FetchData(Thread):
             # This is a channel merge
             source_merge = False
             prime_source_name = config.channels[chanid].chan_name
-            other_source_name = config.channels[prime_source].chan_name
-            if len(config.channels[prime_source].child_programs) == 0:
+            other_source_name = config.channels[merge_channel['chanid']].chan_name
+            if len(config.channels[merge_channel['chanid']].child_programs) == 0:
                 return
+
+            programs = []
+            # This channel is limited to a timeslot
+            if 'start' in merge_channel and 'end' in merge_channel:
+                no_genric_matching = True
+                for tdict in config.channels[merge_channel['chanid']].child_programs[:]:
+                    pstart = tdict['start-time']
+                    pstop = tdict['stop-time']
+                    tstart = datetime.datetime.combine(pstart.date(), merge_channel['start'])
+                    tstop = datetime.datetime.combine(pstop.date(), merge_channel['end'])
+                    if pstart.date() != pstop.date() and tstop - tstart > datetime.timedelta(days=1):
+                        tstart = datetime.datetime.combine(pstop.date(), merge_channel['start'])
+                        tstop = datetime.datetime.combine(pstart.date(), merge_channel['end'])
+
+                    if (tstart > tstop and tstop <= pstart <= tstart and tstop <= pstop <= tstart) or \
+                        (tstart < tstop and ((pstart <= tstart and pstop <= tstart) or (pstart >= tstop and pstop >= tstop))):
+                            continue
+
+                    if pstart < tstart and pstop >= tstart:
+                        tdict['start-time'] = tstart
+
+                    if pstart <= tstop and pstop > tstop:
+                        tdict['stop-time'] = tstop
+
+                    programs.append(tdict)
+
+                config.channels[merge_channel['chanid']].child_programs = programs
+
+            else:
+                # This is the by this source collected data
+                programs = config.channels[merge_channel['chanid']].child_programs
 
             if len(config.channels[chanid].all_programs) == 0:
-                config.channels[chanid].all_programs = config.channels[prime_source].child_programs
+                config.channels[chanid].all_programs = config.channels[merge_channel['chanid']].child_programs
                 return
 
-            # This is the by this source collected data
-            programs = config.channels[prime_source].child_programs
             # This is the already collected data to start with the prime source
             info = config.channels[chanid].all_programs[:]
 
@@ -7211,7 +7270,7 @@ class FetchData(Thread):
 
         # end check_match_to_info()
 
-        if prime_source in xml_output.channelsource:
+        if merge_channel == None:
             log(['\n', 'Now merging %s (channel %s of %s):\n' % (config.channels[chanid].chan_name , counter, config.chan_count), \
                 '  %s programs from %s into %s programs from %s\n' % \
                 (len(programs), other_source_name, len(info), prime_source_name)], 2)
@@ -12643,6 +12702,18 @@ class vrt_JSON(FetchData):
 
 # end vrt_JSON
 
+class Virtual_Channels(FetchData):
+    """
+    This source is for creating combined channels
+    """
+    def init_channels(self):
+        self.init_channel_source_ids()
+
+    def get_channels(self):
+        self.all_channels = config.virtual_channellist
+
+# end Virtual_Channels
+
 class Channel_Config(Thread):
     """
     Class that holds the Channel definitions and manages the data retrieval and processing
@@ -12840,18 +12911,12 @@ class Channel_Config(Thread):
                             log('No Data from %s for channel: %s\n'% (config.channels[c['chanid']].chan_name, self.chan_name))
 
                         elif self.child_data.is_set():
-                            if xml_data == False:
-                                # This is the first source with data, so we just take in the data
-                                xml_data = True
-                                self.all_programs = config.channels[c['chanid']].child_programs
-
-                            else:
-                                # There is already data, so we merge the incomming data into that
-                                xml_data = True
-                                xml_output.channelsource[0].merge_sources(self.chanid,  c['chanid'], self.counter)
-                                xml_output.channelsource[0].parse_programs(self.chanid, 1, 'None')
-                                for i in range(0, len(self.all_programs)):
-                                    self.all_programs[i] = xml_output.channelsource[0].checkout_program_dict(self.all_programs[i])
+                            # We always merge as there might be restrictions
+                            xml_data = True
+                            xml_output.channelsource[0].merge_sources(self.chanid,  None, self.counter, c)
+                            xml_output.channelsource[0].parse_programs(self.chanid, 1, 'None')
+                            for i in range(0, len(self.all_programs)):
+                                self.all_programs[i] = xml_output.channelsource[0].checkout_program_dict(self.all_programs[i])
 
             if self.is_child:
                 self.child_programs = deepcopy(self.all_programs) if self.active else self.all_programs
@@ -13234,12 +13299,12 @@ class XMLoutput:
         self.source_count = 11
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl',
                                   5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be', 9:'primo.eu',
-                                  10: 'vrt.be'}
-        self.source_order = [7, 0, 1, 5, 9, 6, 8, 2, 4, 10]
-        self.sourceid_order = [0, 9, 1, 2, 4, 7, 5, 6, 7, 8, 10]
+                                  10: 'vrt.be', 11: 'virtual'}
+        self.source_order = [7, 0, 1, 5, 9, 6, 8, 2, 4, 10, 11]
+        self.sourceid_order = [0, 9, 1, 2, 4, 7, 5, 6, 7, 8, 10, 11]
         self.source_count = len(self.sources)
         self.detail_sources = (0, 9, 1)
-        self.prime_source_order = (2, 4, 7, 0, 5, 1, 9, 6, 8, 10)
+        self.prime_source_order = (2, 4, 7, 0, 5, 1, 9, 6, 8, 10, 11)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
@@ -13252,6 +13317,7 @@ class XMLoutput:
         self.channelsource[8] = nieuwsblad_HTML(8, 'nieuwsblad.be', 'nb-ID', 'nb-url')
         self.channelsource[9] = primo_HTML(9, 'primo.eu', 'primo-ID', 'primo-url', False, 'primo-fetched', True)
         self.channelsource[10] = vrt_JSON(10, 'vrt.be', 'vrt-ID', 'vrt-url', True)
+        self.channelsource[11] = Virtual_Channels(11, 'virtual', 'virtual-ID', 'virtual-url')
         self.output_lock = Lock()
         self.cache_return = Queue()
         self.ttvdb = theTVDB()
