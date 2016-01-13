@@ -10541,7 +10541,7 @@ class horizon_JSON(FetchData):
 
     def get_url(self, type = 'channels', channel = 0, start = 0, end = 0):
 
-        horizon = 'https://www.horizon.tv/oesp/api/NL/nld/web/'
+        horizon = 'https://web-api-pepper.horizon.tv/oesp/api/NL/nld/web/'
 
         if type == 'channels':
             return  u'%schannels/' % (horizon)
