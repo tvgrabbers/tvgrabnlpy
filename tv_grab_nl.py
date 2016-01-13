@@ -8380,7 +8380,7 @@ class tvgidstv_HTML(FetchData):
     def check_date(self, page_data, channel, offset):
 
         # Check on the right offset for appending the date to the time. Their date switch is aroud 6:00
-        dnow = datetime.date.today().strftime('%d %b').split()
+        dnow = datetime.datetime.now(CET_CEST).strftime('%d %b').split()
         dlast = datetime.date.fromordinal(self.current_date - 1).strftime('%d %b').split()
 
         if page_data == None:
@@ -9239,7 +9239,7 @@ class teveblad_HTML(FetchData):
         teveblad_zoeken = 'http://www.teveblad.be/tv-gids/'
         if type(date) == datetime.datetime or type(date) == datetime.date:
             date = date.strftime('%Y-%m-%d') + u'/'
-            if date == datetime.date.today().strftime('%Y-%m-%d') + u'/':
+            if date == datetime.datetime.now(CET_CEST).strftime('%Y-%m-%d') + u'/':
                 date = ''
 
         if get_group:
