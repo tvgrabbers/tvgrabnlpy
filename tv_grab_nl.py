@@ -5625,7 +5625,8 @@ class FetchData(Thread):
 
     It runs as a separate thread for every source
     """
-    current_date = datetime.date.today().toordinal()
+    #~ current_date = datetime.date.today().toordinal()
+    current_date = datetime.datetime.now(CET_CEST).toordinal()
 
     def __init__(self, proc_id, source, detail_id, detail_url = '', isjson = False, detail_check = '', detail_processor = False):
         Thread.__init__(self)
