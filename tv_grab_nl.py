@@ -150,7 +150,7 @@ except NameError:
 
 # check Python version
 if sys.version_info[:3] < (2,7,9):
-    sys.stderr.write("tv_grab_nl_py requires Pyton 2.7 or higher\n")
+    sys.stderr.write("tv_grab_nl_py requires Pyton 2.7.9 or higher\n")
     sys.exit(2)
 
 if sys.version_info[:2] >= (3,0):
@@ -5943,7 +5943,7 @@ class FetchData(Thread):
     # Dummys to be filled in by the sub-Classes
     def init_channels(self):
         """The specific initiation code before starting with grabbing"""
-        self.init_channel_source_ids(self)
+        self.init_channel_source_ids()
 
     def init_json(self):
         """The specific initiation code if the source is json before starting with grabbing"""
@@ -12707,9 +12707,6 @@ class Virtual_Channels(FetchData):
     """
     This source is for creating combined channels
     """
-    def init_channels(self):
-        self.init_channel_source_ids()
-
     def get_channels(self):
         self.all_channels = config.virtual_channellist
 
