@@ -360,7 +360,7 @@ class Configure:
         self.minor = 2
         self.patch = 9
         self.patchdate = u'20160112'
-        self.alfa = True
+        self.alfa = False
         self.beta = True
 
         self.cache_return = Queue()
