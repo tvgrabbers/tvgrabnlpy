@@ -360,7 +360,7 @@ class Configure:
         self.minor = 2
         self.patch = 9
         self.patchdate = u'20160112'
-        self.alfa = False
+        self.alfa = True
         self.beta = True
 
         self.cache_return = Queue()
@@ -1003,8 +1003,6 @@ class Configure:
                                                              11: u'vpro.nl genres',
                                                              13: u'primo.eu genres',
                                                              14: u'vrt.be genres'}
-
-        self.sources = {}
 
     # end Init()
 
@@ -3857,16 +3855,10 @@ class InfoFiles:
                 if ismerge:
                     id = tdict['ID']
 
-                elif source in config.sources.keys():
-                    id = tdict[config.sources[source]['ID']]
-
-                else:
-                    id = ''
-
                 self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
                                 tdict['start-time'].strftime('%d %b %H:%M'), \
                                 tdict['stop-time'].strftime('%H:%M'), \
-                                id.rjust(15), tdict['genre'][0:10].rjust(10), \
+                                tdict['prog_ID'][source].rjust(15), tdict['genre'][0:10].rjust(10), \
                                 tdict['name'], tdict['titel aflevering'], \
                                 tdict['season'], tdict['episode'])
 
@@ -3952,7 +3944,12 @@ class ProgramCache(Thread):
         """
         Create a new ProgramCache object, optionally from file
         """
-        self.ID_list = ('ID','nl-ID','tv-ID','rtl-ID','be-ID', 'npo-ID')
+        self.ID_list = {}
+        self.url_list = {}
+        for key in xml_output.source_order:
+            self.ID_list[xml_output.channelsource[key].detail_id] = key
+            self.url_list[xml_output.channelsource[key].detail_url] = key
+
         xml_output.channelsource[0].checkout_program_dict()
         self.field_list = ['genre', 'kijkwijzer']
         self.field_list.extend( xml_output.channelsource[0].text_values)
@@ -4330,6 +4327,10 @@ class ProgramCache(Thread):
             for key in xml_output.channelsource[0].text_values:
                 create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, key)
 
+            for key in xml_output.channelsource.keys():
+                create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, xml_output.channelsource[key].detail_id.lower())
+                create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, xml_output.channelsource[key].detail_url.lower())
+
             for key in xml_output.channelsource[0].date_values:
                 create_string = u"%s, '%s' date" % (create_string, key)
 
@@ -4454,6 +4455,13 @@ class ProgramCache(Thread):
             for c in xml_output.channelsource[0].text_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' TEXT DEFAULT ''" % c)
+
+            for key in xml_output.channelsource.keys():
+                if xml_output.channelsource[key].detail_id.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' TEXT DEFAULT ''" % xml_output.channelsource[key].detail_id.lower())
+
+                if xml_output.channelsource[key].detail_url.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' TEXT DEFAULT ''" % xml_output.channelsource[key].detail_url.lower())
 
             for c in xml_output.channelsource[0].date_values:
                 if c.lower() not in clist.keys():
@@ -4650,6 +4658,12 @@ class ProgramCache(Thread):
                 elif item in xml_output.channelsource[0].video_values:
                     program['video'][item] = r[item]
 
+                elif item in self.ID_list.keys():
+                    program['prog_ID'][self.ID_list[item]] = r[item]
+
+                elif item in self.url_list.keys():
+                    program['detail_url'][self.url_list[item]] = r[item]
+
                 else:
                     program[item] = r[item]
 
@@ -4821,11 +4835,15 @@ class ProgramCache(Thread):
         """
         pcursor = self.pconn.cursor()
         if table == 'program':
-            for id in self.ID_list:
-                if item[id] != '' and item[id] != None:
-                    pcursor.execute(u"SELECT pid FROM programs WHERE pid = ?", (item[id],))
-                    if pcursor.fetchone() != None:
-                        return id
+            ID_list = [item['ID']]
+            for key in xml_output.source_order:
+                if item['prog_ID'][key] != '' and item['prog_ID'][key] != None:
+                    ID_list.append(item['prog_ID'][key])
+
+            for id in ID_list:
+                pcursor.execute(u"SELECT pid FROM programs WHERE pid = ?", (id,))
+                if pcursor.fetchone() != None:
+                    return id
 
             return None
 
@@ -4886,40 +4904,56 @@ class ProgramCache(Thread):
         rec = []
         rec_upd = []
         if table == 'program':
-            id = self.query_id('program', item)
-            if id != None and id in item:
+            cache_id = self.query_id('program', item)
+            if cache_id != None:
                 with self.pconn:
-                    self.pconn.execute(u"DELETE FROM programs WHERE pid = ?", (item[id],))
-                    self.pconn.execute(u"DELETE FROM credits WHERE pid = ?", (item[id],))
+                    self.pconn.execute(u"DELETE FROM programs WHERE pid = ?", (cache_id,))
+                    self.pconn.execute(u"DELETE FROM credits WHERE pid = ?", (cache_id,))
 
-            for id in self.ID_list:
-                if item[id] != '' and item[id] != None:
-                    sql_flds = u"INSERT INTO programs ('pid'"
-                    sql_cnt = u"VALUES (?"
-                    sql_vals = [item[id]]
-                    for f, v in item.items():
-                        if f in self.field_list:
-                            sql_flds = u"%s, '%s'" % (sql_flds, f)
-                            sql_cnt = u"%s, ?" % (sql_cnt)
-                            sql_vals.append(v)
-
-                    for f, v in item['video'].items():
-                        sql_flds = u"%s, '%s'" % (sql_flds, f)
-                        sql_cnt = u"%s, ?" % (sql_cnt)
-                        sql_vals.append(v)
-
-                    add_string = u"%s) %s)" % (sql_flds, sql_cnt)
-                    with self.pconn:
-                        self.pconn.execute(add_string, tuple(sql_vals))
-
-                    add_string = u"INSERT INTO credits (pid, title, name) VALUES (?, ?, ?)"
-                    for f, v in item['credits'].items():
-                        rec.append((item[id], f, v))
-
-                    break
+            if item['ID'] != '' and item['ID'] != None:
+                id = item['ID']
 
             else:
-                log('Error saving program %s to the cache.\n' %  item['name'])
+                for key in xml_output.source_order:
+                    if item['prog_ID'][key] != '' and item['prog_ID'][key] != None:
+                        id = item['prog_ID'][key]
+                        break
+
+                else:
+                    log('Error saving program %s to the cache.\n' %  item['name'])
+                    return
+
+            sql_flds = u"INSERT INTO programs ('pid'"
+            sql_cnt = u"VALUES (?"
+            sql_vals = [item[id]]
+            for f, v in item.items():
+                if f in self.field_list:
+                    sql_flds = u"%s, '%s'" % (sql_flds, f)
+                    sql_cnt = u"%s, ?" % (sql_cnt)
+                    sql_vals.append(v)
+
+            for f, v in item['video'].items():
+                sql_flds = u"%s, '%s'" % (sql_flds, f)
+                sql_cnt = u"%s, ?" % (sql_cnt)
+                sql_vals.append(v)
+
+            for f, v in item['prog_ID'].items():
+                sql_flds = u"%s, '%s'" % (sql_flds, xml_output.channelsource[f].detail_id)
+                sql_cnt = u"%s, ?" % (sql_cnt)
+                sql_vals.append(v)
+
+            for f, v in item['detail_url'].items():
+                sql_flds = u"%s, '%s'" % (sql_flds, xml_output.channelsource[f].detail_url)
+                sql_cnt = u"%s, ?" % (sql_cnt)
+                sql_vals.append(v)
+
+            add_string = u"%s) %s)" % (sql_flds, sql_cnt)
+            with self.pconn:
+                self.pconn.execute(add_string, tuple(sql_vals))
+
+            add_string = u"INSERT INTO credits (pid, title, name) VALUES (?, ?, ?)"
+            for f, v in item['credits'].items():
+                rec.append((item[id], f, v))
 
         elif table == 'channel':
             add_string = u"INSERT INTO channels ('chanid', 'cgroup', 'name') VALUES (?, ?, ?)"
@@ -5719,7 +5753,7 @@ class FetchData(Thread):
             cached_program = None
             if (self.proc_id in (0, 9)) and (cache_id != None):
                 # Check the cache again
-                xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': tdict[cache_id]})
+                xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': cache_id})
                 cached_program = self.cache_return.get(True)
                 if cached_program == 'quit':
                     self.ready = True
@@ -5771,11 +5805,6 @@ class FetchData(Thread):
                     self.program_data[chanid] = []
 
                 self.init_channels()
-                if not self.source in config.sources.keys():
-                    config.sources[self.source] ={}
-                    config.sources[self.source]['ID'] = self.detail_id if (self.detail_id != '') else ''
-                    config.sources[self.source]['url'] = self.detail_url if (self.detail_url != '') else ''
-
                 self.init_json()
                 # Load and proccess al the program pages
                 try:
@@ -5849,7 +5878,7 @@ class FetchData(Thread):
                         except:
                             detailed_program = None
                             self.fail_count += 1
-                            log(['Error processing the detailpage: %s\n' % (tdict[self.detail_url]), traceback.print_exc()], 1)
+                            log(['Error processing the detailpage: %s\n' % (tdict['detail_url'][self.proc_id]), traceback.print_exc()], 1)
 
                     else:
                         detailed_program = None
@@ -5865,7 +5894,7 @@ class FetchData(Thread):
                             detailed_program = None
                             self.fail_count += 1
                             log(['Error processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\n' \
-                                % tdict[self.detail_id][3:], traceback.print_exc()], 1)
+                                % tdict['prog_ID'][self.proc_id][3:], traceback.print_exc()], 1)
 
                     # It failed!
                     if detailed_program == None:
@@ -5892,7 +5921,7 @@ class FetchData(Thread):
                             detailed_program['prefered description'] = detailed_program['description']
 
                         detailed_program[xml_output.channelsource[self.proc_id].detail_check] = True
-                        detailed_program['ID'] = detailed_program[xml_output.channelsource[self.proc_id].detail_id]
+                        detailed_program['ID'] = detailed_program['prog_ID'][self.proc_id]
                         check_ttvdb(detailed_program, parent)
                         if self.proc_id == 0:
                             log(u'[normal fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
@@ -5916,11 +5945,11 @@ class FetchData(Thread):
 
         except:
             log_list = ['\n', 'An unexpected error has occured in the %s thread\n' %  (self.source)]
-            if not self.detail_url in tdict or tdict[self.detail_url] == '':
+            if tdict['detail_url'][self.proc_id] == '':
                 log_list.append('While fetching the base pages\n')
 
             else:
-                log_list.append('The current detail url is: %s\n' % (tdict[self.detail_url]))
+                log_list.append('The current detail url is: %s\n' % (tdict['detail_url'][self.proc_id]))
 
             log_list.extend([traceback.print_exc(), '\n', \
                 'If you want assistence, please attach your configuration and log files!\n', \
@@ -6018,8 +6047,8 @@ class FetchData(Thread):
         """
         # ID generation
         # u'nl-%s' % (item['db_id'])
-        # u'tv-%s' % tdict[self.detail_url].split('/')[5]
-        # u'be-%s' % tdict[self.detail_url].split('/')[5]
+        # u'tv-%s' % tdict['detail_url'][self.proc_id].split('/')[5]
+        # u'be-%s' % tdict['detail_url'][self.proc_id].split('/')[5]
         # u'%s-%s' % (channel,  item['unixtime'])
 
         # source                        tvgids.nl    tvgids.tv   rtl.nl     teveblad.be
@@ -6068,13 +6097,9 @@ class FetchData(Thread):
         #       breedbeeld                hd
         #       blackwhite                hd
 
-
         self.text_values = ('channelid', 'source', 'channel', 'unixtime', 'prefered description', \
               'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
-              'originaltitle', 'subgenre', 'ID', 'merge-source', 'nl-ID', 'tv-ID', 'be-ID', 'rtl-ID', \
-              'npo-ID', 'horizon-ID', 'humo-ID', 'vpro-ID', 'nb-ID', 'primo-ID', 'vrt-ID', 'virtual-ID', \
-              'nl-url', 'tv-url', 'rtl-url', 'be-url', 'npo-url', 'horizon-url', 'humo-url', 'vpro-url', \
-              'nb-url', 'primo-url', 'vrt-url', 'virtual-url', 'infourl', 'audio', 'star-rating', \
+              'originaltitle', 'subgenre', 'ID', 'merge-source', 'infourl', 'audio', 'star-rating', \
               'country', 'omroep')
         self.datetime_values = ('start-time', 'stop-time')
         self.date_values = ('airdate', )
@@ -6082,6 +6107,7 @@ class FetchData(Thread):
               'new', 'last-chance', 'premiere')
         self.num_values = ('season', 'episode', 'offset')
         self.dict_values = ('credits', 'video')
+        self.source_values = ('prog_ID', 'detail_url')
         self.list_values = ('kijkwijzer', )
         self.video_values = ('HD', 'breedbeeld', 'blackwhite')
 
@@ -6121,6 +6147,20 @@ class FetchData(Thread):
         for key in self.dict_values:
             if not key in tdict.keys() or not isinstance(tdict[key], dict):
                 tdict[key] = {}
+
+        for key in self.source_values:
+            if not key in tdict.keys() or not isinstance(tdict[key], dict):
+                tdict[key] = {}
+                for s in  xml_output.source_order:
+                    if not s in tdict[key] or tdict[key][s] == None:
+                        tdict[key][s] = u''
+
+                    try:
+                        if type(tdict[key][s]) != unicode:
+                            tdict[key][s] = unicode(tdict[key][s])
+
+                    except UnicodeError:
+                        tdict[key][s] = u''
 
         for key in self.list_values:
             if not key in tdict.keys() or not isinstance(tdict[key], list):
@@ -7100,8 +7140,8 @@ class FetchData(Thread):
         def set_main_id(tdict):
 
             for s in xml_output.sourceid_order:
-                if tdict[xml_output.channelsource[s].detail_id] != '':
-                    tdict['ID'] = tdict[xml_output.channelsource[s].detail_id]
+                if tdict['prog_ID'][s] != '':
+                    tdict['ID'] = tdict['prog_ID'][s]
                     break
 
             return tdict
@@ -7158,14 +7198,12 @@ class FetchData(Thread):
                 tdict['audio'] = tvdict['audio']
 
             if copy_ids:
-                for source in config.sources.values():
-                    if source['ID'] != '':
-                        if tvdict[source['ID']] != '':
-                            tdict[source['ID']]  = tvdict[source['ID']]
+                for source in xml_output.source_order:
+                    if tvdict['prog_ID'][source] != u'':
+                        tdict['prog_ID'][source]  = tvdict['prog_ID'][source]
 
-                    if source['url'] != '':
-                        if tvdict[source['url']] != '':
-                            tdict[source['url']]  = tvdict[source['url']]
+                    if tvdict['detail_url'][source] != u'':
+                        tdict['detail_url'][source]  = tvdict['detail_url'][source]
 
             tdict = set_main_id(tdict)
             if reverse_match:
@@ -7953,20 +7991,20 @@ class tvgids_JSON(FetchData):
             for item in dl[chan_scid]:
                 tdict = self.checkout_program_dict()
                 if (item['db_id'] != '') and (item['db_id'] != None):
-                    tdict[self.detail_id] = u'nl-%s' % (item['db_id'])
-                    self.json_by_id[tdict[self.detail_id]] = item
-                    tdict['ID'] = tdict[self.detail_id]
+                    tdict['prog_ID'][self.proc_id] = u'nl-%s' % (item['db_id'])
+                    self.json_by_id[tdict['prog_ID'][self.proc_id]] = item
+                    tdict['ID'] = tdict['prog_ID'][self.proc_id]
 
                 tdict['source'] = self.source
                 tdict['channelid'] = chanid
                 tdict['channel']  = config.channels[chanid].chan_name
-                tdict[self.detail_url] = self.get_url(type= 'detail', id = item['db_id'])
+                tdict['detail_url'][self.proc_id] = self.get_url(type= 'detail', id = item['db_id'])
 
                 # The Title
                 tdict['name'] = self.unescape(item['titel'])
                 tdict = self.check_title_name(tdict)
                 if  tdict['name'] == None or tdict['name'] == '':
-                    log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                    log('Can not determine program title for "%s"\n' % tdict['detail_url'][self.proc_id])
                     continue
 
                 # The timing
@@ -7984,7 +8022,7 @@ class tvgids_JSON(FetchData):
                         if k in config.kijkwijzer.keys() and k not in tdict['kijkwijzer']:
                             tdict['kijkwijzer'].append(k)
 
-                self.program_by_id[tdict[self.detail_id]] = tdict
+                self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
                 with self.source_lock:
                     self.program_data[chanid].append(tdict)
 
@@ -8003,9 +8041,9 @@ class tvgids_JSON(FetchData):
     def load_detailpage(self, tdict):
 
         try:
-            strdata = config.get_page(tdict[self.detail_url])
+            strdata = config.get_page(tdict['detail_url'][self.proc_id])
             if strdata == None:
-                log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
+                log('Page %s returned no data\n' % (tdict['detail_url'][self.proc_id]), 1)
                 return
 
             if re.search('<div class="cookie-backdrop">', strdata):
@@ -8021,7 +8059,7 @@ class tvgids_JSON(FetchData):
 
             strdata = self.tvgidsnlprog.search(strdata)
             if strdata == None:
-                log('Page %s returned no data\n' % (tdict[self.detail_url]), 1)
+                log('Page %s returned no data\n' % (tdict['detail_url'][self.proc_id]), 1)
                 return
 
             strdata = '<div>\n' +  strdata.group(1)
@@ -8063,7 +8101,7 @@ class tvgids_JSON(FetchData):
             htmldata = ET.fromstring(strdata)
 
         except:
-            log(['Fetching page %s returned an error:\n' % (tdict[self.detail_url]), traceback.format_exc()])
+            log(['Fetching page %s returned an error:\n' % (tdict['detail_url'][self.proc_id]), traceback.format_exc()])
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')
@@ -8079,7 +8117,7 @@ class tvgids_JSON(FetchData):
                 tdict['prefered description'] = tdict['description']
 
         except:
-            log(['Error processing the description from: %s\n' % (tdict[self.detail_url]), traceback.format_exc()])
+            log(['Error processing the description from: %s\n' % (tdict['detail_url'][self.proc_id]), traceback.format_exc()])
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string('<root>\n' + strdesc + '\n</root>\n')
@@ -8204,14 +8242,14 @@ class tvgids_JSON(FetchData):
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                     infofiles.write_raw_string(strdata)
 
-        tdict['ID'] = tdict[self.detail_id]
+        tdict['ID'] = tdict['prog_ID'][self.proc_id]
         tdict[self.detail_check] = True
         return tdict
 
     def load_json_detailpage(self, tdict):
         try:
             # We first get the json url
-            url = 'http://www.tvgids.nl/json/lists/program.php?id=%s' % tdict[self.detail_id][3:]
+            url = 'http://www.tvgids.nl/json/lists/program.php?id=%s' % tdict['prog_ID'][self.proc_id][3:]
             strdata = config.get_page(url, 'utf-8')
             if strdata == None or strdata.replace('\n','') == '{}':
                 return None
@@ -8279,7 +8317,7 @@ class tvgids_JSON(FetchData):
                 if config.write_info_files:
                     infofiles.addto_detail_list(unicode('new tvgids.nl json detail => ' + ctype + ': ' + content))
 
-        tdict['ID'] = tdict[self.detail_id]
+        tdict['ID'] = tdict['prog_ID'][self.proc_id]
         tdict[self.detail_check] = True
         return tdict
 
@@ -8667,14 +8705,14 @@ class tvgidstv_HTML(FetchData):
                                 tdict['source'] = u'tvgidstv'
                                 tdict['channelid'] = chanid
                                 tdict['channel'] = config.channels[chanid].chan_name
-                                tdict[self.detail_url] = self.get_url(href = p.get('href'))
-                                tdict[self.detail_id] = u'tv-%s' % tdict[self.detail_url].split('/')[5]  if (tdict[self.detail_url] != '') else ''
+                                tdict['detail_url'][self.proc_id] = self.get_url(href = p.get('href'))
+                                tdict['prog_ID'][self.proc_id] = u'tv-%s' % tdict['detail_url'][self.proc_id].split('/')[5]  if (tdict['detail_url'][self.proc_id] != '') else ''
 
                                 # The Title
                                 tdict['name'] = self.empersant(p.get('title'))
                                 tdict = self.check_title_name(tdict)
                                 if  tdict['name'] == None or tdict['name'] == '':
-                                    log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                                    log('Can not determine program title for "%s"\n' % tdict['detail_url'][self.proc_id])
                                     continue
 
                                 # Get the starttime and make sure the midnight date change is properly crossed
@@ -8735,7 +8773,7 @@ class tvgidstv_HTML(FetchData):
                         self.add_endtimes(chanid, 6)
 
                         for tdict in self.program_data[chanid]:
-                            self.program_by_id[tdict[self.detail_id]] = tdict
+                            self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
                     if failure_count == 0 or retry == 1:
                         self.channel_loaded[chanid] = True
@@ -8757,20 +8795,20 @@ class tvgidstv_HTML(FetchData):
     def load_detailpage(self, tdict):
 
         try:
-            strdata = config.get_page(tdict[self.detail_url])
+            strdata = config.get_page(tdict['detail_url'][self.proc_id])
             if strdata == None:
                 return
 
             strdata = self.clean_html('<root><div><div class="section-title">' + self.detaildata.search(strdata).group(1) + '</root>').encode('utf-8')
         except:
-            log(['Error Fetching detailpage %s\n' % tdict[self.detail_url], traceback.format_exc()])
+            log(['Error Fetching detailpage %s\n' % tdict['detail_url'][self.proc_id], traceback.format_exc()])
             return None
 
         try:
             htmldata = ET.fromstring(strdata)
 
         except:
-            log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict[self.detail_url]))
+            log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict['detail_url'][self.proc_id]))
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string(strdata + u'\n')
@@ -8784,7 +8822,7 @@ class tvgidstv_HTML(FetchData):
                 tdict['prefered description'] = tdict['description']
 
         except:
-            log(['Error processing the description from: %s\n' % (tdict[self.detail_url]), traceback.format_exc()])
+            log(['Error processing the description from: %s\n' % (tdict['detail_url'][self.proc_id]), traceback.format_exc()])
 
         data = htmldata.find('div/div[@class="section-content"]')
         datatype = u''
@@ -8883,10 +8921,10 @@ class tvgidstv_HTML(FetchData):
                     infofiles.addto_detail_list(unicode('new tvgids.d-tag => ' + d.tag))
 
         except:
-            log(['Error processing tvgids.tv detailpage:%s\n' % (tdict[self.detail_url]), traceback.format_exc()])
+            log(['Error processing tvgids.tv detailpage:%s\n' % (tdict['detail_url'][self.proc_id]), traceback.format_exc()])
             return
 
-        tdict['ID'] = tdict[self.detail_id]
+        tdict['ID'] = tdict['prog_ID'][self.proc_id]
         tdict[self.detail_check] = True
 
         return tdict
@@ -9018,14 +9056,14 @@ class rtl_JSON(FetchData):
 
             for item in self.schedule[channel]:
                 tdict = self.checkout_program_dict()
-                tdict[self.detail_id] = u'%s-%s' % (channel,  item['unixtime'])
-                self.json_by_id[tdict[self.detail_id]] = item
+                tdict['prog_ID'][self.proc_id] = u'%s-%s' % (channel,  item['unixtime'])
+                self.json_by_id[tdict['prog_ID'][self.proc_id]] = item
                 tdict['source'] = 'rtl'
                 tdict['channelid'] = chanid
                 tdict['channel']  = config.channels[chanid].chan_name
 
                 # The Title
-                tdict['name'] = self.get_json_data(tdict[self.detail_id],'abstract_name')
+                tdict['name'] = self.get_json_data(tdict['prog_ID'][self.proc_id],'abstract_name')
                 if  tdict['name'] == None or tdict['name'] == '':
                     log('Can not determine program title\n')
                     continue
@@ -9037,21 +9075,21 @@ class rtl_JSON(FetchData):
                 tdict['rerun']  = (item['rerun'] == 'true')
 
                 # The Season Number
-                season = self.get_json_data(tdict[self.detail_id],'season')
+                season = self.get_json_data(tdict['prog_ID'][self.proc_id],'season')
                 tdict['season'] = int(season) if (season != None) else 0
 
                 # The Episode Number, SubTitle and Descriptionseason
-                episode = self.get_json_data(tdict[self.detail_id],'episode')
+                episode = self.get_json_data(tdict['prog_ID'][self.proc_id],'episode')
                 tdict['episode'] = int(episode) if (episode != None) else 0
 
-                subtitle = self.get_json_data(tdict[self.detail_id],'episode_name')
+                subtitle = self.get_json_data(tdict['prog_ID'][self.proc_id],'episode_name')
                 tdict['titel aflevering'] = subtitle if ((subtitle != None) and (subtitle != tdict['name'])) else ''
                 tdict = self.check_title_name(tdict)
 
-                description = self.get_json_data(tdict[self.detail_id],'description')
+                description = self.get_json_data(tdict['prog_ID'][self.proc_id],'description')
                 tdict['description'] = description if (description != None) else ''
 
-                nicam = self.get_json_data(tdict[self.detail_id],'nicam')
+                nicam = self.get_json_data(tdict['prog_ID'][self.proc_id],'nicam')
                 if '16' in nicam:
                     tdict['kijkwijzer'].append('4')
 
@@ -9080,7 +9118,7 @@ class rtl_JSON(FetchData):
                 self.add_endtimes(chanid, 7)
 
                 for tdict in self.program_data[chanid]:
-                    self.program_by_id[tdict[self.detail_id]] = tdict
+                    self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
             self.parse_programs(chanid, 0, 'None')
             self.channel_loaded[chanid] = True
@@ -9524,8 +9562,8 @@ class teveblad_HTML(FetchData):
 
                                 href = title.find('a').get('href')
                                 if href != '' and href != None:
-                                    tdict[self.detail_url] = title.find('a').get('href')
-                                    tdict[self.detail_id] = u'be-%s' % tdict[self.detail_url].split('/')[5]
+                                    tdict['detail_url'][self.proc_id] = title.find('a').get('href')
+                                    tdict['prog_ID'][self.proc_id] = u'be-%s' % tdict['detail_url'][self.proc_id].split('/')[5]
                                 tdict['name'] = self.empersant(title.findtext('a'))
                                 if tdict['name'] == None or  tdict['name'] == '':
                                     log('Can not determine program title for "%s"\n' % tdict['be-url'])
@@ -9672,7 +9710,7 @@ class teveblad_HTML(FetchData):
                             if channel in group_values['fetch_list']:
                                 with self.source_lock:
                                     for tdict in self.program_data[chanid]:
-                                        self.program_by_id[tdict[self.detail_id]] = tdict
+                                        self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
                                 self.channel_loaded[chanid] = True
                                 self.parse_programs(chanid, 0, 'None')
@@ -9774,8 +9812,8 @@ class teveblad_HTML(FetchData):
 
                         href = title.find('a').get('href')
                         if href != '' and href != None:
-                            tdict[self.detail_url] = title.find('a').get('href')
-                            tdict[self.detail_id] = u'be-%s' % tdict[self.detail_url].split('/')[5]
+                            tdict['detail_url'][self.proc_id] = title.find('a').get('href')
+                            tdict['prog_ID'][self.proc_id] = u'be-%s' % tdict['detail_url'][self.proc_id].split('/')[5]
                         tdict['name'] = self.empersant(title.findtext('a'))
                         if tdict['name'] == None or  tdict['name'] == '':
                             log('Can not determine program title for "%s"\n' % tdict['be-url'])
@@ -9895,7 +9933,7 @@ class teveblad_HTML(FetchData):
                     self.add_endtimes(chanid, 7)
 
                     for tdict in self.program_data[chanid]:
-                        self.program_by_id[tdict[self.detail_id]] = tdict
+                        self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
                 # If all went well we set them loaded. Else we give the grouppages a try
                 if failure_count == 0:
@@ -10120,10 +10158,10 @@ class npo_HTML(FetchData):
                     tdict['source'] = u'npo'
                     tdict['channelid'] = chanid
                     tdict['channel'] = config.channels[chanid].chan_name
-                    tdict[self.detail_url] = self.get_url(href = p.get('href',''))
-                    if tdict[self.detail_url] != '':
-                        pid = tdict[self.detail_url].split('/')[-1]
-                        tdict[self.detail_id] = u'npo-%s' % pid.split('_')[-1]
+                    tdict['detail_url'][self.proc_id] = self.get_url(href = p.get('href',''))
+                    if tdict['detail_url'][self.proc_id] != '':
+                        pid = tdict['detail_url'][self.proc_id].split('/')[-1]
+                        tdict['prog_ID'][self.proc_id] = u'npo-%s' % pid.split('_')[-1]
 
                     # The Title
                     tdict['name'] = self.empersant(ptext.tail.strip())
@@ -10305,7 +10343,7 @@ class npo_HTML(FetchData):
 
             with self.source_lock:
                 for tdict in self.program_data[chanid]:
-                    self.program_by_id[tdict[self.detail_id]] = tdict
+                    self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
             self.parse_programs(chanid, 0, 'none')
             config.channels[chanid].source_data[self.proc_id].set()
@@ -10443,10 +10481,10 @@ class npo_HTML(FetchData):
                                 tdict['source'] = u'npo'
                                 tdict['channelid'] = chanid
                                 tdict['channel'] = config.channels[chanid].chan_name
-                                tdict[self.detail_url] = self.get_url(href = p.get('href',''))
-                                if tdict[self.detail_url] != '':
-                                    pid = tdict[self.detail_url].split('/')[-1]
-                                    tdict[self.detail_id] = u'npo-%s' % pid.split('_')[-1]
+                                tdict['detail_url'][self.proc_id] = self.get_url(href = p.get('href',''))
+                                if tdict['detail_url'][self.proc_id] != '':
+                                    pid = tdict['detail_url'][self.proc_id].split('/')[-1]
+                                    tdict['prog_ID'][self.proc_id] = u'npo-%s' % pid.split('_')[-1]
 
                                 # The Title
                                 tdict['name'] = self.empersant(ptext)
@@ -10508,7 +10546,7 @@ class npo_HTML(FetchData):
         for chanid in self.channels.keys():
             with self.source_lock:
                 for tdict in self.program_data[chanid]:
-                    self.program_by_id[tdict[self.detail_id]] = tdict
+                    self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
             self.channel_loaded[chanid] = True
             self.parse_programs(chanid, 0, 'fill')
@@ -10659,9 +10697,9 @@ class horizon_JSON(FetchData):
 
                         tdict = self.checkout_program_dict()
                         if (item['imi'] != '') and (item['imi'] != None):
-                            tdict[self.detail_id] = u'ho-%s' % (item['imi'][4:])
-                            self.json_by_id[tdict[self.detail_id]] = item
-                            tdict['ID'] = tdict[self.detail_id]
+                            tdict['prog_ID'][self.proc_id] = u'ho-%s' % (item['imi'][4:])
+                            self.json_by_id[tdict['prog_ID'][self.proc_id]] = item
+                            tdict['ID'] = tdict['prog_ID'][self.proc_id]
 
                         tdict['source'] = self.source
                         tdict['channelid'] = chanid
@@ -10670,7 +10708,7 @@ class horizon_JSON(FetchData):
                         # The Title
                         tdict['name'] = self.unescape(item['program']['title'])
                         if  tdict['name'] == None or tdict['name'] == '':
-                            log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                            log('Can not determine program title for "%s"\n' % tdict['detail_url'][self.proc_id])
                             continue
 
                         # The timing
@@ -10765,7 +10803,7 @@ class horizon_JSON(FetchData):
                             for cat in cats:
                                 infofiles.addto_detail_list(u'horizon categorie: %s => %s' %(cat['id'], cat['title'].capitalize()))
 
-                        self.program_by_id[tdict[self.detail_id]] = tdict
+                        self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
                         tdict = self.check_title_name(tdict)
                         with self.source_lock:
                             self.program_data[chanid].append(tdict)
@@ -10775,7 +10813,7 @@ class horizon_JSON(FetchData):
 
                 with self.source_lock:
                     for tdict in self.program_data[chanid]:
-                        self.program_by_id[tdict[self.detail_id]] = tdict
+                        self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
 
                 # If all went well or it's the last try we set them loaded
@@ -10920,19 +10958,19 @@ class humo_JSON(FetchData):
                         for item in channel['events']:
                             tdict = self.checkout_program_dict()
                             if (item['id'] != '') and (item['id'] != None):
-                                tdict[self.detail_id] = u'humo-%s' % (item['id'])
-                                self.json_by_id[tdict[self.detail_id]] = item
-                                tdict['ID'] = tdict[self.detail_id]
+                                tdict['prog_ID'][self.proc_id] = u'humo-%s' % (item['id'])
+                                self.json_by_id[tdict['prog_ID'][self.proc_id]] = item
+                                tdict['ID'] = tdict['prog_ID'][self.proc_id]
 
                             tdict['source'] = self.source
                             tdict['channelid'] = chanid
                             tdict['channel']  = config.channels[chanid].chan_name
-                            tdict[self.detail_url] = item['url']
+                            tdict['detail_url'][self.proc_id] = item['url']
 
                             # The Title
                             tdict['name'] = self.unescape(item['program']['title'])
                             if  tdict['name'] == None or tdict['name'] == '':
-                                log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                                log('Can not determine program title for "%s"\n' % tdict['detail_url'][self.proc_id])
                                 continue
 
                             # The timing
@@ -11050,7 +11088,7 @@ class humo_JSON(FetchData):
                                         infofiles.addto_detail_list('new humo programitem => %s=%s' % (key, item['program'][key]))
 
                             tdict = self.check_title_name(tdict)
-                            self.program_by_id[tdict[self.detail_id]] = tdict
+                            self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
                             with self.source_lock:
                                 self.program_data[chanid].append(tdict)
 
@@ -11294,10 +11332,10 @@ class vpro_HTML(FetchData):
                     tdict['source'] = u'vpro'
                     tdict['channelid'] = chanid
                     tdict['channel'] = config.channels[chanid].chan_name
-                    tdict[self.detail_url] = p.get('data-read-more-url', '')
-                    #~ if tdict[self.detail_url] != '':
-                        #~ pid = tdict[self.detail_url].split('/')[-1]
-                        #~ tdict[self.detail_id] = u'npo-%s' % pid.split('_')[-1]
+                    tdict['detail_url'][self.proc_id] = p.get('data-read-more-url', '')
+                    #~ if tdict['detail_url'][self.proc_id] != '':
+                        #~ pid = tdict['detail_url'][self.proc_id].split('/')[-1]
+                        #~ tdict['prog_ID'][self.proc_id] = u'npo-%s' % pid.split('_')[-1]
 
                     # The Title
                     tdict['name'] = self.empersant(ptext.strip())
@@ -11482,7 +11520,7 @@ class vpro_HTML(FetchData):
                 self.add_endtimes(chanid, 6)
 
                 for tdict in self.program_data[chanid]:
-                    self.program_by_id[tdict[self.detail_id]] = tdict
+                    self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
             self.parse_programs(chanid, 0, 'none')
             config.channels[chanid].source_data[self.proc_id].set()
@@ -11870,13 +11908,13 @@ class nieuwsblad_HTML(FetchData):
                             tdict['source'] = u'nieuwsblad'
                             tdict['channelid'] = chanid
                             tdict['channel'] = config.channels[chanid].chan_name
-                            tdict[self.detail_url] = p.find('div[@class="title"]/a').get('href')
-                            #~ tdict[self.detail_id] = u'tv-%s' % tdict[self.detail_url].split('/')[5]  if (tdict[self.detail_url] != '') else ''
+                            tdict['detail_url'][self.proc_id] = p.find('div[@class="title"]/a').get('href')
+                            #~ tdict['prog_ID'][self.proc_id] = u'tv-%s' % tdict['detail_url'][self.proc_id].split('/')[5]  if (tdict['detail_url'][self.proc_id] != '') else ''
 
                             # The Title
                             tdict['name'] = self.empersant(p.findtext('div[@class="title"]/a').strip())
                             if  tdict['name'] == None or tdict['name'] == '':
-                                log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                                log('Can not determine program title for "%s"\n' % tdict['detail_url'][self.proc_id])
                                 continue
 
                             # Get the starttime and make sure the midnight date change is properly crossed
@@ -11914,7 +11952,7 @@ class nieuwsblad_HTML(FetchData):
                         self.add_endtimes(chanid, 6)
 
                         for tdict in self.program_data[chanid]:
-                            self.program_by_id[tdict[self.detail_id]] = tdict
+                            self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
                     if failure_count == 0 or retry == 1:
                         self.channel_loaded[chanid] = True
@@ -12107,13 +12145,13 @@ class primo_HTML(FetchData):
                                 tdict['channelid'] = chanid
                                 tdict['channel'] = config.channels[chanid].chan_name
                                 pid = p.find('h3').get('id')
-                                tdict[self.detail_id] = u'primo-%s' % pid  if pid != None else ''
-                                tdict[self.detail_url] = self.get_url(detail = pid)  if pid != None else ''
+                                tdict['prog_ID'][self.proc_id] = u'primo-%s' % pid  if pid != None else ''
+                                tdict['detail_url'][self.proc_id] = self.get_url(detail = pid)  if pid != None else ''
 
                                 # The Title
                                 tdict['name'] = self.empersant(p.findtext('h3').strip())
                                 if  tdict['name'] == None or tdict['name'] == '':
-                                    log('Can not determine program title for "%s"\n' % tdict[self.detail_url])
+                                    log('Can not determine program title for "%s"\n' % tdict['detail_url'][self.proc_id])
                                     continue
 
                                 # Get the starttime and make sure the midnight date change is properly crossed
@@ -12156,7 +12194,7 @@ class primo_HTML(FetchData):
                         config.channels[chanid].source_data[self.proc_id].set()
                         with self.source_lock:
                             for tdict in self.program_data[chanid]:
-                                self.program_by_id[tdict[self.detail_id]] = tdict
+                                self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
                         try:
                             infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
@@ -12174,20 +12212,20 @@ class primo_HTML(FetchData):
 
     def load_detailpage(self, tdict):
         try:
-            strdata = config.get_page(tdict[self.detail_url], 'utf-8')
+            strdata = config.get_page(tdict['detail_url'][self.proc_id], 'utf-8')
             if strdata == None:
                 return
 
             strdata = self.clean_html('<root>' + strdata + '</root>').encode('utf-8')
         except:
-            log(['Error Fetching detailpage %s\n' % tdict[self.detail_url], traceback.format_exc()])
+            log(['Error Fetching detailpage %s\n' % tdict['detail_url'][self.proc_id], traceback.format_exc()])
             return None
 
         try:
             htmldata = ET.fromstring(strdata)
 
         except:
-            log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict[self.detail_url]))
+            log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict['detail_url'][self.proc_id]))
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string(strdata + u'\n')
@@ -12303,10 +12341,10 @@ class primo_HTML(FetchData):
                 tdict['subgenre'] = ''
 
         except:
-            log(['Error processing Primo.eu detailpage:%s\n' % (tdict[self.detail_url]), traceback.format_exc()])
+            log(['Error processing Primo.eu detailpage:%s\n' % (tdict['detail_url'][self.proc_id]), traceback.format_exc()])
             return
 
-        tdict['ID'] = tdict[self.detail_id]
+        tdict['ID'] = tdict['prog_ID'][self.proc_id]
         tdict[self.detail_check] = True
 
         return tdict
@@ -12316,7 +12354,6 @@ class primo_HTML(FetchData):
 
 class vrt_JSON(FetchData):
     def init_channels(self):
-        self.fetch_headers = re.compile('([A-Z][a-z]+:)')
         self.init_channel_source_ids()
         self.chanids = {}
         for chanid, sourceid in self.channels.items():
@@ -12512,8 +12549,8 @@ class vrt_JSON(FetchData):
                                 continue
 
                             tdict = self.checkout_program_dict()
-                            tdict[self.detail_id] = u'vrt-%s' % (p['code'])
-                            self.json_by_id[tdict[self.detail_id]] = p
+                            tdict['prog_ID'][self.proc_id] = u'vrt-%s' % (p['code'])
+                            self.json_by_id[tdict['prog_ID'][self.proc_id]] = p
                             tdict['source'] = 'vrt'
                             tdict['channelid'] = chanid
                             tdict['channel']  = config.channels[chanid].chan_name
@@ -12664,7 +12701,7 @@ class vrt_JSON(FetchData):
                                             repeat+= 1
                                             for g in group[:]:
                                                 gdict = g.copy()
-                                                gdict[self.detail_id] = ''
+                                                gdict['prog_ID'][self.proc_id] = ''
                                                 gdict['rerun'] = True
                                                 gdict['start-time'] += repeat*group_duur
                                                 gdict['stop-time'] += repeat*group_duur
@@ -12959,7 +12996,7 @@ class Channel_Config(Thread):
             log_array = ['\n', 'Detail statistics for %s (channel %s of %s)\n' % (self.chan_name, counter, config.chan_count)]
             log_array.append( '%6.0f cache hit(s)\n' % (self.counters['cache']))
             if self.opt_dict['fast']:
-                log_array.append('%6.0f without details in cache\n' % self.counters['cache'])
+                log_array.append('%6.0f without details in cache\n' % self.counters['none'])
                 log_array.append('\n')
                 log_array.append('%6.0f succesful ttvdb lookups\n' % self.counters['ttvdb'])
                 log_array.append('%6.0f failed ttvdb lookups\n' % self.counters['ttvdb_fail'])
@@ -13169,7 +13206,7 @@ class Channel_Config(Thread):
                 return
 
             if cache_id != None:
-                xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': p[cache_id]})
+                xml_output.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': cache_id})
                 cached_program = self.cache_return.get(True)
                 if cached_program =='quit':
                     self.ready = True
