@@ -12893,6 +12893,7 @@ class oorboekje_HTML(FetchData):
                         self.fail_count += 1
                         continue
 
+                    strdata = self.clean_html(strdata)
                     for ch in self.getchanday.findall(strdata):
                         scid = self.getchanid.search(ch).group(1)
                         if not scid in self.chanids.keys():
