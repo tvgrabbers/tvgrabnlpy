@@ -1854,7 +1854,7 @@ class Configure:
             db_icon.append({'sourceid': icon[0], 'chanid': str(chanid),'icon': icon[1]})
 
         # Get the sources
-        for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8, 11):
+        for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8, 11, 12):
             xml_output.channelsource[index].init_channels()
             if xml_output.channelsource[index].get_channels() == 69:
                 log("Not all channel info could be retreived.\n")
@@ -1880,7 +1880,7 @@ class Configure:
                 if not (chan_scid in self.empty_channels[index]):
                     source_keys[index].append(chan_scid)
 
-        for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8, 11):
+        for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8, 11, 12):
             for chan_scid, channel in xml_output.channelsource[index].all_channels.items():
                 if chan_scid in reverse_channels[index].keys():
                     chanid = reverse_channels[index][chan_scid]['chanid']
@@ -1931,6 +1931,10 @@ class Configure:
                     self.channels[chanid].group = channel['group']
 
                 if 'group' in channel and channel['group'] == 2 and self.channels[chanid].group == 9:
+                    self.channels[chanid].group = channel['group']
+
+                # Force Regional radio group
+                if 'group' in channel and channel['group'] == 17 and self.channels[chanid].group == 11:
                     self.channels[chanid].group = channel['group']
 
                 # Set the Icon
@@ -12225,7 +12229,7 @@ class primo_HTML(FetchData):
             htmldata = ET.fromstring(strdata)
 
         except:
-            log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict['detail_url'][self.proc_id]))
+            log("Error extracting ElementTree from:%s on primo.eu\n" % (tdict['detail_url'][self.proc_id]))
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 infofiles.write_raw_string(strdata + u'\n')
@@ -12348,7 +12352,6 @@ class primo_HTML(FetchData):
         tdict[self.detail_check] = True
 
         return tdict
-
 
 # end primo_HTML
 
@@ -12749,6 +12752,86 @@ class Virtual_Channels(FetchData):
         self.all_channels = config.virtual_channellist
 
 # end Virtual_Channels
+
+class oorboekje_HTML(FetchData):
+    """
+    Get all available days of programming for the requested radio channels
+    from the oorboekje.nl page. Based on FetchData Class
+    """
+    def init_channels(self):
+
+        self.gettable = re.compile('<TABLE (.*?)</TABLE>',re.DOTALL)
+        self.gettablerow = re.compile('<TD valign(.*?)</TD>',re.DOTALL)
+        self.getregional = re.compile("Regionale .*? zenders:")
+        self.getchanid = re.compile('A href="stream.php\?zender=([0-9]+)"')
+        self.getchanname = re.compile('<P class="pnZender".*?>(.*?)</P>',re.DOTALL)
+        self.init_channel_source_ids()
+        self.chanids = {}
+        for chanid, sourceid in self.channels.items():
+            self.chanids[sourceid] = chanid
+
+    def get_url(self, type = 'channels', offset = 0):
+
+        base_url = 'http://www.oorboekje.nl/'
+        week_day = datetime.date.fromordinal(self.current_date + offset).isoweekday()
+
+        if type == 'channels':
+            return  base_url
+
+        else:
+            return u'%sprogram.php?dag=%s' % (base_url, week_day)
+
+    def get_channels(self):
+        """
+        Get a list of all available channels and store these
+        in all_channels.
+        """
+
+        try:
+            strdata = config.get_page(self.get_url('channels'))
+            if self.get_channel_lineup(strdata) == 69:
+                log(["Unable to get channel info from %s\n" % self.source, traceback.format_exc()])
+                return 69  # EX_UNAVAILABLE
+
+        except:
+            self.fail_count += 1
+            log(["Unable to get channel info from %s\n" % self.source, traceback.format_exc()])
+            return 69  # EX_UNAVAILABLE
+
+    def get_channel_lineup(self, chandata):
+
+        try:
+            if not isinstance(chandata, (str, unicode)):
+                return 69
+
+            strdata = self.gettable.search(chandata).group(0)
+            strdata = self.clean_html(strdata)
+            chgroup = 11
+            for ch in self.gettablerow.findall(strdata):
+                if not '"stream.php?zender=' in ch:
+                    if self.getregional.search(ch) != None:
+                        chgroup = 17
+
+                    continue
+
+                chanid = self.getchanid.search(ch).group(1)
+                channame = self.getchanname.search(ch).group(1)
+                channame = self.empersant(re.sub('<SPAN.*?</SPAN>', '', channame).strip())
+                if not chanid in self.all_channels.keys():
+                    self.all_channels[chanid] = {}
+                    self.all_channels[chanid]['name'] = channame
+                    self.all_channels[chanid]['group'] = chgroup
+
+                #~ print chgroup, chanid, channame.encode('utf-8')
+                #~ print '			"12-%s": "%s",' % (chanid, chanid)
+
+        except:
+            self.fail_count += 1
+            log(traceback.format_exc())
+            return 69
+
+
+# end oorboekje_HTML
 
 class Channel_Config(Thread):
     """
@@ -13335,12 +13418,12 @@ class XMLoutput:
         self.source_count = 11
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl',
                                   5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be', 9:'primo.eu',
-                                  10: 'vrt.be', 11: 'virtual'}
-        self.source_order = [7, 0, 1, 5, 9, 6, 8, 2, 4, 10, 11]
-        self.sourceid_order = [0, 9, 1, 2, 4, 7, 5, 6, 7, 8, 10, 11]
+                                  10: 'vrt.be', 11: 'virtual', 12: 'oorboekje.nl'}
+        self.source_order = [7, 0, 1, 5, 9, 6, 8, 2, 4, 10, 11, 12]
+        self.sourceid_order = [0, 9, 1, 2, 4, 7, 5, 6, 7, 8, 10, 11, 12]
         self.source_count = len(self.sources)
         self.detail_sources = (0, 9, 1)
-        self.prime_source_order = (2, 4, 7, 0, 5, 1, 9, 6, 8, 10, 11)
+        self.prime_source_order = (2, 4, 7, 0, 5, 1, 9, 6, 8, 10, 11, 12)
         self.channelsource = {}
         self.channelsource[0] = tvgids_JSON(0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = tvgidstv_HTML(1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
@@ -13354,6 +13437,7 @@ class XMLoutput:
         self.channelsource[9] = primo_HTML(9, 'primo.eu', 'primo-ID', 'primo-url', False, 'primo-fetched', True)
         self.channelsource[10] = vrt_JSON(10, 'vrt.be', 'vrt-ID', 'vrt-url', True)
         self.channelsource[11] = Virtual_Channels(11, 'virtual', 'virtual-ID', 'virtual-url')
+        self.channelsource[12] = oorboekje_HTML(12, 'oorboekje.nl', 'ob-ID', 'ob-url')
         self.output_lock = Lock()
         self.cache_return = Queue()
         self.ttvdb = theTVDB()
@@ -13766,6 +13850,8 @@ def main():
 
         #~ test = vrt_JSON(10, 'vrt.be', 'vrt-ID', 'vrt-url', True)
         #~ test.get_standaardgenres()
+        #~ test = oorboekje_HTML(12, 'oorboekje.nl', 'ob-ID', 'ob-url')
+        #~ test.init_channels()
         #~ test.get_channels()
         #~ config.opt_dict['offset'] = 0
         #~ config.opt_dict['days'] = 1
