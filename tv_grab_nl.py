@@ -3833,12 +3833,13 @@ class InfoFiles:
             with self.info_lock:
                 self.detail_list.append(detail_data)
 
-    def write_fetch_list(self, programs, chanid, source, ismerge = False):
+    def write_fetch_list(self, programs, chanid, source, sid = None, ismerge = False):
 
         if (not config.write_info_files) or (self.fetch_list == None):
             return
 
         with self.info_lock:
+            plist = deepcopy(programs)
             if not chanid in  self.fetch_strings:
                  self.fetch_strings[chanid] = {}
 
@@ -3847,22 +3848,26 @@ class InfoFiles:
 
             if ismerge:
                 self.fetch_strings[chanid][source] += u'(%3.0f) merging channel: %s from: %s\n' % \
-                    (len(programs), config.channels[chanid].chan_name, source)
+                    (len(plist), config.channels[chanid].chan_name, source)
 
             else:
                 self.fetch_strings[chanid][source] += u'(%3.0f) channel: %s from: %s\n' % \
-                    (len(programs), config.channels[chanid].chan_name, source)
+                    (len(plist), config.channels[chanid].chan_name, source)
 
-            programs.sort(key=lambda program: (program['start-time']))
+            plist.sort(key=lambda program: (program['start-time']))
+            #~ print plist
 
-            for tdict in programs:
-                if ismerge:
-                    id = tdict['ID']
+            for tdict in plist:
+                if sid == None:
+                    sid = tdict['ID']
+
+                elif sid in tdict['prog_ID']:
+                    sid = tdict['prog_ID'][sid]
 
                 self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
                                 tdict['start-time'].strftime('%d %b %H:%M'), \
                                 tdict['stop-time'].strftime('%H:%M'), \
-                                tdict['prog_ID'][source].rjust(15), tdict['genre'][0:10].rjust(10), \
+                                sid.rjust(15), tdict['genre'][0:10].rjust(10), \
                                 tdict['name'], tdict['titel aflevering'], \
                                 tdict['season'], tdict['episode'])
 
@@ -7737,7 +7742,7 @@ class FetchData(Thread):
 
         config.channels[chanid].all_programs = matched_programs
         try:
-            infofiles.write_fetch_list(matched_programs, chanid, other_source_name, True)
+            infofiles.write_fetch_list(matched_programs, chanid, other_source_name, None, True)
 
         except:
             pass
@@ -8039,7 +8044,7 @@ class tvgids_JSON(FetchData):
             self.channel_loaded[chanid] = True
             config.channels[chanid].source_data[self.proc_id].set()
             try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
             except:
                 pass
@@ -8787,7 +8792,7 @@ class tvgidstv_HTML(FetchData):
                         config.channels[chanid].source_data[self.proc_id].set()
 
                         try:
-                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
                         except:
                             pass
@@ -9133,7 +9138,7 @@ class rtl_JSON(FetchData):
 
             config.channels[chanid].source_data[self.proc_id].set()
             try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
             except:
                 pass
@@ -9723,7 +9728,7 @@ class teveblad_HTML(FetchData):
                                 config.channels[chanid].source_data[self.proc_id].set()
 
                                 try:
-                                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
                                 except:
                                     pass
@@ -9948,7 +9953,7 @@ class teveblad_HTML(FetchData):
                     config.channels[chanid].source_data[self.proc_id].set()
 
                 try:
-                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
                 except:
                     pass
@@ -10355,7 +10360,7 @@ class npo_HTML(FetchData):
             config.channels[chanid].source_data[self.proc_id].set()
 
             try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
             except:
                 pass
@@ -10562,7 +10567,7 @@ class npo_HTML(FetchData):
                 continue
 
             try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
             except:
                 pass
@@ -10828,7 +10833,7 @@ class horizon_JSON(FetchData):
                 config.channels[chanid].source_data[self.proc_id].set()
 
                 try:
-                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
                 except:
                     pass
@@ -11104,7 +11109,7 @@ class humo_JSON(FetchData):
                 self.channel_loaded[chanid] = True
                 config.channels[chanid].source_data[self.proc_id].set()
                 try:
-                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
                 except:
                     pass
@@ -11394,8 +11399,6 @@ class vpro_HTML(FetchData):
                             if config.write_info_files and not pgenre in ('', 'gvpro'):
                                 infofiles.addto_detail_list(unicode('unknown vpro.nl genre => ' + pgenre + ': ' + tdict['name']))
 
-                        #~ print tdict['genre']
-
                     else:
                         tdict['genre'] = u'overige'
 
@@ -11532,7 +11535,7 @@ class vpro_HTML(FetchData):
             config.channels[chanid].source_data[self.proc_id].set()
 
             try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
             except:
                 pass
@@ -11752,7 +11755,7 @@ class nieuwsblad_HTML(FetchData):
 
         except:
             self.fail_count += 1
-            print traceback.format_exc()
+            log( traceback.format_exc())
 
         changroup = 99
         try:
@@ -11966,7 +11969,7 @@ class nieuwsblad_HTML(FetchData):
                         config.channels[chanid].source_data[self.proc_id].set()
 
                         try:
-                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
                         except:
                             pass
@@ -12204,7 +12207,7 @@ class primo_HTML(FetchData):
                                 self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
                         try:
-                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
                         except:
                             pass
@@ -12732,7 +12735,7 @@ class vrt_JSON(FetchData):
 
                         config.channels[chanid].source_data[self.proc_id].set()
                         try:
-                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
                         except:
                             pass
@@ -12963,7 +12966,7 @@ class oorboekje_HTML(FetchData):
                                 self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
                         try:
-                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
 
                         except:
                             pass
