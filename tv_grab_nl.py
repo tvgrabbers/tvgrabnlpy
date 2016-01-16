@@ -484,7 +484,7 @@ class Configure:
         self.opt_dict['disable_source'] = []
         self.opt_dict['disable_detail_source'] = []
         self.opt_dict['disable_ttvdb'] = False
-        self.ttvdb_disabled_groups = (6, 8, 11, 12, 13)
+        self.ttvdb_disabled_groups = (6, 8, 11, 12, 13, 17)
         # enable this option if you were using tv_grab_nl, it adjusts the generated
         # xmltvid's so that everything works.
         self.opt_dict['compat'] = False
@@ -6263,18 +6263,20 @@ class FetchData(Thread):
             for i, tdict in enumerate(self.program_data[chanid]):
                 if i > 0 and type(tdict['start-time']) == datetime.datetime:
                     try:
-                        self.program_data[chanid][i-1]['stop-time'] =  tdict['start-time']
+                        if not type(self.program_data[chanid][i-1]['stop-time']) == datetime.datetime:
+                            self.program_data[chanid][i-1]['stop-time'] =  tdict['start-time']
 
                     except:
                         pass
 
             # And one for the last program
             prog_date = datetime.date.fromordinal(self.current_date + self.program_data[chanid][-1]['offset'])
-            if int(self.program_data[chanid][-1]['start-time'].strftime('%H')) < date_switch:
-                self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(date_switch, 0,0 ,0 ,CET_CEST))
+            if not type(self.program_data[chanid][-1]['stop-time']) == datetime.datetime:
+                if int(self.program_data[chanid][-1]['start-time'].strftime('%H')) < date_switch:
+                    self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(date_switch, 0,0 ,0 ,CET_CEST))
 
-            else:
-                self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(23, 59,0 ,0 ,CET_CEST))
+                else:
+                    self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(23, 59,0 ,0 ,CET_CEST))
 
             # remove programs that end when they start
             for tdict in self.program_data[chanid][:]:
@@ -12139,7 +12141,8 @@ class primo_HTML(FetchData):
 
                         chanid = self.chanids[scid]
                         date_offset = offset -1
-                        last_end = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + offset), datetime.time(hour=6, tzinfo=CET_CEST))
+                        last_end = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + offset), \
+                                                                                        datetime.time(hour=6, tzinfo=CET_CEST))
                         for d in chan.findall('div[@class="hour hour-"]'):
                             date_offset+=1
                             scan_date = datetime.date.fromordinal(self.current_date + date_offset)
@@ -12765,12 +12768,17 @@ class oorboekje_HTML(FetchData):
         self.getregional = re.compile("Regionale .*? zenders:")
         self.getchanid = re.compile('A href="stream.php\?zender=([0-9]+)"')
         self.getchanname = re.compile('<P class="pnZender".*?>(.*?)</P>',re.DOTALL)
+        self.getnameaddition = re.compile('<SPAN style=".*?">(.*?)</SPAN>')
+        self.getdate = re.compile("this.document.title='oorboekje.nl - Programma-overzicht van .*? ([0-9]{2})-([0-9]{2})-([0-9]{4})';")
+        self.getchanday = re.compile('<!-- programmablok begin -->(.*?)<!-- programmablok eind -->',re.DOTALL)
+        self.getprogram = re.compile('<DIV class="pgProgOmschr".*?>\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
+        self.gettime = re.compile('([0-9]{2}):([0-9]{2})')
         self.init_channel_source_ids()
         self.chanids = {}
         for chanid, sourceid in self.channels.items():
             self.chanids[sourceid] = chanid
 
-    def get_url(self, type = 'channels', offset = 0):
+    def get_url(self, type = None, offset = 0):
 
         base_url = 'http://www.oorboekje.nl/'
         week_day = datetime.date.fromordinal(self.current_date + offset).isoweekday()
@@ -12816,7 +12824,11 @@ class oorboekje_HTML(FetchData):
 
                 chanid = self.getchanid.search(ch).group(1)
                 channame = self.getchanname.search(ch).group(1)
+                regionname = self.getnameaddition.search(channame)
                 channame = self.empersant(re.sub('<SPAN.*?</SPAN>', '', channame).strip())
+                if regionname != None and not '(' in regionname.group(1):
+                    channame = u'%s %s' % (channame, regionname.group(1))
+
                 if not chanid in self.all_channels.keys():
                     self.all_channels[chanid] = {}
                     self.all_channels[chanid]['name'] = channame
@@ -12830,6 +12842,139 @@ class oorboekje_HTML(FetchData):
             log(traceback.format_exc())
             return 69
 
+    def load_pages(self):
+        if config.opt_dict['offset'] > 6:
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
+
+            return
+
+        if len(self.channels) == 0:
+            return
+
+        try:
+            for retry in (0, 1):
+                for offset in range( config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 6)):
+                    failure_count = 0
+                    if self.quit:
+                        return
+
+                    # Check if it is allready loaded
+                    if self.day_loaded[0][offset] != False:
+                        continue
+
+                    log(['\n', 'Now fetching channels from oorboekje.nl for day %s of %s\n' % \
+                        (offset, config.opt_dict['days'])], 2)
+
+                    # get the raw programming for the day
+                    try:
+                        channel_url = self.get_url(offset=offset)
+                        strdata = config.get_page(channel_url)
+
+                        if strdata == None:
+                            log("Skip day=%s on oorboekje.nl. No data!\n" % (offset))
+                            failure_count += 1
+                            self.fail_count += 1
+                            continue
+
+                        fetchdate = self.getdate.search(strdata)
+                        if fetchdate == None or datetime.date.fromordinal(self.current_date + offset) != \
+                          datetime.date(int(fetchdate.group(3)), int(fetchdate.group(2)), int(fetchdate.group(1))):
+                            log('Invalid date for oorboekje.nl for day %s.\n' % offset)
+
+                    except:
+                        log('Error: "%s" reading the oorboekje.nl basepage for day %s.\n' % \
+                            (sys.exc_info()[1], offset))
+                        failure_count += 1
+                        self.fail_count += 1
+                        continue
+
+                    for ch in self.getchanday.findall(strdata):
+                        scid = self.getchanid.search(ch).group(1)
+                        if not scid in self.chanids.keys():
+                            continue
+
+                        chanid = self.chanids[scid]
+                        date_offset = offset
+                        last_end = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + offset),
+                                                                                        datetime.time(hour=0, tzinfo=CET_CEST))
+                        scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                        for p in self.getprogram.findall(ch):
+                            tdict = self.checkout_program_dict()
+                            tdict['source'] = u'oorboekje'
+                            tdict['channelid'] = chanid
+                            tdict['channel'] = config.channels[chanid].chan_name
+
+                            # The Title
+                            tdict['name'] = self.empersant(p[3].strip())
+                            if  tdict['name'] == None or tdict['name'] == '':
+                                log('Can not determine program title\n')
+                                continue
+
+                            # Get the starttime and make sure the midnight date change is properly crossed
+                            #~ ptime = self.gettime.search(p[0])
+                            #~ if ptime == None:
+                                #~ log('Can not determine program start time: %s.\n' % p[0])
+                                #~ continue
+
+                            ptime = datetime.time(int(p[0]), int(p[1]), tzinfo=CET_CEST)
+                            tdict['offset'] = date_offset
+                            tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
+                            if tdict['start-time'] < last_end:
+                                scan_date = datetime.date.fromordinal(self.current_date + date_offset+1)
+                                tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
+
+                            last_end = tdict['start-time']
+                            ptime = self.gettime.search(p[2])
+                            if ptime != None:
+                                ptime = datetime.time(int(ptime.group(1)), int(ptime.group(2)), tzinfo=CET_CEST)
+                                tdict['stop-time'] = datetime.datetime.combine(scan_date, ptime)
+                                if tdict['stop-time'] < last_end:
+                                    scan_date = datetime.date.fromordinal(self.current_date + date_offset+1)
+                                    tdict['stop-time'] = datetime.datetime.combine(scan_date, ptime)
+
+                                last_end = tdict['stop-time']
+
+                            # and append the program to the list of programs
+                            tdict = self.check_title_name(tdict)
+                            with self.source_lock:
+                                self.program_data[chanid].append(tdict)
+
+
+
+                    self.base_count += 1
+                    self.day_loaded[0][offset] = True
+                    # be nice to oorboekje.nl
+                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
+
+                if failure_count == 0 or retry == 1:
+                    for chanid in self.channels.keys():
+                        # Add starttime of the next program as the endtime
+                        with self.source_lock:
+                            self.program_data[chanid].sort(key=lambda program: (program['start-time']))
+                            self.add_endtimes(chanid, 7)
+
+                        self.parse_programs(chanid, 0, 'None')
+                        self.channel_loaded[chanid] = True
+                        config.channels[chanid].source_data[self.proc_id].set()
+                        with self.source_lock:
+                            for tdict in self.program_data[chanid]:
+                                self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
+
+                        try:
+                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source)
+
+                        except:
+                            pass
+
+                    return
+
+        except:
+            log(['\n', 'An unexpected error has occured in the %s thread\n' %  (self.source), traceback.format_exc()], 0)
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                config.channels[chanid].source_data[self.proc_id].set()
 
 # end oorboekje_HTML
 
