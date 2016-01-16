@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 9
-        self.patchdate = u'20160112'
+        self.patchdate = u'20160116'
         self.alfa = True
         self.beta = True
 
