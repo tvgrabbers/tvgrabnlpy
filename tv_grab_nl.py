@@ -12774,7 +12774,7 @@ class oorboekje_HTML(FetchData):
         self.getnameaddition = re.compile('<SPAN style=".*?">(.*?)</SPAN>')
         self.getdate = re.compile("this.document.title='oorboekje.nl - Programma-overzicht van .*? ([0-9]{2})-([0-9]{2})-([0-9]{4})';")
         self.getchanday = re.compile('<!-- programmablok begin -->(.*?)<!-- programmablok eind -->',re.DOTALL)
-        self.getprogram = re.compile('<DIV class="pgProgOmschr".*?>\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
+        self.getprogram = re.compile('<DIV class="pgProgOmschr" style="text-indent: -16px; padding-left: 16px">\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
         self.gettime = re.compile('([0-9]{2}):([0-9]{2})')
         self.init_channel_source_ids()
         self.chanids = {}
@@ -12916,12 +12916,7 @@ class oorboekje_HTML(FetchData):
                                 log('Can not determine program title\n')
                                 continue
 
-                            # Get the starttime and make sure the midnight date change is properly crossed
-                            #~ ptime = self.gettime.search(p[0])
-                            #~ if ptime == None:
-                                #~ log('Can not determine program start time: %s.\n' % p[0])
-                                #~ continue
-
+                            #~ print p
                             ptime = datetime.time(int(p[0]), int(p[1]), tzinfo=CET_CEST)
                             tdict['offset'] = date_offset
                             tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
