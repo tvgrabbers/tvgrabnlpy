@@ -5781,7 +5781,7 @@ class FetchData(Thread):
                 # If there is an url we'll try tvgids.tv
                 elif self.proc_id == q_no[1] and xml_output.channelsource[q_no[0]].detail_processor and \
                   q_no[0] not in parent.opt_dict['disable_detail_source'] and \
-                  tdict[xml_output.channelsource[q_no[0]].detail_url] != '':
+                  tdict['detail_url'][q_no[0]] != '':
                     xml_output.channelsource[q_no[0]].detail_request.put({'tdict':tdict, 'cache_id': cache_id, 'logstring': logstring, 'parent': parent, 'last_one': False})
                     parent.update_counter('fetch', q_no[0])
                     parent.update_counter('fetch', self.proc_id, False)
@@ -13443,9 +13443,9 @@ class Channel_Config(Thread):
                 if cached_program != None and \
                     (no_fetch or \
                         cached_program[xml_output.channelsource[0].detail_check] or \
-                        (p[xml_output.channelsource[0].detail_url] == '' and \
+                        (p['detail_url'][0] == '' and \
                             (cached_program[xml_output.channelsource[9].detail_check] or \
-                                (p[xml_output.channelsource[9].detail_url] == '' and \
+                                (p['detail_url'][9] == '' and \
                                 cached_program[xml_output.channelsource[1].detail_check])))):
                         log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                         self.update_counter('cache')
@@ -13460,9 +13460,9 @@ class Channel_Config(Thread):
                         continue
 
             # Either we are fast-mode, outside slowdays or there is no url. So we continue
-            no_detail_fetch = (no_fetch or ((p[xml_output.channelsource[0].detail_url] == '') and \
-                                                                (p[xml_output.channelsource[9].detail_url] == '') and \
-                                                                (p[xml_output.channelsource[1].detail_url] == '')))
+            no_detail_fetch = (no_fetch or ((p['detail_url'][0] == '') and \
+                                                                (p['detail_url'][9] == '') and \
+                                                                (p['detail_url'][1] == '')))
 
             if no_detail_fetch:
                 log(u'    [no fetch] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
@@ -13480,7 +13480,7 @@ class Channel_Config(Thread):
             for src_id in xml_output.detail_sources:
                 if src_id not in config.opt_dict['disable_detail_source'] and \
                   src_id not in self.opt_dict['disable_detail_source'] and \
-                  p[xml_output.channelsource[src_id].detail_url] != '':
+                  p['detail_url'][src_id] != '':
                     self.update_counter('fetch', src_id)
                     xml_output.channelsource[src_id].detail_request.put({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
                     break
