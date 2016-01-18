@@ -138,7 +138,7 @@ try:
 except ImportError:
     from htmlentitydefs import name2codepoint
 from copy import deepcopy
-from threading import Thread, Lock, Event, active_count
+from threading import Thread, Lock, Event, active_count, Semaphore
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
 from Queue import Queue, Empty
@@ -447,7 +447,9 @@ class Configure:
 
         # how many seconds to wait before we timeout on a
         # url fetch, 10 seconds seems reasonable
-        self.global_timeout = 10
+        # and the maximum of simultaneous fetches that can occure
+        self.opt_dict['global_timeout'] = 10
+        self.opt_dict['max_simultaneous_fetches'] = 5
 
         # Wait a random number of seconds between each page fetch.
         # We want to be nice and not hammer tvgids.nl (these are the
@@ -1466,7 +1468,8 @@ class Configure:
 
                     # Integer Values
                     elif cfg_option in ('log_level', 'match_log_level', 'offset', 'days', 'slowdays', 'mailport', \
-                      'max_overlap', 'desc_length', 'disable_source', 'disable_detail_source', 'data_version'):
+                      'max_overlap', 'desc_length', 'disable_source', 'disable_detail_source', 'data_version', \
+                      'max_simultaneous_fetches', 'global_timeout'):
                         try:
                             cfg_value = int(cfg_value)
 
@@ -2000,9 +2003,11 @@ class Configure:
         """
         try:
             fu = FetchURL(url, encoding, accept_header)
+            self.max_fetches.acquire()
             fu.start()
-            fu.join(self.global_timeout)
+            fu.join(self.opt_dict['global_timeout'])
             page = fu.result
+            config.max_fetches.release()
             if (page == None) or (page.replace('\n','') == '') or (page.replace('\n','') =='{}'):
                 with xml_output.output_lock:
                     xml_output.fail_count += 1
@@ -2013,13 +2018,14 @@ class Configure:
                 return page
 
         except(urllib.URLError, socket.timeout):
-            log('get_page timed out on (>%s s): %s\n' % (self.global_timeout, url), 1, 1)
+            log('get_page timed out on (>%s s): %s\n' % (self.opt_dict['global_timeout'], url), 1, 1)
             if self.write_info_files:
                 infofiles.add_url_failure('Fetch timeout: %s\n' % url)
 
             with xml_output.output_lock:
                 xml_output.fail_count += 1
 
+            config.max_fetches.release()
             return None
     # end get_page()
 
@@ -2343,6 +2349,7 @@ class Configure:
         if x != None:
             return(x)
 
+        self.max_fetches = Semaphore(self.opt_dict['max_simultaneous_fetches'])
         x = self.get_sourcematching_file(self.args.configure)
         if x != None:
             return(x)
@@ -2885,6 +2892,8 @@ class Configure:
         log_array.append(u'Preferred Methode: "allatonce"')
         log_array.append(u'log level = %s' % (self.opt_dict['log_level']))
         log_array.append(u'match log level = %s' % (self.opt_dict['match_log_level']))
+        log_array.append(u'global_timeout = %s' % (self.opt_dict['global_timeout']))
+        log_array.append(u'max_simultaneous_fetches = %s' % (self.opt_dict['max_simultaneous_fetches']))
         log_array.append(u'config_file = %s' % (self.config_file))
         log_array.append(u'program_cache_file = %s.db' % (self.args.program_cache_file))
         log_array.append(u'clean_cache = %s' % (self.args.clean_cache))
@@ -3009,6 +3018,24 @@ class Configure:
                 f.write(u'mail_info_address = %s\n' % self.opt_dict['mail_info_address'])
 
             f.write(u'\n')
+        f.write(u'# The following are tuning parameters. You normally do not need to change them.\n')
+        f.write(u'# global_timeout is the maximum time in seconds to wait for a fetch to complete\n')
+        f.write(u'#    before calling it a time-out failure.\n')
+        f.write(u'# max_simultaneous_fetches is the maximum number of simultaneous fetches\n')
+        f.write(u'#    that are allowed.\n')
+        f.write(u'#    With the growing number of sources it is possible that they all together\n')
+        f.write(u'#    try to get their page. This could lead to congestion and failure.\n')
+        f.write(u'#    If you see often "incomplete read failures" or "get_page timed out", you\n')
+        f.write(u'#    can try raising the first or lowering the second.\n')
+        f.write(u"#    This won't significantly alter the total runtime as this is mostley determined\n")
+        f.write(u'#    by the the highest number of fetches from a single source and the mandatory.\n')
+        f.write(u'#    waittime in between those fetches to not overload their resources.\n')
+        f.write(u'#    However all basepage fetches are retried on failure and a detailpagefailure\n')
+        f.write(u'#    can triger a retry on one of the other detailsources. So a lot of failures\n')
+        f.write(u'#    especially on source 0, 1 and 9 can increase the total runtime.\n')
+        f.write(u'global_timeout = %s\n' % self.opt_dict['global_timeout'])
+        f.write(u'max_simultaneous_fetches = %s\n' % self.opt_dict['max_simultaneous_fetches'])
+        f.write(u'\n')
         f.write(u'# This handles what goes to the log and screen\n')
         f.write(u'# 0 Nothing (use quiet mode to turns off screen output, but keep a log)\n')
         f.write(u'# 1 include Errors and Warnings\n')
@@ -3020,7 +3047,6 @@ class Configure:
         f.write(u'# 64 Title renames\n')
         f.write(u'# 128 ttvdb failures\n')
         f.write(u'log_level = %s\n' % self.opt_dict['log_level'])
-        f.write(u'\n')
         f.write(u'# What match results go to the log/screen (needs code 32 above)\n')
         f.write(u'# 0 = Log Nothing (just the overview)\n')
         f.write(u'# 1 = log not matched programs added\n')
@@ -3028,13 +3054,13 @@ class Configure:
         f.write(u'# 4 = Log matches\n')
         f.write(u'# 8 = Log group slots\n')
         f.write(u'match_log_level = %s\n' % self.opt_dict['match_log_level'])
+        f.write(u'\n')
         f.write(u'mail_log = %s\n' % self.opt_dict['mail_log'])
         f.write(u'# Set "mail_log" to True to send the log to the mailaddress below\n')
         f.write(u'# Also set the mailserver and port apropriate\n')
         f.write(u'# SSL/startTLS is NOT sopported at present. Neither is authentication\n')
         f.write(u'# Make sure to first test on a console as mailing occures after \n')
         f.write(u'# closing of the logfile!\n')
-
         f.write(u'mail_log_address = %s\n' % self.opt_dict['mail_log_address'])
         f.write(u'mailserver = %s\n' % self.opt_dict['mailserver'])
         f.write(u'mailport = %s\n' % self.opt_dict['mailport'])
@@ -5337,9 +5363,11 @@ class theTVDB(Thread):
         """
         try:
             fu = FetchURL(url, 'utf-8')
+            config.max_fetches.acquire()
             fu.start()
-            fu.join(config.global_timeout)
+            fu.join(config.opt_dict['global_timeout'])
             page = fu.result
+            config.max_fetches.release()
             if (page == None) or (page.replace('[\n ]','') == ''):
                 self.fail_count += 1
                 with xml_output.output_lock:
@@ -5353,11 +5381,12 @@ class theTVDB(Thread):
                 return page
 
         except(urllib.URLError, socket.timeout):
-            log('get_page timed out on (>%s s): %s\n' % (config.global_timeout, url), 1, 1)
+            log('get_page timed out on (>%s s): %s\n' % (config.opt_dict['global_timeout'], url), 1, 1)
             self.fail_count += 1
             with xml_output.output_lock:
                 xml_output.fail_count += 1
 
+            config.max_fetches.release()
             return None
 
     def get_all_episodes(self, tid, lang='nl'):
