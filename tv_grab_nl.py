@@ -4934,7 +4934,7 @@ class ProgramCache(Thread):
 
             sql_flds = u"INSERT INTO programs ('pid'"
             sql_cnt = u"VALUES (?"
-            sql_vals = [item[id]]
+            sql_vals = [id]
             for f, v in item.items():
                 if f in self.field_list:
                     sql_flds = u"%s, '%s'" % (sql_flds, f)
@@ -4962,7 +4962,7 @@ class ProgramCache(Thread):
 
             add_string = u"INSERT INTO credits (pid, title, name) VALUES (?, ?, ?)"
             for f, v in item['credits'].items():
-                rec.append((item[id], f, v))
+                rec.append((id, f, v))
 
         elif table == 'channel':
             add_string = u"INSERT INTO channels ('chanid', 'cgroup', 'name') VALUES (?, ?, ?)"
