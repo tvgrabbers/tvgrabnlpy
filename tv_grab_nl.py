@@ -2181,6 +2181,7 @@ class Configure:
 
         self.groupslot_names = get_githubdata("groupslot_names")
         self.ttvdb_aliasses = get_githubdict("ttvdb_aliasses")
+        self.generic_channel_genres = get_githubdict("generic_channel_genres")
         self.coutrytrans = get_githubdict("coutrytrans")
         self.prime_source = get_githubdict("prime_source")
         self.notitlesplit = get_githubdata("notitlesplit", self.notitlesplit)
@@ -12534,7 +12535,7 @@ class vrt_JSON(FetchData):
             print(u'%s: %s,' % (k, dvb_genres[k]))
 
     def load_pages(self):
-
+        radio_channels = ('13','12','03','31','32','41','55','56','11','21','22','23','24','25')
         if config.opt_dict['offset'] > 14:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -12631,6 +12632,12 @@ class vrt_JSON(FetchData):
                                 continue
 
                             tdict['offset'] = self.get_offset(tdict['start-time'])
+                            if 'shortDescription' in p.keys() and p['shortDescription'] not in ('', None):
+                                tdict['description'] = p['shortDescription']
+
+                            elif 'description' in p.keys() and p['description'] not in ('', None):
+                                tdict['description'] = p['description']
+
                             if 'group' in p.keys():
                                 tdict['group'] = p['group']
                                 groupitems[chanid] +=1
@@ -12705,6 +12712,19 @@ class vrt_JSON(FetchData):
                                         tdict['genre'] = u'overige'
                                         tdict['subgenre'] = pn[1]
                                         config.new_cattrans[self.proc_id][pg] = (u'Overige', pn[1])
+
+                            if tdict['genre'] == u'overige' and channel in radio_channels:
+                                if 'muziek' in tdict['description'] or 'muziek' in tdict['name']:
+                                    tdict['genre'] = u'muziek'
+
+                                elif 'nieuws ' in tdict['description'] or 'nieuws ' in tdict['name']:
+                                    tdict['genre'] = u'nieuws/actualiteiten'
+
+                                elif 'sport' in tdict['description'] or 'sport' in tdict['name']:
+                                    tdict['genre'] = u'sport'
+
+                                elif 'actualiteiten' in tdict['description'] or 'actualiteiten' in tdict['name']:
+                                    tdict['genre'] = u'nieuws/actualiteiten'
 
                             tdict['video']['breedbeeld'] = True if 'aspectRatio' in p.keys() and p['aspectRatio'] == '16:9' else False
                             tdict['video']['HD'] = True if 'videoFormat' in p.keys() and p['videoFormat'] == 'HD' else False
@@ -12905,10 +12925,6 @@ class oorboekje_HTML(FetchData):
             return 69
 
     def load_pages(self):
-        music_channels = ('3','4','6','7','8','10','12','13','15','16','17','19','35','36','37',\
-                                        '39','41','43','45','48','52','61','62','65','66','67','69','71')
-        kids_channels = ('20')
-        news_channels =('1','11')
         if config.opt_dict['offset'] > 7:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -13030,14 +13046,6 @@ class oorboekje_HTML(FetchData):
                                 elif 'actualiteiten' in desc or 'actualiteiten' in tdict['name']:
                                     tdict['genre'] = u'nieuws/actualiteiten'
 
-                                elif scid in kids_channels:
-                                    tdict['genre'] = u'jeugd'
-
-                                elif scid in news_channels:
-                                    tdict['genre'] = u'nieuws/actualiteiten'
-
-                                elif scid in music_channels:
-                                    tdict['genre'] = u'muziek'
 
                             tdict['description'] = desc
                             desc_items = self.get_string_parts(desc)
@@ -13379,8 +13387,19 @@ class Channel_Config(Thread):
             # Note: this only takes place if all days retrieved are also grabbed with details (slowdays=days)
             # otherwise this function might change some titles after a few grabs and thus may result in
             # loss of programmed recordings for these programs.
+            # Also check if a genric genre does aply
+            for g, chlist in config.generic_channel_genres.items():
+                if self.chanid in chlist:
+                    gen_genre = g
+                    break
+
+            else:
+                gen_genre = None
+
             for i, v in enumerate(self.all_programs):
                 self.all_programs[i] = self.title_split(v)
+                if gen_genre != None and self.all_programs[i]['genre'] in (u'overige', u''):
+                    self.all_programs[i]['genre'] = gen_genre
 
             if self.opt_dict['add_hd_id']:
                 self.opt_dict['mark_hd'] = False
