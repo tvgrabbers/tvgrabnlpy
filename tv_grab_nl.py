@@ -2529,9 +2529,9 @@ class Configure:
 
         elif option == 'show_sources':
             if stdoutput:
-                print 'The available sources are:'
+                print('The available sources are:')
                 for i, s in xml_output.channelsource.items():
-                    print '  %s: %s' % (i, s.source)
+                    print('  %s: %s' % (i, s.source))
 
             else:
                 tdict = {}
@@ -2542,10 +2542,10 @@ class Configure:
 
         elif option == 'show_detail_sources':
             if stdoutput:
-                print 'The available detail sources are:'
+                print('The available detail sources are:')
                 for i, s in xml_output.channelsource.items():
                     if i in xml_output.detail_sources:
-                        print '  %s: %s' % (i, s.source)
+                        print('  %s: %s' % (i, s.source))
 
             else:
                 tdict = {}
@@ -2557,11 +2557,11 @@ class Configure:
         elif option == 'show_logo_sources':
             self.get_sourcematching_file(show_info=False)
             if stdoutput:
-                print 'The available logo sources are:'
+                print('The available logo sources are:')
                 for i in range(len(xml_output.logo_provider)):
-                    print '  %s: %s' % (i, xml_output.logo_provider[i])
+                    print('  %s: %s' % (i, xml_output.logo_provider[i]))
 
-                print ' 99: Your own full logo url'
+                print(' 99: Your own full logo url')
 
             else:
                 tdict = {}
@@ -3881,7 +3881,6 @@ class InfoFiles:
                     (len(plist), config.channels[chanid].chan_name, source)
 
             plist.sort(key=lambda program: (program['start-time']))
-            #~ print plist
 
             for tdict in plist:
                 if sid == None:
@@ -5609,21 +5608,21 @@ class theTVDB(Thread):
         xml_output.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'ttvdb': {'title': series_name}})
         tid = self.cache_return.get(True)
         if tid != None:
-            print 'The series "%s" is already saved under ttvdbID: %s -> %s' % (series_name,  tid['tid'], tid['title'])
-            print '    for the languages: %s\n' % tid['langs']
+            print('The series "%s" is already saved under ttvdbID: %s -> %s' % (series_name,  tid['tid'], tid['title']))
+            print('    for the languages: %s\n' % tid['langs'])
             old_tid = int(tid['tid'])
             for l in tid['langs']:
                 if l not in langs:
                     langs.append(lang)
 
         else:
-            print 'The series "%s" is not jet known!\n' % (series_name)
+            print('The series "%s" is not jet known!\n' % (series_name))
             old_tid = -1
 
         try:
             xmldata = self.query_ttvdb('seriesid', series_name, lang)
             if xmldata == None or xmldata.find('Series') == None:
-                print 'No match for %s is found on theTVDB.com' % series_name
+                print('No match for %s is found on theTVDB.com' % series_name)
                 return
 
             series_list = []
@@ -5631,14 +5630,14 @@ class theTVDB(Thread):
                 if not {'sid': s.findtext('seriesid'), 'name': s.findtext('SeriesName')} in series_list:
                     series_list.append({'sid': s.findtext('seriesid'), 'name': s.findtext('SeriesName')})
 
-            print "theTVDB Search Results:"
+            print("theTVDB Search Results:")
             for index in range(len(series_list)):
-                print "%3.0f -> %9.0f: %s" % (index+1, int(series_list[index]['sid']), series_list[index]['name'])
+                print("%3.0f -> %9.0f: %s" % (index+1, int(series_list[index]['sid']), series_list[index]['name']))
 
             # Ask to select the right one
             while True:
                 try:
-                    print "Enter choice (first number, q to abort):"
+                    print("Enter choice (first number, q to abort):")
                     ans = raw_input()
                     selected_id = int(ans)-1
                     if 0 <= selected_id < len(series_list):
@@ -5656,7 +5655,7 @@ class theTVDB(Thread):
                 ename = tid['name']
 
             if old_tid != int(tid['sid']):
-                print 'Removing old instance'
+                print('Removing old instance')
                 xml_output.program_cache.cache_request.put({'task':'delete', 'ttvdb': {'tid': old_tid}})
 
             xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb': {'tid': int(tid['sid']), 'title': ename, 'langs': langs}})
@@ -5671,14 +5670,15 @@ class theTVDB(Thread):
                 # Add an alias record
                 xml_output.program_cache.cache_request.put({'task':'add', 'ttvdb_alias': {'tid': int(tid['sid']), 'title': ename, 'alias': aliasses}})
                 if len(aliasses) == 2:
-                    print 'Adding "%s" under aliasses "%s" and "%s" as ttvdbID: %s to the database for lookups!' \
-                                % (ename, aliasses[0], aliasses[1],  tid['sid'])
+                    print('Adding "%s" under aliasses "%s" and "%s" as ttvdbID: %s to the database for lookups!' \
+                                % (ename, aliasses[0], aliasses[1],  tid['sid']))
 
                 else:
-                    print 'Adding "%s" under alias "%s" as ttvdbID: %s to the database for lookups!' % (ename, aliasses[0],  tid['sid'])
+                    print('Adding "%s" under alias "%s" as ttvdbID: %s to the database for lookups!' \
+                                % (ename, aliasses[0],  tid['sid']))
 
             else:
-                print 'Adding "%s" ttvdbID: %s to the database for lookups!' % (ename,  tid['sid'])
+                print('Adding "%s" ttvdbID: %s to the database for lookups!' % (ename,  tid['sid']))
 
         except:
             traceback.print_exc()
@@ -7236,6 +7236,14 @@ class FetchData(Thread):
 
             if tdict['audio'] == '':
                 tdict['audio'] = tvdict['audio']
+
+            for role in tvdict['credits']:
+                if not role in tdict['credits']:
+                    tdict['credits'][role] = []
+
+                for rp in tvdict['credits'][role]:
+                    if not rp in tdict['credits'][role]:
+                        tdict['credits'][role].append(rp)
 
             if copy_ids:
                 for source in xml_output.source_order:
@@ -10095,6 +10103,11 @@ class npo_HTML(FetchData):
         try:
             strdata = config.get_page(self.get_url())
             strdata = self.clean_html(strdata)
+            if strdata == None:
+                self.fail_count += 1
+                log(["Unable to get channel info from %s\n" % self.source])
+                return 69  # EX_UNAVAILABLE
+
             htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
             self.get_channel_lineup(htmldata)
 
@@ -11196,6 +11209,11 @@ class vpro_HTML(FetchData):
         try:
             strdata = config.get_page(self.get_url())
             strdata = self.clean_html(strdata)
+            if strdata == None:
+                self.fail_count += 1
+                log(["Unable to get channel info from %s\n" % self.source])
+                return 69  # EX_UNAVAILABLE
+
             self.get_available_days(strdata)
             self.get_channel_lineup(strdata)
 
@@ -11705,7 +11723,10 @@ class nieuwsblad_HTML(FetchData):
 
         try:
             strdata = config.get_page(self.get_url('base'))
-            self.get_channel_lineup(strdata)
+            if self.get_channel_lineup(strdata) == 69:
+                self.fail_count += 1
+                log(["Unable to get channel info from %s\n" % self.source])
+                return 69  # EX_UNAVAILABLE
 
         except:
             self.fail_count += 1
@@ -11725,62 +11746,66 @@ class nieuwsblad_HTML(FetchData):
         self.page_strings = {}
         try:
             strdata = config.get_page(self.get_url('zenders'))
-            strdata = self.getchannels.search(strdata).group(1)
-            strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
-            strdata = self.clean_html('<div><div>' + strdata).encode('utf-8')
-            htmldata = ET.fromstring(strdata)
+            if strdata == None:
+                self.fail_count += 1
 
-            for item in htmldata.findall('div/div[@class]/div[@class="grid__col__inner"]/a[@href]'):
-                url = item.get('href', '')
-                if url != '':
-                    chanid = url.split('/')[-2].strip()
-                    if chanid in self.all_channels:
-                        continue
+            else:
+                strdata = self.getchannels.search(strdata).group(1)
+                strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
+                strdata = self.clean_html('<div><div>' + strdata).encode('utf-8')
+                htmldata = ET.fromstring(strdata)
 
-                    name = self.empersant(item.findtext('div[@class="grid"]/div[@class="grid__col"]/div[@class]/p')).strip()
-                    icon = item.find('div[@class="grid"]/div[@class="grid__col size-1-3"]/div[@class]/img').get('src', '')
-                    if icon != '':
-                        icon = icon.split('/')
-                        icon = '%s/%s' % (icon[-2], icon[-1])
+                for item in htmldata.findall('div/div[@class]/div[@class="grid__col__inner"]/a[@href]'):
+                    url = item.get('href', '')
+                    if url != '':
+                        chanid = url.split('/')[-2].strip()
+                        if chanid in self.all_channels:
+                            continue
 
-                    self.all_channels[chanid] = {}
-                    self.all_channels[chanid]['name'] = name
-                    self.all_channels[chanid]['icon'] = icon
-                    self.all_channels[chanid]['icongrp'] = 8
-                    self.chan_names[name] = chanid
+                        name = self.empersant(item.findtext('div[@class="grid"]/div[@class="grid__col"]/div[@class]/p')).strip()
+                        icon = item.find('div[@class="grid"]/div[@class="grid__col size-1-3"]/div[@class]/img').get('src', '')
+                        if icon != '':
+                            icon = icon.split('/')
+                            icon = '%s/%s' % (icon[-2], icon[-1])
 
-            for item in htmldata.findall('div/div[@class]/div[@class="grid__col__inner"]/div[@class="grid"]/a[@href]'):
-                url = item.get('href', '')
-                if url != '':
-                    chanid = url.split('/')[-2]
-                    if chanid in self.all_channels:
-                        continue
+                        self.all_channels[chanid] = {}
+                        self.all_channels[chanid]['name'] = name
+                        self.all_channels[chanid]['icon'] = icon
+                        self.all_channels[chanid]['icongrp'] = 8
+                        self.chan_names[name] = chanid
 
-                    name = self.empersant(item.findtext('div[@class]/div[@class="grid__col__inner"]/p')).strip()
-                    icon = item.find('div[@class]/div[@class="grid__col__inner"]/img').get('src', '')
-                    if icon != '':
-                        icon = icon.split('/')
-                        icon = '%s/%s' % (icon[-2], icon[-1])
+                for item in htmldata.findall('div/div[@class]/div[@class="grid__col__inner"]/div[@class="grid"]/a[@href]'):
+                    url = item.get('href', '')
+                    if url != '':
+                        chanid = url.split('/')[-2]
+                        if chanid in self.all_channels:
+                            continue
 
-                    self.all_channels[chanid] = {}
-                    self.all_channels[chanid]['name'] = name
-                    self.all_channels[chanid]['icon'] = icon
-                    self.all_channels[chanid]['icongrp'] = 8
-                    self.chan_names[name] = chanid
+                        name = self.empersant(item.findtext('div[@class]/div[@class="grid__col__inner"]/p')).strip()
+                        icon = item.find('div[@class]/div[@class="grid__col__inner"]/img').get('src', '')
+                        if icon != '':
+                            icon = icon.split('/')
+                            icon = '%s/%s' % (icon[-2], icon[-1])
 
-            for item in htmldata.findall('div/div[@class]/div[@class="grid__col__inner"]/ul/li/a[@href]'):
-                url = item.get('href', '')
-                if url != '':
-                    chanid = url.split('/')[-2]
-                    if chanid in self.all_channels or chanid == 'bbc1':
-                        continue
+                        self.all_channels[chanid] = {}
+                        self.all_channels[chanid]['name'] = name
+                        self.all_channels[chanid]['icon'] = icon
+                        self.all_channels[chanid]['icongrp'] = 8
+                        self.chan_names[name] = chanid
 
-                    name = self.empersant(item.text).strip()
-                    icon = ''
+                for item in htmldata.findall('div/div[@class]/div[@class="grid__col__inner"]/ul/li/a[@href]'):
+                    url = item.get('href', '')
+                    if url != '':
+                        chanid = url.split('/')[-2]
+                        if chanid in self.all_channels or chanid == 'bbc1':
+                            continue
 
-                    self.all_channels[chanid] = {}
-                    self.all_channels[chanid]['name'] = name
-                    self.chan_names[name] = chanid
+                        name = self.empersant(item.text).strip()
+                        icon = ''
+
+                        self.all_channels[chanid] = {}
+                        self.all_channels[chanid]['name'] = name
+                        self.chan_names[name] = chanid
 
         except:
             self.fail_count += 1
@@ -11790,6 +11815,9 @@ class nieuwsblad_HTML(FetchData):
         try:
             if not isinstance(chandata, (str, unicode)):
                 chandata = config.get_page(self.get_url('base'))
+
+            if chandata == None:
+                return 69  # EX_UNAVAILABLE
 
             strdata = self.getchannelgroups.search(chandata).group(1)
             strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
@@ -12503,7 +12531,7 @@ class vrt_JSON(FetchData):
 
         gkeys = dvb_genres.keys()
         for k in sorted(dvb_genres.keys()):
-            print u'%s: %s,' % (k, dvb_genres[k])
+            print(u'%s: %s,' % (k, dvb_genres[k]))
 
     def load_pages(self):
 
@@ -12655,7 +12683,7 @@ class vrt_JSON(FetchData):
                                             tdict['credits'][role].append(cn.split('(')[0].strip())
 
                                     elif config.write_info_files:
-                                        infofiles.addto_detail_list(u'new vrt cast item => %s = %s' % (item, p[item]))
+                                        infofiles.addto_detail_list(u'new vrt cast item => %s = %s' % (crole, cast))
 
                             # standardGenres
                             # actua, sport, cultuur, film, docu, humor, series, ontspanning
@@ -12803,8 +12831,10 @@ class oorboekje_HTML(FetchData):
         self.getnameaddition = re.compile('<SPAN style=".*?">(.*?)</SPAN>')
         self.getdate = re.compile("this.document.title='oorboekje.nl - Programma-overzicht van .*? ([0-9]{2})-([0-9]{2})-([0-9]{4})';")
         self.getchanday = re.compile('<!-- programmablok begin -->(.*?)<!-- programmablok eind -->',re.DOTALL)
+        self.getchannel = re.compile('<A href="zenderInfo.php\?zender=([0-9]+).*?</A>(.*?)</DIV>',re.DOTALL)
         self.getprogram = re.compile('<DIV class="pgProgOmschr" style="text-indent: -16px; padding-left: 16px">\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
         self.gettime = re.compile('([0-9]{2}):([0-9]{2})')
+        self.geticons = re.compile('<IMG src=".*?" alt="(.*?)".*?>',re.DOTALL)
         self.init_channel_source_ids()
         self.chanids = {}
         for chanid, sourceid in self.channels.items():
@@ -12875,7 +12905,11 @@ class oorboekje_HTML(FetchData):
             return 69
 
     def load_pages(self):
-        if config.opt_dict['offset'] > 6:
+        music_channels = ('3','4','6','7','8','10','12','13','15','16','17','19','35','36','37',\
+                                        '39','41','43','45','48','52','61','62','65','66','67','69','71')
+        kids_channels = ('20')
+        news_channels =('1','11')
+        if config.opt_dict['offset'] > 7:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 config.channels[chanid].source_data[self.proc_id].set()
@@ -12887,8 +12921,8 @@ class oorboekje_HTML(FetchData):
 
         try:
             for retry in (0, 1):
-                for offset in range( config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 6)):
-                    failure_count = 0
+                failure_count = 0
+                for offset in range( config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 7)):
                     if self.quit:
                         return
 
@@ -12924,7 +12958,16 @@ class oorboekje_HTML(FetchData):
 
                     strdata = self.clean_html(strdata)
                     for ch in self.getchanday.findall(strdata):
-                        scid = self.getchanid.search(ch).group(1)
+                        chan = self.getchannel.search(ch)
+                        if chan == None:
+                            continue
+
+                        scid = chan.group(1)
+                        channame = self.empersant(re.sub('<SPAN.*?</SPAN>', '', chan.group(2)).strip())
+                        if not scid in self.all_channels:
+                             self.all_channels[scid] ={}
+
+                        self.all_channels[scid]['name'] = channame
                         if not scid in self.chanids.keys():
                             continue
 
@@ -12933,6 +12976,7 @@ class oorboekje_HTML(FetchData):
                         last_end = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + offset),
                                                                                         datetime.time(hour=0, tzinfo=CET_CEST))
                         scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                        pcount = 0
                         for p in self.getprogram.findall(ch):
                             tdict = self.checkout_program_dict()
                             tdict['source'] = u'oorboekje'
@@ -12945,13 +12989,14 @@ class oorboekje_HTML(FetchData):
                                 log('Can not determine program title\n')
                                 continue
 
-                            #~ print p
+                            pcount+=1
                             ptime = datetime.time(int(p[0]), int(p[1]), tzinfo=CET_CEST)
                             tdict['offset'] = date_offset
                             tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
                             if tdict['start-time'] < last_end:
-                                scan_date = datetime.date.fromordinal(self.current_date + date_offset+1)
-                                tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
+                                if pcount > 2:
+                                    scan_date = datetime.date.fromordinal(self.current_date + date_offset+1)
+                                    tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
 
                             last_end = tdict['start-time']
                             ptime = self.gettime.search(p[2])
@@ -12963,6 +13008,59 @@ class oorboekje_HTML(FetchData):
                                     tdict['stop-time'] = datetime.datetime.combine(scan_date, ptime)
 
                                 last_end = tdict['stop-time']
+
+                            for picon in self.geticons.findall(p[4]):
+                                if picon == "herhaling":
+                                    tdict['rerun'] = True
+
+                                elif picon == "nonstop":
+                                    tdict['genre'] = u'muziek'
+
+                            desc = re.sub('<.*?>', '', self.empersant(p[4])).strip()
+                            if tdict['genre'] == u'overige':
+                                if 'muziek' in desc or 'muziek' in tdict['name']:
+                                    tdict['genre'] = u'muziek'
+
+                                elif 'nieuws ' in desc or 'nieuws ' in tdict['name']:
+                                    tdict['genre'] = u'nieuws/actualiteiten'
+
+                                elif 'sport' in desc or 'sport' in tdict['name']:
+                                    tdict['genre'] = u'sport'
+
+                                elif 'actualiteiten' in desc or 'actualiteiten' in tdict['name']:
+                                    tdict['genre'] = u'nieuws/actualiteiten'
+
+                                elif scid in kids_channels:
+                                    tdict['genre'] = u'jeugd'
+
+                                elif scid in news_channels:
+                                    tdict['genre'] = u'nieuws/actualiteiten'
+
+                                elif scid in music_channels:
+                                    tdict['genre'] = u'muziek'
+
+                            tdict['description'] = desc
+                            desc_items = self.get_string_parts(desc)
+                            for crole, cast in desc_items.items():
+                                if len(cast) == 0:
+                                    continue
+
+                                elif crole in config.roletrans.keys():
+                                    role = config.roletrans[crole]
+                                    if not role in tdict['credits']:
+                                        tdict['credits'][role] = []
+
+                                    cast = re.sub('\) ([A-Z])', '), \g<1>', \
+                                            re.sub(' & ', ', ', \
+                                            re.sub(' en ', ', ', \
+                                            re.sub('e\.a\.', '', cast[0])))).split(',')
+                                    for cn in cast:
+                                        tdict['credits'][role].append(cn.split('(')[0].strip())
+
+                                elif config.write_info_files:
+                                    infofiles.addto_detail_list(u'new oorboekje desc item => %s = %s' % (crole, cast))
+
+
 
                             # and append the program to the list of programs
                             tdict = self.check_title_name(tdict)
