@@ -359,8 +359,8 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 9
-        self.patchdate = u'20160119'
-        self.alfa = True
+        self.patchdate = u'20160124'
+        self.alfa = False
         self.beta = True
 
         self.cache_return = Queue()
@@ -2184,6 +2184,11 @@ class Configure:
         self.generic_channel_genres = get_githubdict("generic_channel_genres")
         self.coutrytrans = get_githubdict("coutrytrans")
         self.prime_source = get_githubdict("prime_source")
+        # Remove any source that's not (jet) there
+        for c, s in self.prime_source.items():
+            if s not in xml_output.channelsource.keys():
+                del self.prime_source[c]
+
         self.notitlesplit = get_githubdata("notitlesplit", self.notitlesplit)
         self.user_agents = get_githubdata("user_agents", self.user_agents)
         self.no_genric_matching = get_githubdict("no_genric_matching", 1)
@@ -2213,6 +2218,11 @@ class Configure:
                 self.chan_groups[g] = 'Channel groep %s' % g
 
         self.prime_source_groups = get_githubdict("prime_source_groups", 1)
+        # Remove any source that's not (jet) there
+        for g, s in self.prime_source_groups.items():
+            if s not in xml_output.channelsource.keys():
+                del self.prime_source_groups[g]
+
         self.source_channels = get_githubdict("source_channels", 1)
         self.empty_channels = get_githubdict("empty_channels", 1)
         self.channel_grouping = get_githubdict("channel_grouping", 2)
@@ -2620,7 +2630,8 @@ class Configure:
 
             # First get the default
             def_value = -1
-            if channel.group in self.prime_source_groups and channel.source_id[self.prime_source_groups[channel.group]] != '' \
+            if channel.group in self.prime_source_groups and self.prime_source_groups[channel.group] in channel.source_id \
+                and channel.source_id[self.prime_source_groups[channel.group]] != '' \
                 and not (self.prime_source_groups[channel.group] in self.opt_dict['disable_source'] \
                 or self.prime_source_groups[channel.group] in channel.opt_dict['disable_source'] \
                 or channel.source_id[self.prime_source_groups[channel.group]] in config.no_genric_matching[self.prime_source_groups[channel.group]]):
@@ -2629,7 +2640,7 @@ class Configure:
 
             else:
                 for s in xml_output.prime_source_order:
-                    if channel.source_id[s] != '' \
+                    if s in channel.source_id and channel.source_id[s] != '' \
                         and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source'] \
                         or channel.source_id[s] in config.no_genric_matching[s]):
                             # The first available not set in no_genric_matching
@@ -2638,7 +2649,7 @@ class Configure:
 
                 else:
                     for s in xml_output.prime_source_order:
-                        if channel.source_id[s] != '' \
+                        if s in channel.source_id and channel.source_id[s] != '' \
                             and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source']):
                                 # The first available
                                 def_value = s
@@ -2649,14 +2660,15 @@ class Configure:
                 value = channel.opt_dict['prime_source']
 
             custom_value = None
-            if value in xml_output.channelsource.keys() and channel.source_id[value] != '' \
+            if value in xml_output.channelsource.keys() and value in channel.source_id and channel.source_id[value] != '' \
                 and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']) \
                 and value != def_value:
                     # It's a valid custom value not equal to the default
                     custom_value = value
 
             json_value = None
-            if channel.chanid in self.prime_source.keys() and channel.source_id[self.prime_source[channel.chanid]] != '' \
+            if channel.chanid in self.prime_source.keys() and self.prime_source[channel.chanid] in channel.source_id \
+                and channel.source_id[self.prime_source[channel.chanid]] != '' \
                 and not (self.prime_source[channel.chanid] in self.opt_dict['disable_source'] \
                 or self.prime_source[channel.chanid] in channel.opt_dict['disable_source']):
                     # Use an override in sourcematching.json
@@ -2664,7 +2676,7 @@ class Configure:
 
             if self.opt_dict['always_use_json']:
                 for v in (json_value, custom_value):
-                    if v != None and not channel.source_id[v] in config.no_genric_matching[v]:
+                    if v != None and v in channel.source_id and not channel.source_id[v] in config.no_genric_matching[v]:
                         value = v
                         break
 
@@ -2673,7 +2685,7 @@ class Configure:
 
             else:
                 for v in (custom_value, json_value):
-                    if v != None and not channel.source_id[v] in config.no_genric_matching[v]:
+                    if v != None and v in channel.source_id and not channel.source_id[v] in config.no_genric_matching[v]:
                         value = v
                         break
 
