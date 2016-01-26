@@ -1975,13 +1975,13 @@ class Configure:
             if channel.chan_name[-3:].lower() == ' hd':
                 channel.opt_dict['mark_hd'] = True
 
-            if channel.source_id[5] != '' and channel.source_id[5] in xml_output.channelsource[5].all_channels \
-              and xml_output.channelsource[5].all_channels[channel.source_id[5]]['HD']:
+            if channel.get_source_id(5) != '' and channel.get_source_id(5) in xml_output.channelsource[5].all_channels \
+              and xml_output.channelsource[5].all_channels[channel.get_source_id(5)]['HD']:
                 channel.opt_dict['mark_hd'] = True
 
             # set the default prime_source
             self.validate_option('prime_source', channel, -1)
-            if channel.source_id[0] in ('3',):
+            if channel.get_source_id(0) in ('3',):
                 channel.opt_dict['append_tvgidstv'] = False
 
             db_channel.append({'name': channel.chan_name,
@@ -2607,7 +2607,7 @@ class Configure:
                     if value not in self.opt_dict['disable_source']:
                         self.opt_dict['disable_source'].append(value)
 
-                elif channel.source_id[value] != '':
+                elif channel.get_source_id(value) != '':
                     if value not in channel.opt_dict['disable_source']:
                         channel.opt_dict['disable_source'].append(value)
 
@@ -2620,7 +2620,7 @@ class Configure:
                     if value not in self.opt_dict['disable_detail_source']:
                         self.opt_dict['disable_detail_source'].append(value)
 
-                elif channel.source_id[value] != '':
+                elif channel.get_source_id(value) != '':
                     if value not in channel.opt_dict['disable_detail_source']:
                         channel.opt_dict['disable_detail_source'].append(value)
 
@@ -2630,26 +2630,25 @@ class Configure:
 
             # First get the default
             def_value = -1
-            if channel.group in self.prime_source_groups and self.prime_source_groups[channel.group] in channel.source_id \
-                and channel.source_id[self.prime_source_groups[channel.group]] != '' \
+            if channel.group in self.prime_source_groups and channel.get_source_id(self.prime_source_groups[channel.group]) != '' \
                 and not (self.prime_source_groups[channel.group] in self.opt_dict['disable_source'] \
                 or self.prime_source_groups[channel.group] in channel.opt_dict['disable_source'] \
-                or channel.source_id[self.prime_source_groups[channel.group]] in config.no_genric_matching[self.prime_source_groups[channel.group]]):
+                or channel.get_source_id(self.prime_source_groups[channel.group]) in config.no_genric_matching[self.prime_source_groups[channel.group]]):
                     # A group default in sourcematching.json
                     def_value = self.prime_source_groups[channel.group]
 
             else:
                 for s in xml_output.prime_source_order:
-                    if s in channel.source_id and channel.source_id[s] != '' \
+                    if channel.get_source_id(s) != '' \
                         and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source'] \
-                        or channel.source_id[s] in config.no_genric_matching[s]):
+                        or channel.get_source_id(s) in config.no_genric_matching[s]):
                             # The first available not set in no_genric_matching
                             def_value = s
                             break
 
                 else:
                     for s in xml_output.prime_source_order:
-                        if s in channel.source_id and channel.source_id[s] != '' \
+                        if channel.get_source_id(s) != '' \
                             and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source']):
                                 # The first available
                                 def_value = s
@@ -2660,15 +2659,14 @@ class Configure:
                 value = channel.opt_dict['prime_source']
 
             custom_value = None
-            if value in xml_output.channelsource.keys() and value in channel.source_id and channel.source_id[value] != '' \
+            if value in xml_output.channelsource.keys() and channel.get_source_id(value) != '' \
                 and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']) \
                 and value != def_value:
                     # It's a valid custom value not equal to the default
                     custom_value = value
 
             json_value = None
-            if channel.chanid in self.prime_source.keys() and self.prime_source[channel.chanid] in channel.source_id \
-                and channel.source_id[self.prime_source[channel.chanid]] != '' \
+            if channel.chanid in self.prime_source.keys() and channel.get_source_id(self.prime_source[channel.chanid]) != '' \
                 and not (self.prime_source[channel.chanid] in self.opt_dict['disable_source'] \
                 or self.prime_source[channel.chanid] in channel.opt_dict['disable_source']):
                     # Use an override in sourcematching.json
@@ -2676,7 +2674,7 @@ class Configure:
 
             if self.opt_dict['always_use_json']:
                 for v in (json_value, custom_value):
-                    if v != None and v in channel.source_id and not channel.source_id[v] in config.no_genric_matching[v]:
+                    if v != None and not channel.get_source_id(v) in config.no_genric_matching[v]:
                         value = v
                         break
 
@@ -2685,7 +2683,7 @@ class Configure:
 
             else:
                 for v in (custom_value, json_value):
-                    if v != None and v in channel.source_id and not channel.source_id[v] in config.no_genric_matching[v]:
+                    if v != None and not channel.get_source_id(v) in config.no_genric_matching[v]:
                         value = v
                         break
 
@@ -2705,7 +2703,7 @@ class Configure:
             if value == None:
                 value = channel.opt_dict['prefered_description']
 
-            if value in xml_output.channelsource.keys() and channel.source_id[value] != '' \
+            if value in xml_output.channelsource.keys() and channel.get_source_id(value) != '' \
                 and not (value in self.opt_dict['disable_source'] or value in channel.opt_dict['disable_source']):
                     channel.opt_dict['prefered_description'] = value
 
@@ -2967,7 +2965,7 @@ class Configure:
 
             src_id = chan_def.opt_dict['prefered_description']
             if src_id != -1:
-                if src_id in chan_def.source_id.keys() and chan_def.source_id[src_id] != '':
+                if chan_def.get_source_id(src_id) != '':
                     log_array.append(u'  prefered_description = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
 
             if chan_def.opt_dict['add_hd_id']:
@@ -3157,7 +3155,7 @@ class Configure:
         def get_channel_string(chanid, active = None, chan_string = None, icon_string = None):
             chan = self.channels[chanid]
             for index in range(xml_output.source_count):
-                if chan.source_id[index] != '':
+                if chan.get_source_id(index) != '':
                     break
 
             else:
@@ -3171,7 +3169,7 @@ class Configure:
                 chan_string = '%s;%s;%s' % (chan.chan_name, chan.group, chanid)
 
             for index in range(xml_output.source_count):
-                chan_string = '%s;%s' % (chan_string, chan.source_id[index])
+                chan_string = '%s;%s' % (chan_string, chan.get_source_id(index))
 
             if icon_string == None:
                 chan_string = '%s;%s;%s\n' % (chan_string, chan.icon_source, chan.icon)
@@ -3357,7 +3355,7 @@ class Configure:
                         chan_found = False
                         for chanid, channel in self.channels.items():
                             for index in range(min(xml_output.source_count,len(chan) - 4)):
-                                if (chan[index + 2].strip() !='') and (chan[index + 2].strip() == channel.source_id[index]):
+                                if (chan[index + 2].strip() !='') and (chan[index + 2].strip() == channel.get_source_id(index)):
                                     chan_found = True
                                     grp = u'0' if self.args.group_active_channels else chan[1]
                                     chan_list[grp].append(get_channel_string(chanid, True, '%s;%s;%s' % \
@@ -3385,7 +3383,7 @@ class Configure:
                         chan_found = False
                         for chanid, channel in self.channels.items():
                             for index in range(min(xml_output.source_count,len(chan) - 4)):
-                                if (chan[index + 2].strip() !='') and (chan[index + 2].strip() == channel.source_id[index]):
+                                if (chan[index + 2].strip() !='') and (chan[index + 2].strip() == channel.get_source_id(index)):
                                     chan_list[chan[1]].append(get_channel_string(chanid, False, '%s;%s;%s' % \
                                         (chan[0], chan[1], chanid), '%s;%s' % (chan[-2], chan[-1])))
                                     chan_added.append(chanid)
@@ -3441,7 +3439,7 @@ class Configure:
         chan_names = []
         for chan_def in self.channels.values():
             for index in range(xml_output.source_count):
-                if chan_def.source_id[index] != '':
+                if chan_def.get_source_id(index) != '':
                     # Only add specific settings if at least one sourceid present
                     chan_names.append({'active': chan_def.active, 'name': chan_def.chan_name, 'id': chan_def.chanid})
                     break
@@ -3456,7 +3454,7 @@ class Configure:
                 if index in self.opt_dict['disable_source']:
                     continue
 
-                if index in chan_def.source_id.keys() and chan_def.source_id[index] != '':
+                if index in chan_def.source_id.keys() and chan_def.get_source_id(index) != '':
                     if not chan_name_written:
                         f.write(u'\n')
                         f.write(u'# %s\n' % (chan_def.chan_name))
@@ -3469,7 +3467,7 @@ class Configure:
                 if index in chan_def.opt_dict['disable_source'] or index in self.opt_dict['disable_source'] or index in self.opt_dict['disable_detail_source']:
                     continue
 
-                if index in chan_def.source_id.keys() and chan_def.source_id[index] != '':
+                if index in chan_def.source_id.keys() and chan_def.get_source_id(index) != '':
                     if not chan_name_written:
                         f.write(u'\n')
                         f.write(u'# %s\n' % (chan_def.chan_name))
@@ -3506,7 +3504,7 @@ class Configure:
                 f.write(u'prime_source = %s\n' % chan_def.opt_dict['prime_source'])
 
             opt_val = chan_def.opt_dict['prefered_description']
-            if opt_val in chan_def.source_id.keys() and chan_def.source_id[opt_val] != '':
+            if opt_val in chan_def.source_id.keys() and chan_def.get_source_id(opt_val) != '':
                 if not chan_name_written:
                     f.write(u'\n')
                     f.write(u'# %s\n' % (chan_def.chan_name))
@@ -6067,28 +6065,28 @@ class FetchData(Thread):
             # Is the channel active and this source for the channel not disabled
             if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
                 # Is there a sourceid for this channel
-                if channel.source_id[self.proc_id] != '':
+                if channel.get_source_id(self.proc_id) != '':
                     # Unless it is in empty channels we add it else set it ready
-                    if channel.source_id[self.proc_id] in config.empty_channels[self.proc_id]:
+                    if channel.get_source_id(self.proc_id) in config.empty_channels[self.proc_id]:
                         self.channel_loaded[chanid] = True
                         config.channels[chanid].source_data[self.proc_id].set()
 
                     else:
-                        self.channels[chanid] = channel.source_id[self.proc_id]
+                        self.channels[chanid] = channel.get_source_id(self.proc_id)
 
                 # Does the channel have child channels
                 if chanid in config.combined_channels.keys():
                     # Then see if any of the childs has a sourceid for this source and does not have this source disabled
                     for c in config.combined_channels[chanid]:
-                        if c['chanid'] in config.channels.keys() and config.channels[c['chanid']].source_id[self.proc_id] != '' \
+                        if c['chanid'] in config.channels.keys() and config.channels[c['chanid']].get_source_id(self.proc_id) != '' \
                           and not self.proc_id in config.channels[c['chanid']].opt_dict['disable_source']:
                             # Unless it is in empty channels we add and mark it as a child else set it ready
-                            if config.channels[c['chanid']].source_id[self.proc_id] in config.empty_channels[self.proc_id]:
+                            if config.channels[c['chanid']].get_source_id(self.proc_id) in config.empty_channels[self.proc_id]:
                                 self.channel_loaded[c['chanid']] = True
                                 config.channels[c['chanid']].source_data[self.proc_id].set()
 
                             else:
-                                self.channels[c['chanid']] = config.channels[c['chanid']].source_id[self.proc_id]
+                                self.channels[c['chanid']] = config.channels[c['chanid']].get_source_id(self.proc_id)
                                 config.channels[c['chanid']].is_child = True
 
     def checkout_program_dict(self, tdict = None):
@@ -6867,8 +6865,8 @@ class FetchData(Thread):
 
         no_genric_matching = False
         if merge_channel == None:
-            cur_proc_id = config.channels[chanid].source_id[self.proc_id]
-            if cur_proc_id != '' and cur_proc_id in config.no_genric_matching[self.proc_id]:
+            cur_source_id = config.channels[chanid].get_source_id(self.proc_id)
+            if cur_source_id != '' and cur_source_id in config.no_genric_matching[self.proc_id]:
                 no_genric_matching = True
 
             source_merge = True
@@ -9112,7 +9110,7 @@ class rtl_JSON(FetchData):
 
         for chanid, channel in self.channels.iteritems():
             if len( self.schedule[channel]) == 0:
-                config.channels[chanid].source_id[self.proc_id] = None
+                config.channels[chanid].source_id[self.proc_id] = ''
                 continue
 
             for item in self.schedule[channel]:
@@ -13243,22 +13241,21 @@ class Channel_Config(Thread):
             # Create the merge order
             self.merge_order = []
             last_merge = []
-            if self.opt_dict['prime_source'] in xml_output.source_order \
-              and (self.source_id[self.opt_dict['prime_source']] != '') \
+            if (self.get_source_id(self.opt_dict['prime_source']) != '') \
               and not (self.opt_dict['prime_source'] in self.opt_dict['disable_source']) \
               and not (self.opt_dict['prime_source'] in config.opt_dict['disable_source']):
-                if self.source_id[self.opt_dict['prime_source']] in config.no_genric_matching[self.opt_dict['prime_source']]:
+                if self.get_source_id(self.opt_dict['prime_source']) in config.no_genric_matching[self.opt_dict['prime_source']]:
                     last_merge.append(self.opt_dict['prime_source'])
 
                 else:
                     self.merge_order.append(self.opt_dict['prime_source'])
 
             for index in xml_output.source_order:
-                if (self.source_id[index] != '') \
+                if (self.get_source_id(index) != '') \
                   and index != self.opt_dict['prime_source'] \
                   and not (index in self.opt_dict['disable_source']) \
                   and not (index in config.opt_dict['disable_source']):
-                    if self.source_id[index] in config.no_genric_matching[index]:
+                    if self.get_source_id(index) in config.no_genric_matching[index]:
                         last_merge.append(index)
 
                     else:
@@ -13529,6 +13526,12 @@ class Channel_Config(Thread):
         with self.channel_lock:
             self.fetch_counter += 1
             return 100*float(self.fetch_counter)/float(self.nprograms)
+
+    def get_source_id(self, source):
+        if source in self.source_id.keys():
+            return self.source_id[source]
+
+        return ''
 
     def get_details(self, ):
         """
