@@ -1,9 +1,0 @@
-#!/bin/bash
-
-XML_OUT=${HOME}/tv_out.xml
-
-[ -f $XML_OUT ] && rm -f $XML_OUT
-
-/home/tv_grab_nl.py $@ --output $XML_OUT
-
-[ $? == 0 -a -f $XML_OUT ] &&  cat $XML_OUT
