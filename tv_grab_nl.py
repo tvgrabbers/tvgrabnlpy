@@ -10644,7 +10644,7 @@ class horizon_JSON(FetchData):
 
     def get_url(self, type = 'channels', channel = 0, start = 0, end = 0):
 
-        horizon = 'https://web-api-pepper.horizon.tv/oesp/api/NL/nld/web/'
+        horizon = 'https://www.horizon.tv/oesp/api/NL/nld/web/'
 
         if type == 'channels':
             return  u'%schannels/' % (horizon)
@@ -10712,6 +10712,7 @@ class horizon_JSON(FetchData):
                 start = int(time.mktime(datetime.date.fromordinal(self.current_date + config.opt_dict['offset']).timetuple()))*1000
                 end = start + (86400000 * config.opt_dict['days'])
                 last_start = 0
+                page_fail = 0
                 while True:
                     if self.quit:
                         return
@@ -10737,8 +10738,9 @@ class horizon_JSON(FetchData):
                     if strdata == None or strdata.replace('\n','') == '{}':
                         log("No data on horizon.tv channel %s page=%d\n" % (config.channels[chanid].chan_name, page_count))
                         self.fail_count += 1
+                        page_fail += 1
                         last_start = start-1
-                        if self.fail_count == 3:
+                        if page_fail == 3:
                             break
 
                         page_count -= 1
