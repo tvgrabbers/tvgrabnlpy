@@ -148,6 +148,7 @@ try:
 except NameError:
     unichr = chr    # Python 3
 
+import timezones, tv_grab_IO
 # check Python version
 if sys.version_info[:3] < (2,7,9):
     sys.stderr.write("tv_grab_nl_py requires Pyton 2.7.9 or higher\n")
@@ -164,170 +165,15 @@ if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
     except:
         pass
 
-class AmsterdamTimeZone(datetime.tzinfo):
-    """Timezone information for Amsterdam"""
-    def __init__(self):
-        # calculate for the current year:
-        year = datetime.date.today().year
-        d = datetime.datetime(year, 4, 1, 2, 0)  # Starts last Sunday in March 02:00:00
-        self.dston = d - datetime.timedelta(days=d.weekday() + 1)
-        d = datetime.datetime(year, 11, 1, 2, 0) # Ends last Sunday in October 02:00:00
-        self.dstoff = d - datetime.timedelta(days=d.weekday() + 1)
 
-    def tzname(self, dt):
-        return unicode('CET_CEST')
+CET_CEST = timezones.AmsterdamTimeZone()
+UTC  = timezones.UTCTimeZone()
+logging = tv_grab_IO.Logging()
+if logging.version()[1:4] < (1,0,0):
+    sys.stderr.write("tv_grab_nl_py requires tv_grab_IO 1.0.0 or higher\n")
+    sys.exit(2)
 
-    def utcoffset(self, dt):
-        return datetime.timedelta(hours=1) + self.dst(dt)
-
-    def dst(self, dt):
-
-        if self.dston <=  dt.replace(tzinfo=None) < self.dstoff:
-            return datetime.timedelta(hours=1)
-
-        else:
-            return datetime.timedelta(0)
-# end AmsterdamTimeZone
-
-class UTCTimeZone(datetime.tzinfo):
-    """UTC Timezone"""
-    def tzname(self, dt):
-        return unicode('UTC')
-
-    def utcoffset(self, dt):
-        return datetime.timedelta(0)
-
-    def dst(self, dt):
-        return datetime.timedelta(0)
-
-# end UTCTimeZone
-
-CET_CEST = AmsterdamTimeZone()
-UTC  = UTCTimeZone()
-
-config = None
-
-class Logging(Thread):
-    """The tread that manages all logging.
-    The function below puts them in a queue that is sampled.
-    So logging can start after the queue is opend when this class is called below"""
-    def __init__(self):
-        Thread.__init__(self)
-        self.quit = False
-        self.log_level = 175
-        self.quiet = False
-        self.graphic_frontend = False
-        self.log_queue = Queue()
-        self.log_output = None
-        self.log_string = []
-        try:
-            codecs.lookup(locale.getpreferredencoding())
-            self.local_encoding = locale.getpreferredencoding()
-
-        except LookupError:
-            if os.name == 'nt':
-                self.local_encoding = 'windows-1252'
-
-            else:
-                self.local_encoding = 'utf-8'
-
-    def run(self):
-        self.log_output = config.log_output
-        while True:
-            try:
-                if self.quit and self.log_queue.empty():
-                    if config.opt_dict['mail_log']:
-                        config.send_mail(self.log_string, config.opt_dict['mail_log_address'])
-
-                    return(0)
-
-                try:
-                    message = self.log_queue.get(True, 5)
-
-                except Empty:
-                    continue
-
-                if message == None:
-                    continue
-
-                if isinstance(message, (str, unicode)):
-                    if message == 'Closing down\n':
-                        self.quit=True
-
-                    self.writelog(message)
-                    continue
-
-                elif isinstance(message, (list ,tuple)):
-                    llevel = message[1] if len(message) > 1 else 1
-                    ltarget = message[2] if len(message) > 2 else 3
-                    if message[0] == None:
-                        continue
-
-                    if message[0] == 'Closing down\n':
-                        self.quit = True
-
-                    if isinstance(message[0], (str, unicode)):
-                        self.writelog(message[0], llevel, ltarget)
-                        continue
-
-                    elif isinstance(message[0], (list, tuple)):
-                        for m in message[0]:
-                            if isinstance(m, (str, unicode)):
-                                self.writelog(m, llevel, ltarget)
-
-                        continue
-
-                self.writelog('Unrecognized log-message: %s of type %s\n' % (message, type(message)))
-
-            except:
-                pass
-
-    def writelog(self, message, log_level = 1, log_target = 3):
-        def now():
-             return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S %Z') + ': '
-
-        try:
-            if message == None:
-                return
-
-            # If config is not yet available
-            if (config == None) and (log_target & 1):
-                sys.stderr.write(('Error writing to log. Not (yet) available?\n').encode(self.local_encoding, 'replace'))
-                sys.stderr.write(message.encode(self.local_encoding, 'replace'))
-                return
-
-            # Log to the Frontend. To set-up later.
-            if self.graphic_frontend:
-                pass
-
-            # Log to the screen
-            elif log_level == 0 or ((not self.quiet) and (log_level & self.log_level) and (log_target & 1)):
-                sys.stderr.write(message.encode(self.local_encoding, 'replace'))
-
-            # Log to the log-file
-            if (log_level == 0 or ((log_level & self.log_level) and (log_target & 2))) and self.log_output != None:
-                if '\n' in message:
-                    message = re.split('\n', message)
-
-                    for i in range(len(message)):
-                        if message[i] != '':
-                            self.log_output.write(now() + message[i] + '\n')
-                            if config.opt_dict['mail_log']:
-                                self.log_string.append(now() + message[i] + '\n')
-
-                else:
-                    self.log_output.write(now() + message + '\n')
-                    if config.opt_dict['mail_log']:
-                        self.log_string.append(now() + message + '\n')
-
-                self.log_output.flush()
-
-        except:
-            sys.stderr.write((now() + 'An error ocured while logging!\n').encode(self.local_encoding, 'replace'))
-            traceback.print_exc()
-
-# end Logging
-logging = Logging()
+IO_func = tv_grab_IO.IO_functions(logging)
 
 def log(message, log_level = 1, log_target = 3):
     # If logging not (jet) available, make sure important messages go to the screen
@@ -373,6 +219,7 @@ class Configure:
 
         # Used for creating extra debugging output to beter the code
         self.write_info_files = False
+        self.infofiles = None
 
         # This handles what goes to the log and screen
         # 0 Nothing (use quiet mode to turns of screen output, but keep a log)
@@ -1026,140 +873,6 @@ class Configure:
 
     # end version()
 
-    def save_oldfile(self, fle):
-        """ save the old file to .old if it exists """
-        if os.path.isfile(fle + '.old'):
-            os.remove(fle + '.old')
-
-        if os.path.isfile(fle):
-            os.rename(fle, fle + '.old')
-
-    # end save_old()
-
-    def open_file(self, file_name, mode = 'rb', encoding = None):
-        """ Open a file and return a file handler if success """
-        if encoding == None:
-            encoding = self.file_encoding
-
-        try:
-            if 'b' in mode:
-                file_handler =  io.open(file_name, mode = mode)
-            else:
-                file_handler =  io.open(file_name, mode = mode, encoding = encoding)
-
-        except IOError as e:
-            if e.errno == 2:
-                log('File: "%s" not found.\n' % file_name)
-            else:
-                log('File: "%s": %s.\n' % (file_name, e.strerror))
-            return None
-
-        return file_handler
-
-    # end open_file ()
-
-    def get_line(self, fle, byteline, isremark = False, encoding = None):
-        """
-        Check line encoding and if valid return the line
-        If isremark is True or False only remarks or non-remarks are returned.
-        If None all are returned
-        """
-        if encoding == None:
-            encoding = self.file_encoding
-
-        try:
-            line = byteline.decode(encoding)
-            line = line.lstrip()
-            line = line.replace('\n','')
-            if isremark == None:
-                return line
-
-            if len(line) == 0:
-                return False
-
-            if isremark and line[0:1] == '#':
-                return line
-
-            if not isremark and not line[0:1] == '#':
-                return line
-
-        except UnicodeError:
-            log('%s is not encoded in %s.\n' % (fle.name, encoding))
-
-        return False
-
-    # end get_line()
-
-    def check_encoding(self, fle, encoding = None, check_version = False):
-        """
-        Check file encoding. Return True or False
-        Encoding is stored in self.encoding
-        Optionally check for a version string
-        and store it in self.configversion
-        """
-        # regex to get the encoding string
-        reconfigline = re.compile(r'#\s*(\w+):\s*(.+)')
-
-        self.encoding = None
-        self.configversion = None
-
-        if encoding == None:
-            encoding = self.file_encoding
-
-        for byteline in fle.readlines():
-            line = self.get_line(fle, byteline, True, self.encoding)
-            if not line:
-                continue
-
-            else:
-                match = reconfigline.match(line)
-                if match is not None and match.group(1) == "encoding":
-                    encoding = match.group(2)
-
-                    try:
-                        codecs.getencoder(encoding)
-                        self.encoding = encoding
-
-                    except LookupError:
-                        log('%s has invalid encoding %s.\n' % (fle.name, encoding))
-                        return False
-
-                    if (not check_version) or self.configversion != None:
-                        return True
-
-                    continue
-
-                elif match is not None and match.group(1) == "configversion":
-                    self.configversion = float(match.group(2))
-                    if self.encoding != None:
-                        return True
-
-                continue
-
-        if check_version and self.configversion == None:
-            fle.seek(0,0)
-            for byteline in fle.readlines():
-                line = self.get_line(fle, byteline, False, self.encoding)
-                if not line:
-                    continue
-
-                else:
-                    config_title = re.search('[(.*?)]', line)
-                    if config_title != None:
-                        self.configversion = float(2.0)
-                        break
-
-            else:
-                self.configversion = float(1.0)
-
-        if self.encoding == None:
-            return False
-
-        else:
-            return True
-
-    # end check_encoding()
-
     def read_commandline(self):
         """Initiate argparser and read the commandline"""
         self.description = 'The Netherlands: %s\n' % self.version(True) + \
@@ -1338,15 +1051,17 @@ class Configure:
     def read_config(self):
         """Read the configurationfile Return False on failure."""
         self.config_dict = {1:[], 2:[], 3:[], 9:{}}
-        f = self.open_file(self.config_file)
+        f = IO_func.open_file(self.config_file)
         if f == None:
             if not self.args.configure:
                 log('Re-run me with the --configure flag.\n')
             return False
 
-        if not self.check_encoding(f, None, True):
+        if not IO_func.check_encoding(f, None, True):
             return False
 
+        self.encoding = IO_func.encoding
+        self.configversion = IO_func.configversion
         if self.configversion == 1.0:
             type = 2
             section = self.__CONFIG_SECTIONS__[2]
@@ -1364,7 +1079,7 @@ class Configure:
         f.seek(0,0)
         for byteline in f.readlines():
             try:
-                line = self.get_line(f, byteline, None, self.encoding)
+                line = IO_func.get_line(f, byteline, None, self.encoding)
                 if not line:
                     continue
 
@@ -1678,7 +1393,7 @@ class Configure:
         if 'write_info_files' in self.opt_dict.keys():
             self.write_info_files = self.opt_dict['write_info_files']
             if self.write_info_files :
-                infofiles.open_files()
+                self.infofiles = tv_grab_IO.InfoFiles(logging, self.opt_dict, self.xmltv_dir)
 
         return True
     # end read_config()
@@ -1687,18 +1402,19 @@ class Configure:
         """
         Get the genre conversion table, the title split exception list and others
         """
-        f = self.open_file(self.settings_file)
+        f = IO_func.open_file(self.settings_file)
         if f == None:
             return False
 
-        if not self.check_encoding(f):
+        if not IO_func.check_encoding(f):
             return False
 
+        self.encoding = IO_func.encoding
         f.seek(0,0)
         type = 0
         for byteline in f.readlines():
             try:
-                line = self.get_line(f, byteline, False, self.encoding)
+                line = IO_func.get_line(f, byteline, False, self.encoding)
                 if not line:
                     continue
 
@@ -1865,8 +1581,8 @@ class Configure:
                     log("Try again in 15 minutes or so; or disable the failing source.\n")
                     return 69
 
-            if config.write_info_files:
-                infofiles.check_new_channels(xml_output.channelsource[index])
+            if self.write_info_files:
+                self.infofiles.check_new_channels(xml_output.channelsource[index], self.source_channels, self.empty_channels)
 
             # a dict with coresponding source, id and chanid
             reverse_channels[index] = {}
@@ -2020,7 +1736,7 @@ class Configure:
         except(urllib.URLError, socket.timeout):
             log('get_page timed out on (>%s s): %s\n' % (self.opt_dict['global_timeout'], url), 1, 1)
             if self.write_info_files:
-                infofiles.add_url_failure('Fetch timeout: %s\n' % url)
+                self.infofiles.add_url_failure('Fetch timeout: %s\n' % url)
 
             with xml_output.output_lock:
                 xml_output.fail_count += 1
@@ -2297,41 +2013,6 @@ class Configure:
 
     # get_sourcematching_file()
 
-    def send_mail(self, message, mail_address, subject=None):
-        try:
-            if isinstance(message, (list,tuple)):
-                msg = u''.join(message)
-
-            elif isinstance(message, (str,unicode)):
-                msg = unicode(message)
-
-            else:
-                return
-
-            if subject == None:
-                subject = 'Tv_grab_nl_py %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
-
-            msg = MIMEText(msg, _charset='utf-8')
-            msg['Subject'] = subject
-            msg['From'] = mail_address
-            msg['To'] = mail_address
-            try:
-                mail = smtplib.SMTP(self.opt_dict['mailserver'], self.opt_dict['mailport'])
-
-            except:
-                sys.stderr.write(('Error mailing message: %s\n' % sys.exc_info()[1]).encode(logging.local_encoding, 'replace'))
-                return
-
-            mail.sendmail(mail_address, mail_address, msg.as_string())
-
-        except:
-            sys.stderr.write('Error mailing message\n'.encode(logging.local_encoding, 'replace'))
-            sys.stderr.write(traceback.format_exc())
-
-        mail.quit()
-
-    # send_mail()
-
     def validate_commandline(self):
         """Read the commandline and validate the values"""
         if self.read_commandline() == 0:
@@ -2367,9 +2048,6 @@ class Configure:
 
         if self.args.quiet != None:
             self.opt_dict['quiet'] = self.args.quiet
-
-        logging.quiet = self.opt_dict['quiet']
-        logging.log_level = self.opt_dict['log_level']
 
         #check for cache
         if self.validate_option('program_cache_file') != None:
@@ -2739,10 +2417,10 @@ class Configure:
 
                     if self.args.output_codeset:
                         xml_output.xmlencoding = 'CP1252'
-                        self.output = self.open_file(self.opt_dict['output_file'],'w', 'windows-1252')
+                        self.output = IO_func.open_file(self.opt_dict['output_file'],'w', 'windows-1252')
 
                     else:
-                        self.output = self.open_file(self.opt_dict['output_file'],'w')
+                        self.output = IO_func.open_file(self.opt_dict['output_file'],'w')
 
                     if self.output == None:
                         log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
@@ -2764,7 +2442,7 @@ class Configure:
                     os.mkdir(config_dir)
 
                 else:
-                    self.save_oldfile(self.log_file)
+                    IO_func.save_oldfile(self.log_file)
 
             except:
                 logging.writelog('Cannot access the config/log directory: %s\n' % config_dir, 0,1)
@@ -2772,16 +2450,17 @@ class Configure:
                 return(2)
 
             try:
-                self.log_output = self.open_file(self.log_file, mode = 'a')
+                self.log_output = IO_func.open_file(self.log_file, mode = 'a')
                 if self.log_output == None:
                     logging.writelog('Cannot open the logfile: %s\n' % self.log_file, 0,1)
                     return(2)
 
+                logging.init_run(self.log_output, self.opt_dict)
                 logging.start()
 
             except:
-                logging.writelog('Cannot open the logfile: %s\n' % self.log_file, 0,1)
                 logging.writelog(traceback.format_exc(), 0,1)
+                logging.writelog('Cannot open the logfile: %s\n' % self.log_file, 0,1)
                 return(2)
 
             log('Using config file: %s\n' % self.config_file)
@@ -2994,8 +2673,8 @@ class Configure:
         If add_channels is None we convert the channel info to the new form, called on version update
         if add_channels is True we create a fresh channels section                , called on configure
         """
-        self.save_oldfile(self.config_file)
-        f = self.open_file(self.config_file, 'w')
+        IO_func.save_oldfile(self.config_file)
+        f = IO_func.open_file(self.config_file, 'w')
         if f == None:
             return False
 
@@ -3185,17 +2864,18 @@ class Configure:
 
         # just copy over the channels section
         if add_channels == False and self.configversion == float('%s.%s' % (self.major, self.minor)):
-            fo = self.open_file(self.config_file + '.old')
-            if fo == None or not self.check_encoding(fo):
+            fo = IO_func.open_file(self.config_file + '.old')
+            if fo == None or not IO_func.check_encoding(fo):
                 # We cannot read the old config, so we create a new one
                 log('Error Opening the old config. Creating a new one.\n')
                 add_channels = True
 
             else:
+                self.encoding = IO_func.encoding
                 fo.seek(0,0)
                 type = 0
                 for byteline in fo.readlines():
-                    line = self.get_line(fo, byteline, None)
+                    line = IO_func.get_line(fo, byteline, None)
                     try:
                         if  line == False:
                             continue
@@ -3237,14 +2917,16 @@ class Configure:
             configlines['3'] = []
             configlines['9'] = {}
             # Get the old channels section to convert
-            fo = self.open_file(self.config_file + '.old')
-            if fo == None or not self.check_encoding(fo, None, True):
+            fo = IO_func.open_file(self.config_file + '.old')
+            if fo == None or not IO_func.check_encoding(fo, None, True):
                 # We cannot read the old config, so we create a new one
                 log('Error Opening the old config. Creating a new one.\n')
                 self.get_channels()
                 add_channels = True
 
             else:
+                self.encoding = IO_func.encoding
+                self.configversion = IO_func.configversion
                 fo.seek(0,0)
                 if self.configversion == 1.0:
                     type = 2
@@ -3254,7 +2936,7 @@ class Configure:
 
                 # Read the old configuration
                 for byteline in fo.readlines():
-                    line = self.get_line(fo, byteline, None, self.encoding)
+                    line = IO_func.get_line(fo, byteline, None, self.encoding)
                     try:
                         if line == '# encoding: utf-8' or line[0:17] == '# configversion: ' or line == False or line == '':
                             continue
@@ -3559,8 +3241,8 @@ class Configure:
         """
         Save the genre conversion table, the title split exception list and othe translation tables
         """
-        self.save_oldfile(self.settings_file)
-        f = self.open_file(self.settings_file, 'w')
+        IO_func.save_oldfile(self.settings_file)
+        f = IO_func.open_file(self.settings_file, 'w')
         if f == None:
             return False
 
@@ -3735,7 +3417,7 @@ class Configure:
     def close(self):
 
         try:
-            infofiles.close()
+            self.infofiles.close(self.channels, self.combined_channels, xml_output.channelsource)
 
         except:
             log(['\n', 'An unexpected error has occured closing infofiles: %s\n' %  (traceback.print_exc())], 0)
@@ -3778,203 +3460,6 @@ class Configure:
 
 # end Configure
 config = Configure()
-
-# used for gathering extra info to better the code
-class InfoFiles:
-    """used for gathering extra info to better the code"""
-    def __init__(self):
-
-        self.detail_list = []
-        self.raw_list = []
-        self.raw_string = ''
-        self.fetch_strings = {}
-        self.info_lock = Lock()
-        self.cache_return = Queue()
-        self.lineup_changes = []
-        self.url_failure = []
-
-    def open_files(self):
-
-        if config.write_info_files:
-            self.fetch_list = config.open_file(config.xmltv_dir + '/fetched-programs','w')
-            self.raw_output =  config.open_file(config.xmltv_dir+'/raw_output', 'w')
-
-    def check_new_channels(self, source):
-        if not config.write_info_files:
-            return
-
-        if source.all_channels == {}:
-            source.get_channels()
-
-        for chan_scid, channel in source.all_channels.items():
-            if not (chan_scid in config.source_channels[source.proc_id].values() or chan_scid in config.empty_channels[source.proc_id]):
-                self.lineup_changes.append( u'New channel on %s => %s (%s)\n' % (source.source, chan_scid, channel['name']))
-
-        for chanid, chan_scid in config.source_channels[source.proc_id].items():
-            if not (chan_scid in source.all_channels.keys() or chan_scid in config.empty_channels[source.proc_id]):
-                self.lineup_changes.append( u'Removed channel on %s => %s (%s)\n' % (source.source, chan_scid, chanid))
-
-        for chan_scid in config.empty_channels[source.proc_id]:
-            if not chan_scid in source.all_channels.keys():
-                self.lineup_changes.append( u"Empty channelID %s on %s doesn't exist\n" % (chan_scid, source.source))
-
-    def add_url_failure(self, string):
-        self.url_failure.append(string)
-
-    def addto_raw_string(self, string):
-        if config.write_info_files:
-            with self.info_lock:
-                self.raw_string = unicode(self.raw_string + string)
-
-    def write_raw_string(self, string):
-        if config.write_info_files:
-            with self.info_lock:
-                self.raw_string = unicode(self.raw_string + string)
-                self.raw_output.write(self.raw_string + u'\n')
-                self.raw_string = ''
-
-    def addto_raw_list(self, raw_data = None):
-
-        if config.write_info_files:
-            with self.info_lock:
-                if raw_data == None:
-                    self.raw_list.append(self.raw_string)
-                    self.raw_string = ''
-                else:
-                    self.raw_list.append(raw_data)
-
-    def write_raw_list(self, raw_data = None):
-
-        if (not config.write_info_files) or (self.raw_output == None):
-            return
-
-        with self.info_lock:
-            if raw_data != None:
-                self.raw_list.append(raw_data)
-
-            self.raw_list.sort()
-            for i in self.raw_list:
-                i = re.sub('\n +?\n', '\n', i)
-                i = re.sub('\n+?', '\n', i)
-                if i.strip() == '\n':
-                    continue
-
-                self.raw_output.write(i + u'\n')
-
-            self.raw_list = []
-            self.raw_string = ''
-
-    def addto_detail_list(self, detail_data):
-
-        if config.write_info_files:
-            with self.info_lock:
-                self.detail_list.append(detail_data)
-
-    def write_fetch_list(self, programs, chanid, source, sid = None, ismerge = False):
-
-        if (not config.write_info_files) or (self.fetch_list == None):
-            return
-
-        with self.info_lock:
-            plist = deepcopy(programs)
-            if not chanid in  self.fetch_strings:
-                 self.fetch_strings[chanid] = {}
-
-            if not source in  self.fetch_strings[chanid]:
-                self.fetch_strings[chanid][source] = ''
-
-            if ismerge:
-                self.fetch_strings[chanid][source] += u'(%3.0f) merging channel: %s from: %s\n' % \
-                    (len(plist), config.channels[chanid].chan_name, source)
-
-            else:
-                self.fetch_strings[chanid][source] += u'(%3.0f) channel: %s from: %s\n' % \
-                    (len(plist), config.channels[chanid].chan_name, source)
-
-            plist.sort(key=lambda program: (program['start-time']))
-
-            for tdict in plist:
-                if sid == None:
-                    sid = tdict['ID']
-
-                elif sid in tdict['prog_ID']:
-                    sid = tdict['prog_ID'][sid]
-
-                self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
-                                tdict['start-time'].strftime('%d %b %H:%M'), \
-                                tdict['stop-time'].strftime('%H:%M'), \
-                                sid.rjust(15), tdict['genre'][0:10].rjust(10), \
-                                tdict['name'], tdict['titel aflevering'], \
-                                tdict['season'], tdict['episode'])
-
-            if ismerge: self.fetch_strings[chanid][source] += u'#\n'
-
-    def write_xmloutput(self, xml):
-
-        if config.write_info_files:
-            xml_output =config.open_file(config.xmltv_dir+'/xml_output', 'w')
-            if xml_output == None:
-                return
-
-            xml_output.write(xml)
-            xml_output.close()
-
-    def close(self):
-        if not config.write_info_files:
-            return
-
-        if config.opt_dict['mail_info_address'] == None:
-            config.opt_dict['mail_info_address'] = config.opt_dict['mail_log_address']
-
-        if config.opt_dict['mail_log'] and len(self.lineup_changes) > 0:
-            config.send_mail(self.lineup_changes, config.opt_dict['mail_info_address'], 'Tv_grab_nl_py lineup changes')
-
-        if config.opt_dict['mail_log'] and len(self.url_failure) > 0:
-            config.send_mail(self.url_failure, config.opt_dict['mail_info_address'], 'Tv_grab_nl_py url failures')
-
-        if self.fetch_list != None:
-            for chanid in config.channels.keys():
-                if (config.channels[chanid].active or config.channels[chanid].is_child) and chanid in self.fetch_strings:
-                    for s in config.channels[chanid].merge_order:
-                        if xml_output.channelsource[s].source in self.fetch_strings[chanid].keys():
-                            self.fetch_list.write(self.fetch_strings[chanid][xml_output.channelsource[s].source])
-
-                    if chanid in config.combined_channels.keys():
-                        for c in config.combined_channels[chanid]:
-                            if c['chanid'] in config.channels and config.channels[c['chanid']].chan_name in self.fetch_strings[chanid]:
-                                self.fetch_list.write(self.fetch_strings[chanid][config.channels[c['chanid']].chan_name])
-
-
-            self.fetch_list.close()
-
-        if self.raw_output != None:
-            self.raw_output.close()
-
-        if len(self.detail_list) > 0:
-            f = config.open_file(config.xmltv_dir+'/detail_output')
-            if (f != None):
-                f.seek(0,0)
-                for byteline in f.readlines():
-                    line = config.get_line(f, byteline, False)
-                    if line:
-                        self.detail_list.append(line)
-
-                f.close()
-
-            f = config.open_file(config.xmltv_dir+'/detail_output', 'w')
-            if (f != None):
-                ds = set(self.detail_list)
-                ds = set(self.detail_list)
-                tmp_list = []
-                tmp_list.extend(ds)
-                tmp_list.sort()
-                for i in tmp_list:
-                    f.write(u'%s\n' % i)
-
-                f.close()
-
-# end InfoFiles
-infofiles = InfoFiles()
 
 class ProgramCache(Thread):
     """
@@ -5177,7 +4662,7 @@ class FetchURL(Thread):
         except:
             log('An unexpected error "%s:%s" has occured while fetching page: %s\n' %  (sys.exc_info()[0], sys.exc_info()[1], self.url), 0)
             if config.write_info_files:
-                infofiles.add_url_failure('$s,%s:\n  %s\n' % (sys.exc_info()[0], sys.exc_info()[1], self.url))
+                config.infofiles.add_url_failure('$s,%s:\n  %s\n' % (sys.exc_info()[0], sys.exc_info()[1], self.url))
 
             return None
 
@@ -5233,21 +4718,21 @@ class FetchURL(Thread):
         except (urllib.URLError) as e:
             log('Cannot open url %s: %s\n' % (url, e.reason), 1, 1)
             if config.write_info_files:
-                infofiles.add_url_failure('URLError: %s\n' % url)
+                config.infofiles.add_url_failure('URLError: %s\n' % url)
 
             return None
 
         except (urllib.HTTPError) as e:
             log('Cannot parse url %s: code=%s\n' % (url, e.code), 1, 1)
             if config.write_info_files:
-                infofiles.add_url_failure('HTTPError: %s\n' % url)
+                config.infofiles.add_url_failure('HTTPError: %s\n' % url)
 
             return None
 
         except (httplib.IncompleteRead):
             log('Cannot retrieve full url %s: %s\n' % (url, sys.exc_info()[1]), 1, 1)
             if config.write_info_files:
-                infofiles.add_url_failure('IncompleteRead: %s\n' % url)
+                config.infofiles.add_url_failure('IncompleteRead: %s\n' % url)
 
             return None
 
@@ -5875,7 +5360,7 @@ class FetchData(Thread):
                                 self.program_data[chanid][i]['prefered description'] = self.program_data[chanid][i]['description']
 
             if config.write_info_files:
-                infofiles.check_new_channels(self)
+                config.infofiles.check_new_channels(self, config.source_channels, config.empty_channels)
 
             if self.detail_processor and  not self.proc_id in config.opt_dict['disable_detail_source']:
                 # We process detail requests, so we loop till we are finished
@@ -6362,7 +5847,7 @@ class FetchData(Thread):
                 if len(p) >1:
                     log('Removing \"%s\" from \"%s\"\n' %  (group, ptitle), 64)
                     if config.write_info_files:
-                        infofiles.addto_detail_list(unicode('Group removing = \"%s\" from \"%s\"' %  (group, ptitle)))
+                        config.infofiles.addto_detail_list(unicode('Group removing = \"%s\" from \"%s\"' %  (group, ptitle)))
 
                     ptitle = "".join(p[1:]).strip()
 
@@ -6388,7 +5873,7 @@ class FetchData(Thread):
         if ptitle.lower() in config.titlerename:
             log('Renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()]), 64)
             if config.write_info_files:
-                infofiles.addto_detail_list(unicode('Title renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()])))
+                config.infofiles.addto_detail_list(unicode('Title renaming %s to %s\n' % (ptitle, config.titlerename[ptitle.lower()])))
 
             ptitle = config.titlerename[ptitle.lower()]
 
@@ -6468,7 +5953,7 @@ class FetchData(Thread):
             else:
                 atype[pcount] = self.empersant(p.get('class')).strip()
                 if config.write_info_files:
-                    infofiles.addto_detail_list(u'%s descriptionattribute => class: %s' % (self.source, p.get('class').strip()))
+                    config.infofiles.addto_detail_list(u'%s descriptionattribute => class: %s' % (self.source, p.get('class').strip()))
 
             content = ''
             # Add the alinea text
@@ -6507,7 +5992,7 @@ class FetchData(Thread):
                         # Unknown tag we just check for text
                         content = content + format_text(d.text) + u' '
                         if config.write_info_files:
-                            infofiles.addto_detail_list(unicode('new '+ self.source+' descriptiontag => ' + \
+                            config.infofiles.addto_detail_list(unicode('new '+ self.source+' descriptiontag => ' + \
                                                     unicode(d.tag.strip()) + ': ' + unicode(d.text.strip())))
 
                 # and we add the text inbetween the tags
@@ -6570,7 +6055,7 @@ class FetchData(Thread):
                         strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
                                                     '" name="' + tdict['name'] + '">\n' + strdesc + '  </div>'
                         if config.write_info_files:
-                            infofiles.addto_raw_string(strdesc)
+                            config.infofiles.addto_raw_string(strdesc)
 
             # We check to not ovrwrite an already present longer description
             if description > tdict['description']:
@@ -7790,7 +7275,7 @@ class FetchData(Thread):
 
         config.channels[chanid].all_programs = matched_programs
         try:
-            infofiles.write_fetch_list(matched_programs, chanid, other_source_name, None, True)
+            config.infofiles.write_fetch_list(matched_programs, chanid, other_source_name, config.channels[chanid].chan_name, None, True)
 
         except:
             pass
@@ -8092,7 +7577,7 @@ class tvgids_JSON(FetchData):
             self.channel_loaded[chanid] = True
             config.channels[chanid].source_data[self.proc_id].set()
             try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
             except:
                 pass
@@ -8162,8 +7647,8 @@ class tvgids_JSON(FetchData):
         except:
             log(['Fetching page %s returned an error:\n' % (tdict['detail_url'][self.proc_id]), traceback.format_exc()])
             if config.write_info_files:
-                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                infofiles.write_raw_string('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')
+                config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                config.infofiles.write_raw_string('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')
 
             # if we cannot find the description page,
             # go to next in the loop
@@ -8178,8 +7663,8 @@ class tvgids_JSON(FetchData):
         except:
             log(['Error processing the description from: %s\n' % (tdict['detail_url'][self.proc_id]), traceback.format_exc()])
             if config.write_info_files:
-                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                infofiles.write_raw_string('<root>\n' + strdesc + '\n</root>\n')
+                config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                config.infofiles.write_raw_string('<root>\n' + strdesc + '\n</root>\n')
 
         try:
             if htmldata.find('div/h1/span/sup') != None:
@@ -8191,8 +7676,8 @@ class tvgids_JSON(FetchData):
         except:
             log(traceback.format_exc())
             if config.write_info_files:
-                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                infofiles.write_raw_string(strdata)
+                config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                config.infofiles.write_raw_string(strdata)
 
         # We scan all the details
         for d in htmldata.findall('div/ul/li'):
@@ -8217,8 +7702,8 @@ class tvgids_JSON(FetchData):
             except:
                 log(traceback.format_exc())
                 if config.write_info_files:
-                    infofiles.write_raw_string('Error: %s at line %s\n%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, d))
-                    infofiles.write_raw_string(strdata)
+                    config.infofiles.write_raw_string('Error: %s at line %s\n%s\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno, d))
+                    config.infofiles.write_raw_string(strdata)
 
                 continue
 
@@ -8269,7 +7754,7 @@ class tvgids_JSON(FetchData):
 
                 elif ctype == 'bijzonderheden':
                     if config.write_info_files:
-                        infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
+                        config.infofiles.addto_detail_list(unicode(ctype + ' = ' + content))
 
                     content = content.lower()
                     if tdict['video']['breedbeeld'] == False:
@@ -8291,15 +7776,15 @@ class tvgids_JSON(FetchData):
                     # In unmatched cases, we still add the parsed type and content to the program details.
                     # Some of these will lead to xmltv output during the xmlefy_programs step
                     if config.write_info_files:
-                        infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
+                        config.infofiles.addto_detail_list(unicode('new tvgids.nl detail => ' + ctype + ': ' + content))
 
                     tdict[ctype] = content
 
             except:
                 log(traceback.format_exc())
                 if config.write_info_files:
-                    infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                    infofiles.write_raw_string(strdata)
+                    config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                    config.infofiles.write_raw_string(strdata)
 
         tdict['ID'] = tdict['prog_ID'][self.proc_id]
         tdict[self.detail_check] = True
@@ -8374,7 +7859,7 @@ class tvgids_JSON(FetchData):
 
             else:
                 if config.write_info_files:
-                    infofiles.addto_detail_list(unicode('new tvgids.nl json detail => ' + ctype + ': ' + content))
+                    config.infofiles.addto_detail_list(unicode('new tvgids.nl json detail => ' + ctype + ': ' + content))
 
         tdict['ID'] = tdict['prog_ID'][self.proc_id]
         tdict[self.detail_check] = True
@@ -8638,7 +8123,7 @@ class tvgidstv_HTML(FetchData):
             else:
                 tdict['genre'] = u'overige'
                 if config.write_info_files and not tdict['channelid'] in ('29', '438',):
-                    infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
+                    config.infofiles.addto_detail_list(unicode('unknown tvgids.tv genre => ' + dtext + ' on ' + tdict['channel']))
 
             if not tdict['channelid'] in ('29', '438',):
                 tdict['subgenre'] = dtext
@@ -8741,8 +8226,8 @@ class tvgidstv_HTML(FetchData):
                                 "Possibly an incomplete pagefetch. Retry in the early morning after 4/5 o'clock.\n"])
 
                             if config.write_info_files:
-                                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                                infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
+                                config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                                config.infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
 
                             failure_count += 1
                             self.fail_count += 1
@@ -8840,7 +8325,7 @@ class tvgidstv_HTML(FetchData):
                         config.channels[chanid].source_data[self.proc_id].set()
 
                         try:
-                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                            config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
                         except:
                             pass
@@ -8869,8 +8354,8 @@ class tvgidstv_HTML(FetchData):
         except:
             log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict['detail_url'][self.proc_id]))
             if config.write_info_files:
-                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                infofiles.write_raw_string(strdata + u'\n')
+                config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                config.infofiles.write_raw_string(strdata + u'\n')
 
             return None
 
@@ -8952,32 +8437,32 @@ class tvgidstv_HTML(FetchData):
                                     tdict['kijkwijzer'].append(config.tvkijkwijzer[kw_val])
 
                             elif config.write_info_files:
-                                infofiles.addto_detail_list(unicode('new tvgids.tv kijkwijzer detail => ' + datatype + '=' + kw_val))
+                                config.infofiles.addto_detail_list(unicode('new tvgids.tv kijkwijzer detail => ' + datatype + '=' + kw_val))
 
                     else:
                         if dtext != '':
                             if config.write_info_files:
-                                infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + dtext))
+                                config.infofiles.addto_detail_list(unicode('new tvgids.tv text detail => ' + datatype + '=' + dtext))
 
                             tdict[datatype] = dtext
 
                         elif d.find('div') != None and d.find('div').get('class') != None:
                             if config.write_info_files:
-                                infofiles.addto_detail_list(unicode('new tvgids.tv div-class detail => ' + datatype + '=' + d.find('div').get('class')))
+                                config.infofiles.addto_detail_list(unicode('new tvgids.tv div-class detail => ' + datatype + '=' + d.find('div').get('class')))
 
                             tdict[datatype] = unicode(d.find('div').get('class'))
 
                         elif d.find('a') != None and d.find('a').get('href') != None:
                             if config.write_info_files:
-                                infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
+                                config.infofiles.addto_detail_list(unicode('new tvgids.tv a-href detail => ' + datatype + '=' + d.find('a').get('href')))
 
                             tdict[datatype] = unicode(d.find('a').get('href'))
 
                         elif config.write_info_files:
-                            infofiles.addto_detail_list(unicode('new tvgids.tv empty detail => ' + datatype))
+                            config.infofiles.addto_detail_list(unicode('new tvgids.tv empty detail => ' + datatype))
 
                 elif config.write_info_files:
-                    infofiles.addto_detail_list(unicode('new tvgids.d-tag => ' + d.tag))
+                    config.infofiles.addto_detail_list(unicode('new tvgids.d-tag => ' + d.tag))
 
         except:
             log(['Error processing tvgids.tv detailpage:%s\n' % (tdict['detail_url'][self.proc_id]), traceback.format_exc()])
@@ -9186,7 +8671,7 @@ class rtl_JSON(FetchData):
 
             config.channels[chanid].source_data[self.proc_id].set()
             try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
             except:
                 pass
@@ -9371,13 +8856,13 @@ class teveblad_HTML(FetchData):
                     log('teveblad channel info file: %s/teveblad_channels.html not found\n' % (config.hpath))
                     return None
 
-            f = config.open_file( u'%s/teveblad_channels.html' % config.xmltv_dir)
+            f = IO_func.open_file( u'%s/teveblad_channels.html' % config.xmltv_dir)
             if f == None:
                 return None
 
             strdata = u''
             for byteline in f.readlines():
-                line = config.get_line(f, byteline)
+                line = IO_func.get_line(f, byteline)
                 strdata += self.clean_html(line)
             f.close()
 
@@ -9573,8 +9058,8 @@ class teveblad_HTML(FetchData):
                         except:
                             log(['Error extracting ElementTree for zendergroup:%s day:%s\n' % (group_page, offset), traceback.format_exc()])
                             if config.write_info_files:
-                                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                                infofiles.write_raw_string(unicode(strdata + u'\n'))
+                                config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                                config.infofiles.write_raw_string(unicode(strdata + u'\n'))
 
                             self.day_loaded[group_page][offset] = None
                             self.fail_count += 1
@@ -9676,7 +9161,7 @@ class teveblad_HTML(FetchData):
 
                                         except:
                                             if config.write_info_files:
-                                                infofiles.addto_detail_list('error processing seasonstring: %s\n\n' % season)
+                                                config.infofiles.addto_detail_list('error processing seasonstring: %s\n\n' % season)
 
                                     elif d.get('class').lower() == 'desc_short' and tdict['description'] == '':
                                         tdict['description'] = self.empersant(d.text)
@@ -9689,7 +9174,7 @@ class teveblad_HTML(FetchData):
                                         continue
 
                                     elif config.write_info_files:
-                                        infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
+                                        config.infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
 
                                 # The picons section
                                 for d in p.iterfind('p[@class="picons"]/span'):
@@ -9725,7 +9210,7 @@ class teveblad_HTML(FetchData):
                                             tdict['teletekst']  = True
 
                                         elif config.write_info_files:
-                                            infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
+                                            config.infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
 
                                     elif 'genre' in d.get('class').lower():
                                         genre = self.empersant(d.findtext('a'))
@@ -9776,7 +9261,7 @@ class teveblad_HTML(FetchData):
                                 config.channels[chanid].source_data[self.proc_id].set()
 
                                 try:
-                                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                                    config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
                                 except:
                                     pass
@@ -9848,8 +9333,8 @@ class teveblad_HTML(FetchData):
                     except:
                         log('Error extracting ElementTree for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
                         if config.write_info_files:
-                            infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                            infofiles.write_raw_string(strdata + u'\n')
+                            config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                            config.infofiles.write_raw_string(strdata + u'\n')
 
                         self.day_loaded[chanid][offset] = None
                         self.fail_count += 1
@@ -9926,11 +9411,11 @@ class teveblad_HTML(FetchData):
                             elif d.get('class').lower() == 'country':
                                 tdict['country'] = self.empersant(d.text)[0:2]
                                 if config.write_info_files:
-                                    infofiles.addto_detail_list(unicode('new teveblad county => ' + d.text))
+                                    config.infofiles.addto_detail_list(unicode('new teveblad county => ' + d.text))
 
 
                             elif config.write_info_files:
-                                infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
+                                config.infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
 
                         # The picons section
                         for d in p.iterfind('div[@class="r"]/p[@class="picons"]/span'):
@@ -9963,7 +9448,7 @@ class teveblad_HTML(FetchData):
                                     tdict['teletekst']  = True
 
                                 elif config.write_info_files:
-                                    infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
+                                    config.infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
 
                             elif 'genre' in d.get('class').lower():
                                 genre = self.empersant(d.findtext('a'))
@@ -10001,7 +9486,7 @@ class teveblad_HTML(FetchData):
                     config.channels[chanid].source_data[self.proc_id].set()
 
                 try:
-                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                    config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
                 except:
                     pass
@@ -10285,7 +9770,7 @@ class npo_HTML(FetchData):
                                     config.new_cattrans[self.proc_id][pg] = (u'Overige', u'')
 
                             if config.write_info_files and pgenre != '':
-                                infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
+                                config.infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
 
                     else:
                         tdict['genre'] = u'overige'
@@ -10352,8 +9837,8 @@ class npo_HTML(FetchData):
                     log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
                     self.fail_count += 1
                     if config.write_info_files:
-                        infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                        infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
+                        config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                        config.infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
 
                     continue
 
@@ -10413,7 +9898,7 @@ class npo_HTML(FetchData):
             config.channels[chanid].source_data[self.proc_id].set()
 
             try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
             except:
                 pass
@@ -10460,8 +9945,8 @@ class npo_HTML(FetchData):
                 log('Error extracting ElementTree for day:%s on npo.nl\n' % (offset))
                 self.fail_count += 1
                 if config.write_info_files:
-                    infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                    infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
+                    config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                    config.infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
 
                 continue
 
@@ -10503,10 +9988,10 @@ class npo_HTML(FetchData):
                     if config.write_info_files:
                         if not str(channel_cnt) in self.all_channels or cname != self.all_channels[str(channel_cnt)]['name']:
                             if channel_cnt > 24:
-                                infofiles.addto_detail_list(u'Channel %s is named %s' % (channel_cnt, cname))
+                                config.infofiles.addto_detail_list(u'Channel %s is named %s' % (channel_cnt, cname))
 
                             else:
-                                infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, self.all_channels[str(channel_cnt)]['name'], cname))
+                                config.infofiles.addto_detail_list(u'Channel %s should be named %s and is named %s' % (channel_cnt, self.all_channels[str(channel_cnt)]['name'], cname))
 
             except:
                 log(['Error validating page for day:%s on npo.nl\n' % (offset), traceback.format_exc()])
@@ -10589,7 +10074,7 @@ class npo_HTML(FetchData):
                                         tdict['genre'] = u'overige'
 
                                     if config.write_info_files and pgenre != '':
-                                        infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
+                                        config.infofiles.addto_detail_list(unicode('unknown npo.nl genre => ' + pgenre + ': ' + tdict['name']))
 
                                 # and append the program to the list of programs
                                 tdict = self.check_title_name(tdict)
@@ -10620,7 +10105,7 @@ class npo_HTML(FetchData):
                 continue
 
             try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
             except:
                 pass
@@ -10841,7 +10326,7 @@ class horizon_JSON(FetchData):
                                         titles = "%s'%s', " % (titles, c['title'].capitalize())
                                     ids = ids[:-2] + ")"
                                     titles = titles[:-2] + ")"
-                                    infofiles.addto_detail_list(unicode('new horizon subcategorie => ' + ids + ': ' + titles + ', '))
+                                    config.infofiles.addto_detail_list(unicode('new horizon subcategorie => ' + ids + ': ' + titles + ', '))
 
                             else:
                                 tdict['subgenre'] = config.source_cattrans[self.proc_id][(cats[0]['id'], )][1]
@@ -10863,11 +10348,11 @@ class horizon_JSON(FetchData):
                                     titles = "%s'%s', " % (titles, c['title'].capitalize())
                                 ids = ids[:-2] + ")"
                                 titles = titles[:-2] + ")"
-                                infofiles.addto_detail_list(unicode('new horizon categorie => ' + ids + ': ' + titles + ', '))
+                                config.infofiles.addto_detail_list(unicode('new horizon categorie => ' + ids + ': ' + titles + ', '))
 
                         if config.write_info_files:
                             for cat in cats:
-                                infofiles.addto_detail_list(u'horizon categorie: %s => %s' %(cat['id'], cat['title'].capitalize()))
+                                config.infofiles.addto_detail_list(u'horizon categorie: %s => %s' %(cat['id'], cat['title'].capitalize()))
 
                         self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
                         tdict = self.check_title_name(tdict)
@@ -10888,7 +10373,7 @@ class horizon_JSON(FetchData):
                 config.channels[chanid].source_data[self.proc_id].set()
 
                 try:
-                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                    config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
                 except:
                     pass
@@ -11083,7 +10568,7 @@ class humo_JSON(FetchData):
                                         break
 
                                     elif config.write_info_files:
-                                        infofiles.addto_detail_list(u'new country => %s' % (cstr))
+                                        config.infofiles.addto_detail_list(u'new country => %s' % (cstr))
 
                             if 'credits' in item['program'].keys():
                                 for role in item['program']['credits']:
@@ -11113,7 +10598,7 @@ class humo_JSON(FetchData):
                                         config.new_cattrans[self.proc_id][item['program']['genres'][0]] = (u'Overige', u'')
                                         if config.write_info_files:
                                             for gstr in item['program']['genres']:
-                                                infofiles.addto_detail_list('new humo genre => ' + gstr)
+                                                config.infofiles.addto_detail_list('new humo genre => ' + gstr)
 
                             else:
                                 tdict['genre'] = 'Overige'
@@ -11143,7 +10628,7 @@ class humo_JSON(FetchData):
                                 for key in item['properties'].keys():
                                     if not key in ('live', 'repeat', 'final', 'new', 'hd', 'prop_16_9', 'teletext', 'issub', 'dolby', \
                                       'part_of_series', 'series_id', 'maintitle', 'pdc', 'eventduration', 'selection'):
-                                        infofiles.addto_detail_list('new humo property => %s=%s'  % (key, item['properties'][key]))
+                                        config.infofiles.addto_detail_list('new humo property => %s=%s'  % (key, item['properties'][key]))
 
                                 for key in item['program'].keys():
                                     if not key in ('id', 'external_id', 'title', 'media', 'twitterhashtag', 'youtubeid', 'website', \
@@ -11151,7 +10636,7 @@ class humo_JSON(FetchData):
                                       'description', 'content_short', 'content_long', 'year', 'countries', 'credits', 'genres', \
                                       'opinion'):
                                       #~ 'opinion', 'appreciation'):
-                                        infofiles.addto_detail_list('new humo programitem => %s=%s' % (key, item['program'][key]))
+                                        config.infofiles.addto_detail_list('new humo programitem => %s=%s' % (key, item['program'][key]))
 
                             tdict = self.check_title_name(tdict)
                             self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
@@ -11164,7 +10649,7 @@ class humo_JSON(FetchData):
                 self.channel_loaded[chanid] = True
                 config.channels[chanid].source_data[self.proc_id].set()
                 try:
-                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                    config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
                 except:
                     pass
@@ -11308,7 +10793,7 @@ class vpro_HTML(FetchData):
                                 break
 
                             elif config.write_info_files:
-                                infofiles.addto_detail_list(u'new country => %s' % (c))
+                                config.infofiles.addto_detail_list(u'new country => %s' % (c))
 
                         tdict['jaar van premiere'] = subg2.group(2)
                         tdict['subgenre'] = subg2.group(3)
@@ -11371,7 +10856,7 @@ class vpro_HTML(FetchData):
                     pass
 
                 elif di not in ('met oa', ) and config.write_info_files:
-                    infofiles.addto_detail_list(u'new vpro descr item => %s' % (di))
+                    config.infofiles.addto_detail_list(u'new vpro descr item => %s' % (di))
 
             # Alternative Acters list
             if 'met oa' in desc_items and not 'met'in desc_items:
@@ -11457,7 +10942,7 @@ class vpro_HTML(FetchData):
                                     config.new_cattrans[self.proc_id][pg] = (u'Overige', u'')
 
                             if config.write_info_files and not pgenre in ('', 'gvpro'):
-                                infofiles.addto_detail_list(unicode('unknown vpro.nl genre => ' + pgenre + ': ' + tdict['name']))
+                                config.infofiles.addto_detail_list(unicode('unknown vpro.nl genre => ' + pgenre + ': ' + tdict['name']))
 
                     else:
                         tdict['genre'] = u'overige'
@@ -11533,8 +11018,8 @@ class vpro_HTML(FetchData):
                     log('Error extracting ElementTree for day:%s on vpro.nl\n' % (offset))
                     self.fail_count += 1
                     if config.write_info_files:
-                        infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                        infofiles.write_raw_string(noquote)
+                        config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                        config.infofiles.write_raw_string(noquote)
 
                     continue
 
@@ -11595,7 +11080,7 @@ class vpro_HTML(FetchData):
             config.channels[chanid].source_data[self.proc_id].set()
 
             try:
-                infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
             except:
                 pass
@@ -11960,8 +11445,8 @@ class nieuwsblad_HTML(FetchData):
                             (config.channels[chanid].chan_name)])
 
                         if config.write_info_files:
-                            infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                            infofiles.write_raw_string(strdata)
+                            config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                            config.infofiles.write_raw_string(strdata)
 
                         failure_count += 1
                         self.fail_count += 1
@@ -12039,7 +11524,7 @@ class nieuwsblad_HTML(FetchData):
                         config.channels[chanid].source_data[self.proc_id].set()
 
                         try:
-                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                            config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
                         except:
                             pass
@@ -12197,8 +11682,8 @@ class primo_HTML(FetchData):
                         log(["Error extracting ElementTree for day:%s on primo.eu\n" % (offset)])
 
                         if config.write_info_files:
-                            infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                            infofiles.write_raw_string(strdata)
+                            config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                            config.infofiles.write_raw_string(strdata)
 
                         failure_count += 1
                         self.fail_count += 1
@@ -12277,7 +11762,7 @@ class primo_HTML(FetchData):
                                 self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
                         try:
-                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                            config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
                         except:
                             pass
@@ -12307,8 +11792,8 @@ class primo_HTML(FetchData):
         except:
             log("Error extracting ElementTree from:%s on primo.eu\n" % (tdict['detail_url'][self.proc_id]))
             if config.write_info_files:
-                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                infofiles.write_raw_string(strdata + u'\n')
+                config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                config.infofiles.write_raw_string(strdata + u'\n')
 
             return None
 
@@ -12365,7 +11850,7 @@ class primo_HTML(FetchData):
                                 break
 
                             elif config.write_info_files:
-                                infofiles.addto_detail_list(u'new country => %s' % (c))
+                                config.infofiles.addto_detail_list(u'new country => %s' % (c))
 
                     elif dlabel == "genre":
                         genre = ddata if len(ddata) > 2 else ''
@@ -12383,7 +11868,7 @@ class primo_HTML(FetchData):
                         #~ pass
 
                     elif config.write_info_files:
-                        infofiles.addto_detail_list(u'new primo-tag => %s: %s' % (dlabel, ddata))
+                        config.infofiles.addto_detail_list(u'new primo-tag => %s: %s' % (dlabel, ddata))
 
                 except:
                     continue
@@ -12407,14 +11892,14 @@ class primo_HTML(FetchData):
                     tdict['subgenre'] = config.source_cattrans[self.proc_id][genre][1]
 
                 if config.write_info_files and subgenre != '':
-                    infofiles.addto_detail_list(u'new primo-subgenre => %s: %s' % (genre, subgenre))
+                    config.infofiles.addto_detail_list(u'new primo-subgenre => %s: %s' % (genre, subgenre))
 
             elif genre != '':
                 tdict['genre'] = genre
                 tdict['subgenre'] = subgenre
                 config.new_cattrans[self.proc_id][(genre, subgenre)] = (genre, subgenre)
                 if config.write_info_files and subgenre != '':
-                    infofiles.addto_detail_list(u'new primo-genre => %s: %s' % (genre, subgenre))
+                    config.infofiles.addto_detail_list(u'new primo-genre => %s: %s' % (genre, subgenre))
 
             else:
                 tdict['genre'] = 'overige'
@@ -12702,7 +12187,7 @@ class vrt_JSON(FetchData):
                                             tdict['credits'][role].append(cn.split('(')[0].strip())
 
                                     elif config.write_info_files:
-                                        infofiles.addto_detail_list(u'new vrt cast item => %s = %s' % (crole, cast))
+                                        config.infofiles.addto_detail_list(u'new vrt cast item => %s = %s' % (crole, cast))
 
                             # standardGenres
                             # actua, sport, cultuur, film, docu, humor, series, ontspanning
@@ -12747,7 +12232,7 @@ class vrt_JSON(FetchData):
                                     tdict['kijkwijzer'].append(config.vrtkijkwijzer[p['categories'].strip()])
 
                                 elif config.write_info_files:
-                                    infofiles.addto_detail_list(u'new vrt categorie => %s' % (p['categories']))
+                                    config.infofiles.addto_detail_list(u'new vrt categorie => %s' % (p['categories']))
 
                             if config.write_info_files:
                                 for item in p.keys():
@@ -12762,7 +12247,7 @@ class vrt_JSON(FetchData):
                                             u'aspectRatio', u'videoFormat', u'hasTTSubTitles', u'isRepeat',
                                             u'presenters', u'cast', u'type', u'categories', u'standardGenres',
                                             u'shortDescription', u'description', u'hasAudioDescription'):
-                                        infofiles.addto_detail_list(u'new vrt key => %s = %s' % (item, p[item]))
+                                        config.infofiles.addto_detail_list(u'new vrt key => %s = %s' % (item, p[item]))
 
                             tdict = self.check_title_name(tdict)
                             with self.source_lock:
@@ -12824,7 +12309,7 @@ class vrt_JSON(FetchData):
 
                         config.channels[chanid].source_data[self.proc_id].set()
                         try:
-                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                            config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
                         except:
                             pass
@@ -13078,7 +12563,7 @@ class oorboekje_HTML(FetchData):
                                         tdict['credits'][role].append(cn.split('(')[0].strip())
 
                                 elif config.write_info_files:
-                                    infofiles.addto_detail_list(u'new oorboekje desc item => %s = %s' % (crole, cast))
+                                    config.infofiles.addto_detail_list(u'new oorboekje desc item => %s = %s' % (crole, cast))
 
 
 
@@ -13109,7 +12594,7 @@ class oorboekje_HTML(FetchData):
                                 self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
 
                         try:
-                            infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
+                            config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, config.channels[chanid].chan_name, self.proc_id)
 
                         except:
                             pass
@@ -13424,7 +12909,7 @@ class Channel_Config(Thread):
                 xml_output.create_program_string(self.chanid)
 
             if config.write_info_files:
-                infofiles.write_raw_list()
+                config.infofiles.write_raw_list()
 
             self.ready = True
 
@@ -13574,7 +13059,7 @@ class Channel_Config(Thread):
             except:
                 log(traceback.format_exc())
                 if config.write_info_files:
-                    infofiles.write_raw_string('Error: %s with index %s\n' % (sys.exc_info()[1], i))
+                    config.infofiles.write_raw_string('Error: %s with index %s\n' % (sys.exc_info()[1], i))
 
                 continue
 
@@ -13688,7 +13173,7 @@ class Channel_Config(Thread):
             program['name'] = p[0].strip()
             program['titel aflevering'] = "".join(p[1:]).strip()
             if config.write_info_files:
-                infofiles.addto_detail_list(unicode('Name split = %s + %s' % (program['name'] , program['titel aflevering'])))
+                config.infofiles.addto_detail_list(unicode('Name split = %s + %s' % (program['name'] , program['titel aflevering'])))
 
         return program
 
@@ -14138,7 +13623,7 @@ class XMLoutput:
                 config.output.write(xml)
 
             if config.write_info_files:
-                infofiles.write_xmloutput(xml)
+                config.infofiles.write_xmloutput(xml)
 
 # end XMLoutput
 xml_output = XMLoutput()
