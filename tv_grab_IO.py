@@ -450,31 +450,31 @@ class ProgramCache(Thread):
     with the ID. New fetches will use the cached info instead of doing an
     (expensive) page fetch.
     """
-    def __init__(self, logging, opt_dict, sources, channels, filename=None, ttvdb_aliasses={}):
+    def __init__(self, logging, app, sources, filename=None):
         Thread.__init__(self)
         """
         Create a new ProgramCache object, optionally from file
         """
         self.logging = logging
         self.IO_func = IO_functions(logging)
-        self.opt_dict = opt_dict
+        self.app = app
+        self.opt_dict = self.app.opt_dict
+        self.channels = self.app.channels
         self.sources = sources
-        self.channels = channels
-        self.ttvdb_aliasses = ttvdb_aliasses
         self.ID_list = {}
         self.url_list = {}
         for key, s in self.sources.items():
             self.ID_list[s.detail_id] = key
             self.url_list[s.detail_url] = key
 
-        self.sources[0].checkout_program_dict()
+        self.app.fetch_func.checkout_program_dict()
         self.field_list = ['genre', 'kijkwijzer']
-        self.field_list.extend(self.sources[0].text_values)
-        self.field_list.extend(self.sources[0].date_values)
-        self.field_list.extend(self.sources[0].datetime_values)
-        self.field_list.extend(self.sources[0].bool_values)
-        self.field_list.extend(self.sources[0].num_values)
-        self.field_list.extend(self.sources[0].video_values)
+        self.field_list.extend(self.app.fetch_func.text_values)
+        self.field_list.extend(self.app.fetch_func.date_values)
+        self.field_list.extend(self.app.fetch_func.datetime_values)
+        self.field_list.extend(self.app.fetch_func.bool_values)
+        self.field_list.extend(self.app.fetch_func.num_values)
+        self.field_list.extend(self.app.fetch_func.video_values)
         sqlite3.register_adapter(list, self.adapt_kw)
         sqlite3.register_converter(str('kijkwijzer'), self.convert_kw)
         sqlite3.register_adapter(list, self.adapt_list)
@@ -805,7 +805,7 @@ class ProgramCache(Thread):
 
                 self.check_indexes(t)
 
-            for a, t in self.ttvdb_aliasses.items():
+            for a, t in self.app.ttvdb_aliasses.items():
                 if not self.query_id('ttvdb_alias', {'title': t, 'alias': a}):
                     self.add('ttvdb_alias', {'title': t, 'alias': a})
 
@@ -817,26 +817,26 @@ class ProgramCache(Thread):
     def create_table(self, table):
         if table == 'programs':
             create_string = u"CREATE TABLE IF NOT EXISTS %s ('pid' TEXT PRIMARY KEY ON CONFLICT REPLACE, 'genre' TEXT DEFAULT 'overige'" % table
-            for key in self.sources[0].text_values:
+            for key in self.app.fetch_func.text_values:
                 create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, key)
 
             for key in self.sources.keys():
                 create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, self.sources[key].detail_id.lower())
                 create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, self.sources[key].detail_url.lower())
 
-            for key in self.sources[0].date_values:
+            for key in self.app.fetch_func.date_values:
                 create_string = u"%s, '%s' date" % (create_string, key)
 
-            for key in self.sources[0].datetime_values:
+            for key in self.app.fetch_func.datetime_values:
                 create_string = u"%s, '%s' datetime" % (create_string, key)
 
-            for key in self.sources[0].bool_values:
+            for key in self.app.fetch_func.bool_values:
                 create_string = u"%s, '%s' boolean DEFAULT 'False'" % (create_string, key)
 
-            for key in self.sources[0].num_values:
+            for key in self.app.fetch_func.num_values:
                 create_string = u"%s, '%s' INTEGER DEFAULT 0" % (create_string, key)
 
-            for key in self.sources[0].video_values:
+            for key in self.app.fetch_func.video_values:
                 create_string = u"%s, '%s' boolean DEFAULT 'False'" % (create_string, key)
 
             create_string = u"%s, 'kijkwijzer' kijkwijzer DEFAULT '')" % create_string
@@ -945,7 +945,7 @@ class ProgramCache(Thread):
             if 'kijkwijzer' not in clist.keys():
                 add_collumn(table, u"'kijkwijzer' kijkwijzer DEFAULT ''")
 
-            for c in self.sources[0].text_values:
+            for c in self.app.fetch_func.text_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' TEXT DEFAULT ''" % c)
 
@@ -956,23 +956,23 @@ class ProgramCache(Thread):
                 if self.sources[key].detail_url.lower() not in clist.keys():
                     add_collumn(table, u"'%s' TEXT DEFAULT ''" % self.sources[key].detail_url.lower())
 
-            for c in self.sources[0].date_values:
+            for c in self.app.fetch_func.date_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' date" % c)
 
-            for c in self.sources[0].datetime_values:
+            for c in self.app.fetch_func.datetime_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' datetime" % c)
 
-            for c in self.sources[0].bool_values:
+            for c in self.app.fetch_func.bool_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' boolean DEFAULT 'False'" % c)
 
-            for c in self.sources[0].num_values:
+            for c in self.app.fetch_func.num_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' INTEGER DEFAULT 0" % c)
 
-            for c in self.sources[0].video_values:
+            for c in self.app.fetch_func.video_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' boolean DEFAULT 'False'" % c)
 
@@ -1143,12 +1143,12 @@ class ProgramCache(Thread):
             if r == None:
                 return
 
-            program = self.sources[0].checkout_program_dict()
+            program = self.app.fetch_func.checkout_program_dict()
             for item in r.keys():
                 if item == 'pid':
                     continue
 
-                elif item in self.sources[0].video_values:
+                elif item in self.app.fetch_func.video_values:
                     program['video'][item] = r[item]
 
                 elif item in self.ID_list.keys():
@@ -1167,7 +1167,7 @@ class ProgramCache(Thread):
 
                 program['credits'][r[str('title')]].append(r[str('name')])
 
-            program = self.sources[0].checkout_program_dict(program)
+            program = self.app.fetch_func.checkout_program_dict(program)
             return program
 
         elif table == 'ttvdb':
