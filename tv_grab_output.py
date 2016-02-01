@@ -1,6 +1,10 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
+# Python 3 compatibility
+from __future__ import unicode_literals
+# from __future__ import print_function
+
 import re, sys
 import traceback, datetime, random
 from threading import Thread, Lock, Event
@@ -86,7 +90,6 @@ class Channel_Config(Thread):
         self.opt_dict['cattrans'] = self.config.opt_dict['cattrans']
         self.opt_dict['mark_hd'] = self.config.opt_dict['mark_hd']
         self.opt_dict['add_hd_id'] = False
-        self.config.queues['source'][self.proc_id] = self.detail_request
         self.config.threads.append(self)
 
     def validate_settings(self):
@@ -174,7 +177,7 @@ class Channel_Config(Thread):
                 if self.source_data[index].is_set():
                     if len(self.config.channelsource[index].program_data[self.chanid]) == 0:
                         if not (index == 1 and 0 in self.merge_order):
-                            log('No Data from %s for channel: %s\n'% (self.config.channelsource[index].source, self.chan_name))
+                            self.config.log('No Data from %s for channel: %s\n'% (self.config.channelsource[index].source, self.chan_name))
 
                     elif xml_data == False:
                         # This is the first source with data, so we just take in the data
@@ -205,8 +208,8 @@ class Channel_Config(Thread):
                             if not self.config.channels[c['chanid']].is_alive():
                                 break
 
-                        if len(config.channels[c['chanid']].child_programs) == 0:
-                            log('No Data from %s for channel: %s\n'% (config.channels[c['chanid']].chan_name, self.chan_name))
+                        if len(self.config.channels[c['chanid']].child_programs) == 0:
+                            self.config.log('No Data from %s for channel: %s\n'% (self.config.channels[c['chanid']].chan_name, self.chan_name))
 
                         elif self.child_data.is_set():
                             # We always merge as there might be restrictions
@@ -242,7 +245,7 @@ class Channel_Config(Thread):
 
                     else:
                         self.detail_data.set()
-                        log('Detail sources: %s, %s and %s died.\n So we stop waiting for the pending details for channel %s\n' \
+                        self.config.log('Detail sources: %s, %s and %s died.\n So we stop waiting for the pending details for channel %s\n' \
                             % (self.config.channelsource[0].source, self.config.channelsource[1].source, self.config.channelsource[9].source, self.chan_name))
 
                 self.all_programs = self.detailed_programs
@@ -278,7 +281,7 @@ class Channel_Config(Thread):
                 #~ log_array.append('%6.0f left in the primo.eu queue to process\n' % (xml_output.channelsource[9].detail_request.qsize()))
 
             #~ log_array.append('\n')
-            #~ log(log_array, 4, 3)
+            #~ self.config.log(log_array, 4, 3)
 
             # a final check on the sanity of the data
             self.config.channelsource[0].parse_programs(self.chanid, 1)
@@ -318,7 +321,7 @@ class Channel_Config(Thread):
             self.ready = True
 
         except:
-            logging.log_queue.put({'fatal': [traceback.print_exc(), '\n'], 'name': self.chan_name})
+            self.config.logging.log_queue.put({'fatal': [traceback.print_exc(), '\n'], 'name': self.chan_name})
             self.ready = True
             return(97)
 
@@ -423,12 +426,12 @@ class Channel_Config(Thread):
         programs = self.all_programs[:]
 
         if self.opt_dict['fast']:
-            log(['\n', 'Now Checking cache for %s programs on %s(xmltvid=%s%s)\n' % \
+            self.config.log(['\n', 'Now Checking cache for %s programs on %s(xmltvid=%s%s)\n' % \
                 (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
                 '    (channel %s of %s) for %s days.\n' % (self.counter, self.config.chan_count, self.config.opt_dict['days'])], 2)
 
         else:
-            log(['\n', 'Now fetching details for %s programs on %s(xmltvid=%s%s)\n' % \
+            self.config.log(['\n', 'Now fetching details for %s programs on %s(xmltvid=%s%s)\n' % \
                 (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
                 '    (channel %s of %s) for %s days.\n' % (self.counter, self.config.chan_count, self.config.opt_dict['days'])], 2)
 
@@ -448,7 +451,7 @@ class Channel_Config(Thread):
                     continue
 
             except:
-                log(traceback.format_exc())
+                self.config.log(traceback.format_exc())
                 if self.config.write_info_files:
                     self.config.infofiles.write_raw_string('Error: %s with index %s\n' % (sys.exc_info()[1], i))
 
@@ -461,7 +464,7 @@ class Channel_Config(Thread):
                                 p['name'])
 
             # We only fetch when we are in slow mode and slowdays is not set to tight
-            no_fetch = (self.opt_dict['fast'] or p['offset'] >= (config.opt_dict['offset'] + self.opt_dict['slowdays']))
+            no_fetch = (self.opt_dict['fast'] or p['offset'] >= (self.config.opt_dict['offset'] + self.opt_dict['slowdays']))
 
             # check the cache for this program's ID
             # If not found, check the various ID's and (if found) make it the prime one
@@ -486,10 +489,10 @@ class Channel_Config(Thread):
                             (cached_program[self.config.channelsource[9].detail_check] or \
                                 (p['detail_url'][9] == '' and \
                                 cached_program[self.config.channelsource[1].detail_check])))):
-                        log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
+                        self.config.log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                         self.update_counter('cache')
                         p = self.use_cache(p, cached_program)
-                        if not (config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
+                        if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
                             if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
                                 self.update_counter('fetch', -1)
                                 self.config.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
@@ -504,9 +507,9 @@ class Channel_Config(Thread):
                                                                 (p['detail_url'][1] == '')))
 
             if no_detail_fetch:
-                log(u'    [no fetch] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
+                self.config.log(u'    [no fetch] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                 self.update_counter('none')
-                if not (config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
+                if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
                     if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
                         self.update_counter('fetch', -1)
                         self.config.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
@@ -531,7 +534,7 @@ class Channel_Config(Thread):
                 break
 
         else:
-            if not (config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
+            if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
                 self.config.ttvdb.detail_request.put({'task': 'last_one', 'parent': self})
 
             else:
@@ -560,7 +563,7 @@ class Channel_Config(Thread):
         # and do the title split test
         p = ptitle.split(':')
         if len(p) >1:
-            log('Splitting title \"%s\"\n' %  ptitle, 64)
+            self.config.log('Splitting title \"%s\"\n' %  ptitle, 64)
             program['name'] = p[0].strip()
             program['titel aflevering'] = "".join(p[1:]).strip()
             if self.config.write_info_files:
@@ -653,9 +656,9 @@ class XMLoutput:
             (xmltvid, self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
         self.xml_channels[xmltvid].append(self.add_starttag('display-name', 4, 'lang="nl"', \
             self.config.channels[chanid].chan_name, True))
-        if (config.channels[chanid].opt_dict['logos']):
+        if (self.config.channels[chanid].opt_dict['logos']):
             if self.config.channels[chanid].icon_source in range(len(self.logo_provider)):
-                lpath = self.logo_provider[config.channels[chanid].icon_source]
+                lpath = self.logo_provider[self.config.channels[chanid].icon_source]
                 lname = self.config.channels[chanid].icon
                 if self.config.channels[chanid].icon_source == 5 and lpath[-16:] == 'ChannelLogos/02/':
                     if len(lname) > 16 and  lname[0:16] == 'ChannelLogos/02/':
@@ -690,7 +693,7 @@ class XMLoutput:
         else:
             xmltvid = self.config.channels[chanid].xmltvid
             with self.output_lock:
-                self.program_count += len(config.channels[chanid].all_programs)
+                self.program_count += len(self.config.channels[chanid].all_programs)
 
         self.xml_programs[xmltvid] = []
         self.config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
@@ -737,7 +740,7 @@ class XMLoutput:
             if desc_line != '':
                 desc_line = re.sub('\n', ' ', desc_line)
                 if len(desc_line) > self.config.channels[chanid].opt_dict['desc_length']:
-                    spacepos = desc_line[0:config.channels[chanid].opt_dict['desc_length']-3].rfind(' ')
+                    spacepos = desc_line[0:self.config.channels[chanid].opt_dict['desc_length']-3].rfind(' ')
                     desc_line = desc_line[0:spacepos] + '...'
 
                 xml.append(self.add_starttag('desc', 4, 'lang="nl"', desc_line.strip(),True))
@@ -810,7 +813,7 @@ class XMLoutput:
 
             # Process video/audio/teletext sections if present
             if (program['video']['breedbeeld'] or program['video']['blackwhite'] \
-              or (config.channels[chanid].opt_dict['mark_hd'] \
+              or (self.config.channels[chanid].opt_dict['mark_hd'] \
               or add_HD == True) and (program['video']['HD'])):
                 xml.append(self.add_starttag('video', 4))
 
@@ -820,7 +823,7 @@ class XMLoutput:
                 if program['video']['blackwhite']:
                     xml.append(self.add_starttag('colour', 6, '', 'no',True))
 
-                if (config.channels[chanid].opt_dict['mark_hd'] \
+                if (self.config.channels[chanid].opt_dict['mark_hd'] \
                   or add_HD == True) and (program['video']['HD']):
                     xml.append(self.add_starttag('quality', 6, '', 'HDTV',True))
 
@@ -858,7 +861,7 @@ class XMLoutput:
                 for k in ('4', '3', '9', '2', '1'):
                     if k in program['kijkwijzer']:
                         if self.config.opt_dict['kijkwijzerstijl'] == 'single':
-                            kstring += (config.kijkwijzer[k]['code'] + ': ')
+                            kstring += (self.config.kijkwijzer[k]['code'] + ': ')
 
                         else:
                             xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))

@@ -1,6 +1,10 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
+# Python 3 compatibility
+from __future__ import unicode_literals
+# from __future__ import print_function
+
 import codecs, locale, re, os, sys, io, shutil
 import traceback, datetime, time, smtplib, sqlite3
 import timezones, pytz
@@ -19,7 +23,7 @@ UTC  = timezones.UTCTimeZone()
 class Functions():
     """Some general IO functions"""
 
-    def __init__(self, logging = None):
+    def __init__(self, logging):
         self.default_file_encoding = 'utf-8'
         self.encoding = None
         self.configversion = None
@@ -1723,7 +1727,7 @@ class InfoFiles:
     def write_xmloutput(self, xml):
 
         if self.write_info_files:
-            xml_output =self.functions.open_file(self.opt.dict['xmltv_dir']+'/xml_output', 'w')
+            xml_output =self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/xml_output', 'w')
             if xml_output == None:
                 return
 

@@ -1,6 +1,10 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
+# Python 3 compatibility
+from __future__ import unicode_literals
+# from __future__ import print_function
+
 description_text = """
     SYNOPSIS
 
@@ -120,8 +124,13 @@ description_text = """
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os, sys, argparse, traceback, json, datetime
+import os, re, sys, argparse, traceback, json, datetime, codecs
 import tv_grab_IO, tv_grab_fetch , tv_grab_output, timezones
+try:
+    unichr(42)
+except NameError:
+    unichr = chr    # Python 3
+
 
 CET_CEST = timezones.AmsterdamTimeZone()
 UTC  = timezones.UTCTimeZone()
@@ -217,6 +226,382 @@ class Configure:
         self.titlerename = {'navy ncis': 'NCIS',
                                         'inspector banks': 'DCI Banks'}
 
+        # Create a category translation dictionary
+        # Look in mythtv/themes/blue/ui.xml for all category names
+        # The keys are the categories used by tvgids.nl (lowercase please)
+        # See the file ~/.xmltv/tv_grab_nl_py.set created after the first run and edit there!
+        self.cattrans = { (u'', u'')                                                 : u'Unknown',
+                             (u'amusement', u'')                                      : u'Talk',
+                             (u'amusement', u'quiz')                              : u'Game',
+                             (u'amusement', u'spelshow')                      : u'Game',
+                             (u'amusement', u'muziekshow')                  : u'Art/Music',
+                             (u'amusement', u'muziekprogramma')        : u'Art/Music',
+                             (u'amusement', u'dansprogramma')            : u'Art/Music',
+                             (u'amusement', u'cabaret')                        : u'Art/Music',
+                             (u'amusement', u'variete')                        : u'Art/Music',
+                             (u'amusement', u'sketches')                      : u'Art/Music',
+                             (u'amusement', u'stand-up comedy')        : u'Art/Music',
+                             (u'amusement', u'stand-up comedy, sketches'): u'Art/Music',
+                             (u'amusement', u'erotisch programma')  : u'Adult',
+                             (u'amusement', u'komedie')                        : u'Comedy',
+                             (u'amusement', u'klusprogramma')            : u'Home/How-to',
+                             (u'amusement', u'hobbyprogramma')          : u'Home/How-to',
+                             (u'amusement', u'lifestyleprogramma')  : u'Home/How-to',
+                             (u'amusement', u'modeprogramma')            : u'Home/How-to',
+                             (u'amusement', u'kookprogramma')            : u'Cooking',
+                             (u'amusement', u'realityserie')              : u'Reality',
+                             (u'documentaire', u'')                                : u'Documentary',
+                             (u'educatief', u'')                                      : u'Educational',
+                             (u'film', u'')                                                : u'Film',
+                             (u'korte film', u'')                                    : u'Film',
+                             (u'info', u'')                                                : u'News',
+                             (u'info', u'business')                                : u'Bus./financial',
+                             (u'info', u'documentary')                          : u'Documentary',
+                             (u'info', u'science')                                  : u'Science/Nature',
+                             (u'informatief, amusement', u'')            : u'Educational',
+                             (u'informatief, amusement', u'kookprogramma'): u'Cooking',
+                             (u'informatief, kunst en cultuur', u''): u'Arts/Culture',
+                             (u'informatief, wetenschap', u'')          : u'Science/Nature',
+                             (u'informatief', u'')                                  : u'Educational',
+                             (u'informatief', u'wetenschappelijk programma'): u'Science/Nature',
+                             (u'informatief', u'techniek')                  : u'Science/Nature',
+                             (u'informatief', u'documentaire')          : u'Documentary',
+                             (u'informatief', u'gezondheid')              : u'Health',
+                             (u'informatief', u'fitnessprogramma')  : u'Health',
+                             (u'informatief', u'gymnastiekprogramma'): u'Health',
+                             (u'informatief', u'medisch programma'): u'Health',
+                             (u'informatief', u'medisch praatprogramma'): u'Health',
+                             (u'informatief', u'docusoap')                  : u'Reality',
+                             (u'informatief', u'realityprogramma')  : u'Reality',
+                             (u'informatief', u'realityserie')          : u'Reality',
+                             (u'informatief', u'praatprogramma')      : u'Talk',
+                             (u'informatief', u'jeugdprogramma')      : u'Children',
+                             (u'jeugd', u'')                                              : u'Children',
+                             (u'kunst/cultuur', u'')                              : u'Arts/Culture',
+                             (u'kunst en cultuur', u'')                        : u'Arts/Culture',
+                             (u'magazine', u'')                                        : u'Talk',
+                             (u'muziek', u'')                                            : u'Art/Music',
+                             (u'natuur', u'')                                            : u'Science/Nature',
+                             (u'nieuws/actualiteiten', u'')                : u'News',
+                             (u'news', u'')                                                : u'News',
+                             (u'religieus', u'')                                      : u'Religion',
+                             (u'serie/soap', u'')                                    : u'Drama',
+                             (u'serie/soap', u'jeugdserie')                : u'Children',
+                             (u'serie/soap', u'animatieserie')          : u'Children',
+                             (u'serie/soap', u'tekenfilmserie')        : u'Children',
+                             (u'serie/soap', u'soap')                            : u'Soap',
+                             (u'serie/soap', u'comedyserie')              : u'Comedy',
+                             (u'serie/soap', u'komedieserie')            : u'Comedy',
+                             (u'serie/soap', u'detectiveserie')        : u'Crime/Mystery',
+                             (u'serie/soap', u'misdaadserie')            : u'Crime/Mystery',
+                             (u'serie/soap', u'fantasyserie')            : u'Sci-fi/Fantasy',
+                             (u'serie/soap', u'sciencefictionserie'): u'Sci-fi/Fantasy',
+                             (u'serie/soap', u'actieserie')                : u'Action',
+                             (u'sport', u'')                                              : u'Sports',
+                             (u'talks', u'')                                              : u'Talk',
+                             (u'talkshow', u'')                                        : u'Talk',
+                             (u'wetenschap', u'')                                    : u'Science/Nature',
+                             (u'overige', u'')                                          : u'Unknown'}
+
+        self.genre_list = []
+
+        # These ara all dicts used in merging the sources
+        self.source_cattrans = {}
+        self.new_cattrans = {}
+        # tvgids.tv subgenre to genre translation table
+        self.source_cattrans[1] = {u'euromillions': u'Amusement',
+                                 u'erotisch magazine': u'Amusement',
+                                 u'reality-reeks': u'Amusement',
+                                 u'keno': u'Amusement',
+                                 u'loterij': u'Amusement',
+                                 u'spektakel': u'Amusement',
+                                 u'informatief programma': u'Informatief',
+                                 u'reportage': u'Informatief',
+                                 u'biografie': u'Informatief',
+                                 u'schooltelevisie': u'Informatief',
+                                 u'peuterprogramma': u'Jeugd',
+                                 u'kleuterprogramma': u'Jeugd',
+                                 u'tekenfilm': u'Jeugd',
+                                 u'animatiereeks': u'Jeugd',
+                                 u'theatershow': u'Kunst en Cultuur',
+                                 u'concert': u'Muziek',
+                                 u'musical': u'Muziek',
+                                 u'weerbericht': u'Nieuws/Actualiteiten',
+                                 u'verkeersinfo': u'Nieuws/Actualiteiten',
+                                 u'actualiteitenmagazine': u'Nieuws/Actualiteiten',
+                                 u'actuele reportage': u'Nieuws/Actualiteiten',
+                                 u'praatprogramma over de actualiteit': u'Nieuws/Actualiteiten',
+                                 u'voetbal': u'Sport',
+                                 u'darts': u'Sport',
+                                 u'golf': u'Sport',
+                                 u'wielrennen op de weg': u'Sport',
+                                 u'baanwielrennen': u'Sport',
+                                 u'tennis': u'Sport',
+                                 u'veldrijden': u'Sport',
+                                 u'volleybal': u'Sport',
+                                 u'motorcross': u'Sport',
+                                 u'religieuze uitzending': u'Religieus',
+                                 u'docusoap': u'Informatief',
+                                 u'sitcom': u'Serie/Soap'}
+
+        self.new_cattrans[1] = []
+
+        # teveblad.be genre translation table
+        self.source_cattrans[3] = {u'amusement'           : (u'Amusement', u''),
+                                 u'documentaire'      : (u'Informatief', u'Documentaire'),
+                                 u'film'                      : (u'Film', u''),
+                                 u'kinderen'              : (u'Jeugd', u''),
+                                 u'kunst & cultuur': (u'Kunst en Cultuur', u''),
+                                 u'magazine'              : (u'Magazine', u''),
+                                 u'muziek'                  : (u'Muziek', u''),
+                                 u'nieuws'                  : (u'Nieuws/Actualiteiten', u''),
+                                 u'reality'                : (u'informatief', u'realityprogramma'),
+                                 u'serie'                    : (u'Serie/Soap', u''),
+                                 u'sport'                    : (u'Sport', u''),
+                                 u'andere'                  : (u'Overige', u'')}
+
+        self.new_cattrans[3] = {}
+
+        # npo.nl genre translation table
+        self.source_cattrans[4] = {(u'nieuws-actualiteiten', ): (u'nieuws/actualiteiten', u''),
+                                     (u'amusement', ): (u'amusement', u''),
+                                     (u'amusement', u'komisch', ): (u'amusement', u'komedie'),
+                                     (u'amusement', u'spel-quiz', ): (u'amusement', u'quiz'),
+                                     (u'informatief', ): (u'informatief', u''),
+                                     (u'informatief', u'nieuws-actualiteiten', ): (u'nieuws/actualiteiten', u''),
+                                     (u'informatief', u'kunst-cultuur', ): (u'informatief', u'kunst/cultuur'),
+                                     (u'informatief', u'gezondheid-opvoeding', ): (u'informatief', u'gezondheid'),
+                                     (u'informatief', u'consumenten-informatie', ): (u'informatief', u'consument'),
+                                     (u'informatief', u'spel-quiz', ): (u'informatief', u'quiz'),
+                                     (u'informatief', u'koken-eten', ): (u'informatief', u'kookprogramma'),
+                                     (u'informatief', u'natuur', ): (u'natuur', u''),
+                                     (u'informatief', u'religieus' ): (u'religieus', u''),
+                                     (u'religieus', ): (u'religieus', u''),
+                                     (u'jeugd', ): (u'jeugd', u''),
+                                     (u'jeugd', u'animatie', ): (u'jeugd', u'animatieserie'),
+                                     (u'jeugd', u'spel-quiz', ): (u'jeugd', u'quiz'),
+                                     (u'documentaire', ): (u'documentaire', u''),
+                                     (u'documentaire', u'kunst-cultuur', ): (u'documentaire', u'kunst/cultuur'),
+                                     (u'sport', ): (u'sport', u''),
+                                     (u'sport', u'sport-informatie', ): (u'sport', u'journaal'),
+                                     (u'animatie', ): (u'serie/soap', u'animatieserie'),
+                                     (u'natuur', ): (u'natuur', u''),
+                                     (u'muziek', ): (u'muziek', u''),
+                                     (u'muziek', u'muziek-populair', ): (u'muziek', u'populair'),
+                                     (u'muziek', u'muziek-klassiek', ): (u'muziek', u'klassiek'),
+                                     (u'film', ): (u'film', u''),
+                                     (u'film', u'animatie', ): (u'film', u'animatieserie'),
+                                     (u'film', u'spanning', ): (u'film', u'thriller'),
+                                     (u'wetenschap', ): (u'wetenschap', u''),
+                                     (u'drama', ): (u'serie/soap', u'drama'),
+                                     (u'reizen', ): (u'reizen', u''),
+                                     (u'serie', ): (u'serie/soap', u''),
+                                     (u'serie', u'soap-serie', ): (u'serie/soap', u'soap')}
+                                     #~ u'14': (u'serie/soap', u''),
+                                     #~ u'15': (u'overige', u''),
+                                     #~ u'18': (u'serie/soap', u'misdaadserie'),
+                                     #~ u'19': (u'kunst/cultuur', u''),
+                                     #~ u'20': (u'amusement', u'erotisch programma'),
+                                     #~ u'23': (u'amusement', u'komedie'),
+                                     #~ u'26': (u'educatief', u''),
+                                     #~ u'27': (u'informatief', u'fitnessprogramma'),
+                                     #~ u'29': (u'jeugd', u'6-12'),
+                                     #~ u'30': (u'maatschappij', u''),
+                                     #~ u'32': (u'jeugd', u'2-5'),
+                                     #~ u'34': (u'muziek', u'klassiek'),
+                                     #~ u'77': (u'gezondheid-opvoeding', u''),
+                                     #~ u'79': (u'komisch', u''),
+                                     #~ u'80': (u'spanning', u''),
+                                     #~ u'81': (u'consumenten-informatie', u''),
+                                     #~ u'82': (u'wonen-tuin', u''),
+                                     #~ u'83': (u'muziek-populair', u''),
+                                     #~ u'84': (u'spel-quiz', u''),
+                                     #~ u'85': (u'cabaret', u''),
+                                     #~ u'86': (u'sport-informatie', u''),
+                                     #~ u'87': (u'muziek-klassiek', u''),
+                                     #~ u'88': (u'koken-eten', u''),
+                                     #~ u'89': (u'geschiedenis', u''),
+                                     #~ u'90': (u'sport-wedstrijd', u''),
+                                     #~ u'91': (u'soap-serie', u'')}
+
+        self.new_cattrans[4] = {}
+        self.npo_fill = u'Programmainfo en Reclame'
+
+        # horizon.tv genre translation table
+        self.source_cattrans[5] ={(u'13946319', ): (u'nieuws/actualiteiten',u''),
+                                     (u'13946319', u'13946323'): (u'informatief', u'Documentaire'),
+                                     (u'13946319', u'13946324'): (u'informatief', u'Discussie'),
+                                     (u'13946336', ): (u'amusement',u''),
+                                     (u'13946336', u'13946338'): (u'kunst en cultuur', u'Variété'),
+                                     (u'13946336', u'13946340'): (u'talkshow', u''),
+                                     (u'13946352', ): (u'sport',u''),
+                                     (u'13946369', ): (u'jeugd', u''),
+                                     (u'13946386', ): (u'muziek', u''),
+                                     (u'13946404', ): (u'kunst en cultuur', u''),
+                                     (u'13946404', u'13946407'): (u'religieus', u''),
+                                     (u'13946455', ): (u'informatief', u''),
+                                     (u'13946420', ): (u'informatief', u''),
+                                     (u'13946438', ): (u'informatief', u''),
+                                     (u'13946472', ): (u'informatief', u''),
+                                     (u'13948023', ): (u'serie/soap', u''),
+                                     (u'13948023', u'13948024'): (u'serie/soap', u'thriller'),
+                                     (u'13948023', u'13948025'): (u'serie/soap', u'actieserie'),
+                                     (u'13948023', u'13948026'): (u'serie/soap', u'sciencefictionserie'),
+                                     (u'13948023', u'13948027'): (u'serie/soap', u'comedyserie'),
+                                     (u'13948023', u'13948028'): (u'serie/soap', u'melodrama'),
+                                     (u'13948023', u'13948031'): (u'serie/soap', u'historisch'),
+                                     (u'13948023', u'13948032'): (u'serie/soap', u'waar gebeurt'),
+                                     (u'13948023', u'13948033'): (u'serie/soap', u'detectiveserie')}
+        self.new_cattrans[5] = {}
+
+        # humo.be genre translation table
+        self.source_cattrans[6] = {u'nieuws'       : (u'Nieuws/Actualiteiten', u''),
+                                 u'current-affairs': (u'Nieuws/Actualiteiten', u'Actualiteiten'),
+                                 u'magazine'              : (u'Magazine', u''),
+                                 u'reportage'            : (u'Informatief', u'Reportage'),
+                                 u'documentaire'      : (u'Informatief', u'Documentaire'),
+                                 u'talkshow'              : (u'Talkshow', u''),
+                                 u'reality'                : (u'Amusement', u'Realityserie'),
+                                 u'kinderen'              : (u'jeugd', u''),
+                                 u'animated-cartoon': (u'serie/soap', u'animatieserie'),
+                                 u'serie'                    : (u'Serie/Soap', u''),
+                                 u'miniserie'            : (u'Serie/Soap', u''),
+                                 u'soap'                      : (u'Serie/Soap', u'Soap'),
+                                 u'film'                      : (u'Film', u''),
+                                 u'tv-film'                : (u'Film', u'TV Film'),
+                                 u'movie-short'        : (u'Film', u'Korte Film'),
+                                 u'quiz'                      : (u'Amusement', u'Quiz'),
+                                 u'spel'                      : (u'amusement', u'spelshow'),
+                                 u'amusement'            : (u'Amusement', u''),
+                                 u'religion'              : (u'Religieus', u''),
+                                 u'muziek'                  : (u'Muziek', u''),
+                                 u'kunst-cultuur'    : (u'kunst en cultuur', u''),
+                                 u'sports-football': (u'Sports', u'Voetbal'),
+                                 u'sports-cycling'  : (u'Sport', u'Wielrennen'),
+                                 u'sports-formula-1-racing'  : (u'Sport', u'Formule-1'),
+                                 u'sports-tennis'    : (u'Sport', u'Tennis'),
+                                 u'sport'                    : (u'Sport', u''),
+                                 u'andere'                  : (u'Overige', u'')}
+
+        self.new_cattrans[6] = {}
+
+        # vpro.nl genre translation table
+        self.source_cattrans[7] ={(u'g3011', ): (u'jeugd', u''),
+                                     (u'g3012', ): (u'film', u''),
+                                     (u'g3013', ): (u'serie/soap', u''),
+                                     (u'g3014', ): (u'sport', u''),
+                                     (u'g3015', ): (u'muziek', u''),
+                                     (u'g3016', ): (u'amusement', u''),
+                                     (u'g3017', ): (u'informatief', u''),
+                                     (u'g301721', ): (u'Nieuws/Actualiteiten', u''),
+                                     (u'g3017', u'g301721'): (u'Nieuws/Actualiteiten', u''),
+                                     (u'g301724', ): (u'kunst/cultuur', u''),
+                                     (u'g3017', u'g301724'): (u'informatief', u'kunst/cultuur'),
+                                     (u'g301725'): (u'natuur', u''),
+                                     (u'g3017', u'g301725', ): (u'natuur', u''),
+                                     (u'g301726', ): (u'religieus', u''),
+                                     (u'g3017', u'g301726' ): (u'religieus', u''),
+                                     (u'g301727', ): (u'informatief, wetenschap', u''),
+                                     (u'g3017', u'g301727',): (u'informatief, wetenschap', u''),
+                                     (u'g3018', ): (u'informatief', u'Documentaire')}
+        self.new_cattrans[7] = {}
+
+        # nieuwsblad.be genre translation table
+        self.source_cattrans[8] ={}
+        self.new_cattrans[8] = {}
+
+        # primo.eu genre translation table
+        self.source_cattrans[9] ={u'actua': (u'nieuws/actualiteiten', u'actua'),
+                                     u'amusement': (u'amusement', u''),
+                                     u'documentaire': (u'documentaire', u''),
+                                     u'film': (u'film', u''),
+                                     u'kortfilm': (u'film', u''),
+                                     u'magazine': (u'magazine', u''),
+                                     u'muziek': (u'muziek', u''),
+                                     u'nieuws': (u'nieuws/actualiteiten', u'nieuws'),
+                                     u'reality-tv': (u'amusement', u'realityprogramma'),
+                                     u'religie': (u'religieus', u''),
+                                     u'reportage': (u'nieuws/actualiteiten', u'reportage'),
+                                     u'serie': (u'serie/soap', u''),
+                                     u'spel': (u'amusement', u'spelshow'),
+                                     u'sport': (u'sport', u''),
+                                     u'talkshow': (u'amusement', u'talkshow'),
+                                     u'varia': (u'informatief', u'varia'),
+                                     u'zwart/wit film': (u'film', u''),
+                                     (u'serie', u'actiereeks'): (u'serie/soap', u'actieserie'),
+                                     (u'serie', u'advocatenreeks'): (u'serie/soap', u'advocatenserie'),
+                                     (u'serie', u'avonturenreeks'): (u'serie/soap', u'avonturenserie'),
+                                     (u'serie', u'detectivereeks'): (u'serie/soap', u'detectiveserie'),
+                                     (u'serie', u'dramareeks'): (u'serie/soap', u'dramaserie'),
+                                     (u'serie', u'fictiereeks'): (u'serie/soap', u'fictieserie'),
+                                     (u'serie', u'jeugdreeks'): (u'jeugd', u'serie'),
+                                     (u'serie', u'komische reeks'): (u'serie/soap', u'comedyserie'),
+                                     (u'serie', u'minireeks'): (u'serie/soap', u'miniserie'),
+                                     (u'serie', u'misdaadreeks'): (u'serie/soap', u'misdaadserie'),
+                                     (u'serie', u'romantische reeks'): (u'serie/soap', u'romantische serie'),
+                                     (u'serie', u'soapreeks'): (u'serie/soap', u'soap'),
+                                     (u'serie', u'thrillerreeks'): (u'serie/soap', u'thrillerserie'),
+                                     (u'serie', u'tragikomische reeks'): (u'serie/soap', u'tragikomische serie'),
+                                     (u'serie', u'ziekenhuisreeks'): (u'serie/soap', u'ziekenhuisserie')}
+        self.new_cattrans[9] = {}
+
+        #vrt.be genre translation table
+        self.source_cattrans[10] ={(u'1',): (u'film', u''),
+                                                (u'2',): (u'nieuws/actualiteiten', u''),
+                                                (u'3',): (u'amusement', u''),
+                                                (u'3', u'1'): (u'amusement', u'spelshow'),
+                                                (u'4',): (u'sport', u''),
+                                                (u'5',): (u'jeugd', u''),
+                                                (u'6',): (u'muziek', u''),
+                                                (u'7',): (u'kunst en cultuur', u''),
+                                                (u'7', u'3'): (u'religieus', u''),
+                                                (u'8',): (u'documentaire', u''),
+                                                (u'8', u'2'): (u'informatief', u'economie'),
+                                                (u'9',): (u'informatief', u''),
+                                                (u'10',): (u'informatief', u''),
+                                                (u'13', ): (u'serie/soap', u''),
+                                                (u'13', u'1'): (u'serie/soap', u''),
+                                                (u'13', u'2'): (u'serie/soap', u'detectiveserie'),
+                                                (u'13', u'3'): (u'serie/soap', u'actieserie'),
+                                                (u'13', u'4'): (u'serie/soap', u'sciencefictionserie'),
+                                                (u'13', u'5'): (u'serie/soap', u'komedieserie'),
+                                                (u'13', u'6'): (u'serie/soap', u'soap'),
+                                                (u'13', u'8'): (u'serie/soap', u'animatieserie'),
+                                                (u'14',): (u'informatief', u''),
+                                                (u'14', u'1'): (u'informatief', u'realityprogramma'),
+                                                (u'14', u'3'): (u'informatief', u'docusoap')}
+        self.new_cattrans[10] = {}
+
+        # The following two list get replaced by their sourcematching counterparts
+        # Program group names to exclude from a primesource if the counterpart contains details
+        self.groupslot_names = ("ochtend- en dagprogramma's", "ochtend - en dagprogramma's",
+                                                "nachtprogramma's", "nachtprogrammering", "kinderprogramma's",
+                                                "kinder-tv", "kindertijd", "pause", "geen programmagegevens beschikbaar.")
+
+        self.combined_channels = {u'5-24443943013': [u'0-300'],
+                                                     u'5-24443943080': [u'0-301', u'1-cbeebies'],
+                                                     u'1-veronica': [u'0-34', u'0-311'],
+                                                     u'1-ketnet-canvas-2': [u'8-ketnet', u'8-eenplus']}
+
+        #Channel group names as used in tvgids.tv
+        self.group_names = {1: 'Nederlandse kanalen',
+                                          2: 'Vlaamse kanalen',
+                                          3: 'Engelse kanalen',
+                                          4: 'Duitse kanalen',
+                                          5: 'Franse kanalen',
+                                          6: 'Nederlands Regionaal',
+                                          7: 'Overige Nederlands kanalen',
+                                          8: 'Vlaams Regionaal',
+                                          9: 'Overige Vlaamse kanalen ',
+                                         10: 'Internationale kanalen',
+                                         11: 'Nederlandse Radio',
+                                         12: 'Vlaamse Radio',
+                                         13: 'Overige Radio',
+                                         99: 'Overig kanalen',
+                                         -1: 'Alleen geselecteerde kanalen'}
+
+        self.group_order = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,99]
+
         self.opt_dict['home_dir'] = ''
         if 'HOME' in os.environ:
             self.opt_dict['home_dir'] = os.environ['HOME']
@@ -271,7 +656,7 @@ class Configure:
         self.threads = []
         self.queues = {}
         self.logging = tv_grab_IO.Logging(self)
-        self.IO_func = tv_grab_IO.Functions(self)
+        self.IO_func = tv_grab_IO.Functions(self.logging)
         self.fetch_func = tv_grab_fetch.Functions(self)
         self.xml_output = tv_grab_output.XMLoutput(self)
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl',
@@ -355,6 +740,7 @@ class Configure:
 
     def validate_commandline(self):
         """Read the commandline and validate the values"""
+        self.init_sources()
         if self.read_commandline() == 0:
              return(0)
 
@@ -405,7 +791,6 @@ class Configure:
         if self.args.ttvdb_title != None :
             return self.validate_option('check_ttvdb_title')
 
-        self.init_sources()
         # Check a possible output file
         if self.args.output_file != None:
             self.opt_dict['output_file'] = self.args.output_file
@@ -638,7 +1023,7 @@ class Configure:
             if channel.group in self.prime_source_groups and channel.get_source_id(self.prime_source_groups[channel.group]) != '' \
                 and not (self.prime_source_groups[channel.group] in self.opt_dict['disable_source'] \
                 or self.prime_source_groups[channel.group] in channel.opt_dict['disable_source'] \
-                or channel.get_source_id(self.prime_source_groups[channel.group]) in config.no_genric_matching[self.prime_source_groups[channel.group]]):
+                or channel.get_source_id(self.prime_source_groups[channel.group]) in self.no_genric_matching[self.prime_source_groups[channel.group]]):
                     # A group default in sourcematching.json
                     def_value = self.prime_source_groups[channel.group]
 
@@ -646,7 +1031,7 @@ class Configure:
                 for s in self.prime_source_order:
                     if channel.get_source_id(s) != '' \
                         and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source'] \
-                        or channel.get_source_id(s) in config.no_genric_matching[s]):
+                        or channel.get_source_id(s) in self.no_genric_matching[s]):
                             # The first available not set in no_genric_matching
                             def_value = s
                             break
@@ -679,7 +1064,7 @@ class Configure:
 
             if self.opt_dict['always_use_json']:
                 for v in (json_value, custom_value):
-                    if v != None and not channel.get_source_id(v) in config.no_genric_matching[v]:
+                    if v != None and not channel.get_source_id(v) in self.no_genric_matching[v]:
                         value = v
                         break
 
@@ -688,7 +1073,7 @@ class Configure:
 
             else:
                 for v in (custom_value, json_value):
-                    if v != None and not channel.get_source_id(v) in config.no_genric_matching[v]:
+                    if v != None and not channel.get_source_id(v) in self.no_genric_matching[v]:
                         value = v
                         break
 
@@ -731,8 +1116,8 @@ class Configure:
 
             self.opt_dict['days'] = min(self.opt_dict['days'],(14 - self.opt_dict['offset']))
 
-            if self.opt_dict['slowdays'] == None or self.opt_dict['slowdays'] > config.opt_dict['days']:
-                self.opt_dict['slowdays'] = config.opt_dict['days']
+            if self.opt_dict['slowdays'] == None or self.opt_dict['slowdays'] > self.opt_dict['days']:
+                self.opt_dict['slowdays'] = self.opt_dict['days']
 
         elif option == 'output_file':
             if self.opt_dict['output_file'] != None:
@@ -1066,17 +1451,17 @@ class Configure:
     def read_config(self):
         """Read the configurationfile Return False on failure."""
         self.config_dict = {1:[], 2:[], 3:[], 9:{}}
-        f = IO_func.open_file(self.opt_dict['config_file'])
+        f = self.IO_func.open_file(self.opt_dict['config_file'])
         if f == None:
             if not self.args.configure:
                 self.log('Re-run me with the --configure flag.\n')
             return False
 
-        if not IO_func.check_encoding(f, None, True):
+        if not self.IO_func.check_encoding(f, None, True):
             return False
 
-        self.encoding = IO_func.encoding
-        self.configversion = IO_func.configversion
+        self.encoding = self.IO_func.encoding
+        self.configversion = self.IO_func.configversion
         if self.configversion == 1.0:
             type = 2
             section = self.__CONFIG_SECTIONS__[2]
@@ -1094,7 +1479,7 @@ class Configure:
         f.seek(0,0)
         for byteline in f.readlines():
             try:
-                line = IO_func.get_line(f, byteline, None, self.encoding)
+                line = self.IO_func.get_line(f, byteline, None, self.encoding)
                 if not line:
                     continue
 
@@ -1224,7 +1609,7 @@ class Configure:
             for line in self.config_dict[2]:
                 try:
                     channel = line.split(None, 1) # split on first whitespace
-                    self.channels[unicode(channel[0]).strip()] = Channel_Config(self, unicode(channel[0]).strip(), unicode(channel[1]).strip())
+                    self.channels[unicode(channel[0]).strip()] = tv_grab_output.Channel_Config(self, unicode(channel[0]).strip(), unicode(channel[1]).strip())
                     self.channels[unicode(channel[0]).strip()].active = True
                     channel_names[unicode(channel[1]).strip().lower()] = unicode(channel[0]).strip()
 
@@ -1278,7 +1663,7 @@ class Configure:
 
                         chanid = u'%s-%s' % (index, old_chanid)
                         old_chanids[old_chanid] = chanid
-                        self.channels[chanid] = Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
+                        self.channels[chanid] = tv_grab_output.Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
                         for index in range(4):
                             self.channels[chanid].source_id[index] = unicode(channel[index + 2]).strip()
 
@@ -1294,7 +1679,7 @@ class Configure:
 
                         chanid = unicode(channel[2])
                         channel_names[unicode(channel[0]).strip().lower()] = chanid
-                        self.channels[chanid] = Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
+                        self.channels[chanid] = tv_grab_output.Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
                         for index in range(min(self.source_count,len(channel) - 5)):
                             self.channels[chanid].source_id[index] = unicode(channel[index + 3]).strip()
 
@@ -1417,19 +1802,19 @@ class Configure:
         """
         Get the genre conversion table, the title split exception list and others
         """
-        f = IO_func.open_file(self.opt_dict['settings_file'])
+        f = self.IO_func.open_file(self.opt_dict['settings_file'])
         if f == None:
             return False
 
-        if not IO_func.check_encoding(f):
+        if not self.IO_func.check_encoding(f):
             return False
 
-        self.encoding = IO_func.encoding
+        self.encoding = self.IO_func.encoding
         f.seek(0,0)
         type = 0
         for byteline in f.readlines():
             try:
-                line = IO_func.get_line(f, byteline, False, self.encoding)
+                line = self.IO_func.get_line(f, byteline, False, self.encoding)
                 if not line:
                     continue
 
@@ -1914,7 +2299,7 @@ class Configure:
                     if (chan_scid in self.empty_channels[index]):
                         continue
 
-                    self.channels[chanid] = Channel_Config(self, chanid, chan['name'] )
+                    self.channels[chanid] = tv_grab_output.Channel_Config(self, chanid, chan['name'] )
 
                 self.channels[chanid].source_id[index] = chan_scid
                 # Set the group
@@ -2048,8 +2433,8 @@ class Configure:
                 log_array.append(u'  xmltvID_alias = %s\n' % (chan_def.opt_dict['xmltvid_alias']))
 
             src_id = chan_def.opt_dict['prime_source']
-            #~ log_array.append(u'  prime_source = %s (%s)\n' % (src_id, self.channelsource[src_id].source))
-            log_array.append(u'  prime_source = %s \n' % (src_id))
+            log_array.append(u'  prime_source = %s (%s)\n' % (src_id, self.channelsource[src_id].source))
+            #~ log_array.append(u'  prime_source = %s \n' % (src_id))
             if not self.opt_dict['always_use_json'] and chan_def.chanid in self.prime_source and self.prime_source[chan_def.chanid] != src_id:
                 log_array.append(u'  prime_source setting: %s (%s) in sourcematching.json not used\n' % \
                     (self.prime_source[chan_def.chanid], self.channelsource[self.prime_source[chan_def.chanid]].source))
@@ -2100,8 +2485,8 @@ class Configure:
         If add_channels is None we convert the channel info to the new form, called on version update
         if add_channels is True we create a fresh channels section                , called on configure
         """
-        IO_func.save_oldfile(self.opt_dict['config_file'])
-        f = IO_func.open_file(self.opt_dict['config_file'], 'w')
+        self.IO_func.save_oldfile(self.opt_dict['config_file'])
+        f = self.IO_func.open_file(self.opt_dict['config_file'], 'w')
         if f == None:
             return False
 
@@ -2291,18 +2676,18 @@ class Configure:
 
         # just copy over the channels section
         if add_channels == False and self.configversion == float('%s.%s' % (self.major, self.minor)):
-            fo = IO_func.open_file(self.opt_dict['config_file'] + '.old')
-            if fo == None or not IO_func.check_encoding(fo):
+            fo = self.IO_func.open_file(self.opt_dict['config_file'] + '.old')
+            if fo == None or not self.IO_func.check_encoding(fo):
                 # We cannot read the old config, so we create a new one
                 self.log('Error Opening the old config. Creating a new one.\n')
                 add_channels = True
 
             else:
-                self.encoding = IO_func.encoding
+                self.encoding = self.IO_func.encoding
                 fo.seek(0,0)
                 type = 0
                 for byteline in fo.readlines():
-                    line = IO_func.get_line(fo, byteline, None)
+                    line = self.IO_func.get_line(fo, byteline, None)
                     try:
                         if  line == False:
                             continue
@@ -2344,16 +2729,16 @@ class Configure:
             configlines['3'] = []
             configlines['9'] = {}
             # Get the old channels section to convert
-            fo = IO_func.open_file(self.opt_dict['config_file'] + '.old')
-            if fo == None or not IO_func.check_encoding(fo, None, True):
+            fo = self.IO_func.open_file(self.opt_dict['config_file'] + '.old')
+            if fo == None or not self.IO_func.check_encoding(fo, None, True):
                 # We cannot read the old config, so we create a new one
                 self.log('Error Opening the old config. Creating a new one.\n')
                 self.get_channels()
                 add_channels = True
 
             else:
-                self.encoding = IO_func.encoding
-                self.configversion = IO_func.configversion
+                self.encoding = self.IO_func.encoding
+                self.configversion = self.IO_func.configversion
                 fo.seek(0,0)
                 if self.configversion == 1.0:
                     type = 2
@@ -2363,7 +2748,7 @@ class Configure:
 
                 # Read the old configuration
                 for byteline in fo.readlines():
-                    line = IO_func.get_line(fo, byteline, None, self.encoding)
+                    line = self.IO_func.get_line(fo, byteline, None, self.encoding)
                     try:
                         if line == '# encoding: utf-8' or line[0:17] == '# configversion: ' or line == False or line == '':
                             continue
@@ -2529,8 +2914,8 @@ class Configure:
             if g == 0 and not self.opt_dict['group_active_channels']:
                 continue
 
-            f.write('\n')
-            f.write('# %s\n' % self.chan_groups[g])
+            f.write(u'\n')
+            f.write(u'# %s\n' % self.chan_groups[g])
             chan_list[unicode(g)].sort(key=lambda channel: (channel['chan_string']))
             chan_list[unicode(g)].sort(key=lambda channel: (channel['active']), reverse=True)
             for channel in chan_list[unicode(g)]:
@@ -2538,8 +2923,8 @@ class Configure:
                     f.write(channel['chan_string'])
 
         if len(chan_not_updated) > 0:
-            f.write('\n')
-            f.write('# Following are not converted lines!\n')
+            f.write(u'\n')
+            f.write(u'# Following are not converted lines!\n')
             for line in chan_not_updated:
                 f.write(line)
 
@@ -2668,8 +3053,8 @@ class Configure:
         """
         Save the genre conversion table, the title split exception list and othe translation tables
         """
-        IO_func.save_oldfile(self.opt_dict['settings_file'])
-        f = IO_func.open_file(self.opt_dict['settings_file'], 'w')
+        self.IO_func.save_oldfile(self.opt_dict['settings_file'])
+        f = self.IO_func.open_file(self.opt_dict['settings_file'], 'w')
         if f == None:
             return False
 
@@ -2682,10 +3067,10 @@ class Configure:
 
         l = []
         for i, t in self.roletrans.iteritems():
-            l.append(u'%s = %s' % (i,t))
+            l.append(u'%s = %s\n' % (i,t))
         l.sort()
         for string in l:
-            f.write(u'%s\n' % string)
+            f.write(string)
 
         f.write(u'\n')
         f.write(u'# This is a list of titles containing a \':\' not to split\n')
@@ -2720,10 +3105,10 @@ class Configure:
 
         l = []
         for i, t in self.titlerename.iteritems():
-            l.append(u'%s = %s' % (i,t))
+            l.append(u'%s = %s\n' % (i,t))
         l.sort()
         for string in l:
-            f.write(u'%s\n' % string)
+            f.write(string)
 
         f.write(u'\n')
         f.write(u'# These are the translation lists for npo.nl, horizon.tv, humo.be, vpro.nl,\n')
@@ -2745,21 +3130,21 @@ class Configure:
             gl = []
             for k, (v1, v2) in self.source_cattrans[index].iteritems():
                 if isinstance(k, (str, unicode)):
-                    gl1.append('%s = %s: %s' % (k, v1, v2))
+                    gl1.append(u'%s = %s: %s\n' % (k, v1, v2))
 
                 elif isinstance(k, (list, tuple)) and len(k) == 1:
-                    gl1.append('%s: = %s: %s' % (k[0], v1, v2))
+                    gl1.append(u'%s: = %s: %s\n' % (k[0], v1, v2))
 
                 elif isinstance(k, (list, tuple)) and len(k) == 2 and k[1] != '':
-                    gl.append('%s: %s = %s: %s' % (k[0], k[1], v1, v2))
+                    gl.append(u'%s: %s = %s: %s\n' % (k[0], k[1], v1, v2))
 
             gl1.sort()
             for string in gl1:
-                f.write(u'%s\n' % string)
+                f.write(string)
 
             gl.sort()
             for string in gl:
-                f.write(u'%s\n' % string)
+                f.write(string)
 
         f.write(u'\n')
         f.write(u'# This is the list of genres to add the tvgidstv genres as subgenre\n')
@@ -2783,11 +3168,11 @@ class Configure:
 
         # format for export
         for k, v in self.source_cattrans[1].iteritems():
-            gl.append('%s = %s' % (v, k))
+            gl.append(u'%s = %s\n' % (v, k))
         gl.sort()
 
         for string in gl:
-            f.write(u'%s\n' % string)
+            f.write(string)
 
         f.write(u'\n')
         f.write(u'# This is the \'Genre:Subgenre\' conversion table\n')
@@ -2822,21 +3207,21 @@ class Configure:
         # add missing maingenres for new subgenres
         for k1, k2 in self.cattrans:
             if k2 == '':
-                l1.append('%s: = %s' % (k1, self.cattrans[(k1,k2)]))
+                l1.append(u'%s: = %s\n' % (k1, self.cattrans[(k1,k2)]))
             else:
-                l2.append('%s: %s = %s' % (k1, k2, self.cattrans[(k1,k2)]))
+                l2.append(u'%s: %s = %s\n' % (k1, k2, self.cattrans[(k1,k2)]))
                 i = (k1, u'')
                 if not (i in self.cattrans):
-                    l1.append('%s:=' % k1)
+                    l1.append(u'%s:=\n' % k1)
         l1.sort()
         l2.sort()
 
         for string in l1:
-            f.write(u'%s\n' % string)
+            f.write(string)
 
         f.write(u'\n')
         for string in l2:
-            f.write(u'%s\n' % string)
+            f.write(string)
 
         f.close()
     # end write_defaults_list()

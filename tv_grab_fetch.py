@@ -1,6 +1,10 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
+# Python 3 compatibility
+from __future__ import unicode_literals
+# from __future__ import print_function
+
 import re, sys, traceback
 import time, datetime, random, difflib
 import requests
@@ -29,6 +33,7 @@ UTC  = timezones.UTCTimeZone()
 class Functions():
     """Some general Fetch functions"""
 
+    current_date = datetime.datetime.now(CET_CEST).toordinal()
     def __init__(self, config):
         # Version info as returned by the version function
         self.name ='tv_grab_fetch_py'
@@ -896,7 +901,6 @@ class FetchData(Thread):
 
     It runs as a separate thread for every source
     """
-    #~ current_date = datetime.date.today().toordinal()
     current_date = datetime.datetime.now(CET_CEST).toordinal()
 
     def __init__(self, config, proc_id, source, detail_id, detail_url = '', isjson = False, detail_check = '', detail_processor = False):
