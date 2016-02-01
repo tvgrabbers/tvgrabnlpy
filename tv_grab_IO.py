@@ -3,7 +3,7 @@
 
 import codecs, locale, re, os, sys, io, shutil
 import traceback, datetime, time, smtplib, sqlite3
-import timezones
+import timezones, pytz
 from threading import Thread, Lock
 from Queue import Queue, Empty
 from email.mime.text import MIMEText
@@ -11,8 +11,12 @@ from copy import deepcopy
 
 CET_CEST = timezones.AmsterdamTimeZone()
 UTC  = timezones.UTCTimeZone()
+#~ CET_CEST = pytz.timezone('Europe/Amsterdam')
+#~ UTC  = pytz.utc
+#~ loc_dt = eastern.localize(datetime(2002, 10, 27, 6, 0, 0))
+#~ ams_dt = amsterdam.normalize(loc_dt.astimezone(amsterdam))
 
-class IO_functions():
+class Functions():
     """Some general IO functions"""
 
     def __init__(self, logging = None):
@@ -189,7 +193,7 @@ class IO_functions():
     # end check_encoding()
 
 
-# end IO_functions()
+# end Functions()
 
 class Logging(Thread):
     """
@@ -198,22 +202,20 @@ class Logging(Thread):
     So logging can start after the queue is opend when this class is called
     Before the fle to log to is known
     """
-    def __init__(self):
+    def __init__(self, config):
         Thread.__init__(self)
         # Version info as returned by the version function
         self.name ='tv_grab_IO_py'
         self.major = 1
         self.minor = 0
         self.patch = 0
-        self.patchdate = u'20160124'
+        self.patchdate = u'20160201'
         self.alfa = True
         self.beta = True
 
         self.quit = False
-        self.log_dict = {}
-        self.log_dict['log_level'] = 175
-        self.log_dict['quiet'] = False
-        self.log_dict['graphic_frontend'] = False
+        self.config = config
+        self.functions = Functions(self)
         self.log_queue = Queue()
         self.log_output = None
         self.log_string = []
@@ -248,30 +250,17 @@ class Logging(Thread):
 
     # end version()
 
-    def init_run(self, output = None, log_dict = {}, threads = [], files = None):
-        self.log_output = output
-        if isinstance(log_dict, dict):
-            for k, v in self.log_dict.items():
-                if not k in log_dict.keys():
-                    log_dict[k] = v
-
-            self.log_dict = log_dict
-
-        self.threads = threads
-        self.fatal_error = []
-        if isinstance(files, dict) and 'config' in files.keys() and 'log' in files.keys():
-            self.fatal_error = ['If you want assistence, please attach your configuration and log files!\n', \
-                '     %s\n' % (files['config']), '     %s\n' % (files['log'])]
-
-    # end init_run()
-
     def run(self):
+        self.log_output = self.config.log_output
+        self.fatal_error = ['If you want assistence, please attach your configuration and log files!\n', \
+                '     %s\n' % (self.config.opt_dict['config_file']), '     %s\n' % (self.config.opt_dict['log_file'])]
+
         while True:
             try:
                 if self.quit and self.log_queue.empty():
                     # We close down after mailing the log
-                    if self.log_dict['mail_log']:
-                        self.send_mail(self.log_string, self.log_dict['mail_log_address'])
+                    if self.config.opt_dict['mail_log']:
+                        self.send_mail(self.log_string, self.config.opt_dict['mail_log_address'])
 
                     return(0)
 
@@ -303,7 +292,7 @@ class Logging(Thread):
                         if isinstance(m, (str, unicode)):
                             self.writelog(m, 0)
 
-                    for t in self.threads:
+                    for t in self.config.threads:
                         if t.is_alive():
                             if t.thread_type in ('ttvdb', 'source'):
                                 t.detail_request.put({'task': 'quit'})
@@ -371,27 +360,27 @@ class Logging(Thread):
                 return
 
             # Log to the Frontend. To set-up later.
-            if self.log_dict['graphic_frontend']:
+            if self.config.opt_dict['graphic_frontend']:
                 pass
 
             # Log to the screen
-            elif log_level == 0 or ((not self.log_dict['quiet']) and (log_level & self.log_dict['log_level']) and (log_target & 1)):
+            elif log_level == 0 or ((not self.config.opt_dict['quiet']) and (log_level & self.config.opt_dict['log_level']) and (log_target & 1)):
                 sys.stderr.write(message.encode(self.local_encoding, 'replace'))
 
             # Log to the log-file
-            if (log_level == 0 or ((log_level & self.log_dict['log_level']) and (log_target & 2))) and self.log_output != None:
+            if (log_level == 0 or ((log_level & self.config.opt_dict['log_level']) and (log_target & 2))) and self.log_output != None:
                 if '\n' in message:
                     message = re.split('\n', message)
 
                     for i in range(len(message)):
                         if message[i] != '':
                             self.log_output.write(self.now() + message[i] + u'\n')
-                            if self.log_dict['mail_log']:
+                            if self.config.opt_dict['mail_log']:
                                 self.log_string.append(self.now() + message[i] + u'\n')
 
                 else:
                     self.log_output.write(self.now() + message + u'\n')
-                    if self.log_dict['mail_log']:
+                    if self.config.opt_dict['mail_log']:
                         self.log_string.append(self.now() + message + u'\n')
 
                 self.log_output.flush()
@@ -421,7 +410,7 @@ class Logging(Thread):
             msg['From'] = mail_address
             msg['To'] = mail_address
             try:
-                mail = smtplib.SMTP(self.log_dict['mailserver'], self.log_dict['mailport'])
+                mail = smtplib.SMTP(self.config.opt_dict['mailserver'], self.config.opt_dict['mailport'])
 
             except:
                 sys.stderr.write(('Error mailing message: %s\n' % sys.exc_info()[1]).encode(self.local_encoding, 'replace'))
@@ -430,7 +419,7 @@ class Logging(Thread):
             mail.sendmail(mail_address, mail_address, msg.as_string())
 
         except smtplib.SMTPRecipientsRefused:
-            sys.stderr.write(('The mailserver at %s refused the message\n' % self.log_dict['mailserver']).encode(self.local_encoding, 'replace'))
+            sys.stderr.write(('The mailserver at %s refused the message\n' % self.config.opt_dict['mailserver']).encode(self.local_encoding, 'replace'))
 
         except:
             sys.stderr.write('Error mailing message\n'.encode(self.local_encoding, 'replace'))
@@ -450,31 +439,27 @@ class ProgramCache(Thread):
     with the ID. New fetches will use the cached info instead of doing an
     (expensive) page fetch.
     """
-    def __init__(self, logging, app, sources, filename=None):
+    def __init__(self, config, filename=None):
         Thread.__init__(self)
         """
         Create a new ProgramCache object, optionally from file
         """
-        self.logging = logging
-        self.IO_func = IO_functions(logging)
-        self.app = app
-        self.opt_dict = self.app.opt_dict
-        self.channels = self.app.channels
-        self.sources = sources
+        self.config = config
+        self.functions = self.config.IO_func
         self.ID_list = {}
         self.url_list = {}
-        for key, s in self.sources.items():
+        for key, s in self.config.channelsource.items():
             self.ID_list[s.detail_id] = key
             self.url_list[s.detail_url] = key
 
-        self.app.fetch_func.checkout_program_dict()
+        self.config.fetch_func.checkout_program_dict()
         self.field_list = ['genre', 'kijkwijzer']
-        self.field_list.extend(self.app.fetch_func.text_values)
-        self.field_list.extend(self.app.fetch_func.date_values)
-        self.field_list.extend(self.app.fetch_func.datetime_values)
-        self.field_list.extend(self.app.fetch_func.bool_values)
-        self.field_list.extend(self.app.fetch_func.num_values)
-        self.field_list.extend(self.app.fetch_func.video_values)
+        self.field_list.extend(self.config.fetch_func.text_values)
+        self.field_list.extend(self.config.fetch_func.date_values)
+        self.field_list.extend(self.config.fetch_func.datetime_values)
+        self.field_list.extend(self.config.fetch_func.bool_values)
+        self.field_list.extend(self.config.fetch_func.num_values)
+        self.field_list.extend(self.config.fetch_func.video_values)
         sqlite3.register_adapter(list, self.adapt_kw)
         sqlite3.register_converter(str('kijkwijzer'), self.convert_kw)
         sqlite3.register_adapter(list, self.adapt_list)
@@ -491,6 +476,8 @@ class ProgramCache(Thread):
         self.quit = False
         self.thread_type = 'cache'
         self.cache_request = Queue()
+        self.config.threads.append(self)
+        self.config.queues['cache'] = self.cache_request
 
     def adapt_kw(self, val):
         ret_val = ''
@@ -677,13 +664,13 @@ class ProgramCache(Thread):
                     continue
 
         except:
-            self.logging.log_queue.put({'fatal': [traceback.print_exc(), '\n'], 'name': 'ProgramCache'})
+            self.config.queues['log'].put({'fatal': [traceback.print_exc(), '\n'], 'name': 'ProgramCache'})
             self.ready = True
             return(98)
 
     def open_db(self):
         if self.filename == None:
-            self.IO_func.log('Cache function disabled!\n')
+            self.functions.log('Cache function disabled!\n')
             return
 
         if os.path.isfile(self.filename) and \
@@ -703,7 +690,7 @@ class ProgramCache(Thread):
                 return
 
             except:
-                self.IO_func.log('The cache directory is not accesible. Cache function disabled!\n')
+                self.functions.log('The cache directory is not accesible. Cache function disabled!\n')
                 self.filename = None
                 return
 
@@ -713,7 +700,7 @@ class ProgramCache(Thread):
             # Trying to recover a backup cache file
             if not os.path.isfile(self.filename) or os.stat(self.filename +'.tmp').st_size > os.stat(self.filename).st_size:
                 try:
-                    self.IO_func.restore_oldfile(self.filename, 'tmp')
+                    self.functions.restore_oldfile(self.filename, 'tmp')
 
                 except:
                     pass
@@ -738,7 +725,7 @@ class ProgramCache(Thread):
                 self.pconn = sqlite3.connect(database=self.filename + '.db', isolation_level=None, detect_types=sqlite3.PARSE_DECLTYPES)
                 self.pconn.row_factory = sqlite3.Row
                 pcursor = self.pconn.cursor()
-                self.IO_func.log('Verifying the database\n')
+                self.functions.log('Verifying the database\n')
                 pcursor.execute("PRAGMA main.integrity_check")
                 if pcursor.fetchone()[0] == 'ok':
                     # Making a backup copy
@@ -753,12 +740,12 @@ class ProgramCache(Thread):
                     break
 
                 if try_loading == 0:
-                    self.IO_func.log(['Error loading the database: %s.db (possibly corrupt)\n' % self.filename, \
+                    self.functions.log(['Error loading the database: %s.db (possibly corrupt)\n' % self.filename, \
                         'Trying to load a backup copy', traceback.format_exc()])
 
             except:
                 if try_loading == 0:
-                    self.IO_func.log(['Error loading the database: %s.db (possibly corrupt)\n' % self.filename, \
+                    self.functions.log(['Error loading the database: %s.db (possibly corrupt)\n' % self.filename, \
                         'Trying to load a backup copy', traceback.format_exc()])
 
             try:
@@ -779,9 +766,9 @@ class ProgramCache(Thread):
                         os.remove(self.filename + '.db.bak')
 
             except:
-                self.IO_func.log(['Failed to load the database: %s\n' % self.filename, traceback.format_exc(), 'Disableing Cache function'])
+                self.functions.log(['Failed to load the database: %s\n' % self.filename, traceback.format_exc(), 'Disableing Cache function'])
                 self.filename = None
-                self.opt_dict['disable_ttvdb'] = True
+                self.config.opt_dict['disable_ttvdb'] = True
                 return
 
         try:
@@ -805,38 +792,38 @@ class ProgramCache(Thread):
 
                 self.check_indexes(t)
 
-            for a, t in self.app.ttvdb_aliasses.items():
+            for a, t in self.config.ttvdb_aliasses.items():
                 if not self.query_id('ttvdb_alias', {'title': t, 'alias': a}):
                     self.add('ttvdb_alias', {'title': t, 'alias': a})
 
         except:
-            self.IO_func.log(['Failed to load the database: %s\n' % self.filename, traceback.format_exc(), 'Disableing Cache function'])
+            self.functions.log(['Failed to load the database: %s\n' % self.filename, traceback.format_exc(), 'Disableing Cache function'])
             self.filename = None
-            self.opt_dict['disable_ttvdb'] = True
+            self.config.opt_dict['disable_ttvdb'] = True
 
     def create_table(self, table):
         if table == 'programs':
             create_string = u"CREATE TABLE IF NOT EXISTS %s ('pid' TEXT PRIMARY KEY ON CONFLICT REPLACE, 'genre' TEXT DEFAULT 'overige'" % table
-            for key in self.app.fetch_func.text_values:
+            for key in self.config.fetch_func.text_values:
                 create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, key)
 
-            for key in self.sources.keys():
-                create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, self.sources[key].detail_id.lower())
-                create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, self.sources[key].detail_url.lower())
+            for key in self.config.channelsource.keys():
+                create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, self.config.channelsource[key].detail_id.lower())
+                create_string = u"%s, '%s' TEXT DEFAULT ''" % (create_string, self.config.channelsource[key].detail_url.lower())
 
-            for key in self.app.fetch_func.date_values:
+            for key in self.config.fetch_func.date_values:
                 create_string = u"%s, '%s' date" % (create_string, key)
 
-            for key in self.app.fetch_func.datetime_values:
+            for key in self.config.fetch_func.datetime_values:
                 create_string = u"%s, '%s' datetime" % (create_string, key)
 
-            for key in self.app.fetch_func.bool_values:
+            for key in self.config.fetch_func.bool_values:
                 create_string = u"%s, '%s' boolean DEFAULT 'False'" % (create_string, key)
 
-            for key in self.app.fetch_func.num_values:
+            for key in self.config.fetch_func.num_values:
                 create_string = u"%s, '%s' INTEGER DEFAULT 0" % (create_string, key)
 
-            for key in self.app.fetch_func.video_values:
+            for key in self.config.fetch_func.video_values:
                 create_string = u"%s, '%s' boolean DEFAULT 'False'" % (create_string, key)
 
             create_string = u"%s, 'kijkwijzer' kijkwijzer DEFAULT '')" % create_string
@@ -918,7 +905,7 @@ class ProgramCache(Thread):
                 self.pconn.execute(create_string)
 
             except:
-                self.IO_func.log(['Error creating the %s table!\n' % table, traceback.format_exc()])
+                self.functions.log(['Error creating the %s table!\n' % table, traceback.format_exc()])
 
     def check_collumns(self, table, clist):
         def add_collumn(table, collumn):
@@ -927,7 +914,7 @@ class ProgramCache(Thread):
                     self.pconn.execute(u"ALTER TABLE %s ADD %s" % (table, collumn))
 
             except:
-                self.IO_func.log('Error updating the %s table with collumn "%s"!\n' % (table, collumn))
+                self.functions.log('Error updating the %s table with collumn "%s"!\n' % (table, collumn))
 
         def drop_table(table):
             with self.pconn:
@@ -945,34 +932,34 @@ class ProgramCache(Thread):
             if 'kijkwijzer' not in clist.keys():
                 add_collumn(table, u"'kijkwijzer' kijkwijzer DEFAULT ''")
 
-            for c in self.app.fetch_func.text_values:
+            for c in self.config.fetch_func.text_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' TEXT DEFAULT ''" % c)
 
-            for key in self.sources.keys():
-                if self.sources[key].detail_id.lower() not in clist.keys():
-                    add_collumn(table, u"'%s' TEXT DEFAULT ''" % self.sources[key].detail_id.lower())
+            for key in self.config.channelsource.keys():
+                if self.config.channelsource[key].detail_id.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' TEXT DEFAULT ''" % self.config.channelsource[key].detail_id.lower())
 
-                if self.sources[key].detail_url.lower() not in clist.keys():
-                    add_collumn(table, u"'%s' TEXT DEFAULT ''" % self.sources[key].detail_url.lower())
+                if self.config.channelsource[key].detail_url.lower() not in clist.keys():
+                    add_collumn(table, u"'%s' TEXT DEFAULT ''" % self.config.channelsource[key].detail_url.lower())
 
-            for c in self.app.fetch_func.date_values:
+            for c in self.config.fetch_func.date_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' date" % c)
 
-            for c in self.app.fetch_func.datetime_values:
+            for c in self.config.fetch_func.datetime_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' datetime" % c)
 
-            for c in self.app.fetch_func.bool_values:
+            for c in self.config.fetch_func.bool_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' boolean DEFAULT 'False'" % c)
 
-            for c in self.app.fetch_func.num_values:
+            for c in self.config.fetch_func.num_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' INTEGER DEFAULT 0" % c)
 
-            for c in self.app.fetch_func.video_values:
+            for c in self.config.fetch_func.video_values:
                 if c.lower() not in clist.keys():
                     add_collumn(table, u"'%s' boolean DEFAULT 'False'" % c)
 
@@ -1071,7 +1058,7 @@ class ProgramCache(Thread):
                     self.pconn.execute(u"CREATE INDEX IF NOT EXISTS '%s' ON %s %s" % (i, table, clist))
 
             except:
-                self.IO_func.log('Error updating the %s table with Index "%s"!\n' % (table, i))
+                self.functions.log('Error updating the %s table with Index "%s"!\n' % (table, i))
 
         pcursor = self.pconn.cursor()
         # (id, Name, Type, Nullable = 0, Default, Pri_key index)
@@ -1115,11 +1102,11 @@ class ProgramCache(Thread):
             pdict = pickle.load(open(self.filename,'r'))
 
         except:
-            self.IO_func.log(['Error loading old cache file: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
+            self.functions.log(['Error loading old cache file: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
             return
 
         dnow = datetime.date.today()
-        self.IO_func.log(['Converting the old pickle cache to sqlite.\n', 'This may take some time!\n'])
+        self.functions.log(['Converting the old pickle cache to sqlite.\n', 'This may take some time!\n'])
         pcount = 0
         for p in pdict.values():
             if 'stop-time'  in p and 'name'  in p and \
@@ -1130,7 +1117,7 @@ class ProgramCache(Thread):
                 self.add(p)
                 pcount += 1
 
-        self.IO_func.log('Added %s program records to the database.\n' % pcount)
+        self.functions.log('Added %s program records to the database.\n' % pcount)
 
     def query(self, table='pid', item=None):
         """
@@ -1143,12 +1130,12 @@ class ProgramCache(Thread):
             if r == None:
                 return
 
-            program = self.app.fetch_func.checkout_program_dict()
+            program = self.config.fetch_func.checkout_program_dict()
             for item in r.keys():
                 if item == 'pid':
                     continue
 
-                elif item in self.app.fetch_func.video_values:
+                elif item in self.config.fetch_func.video_values:
                     program['video'][item] = r[item]
 
                 elif item in self.ID_list.keys():
@@ -1167,7 +1154,7 @@ class ProgramCache(Thread):
 
                 program['credits'][r[str('title')]].append(r[str('name')])
 
-            program = self.app.fetch_func.checkout_program_dict(program)
+            program = self.config.fetch_func.checkout_program_dict(program)
             return program
 
         elif table == 'ttvdb':
@@ -1329,7 +1316,7 @@ class ProgramCache(Thread):
         pcursor = self.pconn.cursor()
         if table == 'program':
             ID_list = [item['ID']]
-            for key in self.sources.keys():
+            for key in self.config.channelsource.keys():
                 if item['prog_ID'][key] != '' and item['prog_ID'][key] != None:
                     ID_list.append(item['prog_ID'][key])
 
@@ -1407,13 +1394,13 @@ class ProgramCache(Thread):
                 id = item['ID']
 
             else:
-                for key in self.sources.keys():
+                for key in self.config.channelsource.keys():
                     if item['prog_ID'][key] != '' and item['prog_ID'][key] != None:
                         id = item['prog_ID'][key]
                         break
 
                 else:
-                    self.IO_func.log('Error saving program %s to the cache.\n' %  item['name'])
+                    self.functions.log('Error saving program %s to the cache.\n' %  item['name'])
                     return
 
             sql_flds = u"INSERT INTO programs ('pid'"
@@ -1431,12 +1418,12 @@ class ProgramCache(Thread):
                 sql_vals.append(v)
 
             for f, v in item['prog_ID'].items():
-                sql_flds = u"%s, '%s'" % (sql_flds, self.sources[f].detail_id)
+                sql_flds = u"%s, '%s'" % (sql_flds, self.config.channelsource[f].detail_id)
                 sql_cnt = u"%s, ?" % (sql_cnt)
                 sql_vals.append(v)
 
             for f, v in item['detail_url'].items():
-                sql_flds = u"%s, '%s'" % (sql_flds, self.sources[f].detail_url)
+                sql_flds = u"%s, '%s'" % (sql_flds, self.config.channelsource[f].detail_url)
                 sql_cnt = u"%s, ?" % (sql_cnt)
                 sql_vals.append(v)
 
@@ -1606,13 +1593,11 @@ class ProgramCache(Thread):
 
 class InfoFiles:
     """used for gathering extra info to better the code"""
-    def __init__(self, logging, opt_dict, xmltv_dir, write_info_files = True):
+    def __init__(self, config, write_info_files = True):
 
-        self.logging = logging
-        self.IO_func = IO_functions(logging)
-        self.opt_dict = opt_dict
+        self.config = config
+        self.functions = self.config.IO_func
         self.write_info_files = write_info_files
-        self.xmltv_dir = xmltv_dir
         self.info_lock = Lock()
         self.cache_return = Queue()
         self.detail_list = []
@@ -1622,8 +1607,8 @@ class InfoFiles:
         self.lineup_changes = []
         self.url_failure = []
         if self.write_info_files:
-            self.fetch_list = self.IO_func.open_file(self.xmltv_dir + '/fetched-programs','w')
-            self.raw_output =  self.IO_func.open_file(self.xmltv_dir+'/raw_output', 'w')
+            self.fetch_list = self.functions.open_file(self.config.opt_dict['xmltv_dir'] + '/fetched-programs','w')
+            self.raw_output =  self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/raw_output', 'w')
 
     def check_new_channels(self, source, source_channels, empty_channels):
         if not self.write_info_files:
@@ -1738,7 +1723,7 @@ class InfoFiles:
     def write_xmloutput(self, xml):
 
         if self.write_info_files:
-            xml_output =self.IO_func.open_file(self.xmltv_dir+'/xml_output', 'w')
+            xml_output =self.functions.open_file(self.opt.dict['xmltv_dir']+'/xml_output', 'w')
             if xml_output == None:
                 return
 
@@ -1749,14 +1734,14 @@ class InfoFiles:
         if not self.write_info_files:
             return
 
-        if self.opt_dict['mail_info_address'] == None:
-            self.opt_dict['mail_info_address'] = self.opt_dict['mail_log_address']
+        if self.config.opt_dict['mail_info_address'] == None:
+            self.config.opt_dict['mail_info_address'] = self.config.opt_dict['mail_log_address']
 
-        if self.opt_dict['mail_log'] and len(self.lineup_changes) > 0:
-            self.logging.send_mail(self.lineup_changes, self.opt_dict['mail_info_address'], 'Tv_grab_nl_py lineup changes')
+        if self.config.opt_dict['mail_log'] and len(self.lineup_changes) > 0:
+            self.config.logging.send_mail(self.lineup_changes, self.config.opt_dict['mail_info_address'], 'Tv_grab_nl_py lineup changes')
 
-        if self.opt_dict['mail_log'] and len(self.url_failure) > 0:
-            self.logging.send_mail(self.url_failure, self.opt_dict['mail_info_address'], 'Tv_grab_nl_py url failures')
+        if self.config.opt_dict['mail_log'] and len(self.url_failure) > 0:
+            self.config.logging.send_mail(self.url_failure, self.config.opt_dict['mail_info_address'], 'Tv_grab_nl_py url failures')
 
         if self.fetch_list != None:
             for chanid in channels.keys():
@@ -1777,17 +1762,17 @@ class InfoFiles:
             self.raw_output.close()
 
         if len(self.detail_list) > 0:
-            f = self.IO_func.open_file(self.xmltv_dir+'/detail_output')
+            f = self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/detail_output')
             if (f != None):
                 f.seek(0,0)
                 for byteline in f.readlines():
-                    line = self.IO_func.get_line(f, byteline, False)
+                    line = self.functions.get_line(f, byteline, False)
                     if line:
                         self.detail_list.append(line)
 
                 f.close()
 
-            f = self.IO_func.open_file(self.xmltv_dir+'/detail_output', 'w')
+            f = self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/detail_output', 'w')
             if (f != None):
                 ds = set(self.detail_list)
                 ds = set(self.detail_list)
