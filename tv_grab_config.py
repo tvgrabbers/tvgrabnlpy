@@ -146,6 +146,13 @@ class Configure:
         self.patchdate = u'20160201'
         self.alfa = True
         self.beta = True
+        self.api_name ='tv_grab_API'
+        self.api_major = 1
+        self.api_minor = 0
+        self.api_patch = 0
+        self.api_patchdate = u'20160201'
+        self.api_alfa = True
+        self.api_beta = True
         #~ self.cache_return = Queue()
         self.opt_dict = {}
         self.user_agents = [ 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
@@ -663,7 +670,7 @@ class Configure:
                                   5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be', 9:'primo.eu',
                                   10: 'vrt.be', 11: 'virtual', 12: 'oorboekje.nl'}
         self.source_order = [7, 0, 1, 5, 9, 6, 8, 2, 4, 10, 11, 12]
-        self.sourceid_order = [0, 9, 1, 2, 4, 7, 5, 6, 7, 8, 10, 11, 12]
+        self.sourceid_order = [0, 9, 1, 2, 4, 7, 5, 6, 8, 10, 11, 12]
         self.source_count = len(self.sources)
         self.detail_sources = (0, 9, 1)
         self.prime_source_order = (2, 4, 7, 0, 5, 1, 9, 6, 8, 10, 11, 12)
@@ -697,21 +704,35 @@ class Configure:
 
     # end Init()
 
-    def version(self, as_string = False):
+    def version(self, as_string = False, API = False):
         """
         return tuple or string with version info
         """
-        if as_string and self.alfa:
-            return u'%s (Version: %s.%s.%s-p%s-alpha)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
+        if API:
+            if as_string and self.alfa:
+                return u'%s (Version: %s.%s.%s-p%s-alpha)' % (self.api_name, self.api_major, self.api_minor, '{:0>2}'.format(self.api_patch), self.api_patchdate)
 
-        if as_string and self.beta:
-            return u'%s (Version: %s.%s.%s-p%s-beta)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
+            if as_string and self.api_beta:
+                return u'%s (Version: %s.%s.%s-p%s-beta)' % (self.api_name, self.api_major, self.api_minor, '{:0>2}'.format(self.api_patch), self.api_patchdate)
 
-        if as_string and not self.beta:
-            return u'%s (Version: %s.%s.%s-p%s)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
+            if as_string and not self.api_beta:
+                return u'%s (Version: %s.%s.%s-p%s)' % (self.api_name, self.api_major, self.api_minor, '{:0>2}'.format(self.api_patch), self.api_patchdate)
+
+            else:
+                return (self.api_name, self.api_major, self.api_minor, self.api_patch, self.api_patchdate, self.api_beta)
 
         else:
-            return (self.name, self.major, self.minor, self.patch, self.patchdate, self.beta)
+            if as_string and self.alfa:
+                return u'%s (Version: %s.%s.%s-p%s-alpha)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
+
+            if as_string and self.beta:
+                return u'%s (Version: %s.%s.%s-p%s-beta)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
+
+            if as_string and not self.beta:
+                return u'%s (Version: %s.%s.%s-p%s)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
+
+            else:
+                return (self.name, self.major, self.minor, self.patch, self.patchdate, self.beta)
 
     # end version()
 
@@ -835,7 +856,7 @@ class Configure:
         for chanid in self.channels.keys():
             self.channels[chanid].validate_settings()
 
-        if not self.args.configure and self.configversion < float('%s.%s' % (self.major, self.minor)):
+        if not self.args.configure and self.configversion < float('%s.%s' % (self.api_major+2, self.api_minor)):
             # Update to the current version config
             if self.configversion == 1.0:
                 self.write_defaults_list()
@@ -885,17 +906,18 @@ class Configure:
             return
 
         if option == 'version':
-            print("The Netherlands: %s" % self.version(True))
+            print("%s: %s" % (self.country, self.version(True)))
+            print("The Netherlands: %s" % self.version(True, True))
             return(0)
 
         elif option == 'description':
             if stdoutput:
                 v=self.version()
                 if v[5]:
-                    print("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s-beta" % (v[1], v[2], v[3]))
+                    print("%s v%s.%s.%s-beta" % (self.description, v[1], v[2], v[3]))
 
                 else:
-                    print("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s" % (v[1], v[2], v[3]))
+                    print("%s v%s.%s.%s" % (self.description, v[1], v[2], v[3]))
 
             else:
                 v=self.version()
@@ -1285,12 +1307,12 @@ class Configure:
 
     def read_commandline(self):
         """Initiate argparser and read the commandline"""
-        self.description = u'The Netherlands: %s\n' % self.version(True) + \
-                        u'  A grabber that grabs tvguide data from tvgids.nl, tvgids.tv, rtl.nl,\n' + \
-                        u'  teveblad.be, npo.nl and horizon.tv for up to 230+ channels and up to 14 days.\n' + \
-                        u'  Which it then stores in XMLTV-compatible format.'
+        description = u"%s: %s\n" % (self.country, self.version(True)) + \
+                        u"The Netherlands: %s\n" % self.version(True, True) + \
+                        u'  A grabber that grabs tvguide data from multiple sources,\n' + \
+                        u'  combining the data into one XMLTV campatible listing.'
 
-        parser = argparse.ArgumentParser(description = self.description, formatter_class=argparse.RawTextHelpFormatter)
+        parser = argparse.ArgumentParser(description = description, formatter_class=argparse.RawTextHelpFormatter)
 
         parser.add_argument('-V', '--version', action = 'store_true', default = False, dest = 'version',
                         help = u'display version')
@@ -1701,93 +1723,93 @@ class Configure:
                 except:
                     self.log(['Invalid line in Channels section of config file %s:\n' % (self.opt_dict['config_file']),'%r\n' % (line), traceback.print_exc()])
 
-        # Read the channel specific configuration
-        for section, values in self.config_dict[9].items():
-            if self.configversion == 2.1 or test_as_21:
-                if section in old_chanids.keys():
-                    chanid = old_chanids[section]
+            # Read the channel specific configuration
+            for section, values in self.config_dict[9].items():
+                if self.configversion == 2.1 or test_as_21:
+                    if section in old_chanids.keys():
+                        chanid = old_chanids[section]
+
+                    else:
+                        continue
+
+                # is the name in the sectionheader a known chanid?
+                elif section in self.channels.keys():
+                    chanid = section
+
+                # or a known channelname
+                elif section in channel_names.keys():
+                    chanid = channel_names[section]
 
                 else:
+                    # unknown chanid or channelname
+                    self.log('Channel section "%s" ignored. Unknown channel\n' % section)
                     continue
 
-            # is the name in the sectionheader a known chanid?
-            elif section in self.channels.keys():
-                chanid = section
+                for line in values:
+                    try:
+                        # Strip the name from the value
+                        a = re.split('=',line)
+                        cfg_option = a[0].lower().strip()
+                        # Boolean Values
+                        if cfg_option in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', \
+                          'append_tvgidstv', 'disable_ttvdb', 'use_split_episodes', 'legacy_xmltvids'):
+                            if len(a) == 1:
+                                self.channels[chanid].opt_dict[cfg_option] = True
 
-            # or a known channelname
-            elif section in channel_names.keys():
-                chanid = channel_names[section]
-
-            else:
-                # unknown chanid or channelname
-                self.log('Channel section "%s" ignored. Unknown channel\n' % section)
-                continue
-
-            for line in values:
-                try:
-                    # Strip the name from the value
-                    a = re.split('=',line)
-                    cfg_option = a[0].lower().strip()
-                    # Boolean Values
-                    if cfg_option in ('fast', 'compat', 'logos', 'cattrans', 'mark_hd', 'add_hd_id', \
-                      'append_tvgidstv', 'disable_ttvdb', 'use_split_episodes', 'legacy_xmltvids'):
-                        if len(a) == 1:
-                            self.channels[chanid].opt_dict[cfg_option] = True
-
-                        elif a[1].lower().strip() in ('true', '1' , 'on'):
-                            self.channels[chanid].opt_dict[cfg_option] = True
-
-                        else:
-                            self.channels[chanid].opt_dict[cfg_option] = False
-
-                    elif len(a) == 2:
-                        cfg_value = a[1].lower().strip()
-                        if cfg_option == 'use_npo':
-                            if cfg_value in ('false', '0' , 'off'):
-                                self.validate_option('disable_source', self.channels[chanid], 4)
-
-                        # String values
-                        elif cfg_option in ('xmltvid_alias', ):
-                            self.channels[chanid].opt_dict[cfg_option] = cfg_value.strip()
-
-                        # Select Values
-                        elif cfg_option == 'overlap_strategy':
-                            if cfg_value in ('average', 'stop', 'start'):
-                                self.channels[chanid].opt_dict[cfg_option] = cfg_value
+                            elif a[1].lower().strip() in ('true', '1' , 'on'):
+                                self.channels[chanid].opt_dict[cfg_option] = True
 
                             else:
-                                self.channels[chanid].opt_dict[cfg_option] = 'none'
+                                self.channels[chanid].opt_dict[cfg_option] = False
 
-                        # Integer Values
-                        elif cfg_option in ('slowdays', 'max_overlap', 'desc_length'):
-                            try:
-                                cfg_value = int(cfg_value)
+                        elif len(a) == 2:
+                            cfg_value = a[1].lower().strip()
+                            if cfg_option == 'use_npo':
+                                if cfg_value in ('false', '0' , 'off'):
+                                    self.validate_option('disable_source', self.channels[chanid], 4)
 
-                            except ValueError:
-                                if (cfg_option == 'slowdays') and (cfg_value == 'none'):
-                                    self.channels[chanid].opt_dict[cfg_option] = None
+                            # String values
+                            elif cfg_option in ('xmltvid_alias', ):
+                                self.channels[chanid].opt_dict[cfg_option] = cfg_value.strip()
 
-                            else:
-                                self.channels[chanid].opt_dict[cfg_option] = cfg_value
-
-                        # Source Values
-                        elif cfg_option in ('prime_source', 'prefered_description', 'disable_source', 'disable_detail_source'):
-                            try:
-                                cfg_value = int(cfg_value)
-
-                            except ValueError:
-                                continue
-
-                            else:
-                                if cfg_option == 'prime_source':
-                                    # We have to validate this value after reading sourcematching.json
-                                    self.channels[chanid].prevalidate_opt[cfg_option] = cfg_value
+                            # Select Values
+                            elif cfg_option == 'overlap_strategy':
+                                if cfg_value in ('average', 'stop', 'start'):
+                                    self.channels[chanid].opt_dict[cfg_option] = cfg_value
 
                                 else:
-                                    self.validate_option(cfg_option, self.channels[chanid], cfg_value)
+                                    self.channels[chanid].opt_dict[cfg_option] = 'none'
 
-                except:
-                    self.log(['Invalid line in %s section of config file %s:' % (section, self.opt_dict['config_file']),'%r\n' % (line), traceback.format_exc()])
+                            # Integer Values
+                            elif cfg_option in ('slowdays', 'max_overlap', 'desc_length'):
+                                try:
+                                    cfg_value = int(cfg_value)
+
+                                except ValueError:
+                                    if (cfg_option == 'slowdays') and (cfg_value == 'none'):
+                                        self.channels[chanid].opt_dict[cfg_option] = None
+
+                                else:
+                                    self.channels[chanid].opt_dict[cfg_option] = cfg_value
+
+                            # Source Values
+                            elif cfg_option in ('prime_source', 'prefered_description', 'disable_source', 'disable_detail_source'):
+                                try:
+                                    cfg_value = int(cfg_value)
+
+                                except ValueError:
+                                    continue
+
+                                else:
+                                    if cfg_option == 'prime_source':
+                                        # We have to validate this value after reading sourcematching.json
+                                        self.channels[chanid].prevalidate_opt[cfg_option] = cfg_value
+
+                                    else:
+                                        self.validate_option(cfg_option, self.channels[chanid], cfg_value)
+
+                    except:
+                        self.log(['Invalid line in %s section of config file %s:' % (section, self.opt_dict['config_file']),'%r\n' % (line), traceback.format_exc()])
 
         # an extra option for gathering extra info to better the code
         if 'write_info_files' in self.opt_dict.keys():
@@ -1989,11 +2011,12 @@ class Configure:
 
         try:
             url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master/sourcematching.json'
-            githubdata = json.loads(self.fetch_func.get_page(url, 'utf-8'))
+            #~ githubdata = json.loads(self.fetch_func.get_page(url, 'utf-8'))
+            githubdata = self.fetch_func.get_page(url, 'utf-8', is_json = True)
             # Check on data or program updates
             dv = int(githubdata["data_version"])
             nv = githubdata["program_version"]
-            pv = u'%s.%s.%s' % (self.major, self.minor, self.patch)
+            pv = u'%s.%s.%s' % (self.api_major+2, self.api_minor, self.api_patch)
             if not "data_version" in self.opt_dict:
                 self.opt_dict["data_version"] = 0
 
@@ -2388,7 +2411,8 @@ class Configure:
             return(0)
 
         log_array = [u'Python versie: %s.%s.%s' % (sys.version_info[0], sys.version_info[1], sys.version_info[2])]
-        log_array.append(u'The Netherlands: %s' % self.version(True))
+        log_array.append(u"%s: %s" % (self.country, self.version(True)))
+        log_array.append(u"The Netherlands: %s" % self.version(True, True))
         log_array.append(u'Capabilities:"baseline" ,"cache" ,"manualconfig" ,"preferredmethod")')
         log_array.append(u'Preferred Methode: "allatonce"')
         log_array.append(u'log level = %s' % (self.opt_dict['log_level']))
@@ -2491,7 +2515,7 @@ class Configure:
             return False
 
         f.write(u'# encoding: utf-8\n')
-        f.write(u'# configversion: %s.%s%s\n' % (self.major, self.minor, '{:0>2}'.format(self.patch)))
+        f.write(u'# configversion: %s.%s%s\n' % (self.api_major + 2, self.api_minor, '{:0>2}'.format(self.api_patch)))
         f.write(u'\n')
 
         # Save the options
@@ -2675,7 +2699,7 @@ class Configure:
                 return {'chan_string': '# %s' % chan_string, 'active': active}
 
         # just copy over the channels section
-        if add_channels == False and self.configversion == float('%s.%s' % (self.major, self.minor)):
+        if add_channels == False and self.configversion == float('%s.%s' % (self.api_major+2, self.api_minor)):
             fo = self.IO_func.open_file(self.opt_dict['config_file'] + '.old')
             if fo == None or not self.IO_func.check_encoding(fo):
                 # We cannot read the old config, so we create a new one

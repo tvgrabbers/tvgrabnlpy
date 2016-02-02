@@ -125,24 +125,9 @@ description_text = """
 """
 
 # Modules we need
-import re, sys, codecs, locale, argparse
-import time, datetime, random, io, json, shutil
-import os, os.path, pickle, smtplib, httplib
-import traceback, socket, sqlite3, difflib
-try:
-    import urllib.request as urllib
-except ImportError:
-    import urllib2 as urllib
-try:
-    from html.entities import name2codepoint
-except ImportError:
-    from htmlentitydefs import name2codepoint
-from copy import deepcopy
-from threading import Thread, Lock, Event, active_count, Semaphore
-from xml.sax import saxutils
-from xml.etree import cElementTree as ET
-from Queue import Queue, Empty
-from email.mime.text import MIMEText
+import sys, locale, traceback
+import time, datetime, pytz
+import timezones, tv_grab_config, tv_grab_fetch, sources
 try:
     unichr(42)
 except NameError:
@@ -157,15 +142,7 @@ if sys.version_info[:2] >= (3,0):
     sys.stderr.write("tv_grab_nl_py does not yet support Pyton 3 or higher.\nExpect errors while we proceed\n")
 
 locale.setlocale(locale.LC_ALL, '')
-# XXX: fix to prevent crashes in Snow Leopard [Robert Klep]
-if sys.platform == 'darwin' and sys.version_info[:3] == (2, 6, 1):
-    try:
-        urllib.urlopen('http://localhost.localdomain')
-    except:
-        pass
 
-
-import timezones, pytz, tv_grab_config, tv_grab_IO, tv_grab_fetch , tv_grab_output, sources
 if tv_grab_config.Configure().version()[1:4] < (1,0,0):
     sys.stderr.write("tv_grab_nl_py requires tv_grab_config 1.0.0 or higher\n")
     sys.exit(2)
@@ -174,11 +151,24 @@ CET_CEST = timezones.AmsterdamTimeZone()
 UTC  = timezones.UTCTimeZone()
 
 class Configure(tv_grab_config.Configure):
+    def __init__(self):
+        tv_grab_config.Configure.__init__(self)
+        # Version info as returned by the version function
+        self.country = 'The Netherlands'
+        self.description = 'Dutch/Flemish grabber combining multiple sources.'
+        self.name ='tv_grab_nl_py'
+        self.major = 3
+        self.minor = 0
+        self.patch = 0
+        self.patchdate = u'20160201'
+        self.alfa = True
+        self.beta = True
+        self.output_tz = CET_CEST
+
     def init_sources(self):
         self.channelsource[0] = sources.tvgids_JSON(self, 0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
         self.channelsource[1] = sources.tvgidstv_HTML(self, 1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
         self.channelsource[2] = sources.rtl_JSON(self, 2, 'rtl.nl', 'rtl-ID', 'rtl-url', True)
-        #self.channelsource[3] = sources.teveblad_HTML(self, 3, 'teveblad.be', 'be-ID', 'be-url')
         self.channelsource[4] = sources.npo_HTML(self, 4, 'npo.nl', 'npo-ID', 'npo-url')
         self.channelsource[5] = sources.horizon_JSON(self, 5, 'horizon.tv', 'horizon-ID', 'horizon-url', True)
         self.channelsource[6] = sources.humo_JSON(self, 6, 'humo.be', 'humo-ID', 'humo-url', True)
@@ -186,7 +176,7 @@ class Configure(tv_grab_config.Configure):
         self.channelsource[8] = sources.nieuwsblad_HTML(self, 8, 'nieuwsblad.be', 'nb-ID', 'nb-url')
         self.channelsource[9] = sources.primo_HTML(self, 9, 'primo.eu', 'primo-ID', 'primo-url', False, 'primo-fetched', True)
         self.channelsource[10] = sources.vrt_JSON(self, 10, 'vrt.be', 'vrt-ID', 'vrt-url', True)
-        self.channelsource[11] = sources.Virtual_Channels(self, 11, 'virtual', 'virtual-ID', 'virtual-url')
+        self.channelsource[11] = tv_grab_fetch.Virtual_Channels(self, 11, 'virtual', 'virtual-ID', 'virtual-url')
         self.channelsource[12] = sources.oorboekje_HTML(self, 12, 'oorboekje.nl', 'ob-ID', 'ob-url')
 
 # end Configure()
@@ -216,7 +206,6 @@ def main():
 
         # Start the seperate fetching threads
         for source in config.channelsource.values():
-            config.threads.append(source)
             x = source.start()
             if x != None:
                 return(x)
@@ -235,7 +224,6 @@ def main():
             if x != None:
                 return(x)
 
-            config.threads.append(channel)
             channel_threads.append(channel)
 
         # Synchronize
@@ -254,27 +242,29 @@ def main():
         end_time = datetime.datetime.now()
         duration = end_time - start_time
 
-        #~ log_array = ['\n', 'Execution complete.\n', '\n']
-        #~ log_array.append('Fetch statistics for %s programms on %s channels:\n' % (xml_output.program_count, config.chan_count))
-        #~ log_array.append(' Start time: %s\n'% (start_time.strftime('%Y-%m-%d %H:%M')))
-        #~ log_array.append('   End time: %s\n' % (end_time.strftime('%Y-%m-%d %H:%M')))
-        #~ log_array.append('   Duration: %s\n' % (duration))
-        #~ log_array.append( '%6.0f page(s) fetched, of which %s failed\n' % (xml_output.fetch_count, xml_output.fail_count))
-        #~ log_array.append( '%6.0f cache hits\n' % (xml_output.cache_count))
-        #~ log_array.append( '%6.0f succesful ttvdb.com lookups\n' % (xml_output.ttvdb_count))
-        #~ log_array.append( '%6.0f    failed ttvdb.com lookups\n' % (xml_output.ttvdb_fail_count))
-        #~ if xml_output.fetch_count > 0:
-            #~ log_array.extend([' Time/fetch: %s seconds\n' % (duration.total_seconds()/xml_output.fetch_count), '\n'])
-        #~ log_array.append('%6.0f page(s) fetched from theTVDB.com\n' % (xml_output.ttvdb.fetch_count))
-        #~ log_array.extend(['%6.0f failure(s) on theTVDB.com\n' % (xml_output.ttvdb.fail_count), '\n'])
-        #~ for source in xml_output.channelsource.values():
-            #~ log_array.append('%6.0f   base page(s) fetched from %s\n' % (source.base_count, source.source))
-            #~ if source.detail_processor:
-                #~ log_array.append('%6.0f detail page(s) fetched from %s\n' % (source.detail_count, source.source))
+        log_array = ['\n', 'Execution complete.\n', '\n']
+        log_array.append('Fetch statistics for %s programms on %s channels:\n' % (config.xml_output.program_count, config.chan_count))
+        log_array.append(' Start time: %s\n'% (start_time.strftime('%Y-%m-%d %H:%M')))
+        log_array.append('   End time: %s\n' % (end_time.strftime('%Y-%m-%d %H:%M')))
+        log_array.append('   Duration: %s\n' % (duration))
+        fetch_count = config.fetch_func.get_counter('base', 'total') + config.fetch_func.get_counter('detail', 'total')
+        log_array.append( '%6.0f page(s) fetched, of which %s failed\n' % \
+            (fetch_count, config.fetch_func.get_counter('fail', 'total')))
+        log_array.append( '%6.0f cache hits\n' % (config.fetch_func.get_counter('detail', -1)))
+        log_array.append( '%6.0f succesful ttvdb.com lookups\n' % (config.fetch_func.get_counter('lookup', -2)))
+        log_array.append( '%6.0f    failed ttvdb.com lookups\n' % (config.fetch_func.get_counter('lookup_fail', -2)))
+        if fetch_count > 0:
+            log_array.extend([' Time/fetch: %s seconds\n' % (duration.total_seconds()/fetch_count), '\n'])
+        log_array.append('%6.0f page(s) fetched from theTVDB.com\n' % (config.fetch_func.get_counter('detail', -2)))
+        log_array.extend(['%6.0f failure(s) on theTVDB.com\n' % (config.fetch_func.get_counter('fail', -2)), '\n'])
+        for s, source in config.channelsource.items():
+            log_array.append('%6.0f   base page(s) fetched from %s\n' % (config.fetch_func.get_counter('base', s), source.source))
+            if source.detail_processor:
+                log_array.append('%6.0f detail page(s) fetched from %s\n' % (config.fetch_func.get_counter('detail', s), source.source))
 
-            #~ log_array.extend(['%6.0f failure(s) on %s\n' % (source.fail_count, source.source), '\n'])
+            log_array.extend(['%6.0f failure(s) on %s\n' % (config.fetch_func.get_counter('fail', s), source.source), '\n'])
 
-        #~ config.log(log_array, 4, 3)
+        config.log(log_array, 4, 3)
 
     except:
         config.log(['\n', 'An unexpected error has occured:\n', traceback.format_exc(), \

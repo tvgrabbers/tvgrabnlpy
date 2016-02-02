@@ -8,12 +8,12 @@ from __future__ import unicode_literals
 import re, sys, traceback
 import time, datetime, random, difflib
 import requests
-import httplib, json, socket
-import timezones
-try:
-    import urllib.request as urllib
-except ImportError:
-    import urllib2 as urllib
+import httplib, socket
+import timezones, pytz
+#~ try:
+    #~ import urllib.request as urllib
+#~ except ImportError:
+    #~ import urllib2 as urllib
 try:
     from html.entities import name2codepoint
 except ImportError:
@@ -35,121 +35,129 @@ class Functions():
 
     current_date = datetime.datetime.now(CET_CEST).toordinal()
     def __init__(self, config):
-        # Version info as returned by the version function
-        self.name ='tv_grab_fetch_py'
-        self.major = 1
-        self.minor = 0
-        self.patch = 0
-        self.patchdate = u'20160201'
-        self.alfa = True
-        self.beta = True
-
         self.config = config
         self.max_fetches = Semaphore(self.config.opt_dict['max_simultaneous_fetches'])
         self.count_lock = Lock()
-        self.counters = {}
+        self.progress_counter = 0
+        self.channel_counters = {}
+        self.source_counters = {}
+        self.source_counters['total'] = {}
 
     # end init()
 
-    def version(self, as_string = False):
-        """
-        return tuple or string with version info
-        """
-        if as_string and self.alfa:
-            return u'%s (Version: %s.%s.%s-p%s-alpha)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
+    def update_counter(self, cnt_type, source_id=-1, chanid=None, cnt_add=True, cnt_change=1):
+        #source_id: -1 = cache, -2 = ttvdb
+        if not isinstance(cnt_change, int) or cnt_change == 0:
+            return
 
-        if as_string and self.beta:
-            return u'%s (Version: %s.%s.%s-p%s-beta)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
+        if not cnt_type in ('base', 'detail', 'fail', 'lookup', 'lookup_fail'):
+            return
 
-        if as_string and not self.beta:
-            return u'%s (Version: %s.%s.%s-p%s)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
-
-        else:
-            return (self.name, self.major, self.minor, self.patch, self.patchdate, self.beta)
-
-    # end version()
-
-    def update_counter(self, source_id, cnt_type, chanid=-1, cnt_add=True, cnt_change=1):
         if not isinstance(cnt_change, int) or cnt_change == 0:
             return
 
         with self.count_lock:
-            if not source_id in self.counters:
-                self.counters[source_id] = {}
+            if not cnt_add:
+                cnt_change = -cnt_change
 
-            if not cnt_type in self.counters[source_id]:
-                self.counters[source_id][cnt_type] = {}
-                self.counters[source_id][cnt_type]['total'] = 0
+            if chanid != None and isinstance(chanid, (str, unicode)):
+                if not chanid in self.channel_counters.keys():
+                    self.channel_counters[chanid] = {}
 
-            if chanid == -1:
-                if cnt_add:
-                    self.counters[source_id][cnt_type]['total'] += cnt_change
+                if not cnt_type in self.channel_counters[chanid].keys():
+                    self.channel_counters[chanid][cnt_type] = {}
+
+                if not source_id in self.channel_counters[chanid][cnt_type].keys():
+                    self.channel_counters[chanid][cnt_type][source_id] = 0
+
+                self.channel_counters[chanid][cnt_type][source_id] += cnt_change
+
+            if not source_id in self.source_counters.keys():
+                self.source_counters[source_id] = {}
+
+            if not cnt_type in self.source_counters[source_id].keys():
+                self.source_counters[source_id][cnt_type] = 0
+
+            self.source_counters[source_id][cnt_type] += cnt_change
+            if isinstance(source_id, int) and source_id >= 0:
+                if cnt_type in self.source_counters['total'].keys():
+                    self.source_counters['total'][cnt_type] += cnt_change
 
                 else:
-                    self.counters[source_id][cnt_type]['total'] -= cnt_change
+                    self.source_counters['total'][cnt_type] = cnt_change
+    # end update_counter()
 
-            else:
-                if not chanid in self.counters[source_id][cnt_type]:
-                    self.counters[source_id][cnt_type][chanid] = 0
-
-                if cnt_add:
-                    self.counters[source_id][cnt_type][chanid] += cnt_change
-                    self.counters[source_id][cnt_type]['total'] += cnt_change
-
-                else:
-                    self.counters[source_id][cnt_type][chanid] -= cnt_change
-                    self.counters[source_id][cnt_type]['total'] -= cnt_change
-
-    def get_counter(self, source_id, cnt_type, chanid=-1):
-            if not source_id in self.counters:
+    def get_counter(self, cnt_type, source_id=-1, chanid=None):
+        if chanid == None:
+            if not source_id in self.source_counters.keys():
                 return 0
 
-            if not cnt_type in self.counters[source_id]:
+            if not cnt_type in self.source_counters[source_id].keys():
                 return 0
 
-            if chanid == -1:
-                return self.counters[source_id][cnt_type]['total']
+            return self.source_counters[source_id][cnt_type]
 
-            if not chanid in self.counters[source_id][cnt_type]:
-                return 0
+        elif not chanid in self.channel_counters.keys():
+            return 0
 
-            return self.counters[source_id][cnt_type][chanid]
+        elif not cnt_type in self.channel_counters[chanid].keys():
+            return 0
 
-    def get_page(self, url, encoding = "default encoding", accept_header = None):
+        elif not source_id in self.channel_counters[chanid][cnt_type].keys():
+            return 0
+
+        return self.channel_counters[chanid][cnt_type][source_id]
+    # end get_counter()
+
+    def get_page(self, url, encoding = None, accept_header = None, txtdata = None, counter = None, is_json = False):
         """
         Wrapper around get_page_internal to catch the
         timeout exception
         """
         try:
-            txtdata = None
             txtheaders = {'Keep-Alive' : '300',
                           'User-Agent' : self.config.user_agents[random.randint(0, len(self.config.user_agents)-1)] }
 
             if accept_header != None:
                 txtheaders['Accept'] = accept_header
 
-            fu = FetchURL(self.config, url, txtdata, txtheaders, encoding)
+            fu = FetchURL(self.config, url, txtdata, txtheaders, encoding, is_json)
             self.max_fetches.acquire()
+            if isinstance(counter,(list, tuple)):
+                if len(counter) == 2:
+                    self.update_counter(counter[0], counter[1])
+
+                if len(counter) >= 3:
+                    self.update_counter(counter[0], counter[1], counter[2])
+
             fu.start()
-            fu.join(self.config.opt_dict['global_timeout'])
+            fu.join(self.config.opt_dict['global_timeout']+1)
             page = fu.result
             self.max_fetches.release()
-            if (page == None) or (page.replace('\n','') == '') or (page.replace('\n','') =='{}'):
-                #~ with xml_output.output_lock:
-                    #~ xml_output.fail_count += 1
+            if (page == None) or (page =={}) or (isinstance(page, (str, unicode)) and ((re.sub('\n','', page) == '') or (re.sub('\n','', page) =='{}'))):
+                if isinstance(counter,(list, tuple)):
+                    if len(counter) == 2:
+                        self.update_counter('fail', counter[1])
+
+                    if len(counter) >= 3:
+                        self.update_counter('fail', counter[1], counter[2])
 
                 return None
 
             else:
                 return page
 
-        except(urllib.URLError, socket.timeout):
+        except(socket.timeout):
             self.config.log('get_page timed out on (>%s s): %s\n' % (self.config.opt_dict['global_timeout'], url), 1, 1)
-            if self.config.infofiles != None:
+            if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('Fetch timeout: %s\n' % url)
 
-            #~ with xml_output.output_lock:
-                #~ xml_output.fail_count += 1
+            if isinstance(counter,(list, tuple)):
+                if len(counter) == 2:
+                    self.update_counter('fail', counter[1])
+
+                if len(counter) >= 3:
+                    self.update_counter('fail', counter[1], counter[2])
 
             self.max_fetches.release()
             return None
@@ -366,46 +374,33 @@ class FetchURL(Thread):
     """
     A simple thread to fetch a url with a timeout
     """
-    def __init__ (self, config, url, txtdata = None, txtheaders = None, encoding = "default encoding"):
+    def __init__ (self, config, url, txtdata = None, txtheaders = None, encoding = None, is_json = False):
         Thread.__init__(self)
         self.config = config
         self.url = url
         self.txtdata = txtdata
         self.txtheaders = txtheaders
         self.encoding = encoding
+        self.is_json = is_json
         self.result = None
 
     def run(self):
-        #~ with xml_output.output_lock:
-            #~ xml_output.fetch_count += 1
-
         try:
             self.result = self.get_page_internal()
 
         except:
             self.config.log('An unexpected error "%s:%s" has occured while fetching page: %s\n' %  (sys.exc_info()[0], sys.exc_info()[1], self.url), 0)
-            if self.config.infofiles != None:
+            if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('%s,%s:\n  %s\n' % (sys.exc_info()[0], sys.exc_info()[1], self.url))
 
             return None
 
-    def find_html_encoding(self, httphead, htmlhead, default_encoding="default encoding"):
+    def find_html_encoding(self, htmlhead):
         # look for the text '<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />'
         # in the first 600 bytes of the HTTP page
         m = re.search(r'<meta[^>]+\bcharset=["\']?([A-Za-z0-9\-]+)\b', htmlhead[:512].decode('ascii', 'ignore'))
         if m:
             return m.group(1)
-
-        # Find a HTTP header: Content-Type: text/html; charset=UTF-8
-        m = re.search(r'\bcharset=([A-Za-z0-9\-]+)\b', httphead.info().getheader('Content-Type'))
-        if m:
-            return m.group(1)
-
-        elif default_encoding == "default encoding":
-            return self.config.httpencoding
-
-        else:
-            return default_encoding # the default HTTP encoding.
 
     def get_page_internal(self):
         """
@@ -414,41 +409,38 @@ class FetchURL(Thread):
         the specified number of timeout seconds.
         """
         try:
-            rurl = urllib.Request(self.url, self.txtdata, self.txtheaders)
-            fp = urllib.urlopen(rurl)
-            bytes = fp.read()
-            page = None
+            url_request = requests.get(self.url, headers = self.txtheaders, params = self.txtdata, timeout=self.config.opt_dict['global_timeout']/2)
+            encoding = self.find_html_encoding(url_request.content)
+            if encoding != None:
+                url_request.encoding = encoding
 
-            encoding = self.find_html_encoding(fp, bytes, self.encoding)
+            elif self.encoding != None:
+                url_request.encoding = self.encoding
 
-            try:
-                page = bytes.decode(encoding, 'replace')
+            if 'content-type' in url_request.headers and 'json' in url_request.headers['content-type'] or self.is_json:
+                return url_request.json()
 
-            except:
-                self.config.log('Cannot decode url %s as %s, trying Windows-1252\n' % (self.url, encoding))
-                # 'Windows-1252'
-                page = bytes.decode('Windows-1252', 'ignore') # At least gets it somewhat correct
+            else:
+                return url_request.text
 
-            return page
-
-        except (urllib.URLError) as e:
+        except (requests.ConnectionError) as e:
             self.config.log('Cannot open url %s: %s\n' % (self.url, e.reason), 1, 1)
-            if self.config.infofiles != None:
+            if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('URLError: %s\n' % self.url)
 
             return None
 
-        except (urllib.HTTPError) as e:
+        except (requests.HTTPError) as e:
             self.config.log('Cannot parse url %s: code=%s\n' % (self.url, e.code), 1, 1)
-            if self.config.infofiles != None:
+            if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('HTTPError: %s\n' % self.url)
 
             return None
 
-        except (httplib.IncompleteRead):
-            self.config.log('Cannot retrieve full url %s: %s\n' % (self.url, sys.exc_info()[1]), 1, 1)
-            if self.config.infofiles != None:
-                self.config.infofiles.add_url_failure('IncompleteRead: %s\n' % self.url)
+        except (requests.Timeout) as e:
+            self.config.log('get_page timed out on (>%s s): %s\n' % (self.config.opt_dict['global_timeout'], url), 1, 1)
+            if self.config.write_info_files:
+                self.config.infofiles.add_url_failure('Fetch timeout: %s\n' % self.url)
 
             return None
 
@@ -458,7 +450,7 @@ class theTVDB(Thread):
     def __init__(self, config):
         Thread.__init__(self)
         self.config = config
-        self.functions = self.config.IO_func
+        self.functions = self.config.fetch_func
         self.thread_type = 'ttvdb'
         self.quit = False
         self.ready = False
@@ -506,7 +498,6 @@ class theTVDB(Thread):
                         with crequest['parent'].channel_lock:
                             crequest['parent'].detailed_programs.append(qanswer)
 
-
                     crequest['parent'].update_counter('fetch', -1, False)
                     continue
 
@@ -525,42 +516,48 @@ class theTVDB(Thread):
             self.ready = True
             return(98)
 
-    def query_ttvdb(self, type='seriesid', title=None, lang='nl'):
+    def query_ttvdb(self, type='seriesid', title=None, lang='nl', chanid=None):
+        if title == None:
+            return
+
         base_url = "http://www.thetvdb.com"
         api_key = '0BB856A59C51D607'
         if isinstance(title, (int, str)):
             title = unicode(title)
 
-        title = urllib.quote(title.encode("utf-8"))
+        #~ title = urllib.quote(title.encode("utf-8"))
         if type == 'seriesid':
             if not lang in ('all', 'cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
                                 'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
                 lang = 'en'
 
-            if title != None:
-                data = self.functions.get_page('%s/api/GetSeries.php?seriesname=%s&language=%s' % (base_url, title, lang), 'utf-8')
+            #~ data = self.functions.get_page('%s/api/GetSeries.php?seriesname=%s&language=%s' % (base_url, title, lang), 'utf-8')
+            txtdata = {'seriesname': title, 'language': lang}
+            url = '%s/api/GetSeries.php' % base_url
 
         elif type == 'episodes':
             if not lang in ('cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
                                 'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
                 lang = 'en'
 
-            if title != None:
-                data= self.functions.get_page("%s/api/%s/series/%s/all/%s.xml" % (base_url, api_key, title, lang), 'utf-8')
+            txtdata = None
+            url = "%s/api/%s/series/%s/all/%s.xml" % (base_url, api_key, title, lang)
 
         elif type == 'seriesname':
-            if title != None:
-                data= self.functions.get_page("%s/api/%s/series/%s/en.xml" % (base_url, api_key, title), 'utf-8')
+            txtdata = None
+            url = "%s/api/%s/series/%s/en.xml" % (base_url, api_key, title)
 
         else:
-            data = None
+            return
 
+        counter = ['detail', -2, chanid]
+        data = self.functions.get_page(url, 'utf-8', None, txtdata, counter)
         # be nice to the source site
         time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
         if data != None:
             return ET.fromstring(data.encode('utf-8'))
 
-    def get_all_episodes(self, tid, lang='nl'):
+    def get_all_episodes(self, tid, lang='nl', chanid=None):
         self.config.queues['cache'].put({'task':'query', 'parent': self, \
                 'ep_by_id': {'tid': int(tid), 'sid': 0, 'eid': 0}})
         eps = self.cache_return.get(True)
@@ -579,7 +576,7 @@ class theTVDB(Thread):
             eps = []
             langs = ('nl', 'en') if lang in ('nl', 'en') else (lang, 'nl', 'en')
             for l in langs:
-                xmldata = self.query_ttvdb('episodes', tid, l)
+                xmldata = self.query_ttvdb('episodes', tid, l, chanid)
                 if xmldata == None:
                     # No data
                     continue
@@ -612,7 +609,7 @@ class theTVDB(Thread):
 
         self.config.queues['cache'].put({'task':'add', 'episode': eps})
 
-    def get_ttvdb_id(self, title, lang='nl', search_db=True):
+    def get_ttvdb_id(self, title, lang='nl', search_db=True, chanid=None):
         get_id = False
         if search_db:
             self.config.queues['cache'].put({'task':'query_id', 'parent': self, 'ttvdb': {'title': title}})
@@ -650,7 +647,7 @@ class theTVDB(Thread):
 
             series_name = title if alias == None else alias['title']
             try:
-                xmldata = self.query_ttvdb('seriesid', series_name, lang)
+                xmldata = self.query_ttvdb('seriesid', series_name, lang, chanid)
                 if xmldata == None:
                     # No data
                     self.config.queues['cache'].put({'task':'add', 'ttvdb': {'tid': 0, 'title': series_name, 'langs': langs}})
@@ -664,7 +661,7 @@ class theTVDB(Thread):
 
                 self.config.queues['cache'].put({'task':'add', 'ttvdb': {'tid': int(tid), 'title': series_name, 'langs': langs}})
                 #We look for aliasses
-                xmldata = self.query_ttvdb('seriesid', series_name, 'all')
+                xmldata = self.query_ttvdb('seriesid', series_name, 'all', chanid)
                 if xmldata!= None:
                     alias_list = []
                     for s in xmldata.findall('Series'):
@@ -683,7 +680,7 @@ class theTVDB(Thread):
                 return 0
 
         # And we retreive the episodes
-        if self.get_all_episodes(tid, lang) == -1:
+        if self.get_all_episodes(tid, lang, chanid) == -1:
             return -1
 
         return {'tid': int(tid), 'tdate': datetime.date.today(), 'title': series_name}
@@ -703,20 +700,20 @@ class theTVDB(Thread):
             return data
 
         elif parent != None and parent.group == 4:
-            tid = self.get_ttvdb_id(data['name'], 'de')
+            tid = self.get_ttvdb_id(data['name'], 'de', chanid = parent.chanid)
 
         elif parent != None and parent.group == 5:
-            tid = self.get_ttvdb_id(data['name'], 'fr')
+            tid = self.get_ttvdb_id(data['name'], 'fr', chanid = parent.chanid)
 
         else:
-            tid = self.get_ttvdb_id(data['name'])
+            tid = self.get_ttvdb_id(data['name'], chanid = parent.chanid)
 
         if tid == -1:
             return -1
 
         if tid == None or tid == 0:
             if parent != None:
-                parent.update_counter('ttvdb_fail')
+                self.functions.update_counter('lookup_fail', -2, parent.chanid)
 
             self.config.log("  No ttvdb id for '%s' on channel %s\n" % (data['name'], data['channel']), 128)
             return data
@@ -732,7 +729,7 @@ class theTVDB(Thread):
 
         if eid != None:
             if parent != None:
-                parent.update_counter('ttvdb')
+                self.functions.update_counter('lookup', -2, parent.chanid)
 
             data['season'] = eid['sid']
             data['episode'] = eid['eid']
@@ -759,7 +756,7 @@ class theTVDB(Thread):
             ep_dict[s] = {'sid': ep['sid'], 'eid': ep['eid'], 'airdate': ep['airdate'], 'title': ep['title']}
             if s == subt:
                 if parent != None:
-                    parent.update_counter('ttvdb')
+                    self.functions.update_counter('lookup', -2, parent.chanid)
 
                 data['titel aflevering'] = ep['title']
                 data['season'] = ep['sid']
@@ -774,7 +771,7 @@ class theTVDB(Thread):
         match_list = difflib.get_close_matches(subt, ep_list, 1, 0.7)
         if len(match_list) > 0:
             if parent != None:
-                parent.update_counter('ttvdb')
+                self.functions.update_counter('lookup', -2, parent.chanid)
 
             ep = ep_dict[match_list[0]]
             data['titel aflevering'] = ep['title']
@@ -787,7 +784,7 @@ class theTVDB(Thread):
             return data
 
         if parent != None:
-            parent.update_counter('ttvdb_fail')
+            self.functions.update_counter('lookup_fail', -2, parent.chanid)
 
         self.config.log("ttvdb failure for '%s': '%s' on channel %s\n" % (data['name'], data['titel aflevering'], data['channel']), 128)
         return data
@@ -1010,7 +1007,7 @@ class FetchData(Thread):
                   cached_program[self.config.channelsource[q_no[0]].detail_check]:
                     self.config.log(u'      [cached] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
                     tdict= parent.use_cache(tdict, cached_program)
-                    parent.update_counter('cache')
+                    self.functions.update_counter('detail', -1, parent.chanid)
                     parent.update_counter('fetch', self.proc_id, False)
                     check_ttvdb(tdict, parent)
                     return 0
@@ -1071,7 +1068,7 @@ class FetchData(Thread):
                             for i in range(len(self.program_data[chanid])):
                                 self.program_data[chanid][i]['prefered description'] = self.program_data[chanid][i]['description']
 
-            if self.config.infofiles != None:
+            if self.config.write_info_files:
                 self.config.infofiles.check_new_channels(self, self.config.source_channels, self.config.empty_channels)
 
             if self.detail_processor and  not self.proc_id in self.config.opt_dict['disable_detail_source']:
@@ -1147,7 +1144,7 @@ class FetchData(Thread):
                         # If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the cache again
                         if self.proc_id == 1:
                             self.config.log(u'[fetch failed or timed out] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
-                            parent.update_counter('fail')
+                            #~ self.functions.update_counter('fail', self.proc_id, parent.chanid)
                             parent.update_counter('fetch', self.proc_id, False)
                             check_ttvdb(tdict, parent)
                             continue
@@ -1178,7 +1175,7 @@ class FetchData(Thread):
                         elif self.proc_id == 9:
                             self.config.log(u' [primo fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
 
-                        parent.update_counter('fetched', self.proc_id)
+                        #~ self.functions.update_counter('detail', self.proc_id, parent.chanid)
                         parent.update_counter('fetch', self.proc_id, False)
                         self.detail_count += 1
 
@@ -1322,7 +1319,7 @@ class FetchData(Thread):
                 p = ptitle.split(':')
                 if len(p) >1:
                     self.config.log('Removing \"%s\" from \"%s\"\n' %  (group, ptitle), 64)
-                    if self.config.infofiles != None:
+                    if self.config.write_info_files:
                         self.config.infofiles.addto_detail_list(unicode('Group removing = \"%s\" from \"%s\"' %  (group, ptitle)))
 
                     ptitle = "".join(p[1:]).strip()
@@ -1348,7 +1345,7 @@ class FetchData(Thread):
         # Check the Title rename list
         if ptitle.lower() in self.config.titlerename:
             self.config.log('Renaming %s to %s\n' % (ptitle, self.config.titlerename[ptitle.lower()]), 64)
-            if self.config.infofiles != None:
+            if self.config.write_info_files:
                 self.config.infofiles.addto_detail_list(unicode('Title renaming %s to %s\n' % (ptitle, self.config.titlerename[ptitle.lower()])))
 
             ptitle = self.config.titlerename[ptitle.lower()]
@@ -1428,7 +1425,7 @@ class FetchData(Thread):
 
             else:
                 atype[pcount] = self.functions.empersant(p.get('class')).strip()
-                if self.config.infofiles != None:
+                if self.config.write_info_files:
                     self.config.infofiles.addto_detail_list(u'%s descriptionattribute => class: %s' % (self.source, p.get('class').strip()))
 
             content = ''
@@ -1467,7 +1464,7 @@ class FetchData(Thread):
                     else:
                         # Unknown tag we just check for text
                         content = content + format_text(d.text) + u' '
-                        if self.config.infofiles != None:
+                        if self.config.write_info_files:
                             self.config.infofiles.addto_detail_list(unicode('new '+ self.source+' descriptiontag => ' + \
                                                     unicode(d.tag.strip()) + ': ' + unicode(d.text.strip())))
 
@@ -1523,14 +1520,14 @@ class FetchData(Thread):
                             content = '%s%s ' % (content, p)
                     description = content.strip()
 
-                    if self.config.infofiles != None:
+                    if self.config.write_info_files:
                         strdesc = ''
                         for p in alinea:
                             strdesc = strdesc + '    <p>%s</p>\n' % p
 
                         strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
                                                     '" name="' + tdict['name'] + '">\n' + strdesc + '  </div>'
-                        if self.config.infofiles != None:
+                        if self.config.write_info_files:
                             self.config.infofiles.addto_raw_string(strdesc)
 
             # We check to not ovrwrite an already present longer description
@@ -2757,4 +2754,13 @@ class FetchData(Thread):
             pass
 
 # end FetchData()
+
+class Virtual_Channels(FetchData):
+    """
+    This source is for creating combined channels
+    """
+    def get_channels(self):
+        self.all_channels = self.config.virtual_channellist
+
+# end Virtual_Channels
 

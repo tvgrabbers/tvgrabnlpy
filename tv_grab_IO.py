@@ -208,15 +208,6 @@ class Logging(Thread):
     """
     def __init__(self, config):
         Thread.__init__(self)
-        # Version info as returned by the version function
-        self.name ='tv_grab_IO_py'
-        self.major = 1
-        self.minor = 0
-        self.patch = 0
-        self.patchdate = u'20160201'
-        self.alfa = True
-        self.beta = True
-
         self.quit = False
         self.config = config
         self.functions = Functions(self)
@@ -235,24 +226,6 @@ class Logging(Thread):
                 self.local_encoding = 'utf-8'
 
     # end init()
-
-    def version(self, as_string = False):
-        """
-        return tuple or string with version info
-        """
-        if as_string and self.alfa:
-            return u'%s (Version: %s.%s.%s-p%s-alpha)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
-
-        if as_string and self.beta:
-            return u'%s (Version: %s.%s.%s-p%s-beta)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
-
-        if as_string and not self.beta:
-            return u'%s (Version: %s.%s.%s-p%s)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
-
-        else:
-            return (self.name, self.major, self.minor, self.patch, self.patchdate, self.beta)
-
-    # end version()
 
     def run(self):
         self.log_output = self.config.log_output

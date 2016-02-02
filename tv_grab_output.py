@@ -21,6 +21,7 @@ class Channel_Config(Thread):
         Thread.__init__(self)
         # Flag to stop the thread
         self.config = config
+        self.functions = self.config.fetch_func
         self.quit = False
         self.thread_type = 'channel'
 
@@ -239,49 +240,60 @@ class Channel_Config(Thread):
                         return
 
                     # Check if the sources are still alive
+                    s_cnt = 0
                     for s in self.config.detail_sources:
+                        s_cnt += 1
                         if self.config.channelsource[s].is_alive():
                             break
 
+                        if s_cnt == 1:
+                            log_string = self.config.channelsource[s].source
+
+                        elif s_cnt == len(self.config.detail_sources):
+                            log_string += u' and %s' % self.config.channelsource[s].source
+
+                        else:
+                            log_string += u', %s' % self.config.channelsource[s].source
+
                     else:
                         self.detail_data.set()
-                        self.config.log('Detail sources: %s, %s and %s died.\n So we stop waiting for the pending details for channel %s\n' \
-                            % (self.config.channelsource[0].source, self.config.channelsource[1].source, self.config.channelsource[9].source, self.chan_name))
+                        self.config.log('Detail sources: %s died.\n So we stop waiting for the pending details for channel %s\n' \
+                            % (log_string, self.chan_name))
 
                 self.all_programs = self.detailed_programs
 
             # And log the results
-            #~ with xml_output.output_lock:
-                #~ xml_output.cache_count += self.counters['cache']
-                #~ xml_output.ttvdb_count += self.counters['ttvdb']
-                #~ xml_output.ttvdb_fail_count += self.counters['ttvdb_fail']
-                #~ xml_output.progress_counter+= 1
-                #~ counter = xml_output.progress_counter
+            with self.functions.count_lock:
+                self.functions.progress_counter+= 1
+                counter = self.functions.progress_counter
 
-            #~ log_array = ['\n', 'Detail statistics for %s (channel %s of %s)\n' % (self.chan_name, counter, self.config.chan_count)]
-            #~ log_array.append( '%6.0f cache hit(s)\n' % (self.counters['cache']))
-            #~ if self.opt_dict['fast']:
-                #~ log_array.append('%6.0f without details in cache\n' % self.counters['none'])
-                #~ log_array.append('\n')
-                #~ log_array.append('%6.0f succesful ttvdb lookups\n' % self.counters['ttvdb'])
-                #~ log_array.append('%6.0f failed ttvdb lookups\n' % self.counters['ttvdb_fail'])
+            log_array = ['\n', 'Detail statistics for %s (channel %s of %s)\n' % (self.chan_name, counter, self.config.chan_count)]
+            log_array.append( '%6.0f cache hit(s)\n' % self.functions.get_counter('detail', -1, self.chanid))
+            if self.opt_dict['fast']:
+                log_array.append('%6.0f without details in cache\n' % self.functions.get_counter('fail', -1, self.chanid))
+                log_array.append('\n')
+                log_array.append('%6.0f succesful ttvdb lookups\n' % self.functions.get_counter('detail', -2, self.chanid))
+                log_array.append('%6.0f failed ttvdb lookups\n' % self.functions.get_counter('fail', -2, self.chanid))
 
-            #~ else:
-                #~ log_array.append('%6.0f detail fetch(es) from tvgids.nl\n' % self.counters['fetched'][0])
-                #~ log_array.append('%6.0f detail fetch(es) from tvgids.tv\n' % self.counters['fetched'][1])
-                #~ log_array.append('%6.0f detail fetch(es) from primo.eu\n' % self.counters['fetched'][9])
-                #~ log_array.append('%6.0f failure(s)\n' % self.counters['fail'])
-                #~ log_array.append('%6.0f without detail info\n' % self.counters['none'])
-                #~ log_array.append('\n')
-                #~ log_array.append('%6.0f succesful ttvdb lookups\n' % self.counters['ttvdb'])
-                #~ log_array.append('%6.0f    failed ttvdb lookups\n' % self.counters['ttvdb_fail'])
-                #~ log_array.append('\n')
-                #~ log_array.append('%6.0f left in the tvgids.nl queue to process\n' % (xml_output.channelsource[0].detail_request.qsize()))
-                #~ log_array.append('%6.0f left in the tvgids.tv queue to process\n' % (xml_output.channelsource[1].detail_request.qsize()))
-                #~ log_array.append('%6.0f left in the primo.eu queue to process\n' % (xml_output.channelsource[9].detail_request.qsize()))
+            else:
+                fail = 0
+                for source in self.config.detail_sources:
+                    fail += self.functions.get_counter('fail', source, self.chanid)
+                    log_array.append('%6.0f detail fetch(es) from %s.\n' % \
+                        (self.functions.get_counter('detail', source, self.chanid), self.config.channelsource[source].source))
 
-            #~ log_array.append('\n')
-            #~ self.config.log(log_array, 4, 3)
+                log_array.append('%6.0f failure(s)\n' % fail)
+                log_array.append('%6.0f without detail info\n' % self.functions.get_counter('fail', -1, self.chanid))
+                log_array.append('\n')
+                log_array.append('%6.0f succesful ttvdb lookups\n' % self.functions.get_counter('lookup', -2, self.chanid))
+                log_array.append('%6.0f    failed ttvdb lookups\n' % self.functions.get_counter('lookup_fail', -2, self.chanid))
+                log_array.append('\n')
+                for source in self.config.detail_sources:
+                    log_array.append('%6.0f left in the %s queue to process\n' % \
+                        (self.config.channelsource[source].detail_request.qsize(), self.config.channelsource[source].source))
+
+            log_array.append('\n')
+            self.config.log(log_array, 4, 3)
 
             # a final check on the sanity of the data
             self.config.channelsource[0].parse_programs(self.chanid, 1)
@@ -490,7 +502,7 @@ class Channel_Config(Thread):
                                 (p['detail_url'][9] == '' and \
                                 cached_program[self.config.channelsource[1].detail_check])))):
                         self.config.log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
-                        self.update_counter('cache')
+                        self.functions.update_counter('detail', -1, self.chanid)
                         p = self.use_cache(p, cached_program)
                         if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
                             if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
@@ -508,7 +520,7 @@ class Channel_Config(Thread):
 
             if no_detail_fetch:
                 self.config.log(u'    [no fetch] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
-                self.update_counter('none')
+                self.functions.update_counter('fail', -1, self.chanid)
                 if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
                     if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
                         self.update_counter('fetch', -1)
