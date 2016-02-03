@@ -157,11 +157,9 @@ class Configure(tv_grab_config.Configure):
         self.major = 3
         self.minor = 0
         self.patch = 0
-        self.patchdate = u'20160201'
+        self.patchdate = u'20160204'
         self.alfa = True
         self.beta = True
-        #~ self.output_tz = timezones.AmsterdamTimeZone()
-        #~ self.combined_channels_tz = timezones.AmsterdamTimeZone()
         self.output_tz = pytz.timezone('Europe/Amsterdam')
         self.combined_channels_tz = pytz.timezone('Europe/Amsterdam')
 

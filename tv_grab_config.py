@@ -141,7 +141,7 @@ class Configure:
         self.api_major = 1
         self.api_minor = 0
         self.api_patch = 0
-        self.api_patchdate = u'20160201'
+        self.api_patchdate = u'20160204'
         self.api_alfa = True
         self.api_beta = True
         try:
@@ -154,7 +154,6 @@ class Configure:
         self.patchdate = self.api_patchdate
         self.alfa = self.api_alfa
         self.beta = self.api_beta
-        #~ self.utc_tz = timezones.UTCTimeZone()
         self.utc_tz = pytz.utc
         self.output_tz = self.utc_tz
         self.opt_dict = {}
