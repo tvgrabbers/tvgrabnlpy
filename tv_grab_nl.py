@@ -127,7 +127,7 @@ description_text = """
 # Modules we need
 import sys, locale, traceback
 import time, datetime, pytz
-import timezones, tv_grab_config, tv_grab_fetch, sources
+import tv_grab_config, tv_grab_fetch, sources
 try:
     unichr(42)
 except NameError:
@@ -147,23 +147,23 @@ if tv_grab_config.Configure().version()[1:4] < (1,0,0):
     sys.stderr.write("tv_grab_nl_py requires tv_grab_config 1.0.0 or higher\n")
     sys.exit(2)
 
-CET_CEST = timezones.AmsterdamTimeZone()
-UTC  = timezones.UTCTimeZone()
-
 class Configure(tv_grab_config.Configure):
     def __init__(self):
+        self.name ='tv_grab_nl_py'
         tv_grab_config.Configure.__init__(self)
         # Version info as returned by the version function
         self.country = 'The Netherlands'
         self.description = 'Dutch/Flemish grabber combining multiple sources.'
-        self.name ='tv_grab_nl_py'
         self.major = 3
         self.minor = 0
         self.patch = 0
         self.patchdate = u'20160201'
         self.alfa = True
         self.beta = True
-        self.output_tz = CET_CEST
+        #~ self.output_tz = timezones.AmsterdamTimeZone()
+        #~ self.combined_channels_tz = timezones.AmsterdamTimeZone()
+        self.output_tz = pytz.timezone('Europe/Amsterdam')
+        self.combined_channels_tz = pytz.timezone('Europe/Amsterdam')
 
     def init_sources(self):
         self.channelsource[0] = sources.tvgids_JSON(self, 0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)

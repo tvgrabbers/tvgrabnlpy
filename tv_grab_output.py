@@ -621,8 +621,8 @@ class XMLoutput:
         """
         Given a datetime object, returns a string in XMLTV format
         """
-        if use_utc:
-            td = td.astimezone(UTC)
+        if not use_utc:
+            td = self.config.output_tz.normalize(td.astimezone(self.config.output_tz))
 
         if only_date:
             return td.strftime('%Y%m%d')

@@ -7,9 +7,8 @@ from __future__ import unicode_literals
 
 import re, sys, traceback
 import time, datetime, random, difflib
-import requests
 import httplib, socket
-import timezones, pytz
+import requests, pytz
 #~ try:
     #~ import urllib.request as urllib
 #~ except ImportError:
@@ -27,13 +26,9 @@ try:
 except NameError:
     unichr = chr    # Python 3
 
-CET_CEST = timezones.AmsterdamTimeZone()
-UTC  = timezones.UTCTimeZone()
-
 class Functions():
     """Some general Fetch functions"""
 
-    current_date = datetime.datetime.now(CET_CEST).toordinal()
     def __init__(self, config):
         self.config = config
         self.max_fetches = Semaphore(self.config.opt_dict['max_simultaneous_fetches'])
@@ -353,20 +348,66 @@ class Functions():
         return data
     # end empersant()
 
-    def get_datestamp(self, offset=0):
+    def get_offset(self, date, current_date = None):
+        """Return the offset from today"""
+        if current_date == None:
+            current_date = datetime.datetime.now(self.config.utc_tz).toordinal()
+
+        return int(date.toordinal() -  current_date)
+    # end get_offset()
+
+    def get_datestamp(self, offset=0, tzinfo = None):
+        if tzinfo == None:
+            tzinfo = self.config.utc_tz
+
         tsnu = (int(time.time()/86400)) * 86400
         day =  datetime.datetime.fromtimestamp(tsnu)
-        datenu = int(tsnu - CET_CEST.utcoffset(day).total_seconds())
+        datenu = int(tsnu - tzinfo.utcoffset(day).total_seconds())
         if time.time() -  datenu > 86400:
             datenu += 86400
 
         return datenu + offset * 86400
     # end get_datestamp()
 
-    def get_offset(self, date):
-        """Return the offset from today"""
-        return int(date.toordinal() -  self.current_date)
-    # end get_offset()
+    #~ def get_timestamp(self, offset=0, current_date):
+        #~ start = int(time.mktime(datetime.date.fromordinal(current_date + offset).timetuple()))*1000
+
+    def get_datetime(self, date_string, match_string = '%Y-%m-%d %H:%M:%S', tzinfo = None, round_down = True):
+        if tzinfo == None:
+            tzinfo = self.config.utc_tz
+
+        try:
+            date = tzinfo.localize(datetime.datetime.strptime(date_string.split('.')[0], match_string))
+            seconds = date.second
+            date = date.replace(second = 0)
+            if seconds > 0 and not round_down:
+                date = date + datetime.timedelta(minutes = 1)
+
+            return self.config.utc_tz.normalize(date.astimezone(self.config.utc_tz))
+
+        except:
+            return None
+
+    def merge_date_time(self, time_string, scan_date, tzinfo = None, split_sign = ':', offset = 0, last_time = None):
+        if tzinfo == None:
+            tzinfo = self.config.utc_tz
+
+        try:
+            time_string = re.split(split_sign, time_string)
+            prog_time = datetime.time(int(time_string[0]), int(time_string[1]))
+            while True:
+                time = tzinfo.localize(datetime.datetime.combine(scan_date, prog_time))
+                if last_time == None or time >= last_time:
+                    break
+
+                offset += 1
+                scan_date += datetime.timedelta(1)
+
+            return [self.config.utc_tz.normalize(time.astimezone(self.config.utc_tz)), offset, scan_date]
+
+        except:
+            return None
+
 
 # end Functions()
 
@@ -424,7 +465,7 @@ class FetchURL(Thread):
                 return url_request.text
 
         except (requests.ConnectionError) as e:
-            self.config.log('Cannot open url %s: %s\n' % (self.url, e.reason), 1, 1)
+            self.config.log('Cannot open url %s\n' % (self.url), 1, 1)
             if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('URLError: %s\n' % self.url)
 
@@ -438,7 +479,7 @@ class FetchURL(Thread):
             return None
 
         except (requests.Timeout) as e:
-            self.config.log('get_page timed out on (>%s s): %s\n' % (self.config.opt_dict['global_timeout'], url), 1, 1)
+            self.config.log('get_page timed out on (>%s s): %s\n' % (self.config.opt_dict['global_timeout'], self.url), 1, 1)
             if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('Fetch timeout: %s\n' % self.url)
 
@@ -898,7 +939,7 @@ class FetchData(Thread):
 
     It runs as a separate thread for every source
     """
-    current_date = datetime.datetime.now(CET_CEST).toordinal()
+    #~ current_date = datetime.datetime.now(CET_CEST).toordinal()
 
     def __init__(self, config, proc_id, source, detail_id, detail_url = '', isjson = False, detail_check = '', detail_processor = False):
         Thread.__init__(self)
@@ -925,6 +966,7 @@ class FetchData(Thread):
 
         self.all_channels = {}
         self.channels = {}
+        self.chanids = {}
         self.channel_loaded = {}
         self.day_loaded = {}
         self.program_data = {}
@@ -936,6 +978,7 @@ class FetchData(Thread):
         self.fetch_string_parts = re.compile("(.*?[.?!:]+ |.*?\Z)")
         self.config.queues['source'][self.proc_id] = self.detail_request
         self.config.threads.append(self)
+        self.site_tz = self.config.utc_tz
 
     def run(self):
         """The grabing thread"""
@@ -1048,6 +1091,7 @@ class FetchData(Thread):
                     self.program_data[chanid] = []
 
                 self.init_channels()
+                self.current_date = datetime.datetime.now(self.site_tz).toordinal()
                 self.init_json()
                 # Load and proccess al the program pages
                 try:
@@ -1269,12 +1313,20 @@ class FetchData(Thread):
                                 self.channels[c['chanid']] = self.config.channels[c['chanid']].get_source_id(self.proc_id)
                                 self.config.channels[c['chanid']].is_child = True
 
-    def add_endtimes(self, chanid, date_switch = 6):
+        for chanid, sourceid in self.channels.items():
+            self.chanids[sourceid] = chanid
+
+    def add_endtimes(self, chanid, date_switch = 6, tzinfo = None):
         """
         For the sites that only give start times, add the next starttime as endtime
         date_switch is the time we asume the last program will end if started before that time
         else  we assume next midnight
         """
+
+        if tzinfo == None:
+            tzinfo = self.config.utc_tz
+
+        date_switch = int(date_switch + tzinfo.utcoffset(datetime.datetime.now()).total_seconds()*3600)
         if len(self.program_data[chanid]) > 0:
             for i, tdict in enumerate(self.program_data[chanid]):
                 if i > 0 and type(tdict['start-time']) == datetime.datetime:
@@ -1289,10 +1341,10 @@ class FetchData(Thread):
             prog_date = datetime.date.fromordinal(self.current_date + self.program_data[chanid][-1]['offset'])
             if not type(self.program_data[chanid][-1]['stop-time']) == datetime.datetime:
                 if int(self.program_data[chanid][-1]['start-time'].strftime('%H')) < date_switch:
-                    self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(date_switch, 0,0 ,0 ,CET_CEST))
+                    self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(date_switch, 0, 0, 0, self.config.utc_tz))
 
                 else:
-                    self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(23, 59,0 ,0 ,CET_CEST))
+                    self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(23, 59, 0, 0, self.config.utc_tz))
 
             # remove programs that end when they start
             for tdict in self.program_data[chanid][:]:

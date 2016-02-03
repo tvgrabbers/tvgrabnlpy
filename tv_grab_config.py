@@ -124,28 +124,19 @@ description_text = """
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os, re, sys, argparse, traceback, json, datetime, codecs
-import tv_grab_IO, tv_grab_fetch , tv_grab_output, timezones
+import os, re, sys, argparse, traceback, datetime, codecs
+import tv_grab_IO, tv_grab_fetch , tv_grab_output, pytz
 try:
     unichr(42)
 except NameError:
     unichr = chr    # Python 3
 
 
-CET_CEST = timezones.AmsterdamTimeZone()
-UTC  = timezones.UTCTimeZone()
 
 class Configure:
 
     def __init__(self):
         # Version info as returned by the version function
-        self.name ='tv_grab_configure_py'
-        self.major = 1
-        self.minor = 0
-        self.patch = 0
-        self.patchdate = u'20160201'
-        self.alfa = True
-        self.beta = True
         self.api_name ='tv_grab_API'
         self.api_major = 1
         self.api_minor = 0
@@ -153,7 +144,19 @@ class Configure:
         self.api_patchdate = u'20160201'
         self.api_alfa = True
         self.api_beta = True
-        #~ self.cache_return = Queue()
+        try:
+           x = self.name
+        except AttributeError:
+            self.name ='tv_grab_configure.py'
+        self.major = self.api_major
+        self.minor = self.api_minor
+        self.patch = self.api_patch
+        self.patchdate = self.api_patchdate
+        self.alfa = self.api_alfa
+        self.beta = self.api_beta
+        #~ self.utc_tz = timezones.UTCTimeZone()
+        self.utc_tz = pytz.utc
+        self.output_tz = self.utc_tz
         self.opt_dict = {}
         self.user_agents = [ 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-US; rv:1.8.1.9) Gecko/20071025 Firefox/2.0.0.9',
                'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.1.19) Gecko/20081216 Ubuntu/8.04 (hardy) Firefox/2.0.0.19',
@@ -618,9 +621,9 @@ class Configure:
             self.opt_dict['home_dir'] = os.environ['USERPROFILE']
 
         self.opt_dict['xmltv_dir'] = u'%s/.xmltv' % self.opt_dict['home_dir']
-        self.opt_dict['config_file'] = u'%s/tv_grab_nl_py.conf' % self.opt_dict['xmltv_dir']
-        self.opt_dict['log_file'] = u'%s/tv_grab_nl_py.log' % self.opt_dict['xmltv_dir']
-        self.opt_dict['settings_file'] = u'%s/tv_grab_nl_py.set' % self.opt_dict['xmltv_dir']
+        self.opt_dict['config_file'] = u'%s/%s.conf' % (self.opt_dict['xmltv_dir'], self.name)
+        self.opt_dict['log_file'] = u'%s/%s.log' % (self.opt_dict['xmltv_dir'], self.name)
+        self.opt_dict['settings_file'] = u'%s/%s.set' % (self.opt_dict['xmltv_dir'], self.name)
         self.opt_dict['cache_file'] = u'%s/program_cache' % self.opt_dict['xmltv_dir']
         self.program_cache = None
         self.clean_cache = True
@@ -1438,7 +1441,7 @@ class Configure:
                         help = u'mark HD programs,\ndo not set if you only record analog SD')
 
         parser.add_argument('--cattrans', action = 'store_true', default = None, dest = 'cattrans',
-                        help = u'<default> translate the grabbed genres into\nMythTV-genres. See the tv_grab_nl_py.set file')
+                        help = u'<default> translate the grabbed genres into\nMythTV-genres. See the %s.set file' % self.name)
 
         parser.add_argument('-t', '--nocattrans', action = 'store_false', default = None, dest = 'cattrans',
                         help = u'do not translate the grabbed genres into MythTV-genres.\n' +
@@ -2086,7 +2089,7 @@ class Configure:
                     if 'start' in child:
                         try:
                             st = child['start'].split(':')
-                            child['start'] = datetime.time(int(st[0]), int(st[1]), tzinfo=CET_CEST)
+                            child['start'] = datetime.time(int(st[0]), int(st[1]), tzinfo=self.combined_channels_tz)
                         except:
                             traceback.print_exc()
                             self.log('Invalid starttime for %s in combined channel: %s\n' % (child['chanid'], chanid))
@@ -2095,17 +2098,17 @@ class Configure:
                     if 'end' in child:
                         try:
                             st = child['end'].split(':')
-                            child['end'] = datetime.time(int(st[0]), int(st[1]), tzinfo=CET_CEST)
+                            child['end'] = datetime.time(int(st[0]), int(st[1]), tzinfo=self.combined_channels_tz)
                         except:
                             traceback.print_exc()
                             self.log('Invalid endtime for %s in combined channel: %s\n' % (child['chanid'], chanid))
                             del child['end']
 
                     if 'start' in child and not 'end' in child:
-                        child['end'] = datetime.time(24, 0, tzinfo=CET_CEST)
+                        child['end'] = datetime.time(24, 0, tzinfo=self.combined_channels_tz)
 
                     elif 'end' in child and not 'start' in child:
-                        child['start'] = datetime.time(0, 0, tzinfo=CET_CEST)
+                        child['start'] = datetime.time(0, 0, tzinfo=self.combined_channels_tz)
 
                     clist.append(child)
 

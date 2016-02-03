@@ -8,7 +8,7 @@ from __future__ import unicode_literals
 import re, sys, traceback, codecs
 import time, datetime, random, difflib
 import httplib, socket
-import tv_grab_fetch, timezones, pytz
+import tv_grab_fetch, pytz
 try:
     import urllib.request as urllib
 except ImportError:
@@ -25,9 +25,6 @@ try:
     unichr(42)
 except NameError:
     unichr = chr    # Python 3
-
-CET_CEST = timezones.AmsterdamTimeZone()
-UTC  = timezones.UTCTimeZone()
 
 class tvgids_JSON(tv_grab_fetch.FetchData):
     """
@@ -113,7 +110,6 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
         """
 
         # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
-        self.retime = re.compile(r'(\d\d\d\d)-(\d+)-(\d+) (\d+):(\d+)(?::\d+)')
         self.tvgidsnlprog = re.compile('<div id="prog-content">(.*?)<div id="prog-banner-content"',re.DOTALL)
         self.tvgidsnltitle = re.compile('<div class="programmering">(.*?)</h1>',re.DOTALL)
         self.tvgidsnldesc = re.compile('<p(.*?)</p>',re.DOTALL)
@@ -121,10 +117,9 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
         self.tvgidsnldetails = re.compile('<div class="programmering_info_detail">(.*?)</div>',re.DOTALL)
         self.aflevering = re.compile('(\d*)/?\d*(.*)')
 
-        self.channels = {}
         self.url_channels = ''
         self.cooky_cnt = 0
-
+        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
         for channel in self.channels.values():
             if self.url_channels == '':
@@ -142,30 +137,16 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
             return  u'%schannels.php' % (tvgids_json)
 
         elif type == 'day':
-            #~ return '%sprograms.php?channels=%s&day=%s' % (tvgids_json, self.url_channels, offset)
             return ['%sprograms.php' % (tvgids_json), {'channels': self.url_channels, 'day': offset}]
 
         elif (id == None) or id == '':
             return ''
 
         elif type == 'detail':
-            #~ return u'%sprogramma/%s/?cookieoptin=true' % (tvgids, id)
             return u'%sprogramma/%s/' % (tvgids, id)
 
         elif type == 'json_detail':
-            #~ return u'%sprogram.php?id=%s/' % (tvgids_json, id)
             return [u'%sprogram.php' % (tvgids_json), {'id':id}]
-
-    def match_to_date(self, timestring, time, program):
-        match = self.retime.match(self.functions.unescape(timestring))
-
-        if match:
-            return datetime.datetime(int(match.group(1)),int(match.group(2)),\
-                    int(match.group(3)),int(match.group(4)),int(match.group(5)),
-                    tzinfo=CET_CEST)
-        else:
-            self.config.log("Can not determine %s for %s\n" % (time,program))
-            return None
 
     def get_channels(self):
         """
@@ -263,21 +244,6 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
                 self.config.channels[chanid].source_data[self.proc_id].set()
                 continue
 
-            # item is a dict, like:
-            # {
-            #  u'db_id': u'12379780',
-            #  u'titel': u'Der unauff\xe4llige Mr. Crane'
-            #  u'genre': u'Film',
-            #  u'soort': u'Zwarte komedie',
-            #  u'kijkwijzer': u'',
-            #  u'artikel_id': None,
-            #  u'artikel_titel': None,
-            #  u'artikel_tekst': None,
-            #  u'artikel_foto': None,
-            #  u'datum_start': u'2012-03-12 01:20:00',
-            #  u'datum_end': u'2012-03-12 03:05:00',
-            # }
-
             # parse the list to adjust to what we want
             for item in dl[chan_scid]:
                 tdict = self.functions.checkout_program_dict()
@@ -299,12 +265,12 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
                     continue
 
                 # The timing
-                tdict['start-time'] = self.match_to_date(item['datum_start'],"begintijd", tdict['name'])
-                tdict['stop-time']  = self.match_to_date(item['datum_end'], "eindtijd", tdict['name'])
+                tdict['start-time'] = self.functions.get_datetime(item['datum_start'], tzinfo = self.site_tz)
+                tdict['stop-time']  = self.functions.get_datetime(item['datum_end'], tzinfo = self.site_tz)
                 if tdict['start-time'] == None or tdict['stop-time'] == None:
                     continue
 
-                tdict['offset'] = self.functions.get_offset(tdict['start-time'])
+                tdict['offset'] = self.functions.get_offset(tdict['start-time'], self.current_date)
 
                 tdict['genre'] = self.functions.unescape(item['genre']) if ('genre' in item and item['genre'] != None) else ''
                 tdict['subgenre'] = self.functions.unescape(item['soort']) if ('soort' in item and item['soort'] != None) else ''
@@ -638,7 +604,7 @@ class rtl_JSON(tv_grab_fetch.FetchData):
 
         self.page_loaded = False
         self.schedule = {}
-
+        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
         for sourceid in self.channels.values():
             self.schedule[sourceid] =[]
@@ -673,15 +639,12 @@ class rtl_JSON(tv_grab_fetch.FetchData):
                 else:
                     channels = '%s,%s' % (channels, chanid)
 
-            #~ return '%s&days_ahead=%s&days_back=%s&station=%s' % \
-                #~ ( rtl_general, (self.config.opt_dict['offset'] + self.config.opt_dict['days'] -1), - self.config.opt_dict['offset'], channels)
             return [ rtl_general, {'output': 'json',
                                         'days_ahead': self.config.opt_dict['offset'] + self.config.opt_dict['days'] -1,
                                         'days_back': - self.config.opt_dict['offset'],
                                         'station': channels}]
 
         else:
-            #~ return '%s&abstract_key=%s&days_ahead=%s' % ( rtl_abstract, abstract, days)
             return [ rtl_abstract, {'output': 'json',
                                         'abstract_key': abstract,
                                         'days_ahead': days}]
@@ -756,8 +719,8 @@ class rtl_JSON(tv_grab_fetch.FetchData):
 
                 # The timing
                 tdict['unixtime']  =int( item['unixtime'])
-                tdict['start-time']  = datetime.datetime.fromtimestamp(tdict['unixtime'], CET_CEST)
-                tdict['offset'] = self.functions.get_offset(tdict['start-time'])
+                tdict['start-time']  = datetime.datetime.fromtimestamp(tdict['unixtime'], self.config.utc_tz)
+                tdict['offset'] = self.functions.get_offset(tdict['start-time'], self.current_date)
                 tdict['rerun']  = (item['rerun'] == 'true')
 
                 # The Season Number
@@ -827,6 +790,7 @@ class horizon_JSON(tv_grab_fetch.FetchData):
     """
     def init_channels(self):
         self.url_channels = ''
+        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
 
     def init_json(self):
@@ -843,7 +807,6 @@ class horizon_JSON(tv_grab_fetch.FetchData):
             return  u'%schannels/' % (horizon)
 
         elif type == 'day':
-            #~ return '%slistings?byStationId=%s&byStartTime=%s~%s&sort=startTime' % (horizon, channel, start, end)
             return ['%slistings' % (horizon),
                             {'byStationId': channel,
                               'byStartTime': '%s~%s' % (start, end),
@@ -971,12 +934,12 @@ class horizon_JSON(tv_grab_fetch.FetchData):
                             continue
 
                         # The timing
-                        tdict['start-time'] = datetime.datetime.fromtimestamp(int(item['startTime'])/1000, CET_CEST)
-                        tdict['stop-time']  = datetime.datetime.fromtimestamp(int(item['endTime'])/1000, CET_CEST)
+                        tdict['start-time'] = datetime.datetime.fromtimestamp(int(item['startTime'])/1000, self.config.utc_tz)
+                        tdict['stop-time']  = datetime.datetime.fromtimestamp(int(item['endTime'])/1000, self.config.utc_tz)
                         if tdict['start-time'] == None or tdict['stop-time'] == None:
                             continue
 
-                        tdict['offset'] = self.functions.get_offset(tdict['start-time'])
+                        tdict['offset'] = self.functions.get_offset(tdict['start-time'], self.current_date)
                         start = item['endTime']
                         if 'secondaryTitle' in item['program'] \
                           and item['program']['secondaryTitle'][:27].lower() != 'geen informatie beschikbaar' \
@@ -989,7 +952,7 @@ class horizon_JSON(tv_grab_fetch.FetchData):
 
                         shortdesc = self.functions.unescape(item['program']['shortDescription']) if 'shortDescription' in item['program'] else ''
                         tdict['description'] = self.functions.unescape(item['program']['description']) if 'description' in item['program'] else shortdesc
-                        tdict['airdate'] = datetime.datetime.fromtimestamp(int(item['program']['airdate'])/1000, CET_CEST) if 'airdate' in item['program'] else ''
+                        tdict['airdate'] = datetime.datetime.fromtimestamp(int(item['program']['airdate'])/1000, self.config.utc_tz) if 'airdate' in item['program'] else ''
                         tdict['jaar van premiere'] = item['program']['year'] if 'year' in item['program'] else ''
                         tdict['rerun'] = ('latestBroadcastStartTime' in item['program'] and item['startTime'] != item['program']['latestBroadcastStartTime'])
                         if 'IMDb rating:' in tdict['description']:
@@ -1105,10 +1068,8 @@ class humo_JSON(tv_grab_fetch.FetchData):
     """
     def init_channels(self):
 
+        self.site_tz = pytz.timezone('Europe/Brussels')
         self.init_channel_source_ids()
-        self.chanids = {}
-        for chanid, sourceid in self.channels.items():
-            self.chanids[sourceid] = chanid
 
     def init_json(self):
 
@@ -1231,12 +1192,12 @@ class humo_JSON(tv_grab_fetch.FetchData):
                                 continue
 
                             # The timing
-                            tdict['start-time'] = datetime.datetime.fromtimestamp(item['starttime'], CET_CEST)
-                            tdict['stop-time']  = datetime.datetime.fromtimestamp(item['endtime'], CET_CEST)
+                            tdict['start-time'] = datetime.datetime.fromtimestamp(item['starttime'], self.config.utc_tz)
+                            tdict['stop-time']  = datetime.datetime.fromtimestamp(item['endtime'], self.config.utc_tz)
                             if tdict['start-time'] == None or tdict['stop-time'] == None:
                                 continue
 
-                            tdict['offset'] = self.functions.get_offset(tdict['start-time'])
+                            tdict['offset'] = self.functions.get_offset(tdict['start-time'], self.current_date)
                             if 'content_long' in item['program'].keys():
                                 tdict['description'] = item['program']['content_long']
 
@@ -1372,10 +1333,8 @@ class humo_JSON(tv_grab_fetch.FetchData):
 
 class vrt_JSON(tv_grab_fetch.FetchData):
     def init_channels(self):
+        self.site_tz = pytz.timezone('Europe/Brussels')
         self.init_channel_source_ids()
-        self.chanids = {}
-        for chanid, sourceid in self.channels.items():
-            self.chanids[sourceid] = chanid
 
     def get_url(self, type = 'channels', offset = 0, chanid = None):
 
@@ -1388,19 +1347,10 @@ class vrt_JSON(tv_grab_fetch.FetchData):
         elif type == 'genres':
             return  [u'%sepg/standardgenres' % (base_url), 'application/vnd.epg.vrt.be.standardgenres_1.0+json']
 
-        #~ elif type == 'week' and chanid == None:
-            #~ return  [u'%sepg/schedules/%s' % (base_url, scan_date),
-                            #~ 'application/vnd.epg.vrt.be.schedule_3.1+json',
-                            #~ {'type': 'week'}]
-
         elif type == 'week':
             return  [u'%sepg/schedules/%s' % (base_url, scan_date),
                             'application/vnd.epg.vrt.be.schedule_3.1+json',
                             {'type': 'week', 'channel_code': chanid}]
-
-        #~ elif type == 'day' and chanid == None:
-            #~ return  [u'%sepg/schedules/%s?type=day' % (base_url, scan_date),
-                            #~ 'application/vnd.epg.vrt.be.schedule_3.1+json']
 
         elif type == 'day':
             return  [u'%sepg/schedules/%s' % (base_url, scan_date),
@@ -1446,15 +1396,6 @@ class vrt_JSON(tv_grab_fetch.FetchData):
             if icon[2] == 'services.vrt.be':
                 self.all_channels[chanid]['icon'] = icon[-1]
                 self.all_channels[chanid]['icongrp'] = 10
-
-    def get_datetime(self, date_string, round_down = True):
-        date = datetime.datetime.strptime(date_string.split('.')[0], '%Y-%m-%dT%H:%M:%S').replace(tzinfo = UTC).astimezone(CET_CEST)
-        seconds = date.second
-        date = date.replace(second = 0)
-        if seconds > 0 and not round_down:
-            date = date + datetime.timedelta(minutes = 1)
-
-        return date
 
     def get_standaardgenres(self):
         url = self.get_url('genres')
@@ -1576,12 +1517,12 @@ class vrt_JSON(tv_grab_fetch.FetchData):
                             tdict['name'] = self.functions.unescape(p['title'])
 
                             # The timing
-                            tdict['start-time'] = self.get_datetime(p['startTime'])
-                            tdict['stop-time']  = self.get_datetime(p['endTime'], False)
+                            tdict['start-time'] = self.functions.get_datetime(p['startTime'], '%Y-%m-%dT%H:%M:%S')
+                            tdict['stop-time']  = self.functions.get_datetime(p['endTime'], '%Y-%m-%dT%H:%M:%S', round_down = False)
                             if  tdict['name'] == None or tdict['name'] == '' or tdict['start-time'] == None or tdict['stop-time'] == None:
                                 continue
 
-                            tdict['offset'] = self.functions.get_offset(tdict['start-time'])
+                            tdict['offset'] = self.functions.get_offset(tdict['start-time'], self.current_date)
                             if 'shortDescription' in p.keys() and p['shortDescription'] not in ('', None):
                                 tdict['description'] = p['shortDescription']
 
@@ -1851,6 +1792,7 @@ class tvgidstv_HTML(tv_grab_fetch.FetchData):
         self.daydata = re.compile('<div class="section-content">(.*?)<div class="advertisement">',re.DOTALL)
         self.detaildata = re.compile('<div class="section-title">(.*?)<div class="advertisement">',re.DOTALL)
 
+        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
 
     def get_url(self, channel = None, offset = 0, href = None):
@@ -1872,7 +1814,7 @@ class tvgidstv_HTML(tv_grab_fetch.FetchData):
     def check_date(self, page_data, channel, offset):
 
         # Check on the right offset for appending the date to the time. Their date switch is aroud 6:00
-        dnow = datetime.datetime.now(CET_CEST).strftime('%d %b').split()
+        dnow = datetime.datetime.now(self.site_tz).strftime('%d %b').split()
         dlast = datetime.date.fromordinal(self.current_date - 1).strftime('%d %b').split()
 
         if page_data == None:
@@ -2085,7 +2027,8 @@ class tvgidstv_HTML(tv_grab_fetch.FetchData):
                             continue
 
                         self.config.log(['\n', 'Now fetching %s(xmltvid=%s%s) from tvgids.tv\n' % \
-                            (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid , (self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                            (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid , \
+                            (self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
                             '    (channel %s of %s) for day %s of %s.\n' % \
                             (channel_cnt, len(self.channels), offset, self.config.opt_dict['days'])], 2)
                         if not first_fetch:
@@ -2122,7 +2065,7 @@ class tvgidstv_HTML(tv_grab_fetch.FetchData):
 
                         date_offset = x
                         scan_date = datetime.date.fromordinal(self.current_date + date_offset)
-                        last_program = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + date_offset - 1), datetime.time(0, 0, 0 ,0 ,CET_CEST))
+                        last_program = self.functions.merge_date_time('00:00', scan_date-datetime.timedelta(1), self.site_tz)[0]
 
                         # and extract the ElementTree
                         try:
@@ -2172,17 +2115,19 @@ class tvgidstv_HTML(tv_grab_fetch.FetchData):
                                 # Get the starttime and make sure the midnight date change is properly crossed
                                 start = p.findtext('div[@class="content"]/span[@class="section-item-title"]').split()[0]
                                 if start == None or start == '':
-                                    self.config.log('Can not determine starttime for "%s"\n' % tdict['name'])
+                                    self.config.log('Can not determine starttime for "%s" on %s\n' % (tdict['name'], self.source))
                                     continue
 
-                                prog_time = datetime.time(int(start.split(':')[0]), int(start.split(':')[1]), 0 ,0 ,CET_CEST)
-                                if datetime.datetime.combine(scan_date, prog_time) < last_program:
-                                    date_offset = date_offset +1
-                                    scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                                pstart = self.functions.merge_date_time(start, scan_date, self.site_tz, ':', date_offset, last_program)
+                                if pstart == None:
+                                    self.config.log('Can not determine starttime for "%s" on %s\n' % (tdict['name'], self.source))
+                                    continue
 
-                                tdict['offset'] = date_offset
-                                tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
-                                last_program = tdict['start-time']
+                                tdict['start-time'] = pstart[0]
+                                last_program = pstart[0]
+                                tdict['offset'] = pstart[1]
+                                date_offset = pstart[1]
+                                scan_date = pstart[2]
 
                                 m = p.findtext('div[@class="content"]/span[@class="label"]')
                                 # span = "IMDB * n.n"
@@ -2465,10 +2410,8 @@ class npo_HTML(tv_grab_fetch.FetchData):
             </div>
         """
 
+        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
-        self.chanids = {}
-        for chanid, sourceid in self.channels.items():
-            self.chanids[sourceid] = chanid
 
     def get_url(self, offset = 0, href = None, vertical = False):
 
@@ -2580,10 +2523,17 @@ class npo_HTML(tv_grab_fetch.FetchData):
     def load_pages(self):
 
         first_fetch = True
-        def get_programs(xml, chanid, omroep = True):
+        def get_programs(xml, chanid, offset, omroep = True):
             try:
                 tdict = None
-                day_offset = 0
+                date_offset = offset
+                scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                if last_added[chanid] == None:
+                    last_program = self.functions.merge_date_time('00:00', scan_date-datetime.timedelta(1), self.site_tz)[0]
+
+                else:
+                    last_program = last_added[chanid]['stop-time']
+
                 for p in xml.findall('a'):
                     ptext = p.find('i[@class="np"]')
                     if ptext == None:
@@ -2608,26 +2558,23 @@ class npo_HTML(tv_grab_fetch.FetchData):
                     tdict['name'] = self.functions.empersant(ptext.tail.strip())
 
                     ptime = ptime.split('-')
-                    pstart = ptime[0].split(':')
-                    prog_time = datetime.time(int(pstart[0]), int(pstart[1]), 0 ,0 ,CET_CEST)
-                    if day_offset == 0 and int(pstart[0]) < 6:
-                        day_offset = 1
+                    pstart = self.functions.merge_date_time(ptime[0], scan_date, self.site_tz, ':', date_offset, last_program)
+                    if pstart == None:
+                        self.config.log('Can not determine starttime for "%s" on %s\n' % (tdict['name'], self.source))
+                        continue
 
-                    tdict['offset'] = offset + day_offset
+                    pstop = self.functions.merge_date_time(ptime[1], pstart[2], self.site_tz, ':', pstart[1], pstart[0])
+                    if pstop == None:
+                        self.config.log('Can not determine endtime for "%s" on %s\n' % (tdict['name'], self.source))
+                        continue
 
-                    if day_offset == 1:
-                        tdict['start-time'] = datetime.datetime.combine(nextdate, prog_time)
+                    tdict['start-time'] = pstart[0]
+                    tdict['stop-time'] = pstop[0]
+                    tdict['offset'] = pstart[1]
+                    date_offset = pstop[1]
+                    scan_date = pstop[2]
 
-                    else:
-                        tdict['start-time'] = datetime.datetime.combine(startdate, prog_time)
-
-                    pstop = ptime[1].split(':')
-                    prog_time = datetime.time(int(pstop[0]), int(pstop[1]), 0 ,0 ,CET_CEST)
-                    if day_offset == 1 or int(pstop[0]) < 6:
-                        tdict['stop-time'] = datetime.datetime.combine(nextdate, prog_time)
-
-                    else:
-                        tdict['stop-time'] = datetime.datetime.combine(startdate, prog_time)
+                    last_program = tdict['stop-time']
 
                     if omroep:
                         tdict['omroep'] = p.findtext('span', '')
@@ -2768,7 +2715,7 @@ class npo_HTML(tv_grab_fetch.FetchData):
                         if not chanid in last_added:
                             last_added[chanid] = None
 
-                        get_programs(c, chanid, self.all_channels[scid]['group'] in (1, 7, 11))
+                        get_programs(c, chanid, offset, self.all_channels[scid]['group'] in (1, 7, 11))
                         self.day_loaded[chanid][offset] = True
 
                 except:
@@ -2930,26 +2877,26 @@ class npo_HTML(tv_grab_fetch.FetchData):
                                 # The Title
                                 tdict['name'] = self.functions.empersant(ptext)
 
-                                prog_time = datetime.time(int(pshour), int(psmin), 0 ,0 ,CET_CEST)
+                                prog_time = datetime.time(int(pshour), int(psmin), 0 ,0 ,self.site_tz)
                                 if day_offset == 0 and phour < 6:
                                     day_offset = 1
 
                                 tdict['offset'] = offset + day_offset
 
                                 if day_offset == 1:
-                                    tdict['start-time'] = datetime.datetime.combine(nextdate, prog_time)
+                                    tdict['start-time'] = self.config.utc_tz.normalize(datetime.datetime.combine(nextdate, prog_time).astimezone(self.config.utc_tz))
 
                                 else:
-                                    tdict['start-time'] = datetime.datetime.combine(startdate, prog_time)
+                                    tdict['start-time'] = self.config.utc_tz.normalize(datetime.datetime.combine(startdate, prog_time).astimezone(self.config.utc_tz))
 
                                 # There seem to be regular gaps between the programs
                                 # I asume they are commercials and in between talk.
-                                prog_time = datetime.time(int(pehour), int(pemin), 0 ,0 ,CET_CEST)
+                                prog_time = datetime.time(int(pehour), int(pemin), 0 ,0 ,self.site_tz)
                                 if day_offset == 1 or int(pehour) < 6:
-                                    tdict['stop-time'] = datetime.datetime.combine(nextdate, prog_time)
+                                    tdict['stop-time'] = self.config.utc_tz.normalize(datetime.datetime.combine(nextdate, prog_time).astimezone(self.config.utc_tz))
 
                                 else:
-                                    tdict['stop-time'] = datetime.datetime.combine(startdate, prog_time)
+                                    tdict['stop-time'] = self.config.utc_tz.normalize(datetime.datetime.combine(startdate, prog_time).astimezone(self.config.utc_tz))
 
                                 pgenre = p.get('data-genre','')
                                 if pgenre in self.config.source_cattrans[self.proc_id].keys():
@@ -3026,11 +2973,9 @@ class vpro_HTML(tv_grab_fetch.FetchData):
         self.fetch_subgenre3 = re.compile('^(.*?) uit (\d{4})')
         self.fetch_subgenre4 = re.compile('^(.*?) (naar|waarin|over).*?')
 
+        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
         self.availabe_days = []
-        self.chanids = {}
-        for chanid, sourceid in self.channels.items():
-            self.chanids[sourceid] = chanid
 
     def get_url(self, offset = None):
 
@@ -3072,7 +3017,6 @@ class vpro_HTML(tv_grab_fetch.FetchData):
             scid =re.sub('[ /]', '_', name.lower())
             scid =re.sub('é', 'e', scid)
             scid =re.sub('[!(),]', '', scid)
-            #~ scid = '%s-%s' % (self.proc_id, scid)
             if c.attrib['class'] == "epg-source-radio epg-channel-name":
                 grp = 11
 
@@ -3095,7 +3039,7 @@ class vpro_HTML(tv_grab_fetch.FetchData):
             self.availabe_days.append(datetime.date(int(d[0]), int(d[1]), int(d[2])).toordinal() - self.current_date)
 
     def load_pages(self):
-        # The vpro description has all kind of inden info like: year episode, cast, presentation.
+        # The vpro description has all kind of info like: year episode, cast, presentation.
         def filter_desc(tdict):
             if tdict['description'] == '':
                 return
@@ -3210,10 +3154,18 @@ class vpro_HTML(tv_grab_fetch.FetchData):
                 for cn in cast:
                     tdict['credits'][role].append(cn.split('(')[0].strip())
 
-        def get_programs(xml, chanid):
+        def get_programs(xml, chanid, offset):
             try:
                 tdict = None
-                day_offset = 0
+                #~ day_offset = 0
+                date_offset = offset
+                scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                if last_added[chanid] == None:
+                    last_program = self.functions.merge_date_time('00:00', scan_date-datetime.timedelta(1), self.site_tz)[0]
+
+                else:
+                    last_program = last_added[chanid]['start-time']
+
                 for p in xml.findall('li'):
                     ptext = p.get('data-title')
                     if ptext == None:
@@ -3230,26 +3182,21 @@ class vpro_HTML(tv_grab_fetch.FetchData):
                     tdict['channelid'] = chanid
                     tdict['channel'] = self.config.channels[chanid].chan_name
                     tdict['detail_url'][self.proc_id] = p.get('data-read-more-url', '')
-                    #~ if tdict['detail_url'][self.proc_id] != '':
-                        #~ pid = tdict['detail_url'][self.proc_id].split('/')[-1]
-                        #~ tdict['prog_ID'][self.proc_id] = u'npo-%s' % pid.split('_')[-1]
 
                     # The Title
                     tdict['name'] = self.functions.empersant(ptext.strip())
 
-                    pstart = re.sub('vpro', '', ptime).strip()
-                    pstart = pstart.split(':')
-                    prog_time = datetime.time(int(pstart[0]), int(pstart[1]), 0 ,0 ,CET_CEST)
-                    if day_offset == 0 and int(pstart[0]) < 6:
-                        day_offset = 1
+                    start = re.sub('vpro', '', ptime).strip()
+                    pstart = self.functions.merge_date_time(start, scan_date, self.site_tz, ':', date_offset, last_program)
+                    if pstart == None:
+                        self.config.log('Can not determine starttime for "%s" on %s\n' % (tdict['name'], self.source))
+                        continue
 
-                    tdict['offset'] = offset + day_offset
-
-                    if day_offset == 1:
-                        tdict['start-time'] = datetime.datetime.combine(nextdate, prog_time)
-
-                    else:
-                        tdict['start-time'] = datetime.datetime.combine(startdate, prog_time)
+                    tdict['start-time'] = pstart[0]
+                    last_program = pstart[0]
+                    tdict['offset'] = pstart[1]
+                    date_offset = pstart[1]
+                    scan_date = pstart[2]
 
                     tdict['description'] = self.functions.empersant(p.get('data-description','').strip())
                     omroep = p.findtext('div[@class="content"]/h6[@class="title"]/span[@class="broadcaster"]')
@@ -3294,6 +3241,8 @@ class vpro_HTML(tv_grab_fetch.FetchData):
                     with self.source_lock:
                         self.program_data[chanid].append(tdict)
 
+                last_added[chanid] = tdict
+
             except:
                 self.config.log(traceback.format_exc())
 
@@ -3307,6 +3256,7 @@ class vpro_HTML(tv_grab_fetch.FetchData):
         if len(self.channels) == 0 :
             return
 
+        last_added = {}
         for retry in (0, 1):
             for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), 5)):
                 if self.quit:
@@ -3392,14 +3342,17 @@ class vpro_HTML(tv_grab_fetch.FetchData):
                             continue
 
                         chanid = self.chanids[scid]
-                        get_programs(c, chanid)
+                        if not chanid in last_added:
+                            last_added[chanid] = None
+
+                        get_programs(c, chanid, offset)
                         if channel_cnt == 2:
                             self.day_loaded[chanid][offset] = True
 
                 except:
                     self.config.log(traceback.format_exc())
 
-                # be nice to npo.nl
+                # be nice to vpro.nl
                 self.day_loaded[0][offset] = True
                 time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
 
@@ -3536,6 +3489,7 @@ class nieuwsblad_HTML(tv_grab_fetch.FetchData):
         self.getprograms = re.compile("<!-- start block 'tvgids-left-center' -->(.*?)<!-- end block 'tvgids-left-center' -->",re.DOTALL)
         self.getchannelgroups = re.compile("<div id=\"accordion\" class=\"accordion\" data-accordion data-jq-plugin=\"accordion\">(.*?)<!-- end block 'tvgids-right-center' -->",re.DOTALL)
 
+        self.site_tz = pytz.timezone('Europe/Brussels')
         self.init_channel_source_ids()
 
     def get_url(self, channel = None, offset = 0, chan_group = 0):
@@ -3802,13 +3756,8 @@ class nieuwsblad_HTML(tv_grab_fetch.FetchData):
 
                         date_offset = offset
                         scan_date = datetime.date.fromordinal(self.current_date + date_offset)
-                        last_program = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + date_offset - 1), \
-                                                                                                datetime.time(0, 0, 0 ,0 ,CET_CEST))
+                        last_program = self.functions.merge_date_time('00:00', scan_date-datetime.timedelta(1), self.site_tz)[0]
                         for p in d.findall('div/div[@class="program"]'):
-                            #~ start = p.findtext('div[@class="time"]')
-                            #~ title = p.findtext('div[@class="title"]/a').strip()
-                            #~ url = p.find('div[@class="title"]/a').get('href')
-
                             tdict = self.functions.checkout_program_dict()
                             tdict['source'] = u'nieuwsblad'
                             tdict['channelid'] = chanid
@@ -3825,17 +3774,19 @@ class nieuwsblad_HTML(tv_grab_fetch.FetchData):
                             # Get the starttime and make sure the midnight date change is properly crossed
                             start = p.findtext('div[@class="time"]')
                             if start == None or start == '':
-                                self.config.log('Can not determine starttime for "%s"\n' % tdict['name'])
+                                self.config.log('Can not determine starttime for "%s" on %s\n' % (tdict['name'], self.source))
                                 continue
 
-                            prog_time = datetime.time(int(start.split(':')[0]), int(start.split(':')[1]), 0 ,0 ,CET_CEST)
-                            if datetime.datetime.combine(scan_date, prog_time) < last_program:
-                                date_offset = date_offset +1
-                                scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                            pstart = self.functions.merge_date_time(start, scan_date, self.site_tz, ':', date_offset, last_program)
+                            if pstart == None:
+                                self.config.log('Can not determine endtime for "%s" on %s\n' % (tdict['name'], self.source))
+                                continue
 
-                            tdict['offset'] = date_offset
-                            tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
-                            last_program = tdict['start-time']
+                            tdict['start-time'] = pstart[0]
+                            last_program = pstart[0]
+                            tdict['offset'] = pstart[1]
+                            date_offset = pstart[1]
+                            scan_date = pstart[2]
 
                             # and append the program to the list of programs
                             tdict = self.check_title_name(tdict)
@@ -3890,10 +3841,8 @@ class primo_HTML(tv_grab_fetch.FetchData):
         self.getchannelstring = re.compile('(.*?) channel channel-(.*?) channel-.*?')
         self.getprogduur = re.compile('width:(\d+)px;')
 
+        self.site_tz = pytz.timezone('Europe/Brussels')
         self.init_channel_source_ids()
-        self.chanids = {}
-        for chanid, sourceid in self.channels.items():
-            self.chanids[sourceid] = chanid
 
     def get_url(self, offset = 0, detail = None):
         base_url = 'http://www.primo.eu'
@@ -3901,7 +3850,7 @@ class primo_HTML(tv_grab_fetch.FetchData):
             return base_url + "/Tv%20programma's%20in%20volledig%20scherm%20bekijken"
 
         elif detail == None and isinstance(offset, int):
-            date = self.functions.get_datestamp(offset)
+            date = self.functions.get_datestamp(offset, self.site_tz)
             return '%s/tv-programs-full-view/%s/all/all' % (base_url, date)
 
         else:
@@ -4013,7 +3962,8 @@ class primo_HTML(tv_grab_fetch.FetchData):
                         htmldata = htmldata.find('div/div[@id="tvprograms-main"]/div[@id="tvprograms"]')
                         sel_date = htmldata.findtext('div[@id="program-header-top"]/div/div[@id="dates"]/ul/li[@class="selected-date"]/a/span[@class="day"]')
                         if sel_date in ('', None) or datetime.date.fromordinal(self.current_date + offset).day != int(sel_date):
-                            self.config.log("Skip day=%d on Primo.eu. Wrong date: %s(timestamp: %s!\n" % (offset, sel_date, self.functions.get_datestamp(offset)))
+                            self.config.log("Skip day=%d on Primo.eu. Wrong date: %s(timestamp: %s!\n" % \
+                                (offset, sel_date, self.functions.get_datestamp(offset, self.site_tz)))
                             failure_count += 1
                             self.fail_count += 1
                             continue
@@ -4039,57 +3989,60 @@ class primo_HTML(tv_grab_fetch.FetchData):
                             continue
 
                         chanid = self.chanids[scid]
-                        date_offset = offset -1
-                        last_end = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + offset), \
-                                                                                        datetime.time(hour=6, tzinfo=CET_CEST))
-                        for d in chan.findall('div[@class="hour hour-"]'):
-                            date_offset+=1
-                            scan_date = datetime.date.fromordinal(self.current_date + date_offset)
-                            for p in d.findall('div'):
-                                tdict = self.functions.checkout_program_dict()
-                                tdict['source'] = u'primo'
-                                tdict['channelid'] = chanid
-                                tdict['channel'] = self.config.channels[chanid].chan_name
-                                pid = p.find('h3').get('id')
-                                tdict['prog_ID'][self.proc_id] = u'primo-%s' % pid  if pid != None else ''
-                                tdict['detail_url'][self.proc_id] = self.get_url(detail = pid)  if pid != None else ''
+                        date_offset = offset
+                        scan_date = datetime.date.fromordinal(self.current_date + date_offset)
+                        last_end = self.functions.merge_date_time('06:00', scan_date-datetime.timedelta(1), self.site_tz)[0]
+                        #~ for d in chan.findall('div[@class="hour hour-"]'):
+                        for p in chan.findall('div[@class="hour hour-"]/div'):
+                            tdict = self.functions.checkout_program_dict()
+                            tdict['source'] = u'primo'
+                            tdict['channelid'] = chanid
+                            tdict['channel'] = self.config.channels[chanid].chan_name
+                            pid = p.find('h3').get('id')
+                            tdict['prog_ID'][self.proc_id] = u'primo-%s' % pid  if pid != None else ''
+                            tdict['detail_url'][self.proc_id] = self.get_url(detail = pid)  if pid != None else ''
 
-                                # The Title
-                                tdict['name'] = self.functions.empersant(p.findtext('h3').strip())
-                                if  tdict['name'] == None or tdict['name'] == '':
-                                    self.config.log('Can not determine program title for "%s"\n' % tdict['detail_url'][self.proc_id])
+                            # The Title
+                            tdict['name'] = self.functions.empersant(p.findtext('h3').strip())
+                            if  tdict['name'] == None or tdict['name'] == '':
+                                self.config.log('Can not determine program title for "%s"\n' % tdict['detail_url'][self.proc_id])
+                                continue
+
+                            # Get the starttime and make sure the midnight date change is properly crossed
+                            ptime = p.findtext('span', '')
+                            pduur = int(self.getprogduur.search(p.get('style')).group(1))*12
+                            if ptime == '':
+                                tdict['start-time'] = last_end
+                                tdict['stop-time'] = last_end + datetime.timedelta(seconds=pduur)
+
+                            else:
+                                ptime = ptime.split('-')
+                                pstart = self.functions.merge_date_time(ptime[0].strip(), scan_date, self.site_tz, '\.', date_offset, last_end)
+                                if pstart == None:
+                                    self.config.log('Can not determine starttime for "%s" on %s\n' % (tdict['name'], self.source))
                                     continue
 
-                                # Get the starttime and make sure the midnight date change is properly crossed
-                                ptime = p.findtext('span', '')
-                                pduur = int(self.getprogduur.search(p.get('style')).group(1))*12
-                                if ptime == '':
-                                    tdict['start-time'] = last_end
-                                    tdict['stop-time'] = last_end + datetime.timedelta(seconds=pduur)
+                                pstop = self.functions.merge_date_time(ptime[1].strip(), pstart[2], self.site_tz, '\.', pstart[1], pstart[0])
+                                if pstop == None:
+                                    self.config.log('Can not determine endtime for "%s" on %s\n' % (tdict['name'], self.source))
+                                    continue
 
-                                else:
-                                    ptime = ptime.split('-')
-                                    pstart = ptime[0].strip().split('.')
-                                    prog_time = datetime.time(hour=int(pstart[0]), minute=int(pstart[1]), tzinfo=CET_CEST)
-                                    tdict['offset'] = date_offset
-                                    tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
-                                    pstop = ptime[1].strip().split('.')
-                                    prog_time = datetime.time(hour=int(pstop[0]), minute=int(pstop[1]), tzinfo=CET_CEST)
-                                    tdict['offset'] = date_offset
-                                    tdict['stop-time'] = datetime.datetime.combine(scan_date, prog_time)
-                                    if tdict['stop-time'] < tdict['start-time']:
-                                        tdict['stop-time'] = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + date_offset + 1), prog_time)
+                                tdict['start-time'] = pstart[0]
+                                tdict['stop-time'] = pstop[0]
+                                tdict['offset'] = pstart[1]
+                                date_offset = pstop[1]
+                                scan_date = pstop[2]
 
-                                last_end = tdict['stop-time']
+                            last_end = tdict['stop-time']
 
-                                # and append the program to the list of programs
-                                tdict = self.check_title_name(tdict)
-                                with self.source_lock:
-                                    self.program_data[chanid].append(tdict)
+                            # and append the program to the list of programs
+                            tdict = self.check_title_name(tdict)
+                            with self.source_lock:
+                                self.program_data[chanid].append(tdict)
 
                     self.base_count += 1
                     self.day_loaded[0][offset] = True
-                    # be nice to nieuwsblad.be
+                    # be nice to primo.eu
                     time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
 
                 if failure_count == 0 or retry == 1:
@@ -4273,13 +4226,12 @@ class oorboekje_HTML(tv_grab_fetch.FetchData):
         self.getdate = re.compile("this.document.title='oorboekje.nl - Programma-overzicht van .*? ([0-9]{2})-([0-9]{2})-([0-9]{4})';")
         self.getchanday = re.compile('<!-- programmablok begin -->(.*?)<!-- programmablok eind -->',re.DOTALL)
         self.getchannel = re.compile('<A href="zenderInfo.php\?zender=([0-9]+).*?</A>(.*?)</DIV>',re.DOTALL)
-        self.getprogram = re.compile('<DIV class="pgProgOmschr" style="text-indent: -16px; padding-left: 16px">\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
-        self.gettime = re.compile('([0-9]{2}):([0-9]{2})')
+        self.getprogram = re.compile('<DIV class="pgProgOmschr" style="text-indent: -16px; padding-left: 16px">\s*([0-9]{2}:[0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
+        self.gettime = re.compile('([0-9]{2}:[0-9]{2})')
         self.geticons = re.compile('<IMG src=".*?" alt="(.*?)".*?>',re.DOTALL)
+
+        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
-        self.chanids = {}
-        for chanid, sourceid in self.channels.items():
-            self.chanids[sourceid] = chanid
 
     def get_url(self, type = None, offset = 0):
 
@@ -4337,9 +4289,6 @@ class oorboekje_HTML(tv_grab_fetch.FetchData):
                     self.all_channels[chanid] = {}
                     self.all_channels[chanid]['name'] = channame
                     self.all_channels[chanid]['group'] = chgroup
-
-                #~ print chgroup, chanid, channame.encode('utf-8')
-                #~ print '			"12-%s": "%s",' % (chanid, chanid)
 
         except:
             self.fail_count += 1
@@ -4412,7 +4361,7 @@ class oorboekje_HTML(tv_grab_fetch.FetchData):
                         chanid = self.chanids[scid]
                         date_offset = offset
                         last_end = datetime.datetime.combine(datetime.date.fromordinal(self.current_date + offset),
-                                                                                        datetime.time(hour=0, tzinfo=CET_CEST))
+                                                                                        datetime.time(hour=0, tzinfo=self.site_tz))
                         scan_date = datetime.date.fromordinal(self.current_date + date_offset)
                         pcount = 0
                         for p in self.getprogram.findall(ch):
@@ -4422,39 +4371,37 @@ class oorboekje_HTML(tv_grab_fetch.FetchData):
                             tdict['channel'] = self.config.channels[chanid].chan_name
 
                             # The Title
-                            tdict['name'] = self.functions.empersant(p[3].strip())
+                            tdict['name'] = self.functions.empersant(p[2].strip())
                             if  tdict['name'] == None or tdict['name'] == '':
                                 self.config.log('Can not determine program title\n')
                                 continue
 
                             pcount+=1
-                            ptime = datetime.time(int(p[0]), int(p[1]), tzinfo=CET_CEST)
-                            tdict['offset'] = date_offset
-                            tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
-                            if tdict['start-time'] < last_end:
-                                if pcount > 2:
-                                    scan_date = datetime.date.fromordinal(self.current_date + date_offset+1)
-                                    tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
+                            pstart = self.functions.merge_date_time(p[0], scan_date, self.site_tz, ':', date_offset, last_end)
+                            if pstart == None:
+                                self.config.log('Can not determine starttime for "%s" on %s\n' % (tdict['name'], self.source))
+                                continue
 
-                            last_end = tdict['start-time']
-                            ptime = self.gettime.search(p[2])
-                            if ptime != None:
-                                ptime = datetime.time(int(ptime.group(1)), int(ptime.group(2)), tzinfo=CET_CEST)
-                                tdict['stop-time'] = datetime.datetime.combine(scan_date, ptime)
-                                if tdict['stop-time'] < last_end:
-                                    scan_date = datetime.date.fromordinal(self.current_date + date_offset+1)
-                                    tdict['stop-time'] = datetime.datetime.combine(scan_date, ptime)
+                            tdict['start-time'] = pstart[0]
+                            tdict['offset'] = pstart[1]
+                            pstop = self.functions.merge_date_time(p[1], pstart[2], self.site_tz, ':', pstart[1], pstart[0])
+                            if pstop != None:
+                                tdict['stop-time'] = pstop[0]
+                                pstart = pstop
 
-                                last_end = tdict['stop-time']
+                            if pcount > 2:
+                                last_end = pstart[0]
+                                date_offset = pstart[1]
+                                scan_date = pstart[2]
 
-                            for picon in self.geticons.findall(p[4]):
+                            for picon in self.geticons.findall(p[3]):
                                 if picon == "herhaling":
                                     tdict['rerun'] = True
 
                                 elif picon == "nonstop":
                                     tdict['genre'] = u'muziek'
 
-                            desc = re.sub('<.*?>', '', self.functions.empersant(p[4])).strip()
+                            desc = re.sub('<.*?>', '', self.functions.empersant(p[3])).strip()
                             if tdict['genre'] == u'overige':
                                 if 'muziek' in desc or 'muziek' in tdict['name']:
                                     tdict['genre'] = u'muziek'

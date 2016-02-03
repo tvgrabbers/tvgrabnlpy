@@ -6,19 +6,12 @@ from __future__ import unicode_literals
 # from __future__ import print_function
 
 import codecs, locale, re, os, sys, io, shutil
-import traceback, datetime, time, smtplib, sqlite3
-import timezones, pytz
+import traceback, smtplib, sqlite3
+import datetime, time, pytz
 from threading import Thread, Lock
 from Queue import Queue, Empty
 from email.mime.text import MIMEText
 from copy import deepcopy
-
-CET_CEST = timezones.AmsterdamTimeZone()
-UTC  = timezones.UTCTimeZone()
-#~ CET_CEST = pytz.timezone('Europe/Amsterdam')
-#~ UTC  = pytz.utc
-#~ loc_dt = eastern.localize(datetime(2002, 10, 27, 6, 0, 0))
-#~ ams_dt = amsterdam.normalize(loc_dt.astimezone(amsterdam))
 
 class Functions():
     """Some general IO functions"""
@@ -513,11 +506,11 @@ class ProgramCache(Thread):
 
     def adapt_datetime(self, val):
         if isinstance(val, (datetime.datetime)):
-            if val.tzinfo == CET_CEST:
+            if val.tzinfo == self.config.utc_tz:
                 return time.mktime(val.timetuple())*1000
 
             else:
-                return time.mktime(val.astimezone(CET_CEST).timetuple())*1000
+                return time.mktime(val.astimezone(self.config.utc_tz).timetuple())*1000
 
         else:
             return 0
@@ -530,7 +523,7 @@ class ProgramCache(Thread):
             if len(val) < 10:
                 return datetime.date.fromordinal(int(val))
 
-            return datetime.datetime.fromtimestamp(int(val)/1000, CET_CEST)
+            return datetime.datetime.fromtimestamp(int(val)/1000, self.config.utc_tz)
 
         except:
             return None
@@ -1689,8 +1682,8 @@ class InfoFiles:
                     sid = tdict['prog_ID'][sid]
 
                 self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
-                                tdict['start-time'].strftime('%d %b %H:%M'), \
-                                tdict['stop-time'].strftime('%H:%M'), \
+                                self.config.output_tz.normalize(tdict['start-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
+                                self.config.output_tz.normalize(tdict['stop-time'].astimezone(self.config.output_tz)).strftime('%H:%M'), \
                                 sid.rjust(15), tdict['genre'][0:10].rjust(10), \
                                 tdict['name'], tdict['titel aflevering'], \
                                 tdict['season'], tdict['episode'])
