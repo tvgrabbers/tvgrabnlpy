@@ -124,14 +124,12 @@ description_text = """
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os, re, sys, argparse, traceback, datetime, codecs
+import os, re, sys, argparse, traceback, datetime, codecs, pickle
 import tv_grab_IO, tv_grab_fetch , tv_grab_output, pytz
 try:
     unichr(42)
 except NameError:
     unichr = chr    # Python 3
-
-
 
 class Configure:
 
@@ -628,6 +626,7 @@ class Configure:
         self.clean_cache = True
         self.clear_cache = False
 
+        self.opt_dict['language'] = 'en'
         self.opt_dict['nice_time'] = [1, 2]
         self.opt_dict['graphic_frontend'] = False
         self.opt_dict['log_level'] = 175
@@ -662,10 +661,12 @@ class Configure:
         self.opt_dict['use_split_episodes'] = True
         self.opt_dict['kijkwijzerstijl'] = 'short'
 
+        self.texts = {}
+        self.logging = None
         self.threads = []
         self.queues = {}
         self.logging = tv_grab_IO.Logging(self)
-        self.IO_func = tv_grab_IO.Functions(self.logging)
+        self.IO_func = tv_grab_IO.Functions(self)
         self.fetch_func = tv_grab_fetch.Functions(self)
         self.xml_output = tv_grab_output.XMLoutput(self)
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl',
@@ -684,6 +685,9 @@ class Configure:
         self.channels = {}
         self.chan_count = 0
 
+        self.lang = 'en'
+        self.texts = None
+        self.load_text(self.lang)
         self.configversion = None
         self.__CONFIG_SECTIONS__ = { 1: u'Configuration',
                                                             2: u'tvgids.nl Channels',
@@ -721,7 +725,7 @@ class Configure:
                 return u'%s (Version: %s.%s.%s-p%s)' % (self.api_name, self.api_major, self.api_minor, '{:0>2}'.format(self.api_patch), self.api_patchdate)
 
             else:
-                return (self.api_name, self.api_major, self.api_minor, self.api_patch, self.api_patchdate, self.api_beta)
+                return (self.api_name, self.api_major, self.api_minor, self.api_patch, self.api_patchdate, self.api_beta, self.api_alfa)
 
         else:
             if as_string and self.alfa:
@@ -734,7 +738,7 @@ class Configure:
                 return u'%s (Version: %s.%s.%s-p%s)' % (self.name, self.major, self.minor, '{:0>2}'.format(self.patch), self.patchdate)
 
             else:
-                return (self.name, self.major, self.minor, self.patch, self.patchdate, self.beta)
+                return (self.name, self.major, self.minor, self.patch, self.patchdate, self.beta, self.alfa)
 
     # end version()
 
@@ -755,6 +759,58 @@ class Configure:
             self.logging.log_queue.put([message, log_level, log_target])
 
     # end log()
+
+    def load_text(self, lang = 'en'):
+        if lang == self.lang and self.texts != None:
+            return
+
+        name = 'tv_grab_text'
+        fle_name = u'%s/%s.%s' % (sys.path[0], name, lang)
+        try:
+            if os.path.isfile(fle_name):
+                fle_dict = self.pdict = pickle.load(open(fle_name,'r'))
+                if self.texts == None:
+                    self.texts = fle_dict['texts']
+
+                else:
+                    self.lang = fle_dict['lang']
+                    for module in fle_dict['texts'].keys():
+                        if not module in self.texts.keys():
+                            self.texts[module] = {}
+
+                        for type in fle_dict['texts'][module].keys():
+                            if not type in self.texts[module].keys():
+                                self.texts[module][type] = {}
+
+                            for tno in fle_dict['texts'][module][type].keys():
+                                if not tno in self.texts[module][type].keys() or self.texts[module][type][tno] == '':
+                                    self.texts[module][type][tno] = fle_dict['texts'][module][type][tno]
+
+            else:
+                self.log('Error loading text file: %s' % fle_name)
+
+        except:
+            self.log('Error loading text file: %s' % fle_name)
+
+    # end load_text()
+
+    def text(self, module = 'sources', tno = 0, addintuple = None, type = 'error'):
+        try:
+            if module in self.texts.keys():
+                if type in self.texts[module].keys():
+                    if tno in self.texts[module][type].keys():
+                        txt = self.texts[module][type][tno]
+                        if isinstance(addintuple, tuple) and len(addintuple) > 0:
+                            txt = txt % addintuple
+
+                        if isinstance(txt, unicode) and txt != u'':
+                            return txt
+
+            return self.texts['config']['error'][0]
+
+        except:
+            return self.texts['config']['error'][-1]
+    # end text()
 
     def init_sources(self):
         """Dummy  to be filled in"""
@@ -864,38 +920,36 @@ class Configure:
                 self.write_defaults_list()
 
             if not self.write_config(None):
-                self.log(['Error updating to new Config.\n', 'Please remove the old config and Re-run me with the --configure flag.\n'])
+                self.log([self.text('config', 1), self.text('config', 2)])
                 return(1)
 
-            self.log(['Updated the configfile %s!\n' % self.opt_dict['config_file'], \
-                'Check if you are fine with the settings.\n', \
-                'If this is a first install, you have to enable the desired channels!\n'], 1, 1)
+            self.log([self.text('config', 3, (self.opt_dict['config_file'], )), \
+                self.text('config', 4), self.text('config', 5)], 1, 1)
             return(0)
 
         self.write_opts_to_log()
         if self.args.configure:
             self.args.group_active_channels = self.opt_dict['group_active_channels'] | self.args.group_active_channels
-            self.log('Creating config file: %s\n' % self.opt_dict['config_file'])
+            self.log(self.text('config', 6,(self.opt_dict['config_file'], )))
             if self.get_channels() == 69:
                 return 69
 
             if not self.write_config(True):
-                self.log('Error writing new Config. Trying to restore an old one.\n')
+                self.log(self.text('config', 7))
                 self.IO_func.restore_oldfile(self.opt_dict['config_file'])
                 return(1)
 
-            self.log(['Created the configfile %s!\n' % self.opt_dict['config_file'], \
-                'Check if you are fine with the settings.\n', \
-                'If this is a first install, you have to enable the desired channels!\n'], 1, 1)
+            self.log([self.text('config', 8, (self.opt_dict['config_file'], )), \
+                self.text('config', 4), self.text('config', 5)], 1, 1)
             return(0)
 
         if self.args.save_options:
             if not self.write_config(False):
-                self.log('Error writing new Config. Trying to restore an old one.\n')
+                self.log(self.text('config', 7))
                 self.IO_func.restore_oldfile(self.opt_dict['config_file'])
                 return(1)
 
-            self.log(['Updated the options in the configfile %s!\n' % self.opt_dict['config_file'], 'Check if you are fine with the settings.\n'])
+            self.log([self.text('config', 9, (self.opt_dict['config_file'], )), self.text('config', 4)])
             return(0)
 
         self.read_defaults_list()
@@ -913,21 +967,21 @@ class Configure:
             return(0)
 
         elif option == 'description':
-            if stdoutput:
-                v=self.version()
-                if v[5]:
-                    print("%s v%s.%s.%s-beta" % (self.description, v[1], v[2], v[3]))
+            v=self.version()
+            if v[6]:
+                dtext = ("%s v%s.%s.%s-alfa" % (self.description, v[1], v[2], v[3]))
 
-                else:
-                    print("%s v%s.%s.%s" % (self.description, v[1], v[2], v[3]))
+            elif v[5]:
+                dtext = ("%s v%s.%s.%s-beta" % (self.description, v[1], v[2], v[3]))
 
             else:
-                v=self.version()
-                if v[5]:
-                    return("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s-beta" % (v[1], v[2], v[3]))
+                dtext = ("%s v%s.%s.%s" % (self.description, v[1], v[2], v[3]))
 
-                else:
-                    return("Dutch/Flemish grabber combining multiple sources. v%s.%s.%s" % (v[1], v[2], v[3]))
+            if stdoutput:
+                print(dtext)
+
+            else:
+                return(dtext)
 
         elif option == 'description_long':
             print("The Netherlands: %s" % self.version(True))
@@ -953,7 +1007,7 @@ class Configure:
 
         elif option == 'show_sources':
             if stdoutput:
-                print('The available sources are:')
+                print(self.text('config', 1, type='other'))
                 for i, s in self.channelsource.items():
                     print('  %s: %s' % (i, s.source))
 
@@ -966,7 +1020,7 @@ class Configure:
 
         elif option == 'show_detail_sources':
             if stdoutput:
-                print('The available detail sources are:')
+                print(self.text('config', 2, type='other'))
                 for i, s in self.channelsource.items():
                     if i in self.detail_sources:
                         print('  %s: %s' % (i, s.source))
@@ -981,11 +1035,11 @@ class Configure:
         elif option == 'show_logo_sources':
             self.get_sourcematching_file(show_info=False)
             if stdoutput:
-                print('The available logo sources are:')
+                print(self.text('config', 3, type='other'))
                 for i in range(len(self.xml_output.logo_provider)):
                     print('  %s: %s' % (i, self.xml_output.logo_provider[i]))
 
-                print(' 99: Your own full logo url')
+                print(self.text('config', 4, type='other'))
 
             else:
                 tdict = {}
@@ -997,11 +1051,11 @@ class Configure:
 
         elif option == 'check_ttvdb_title':
             if self.opt_dict['disable_ttvdb']:
-                self.log('Sorry, thetvdb.com lookup is disabled!\n')
+                self.log(self.text('config', 10))
                 return(-2)
 
             if len(self.args.ttvdb_title) == 0:
-                self.log('Please supply a series title!\n')
+                self.log(self.text('config', 11))
                 return(-2)
 
             series_title = unicode(self.args.ttvdb_title[0], 'utf-8')
@@ -1010,7 +1064,7 @@ class Configure:
                 lang = unicode(self.args.ttvdb_title[1], 'utf-8')[:2]
                 if not lang in ('cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
                                         'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
-                    self.log("Invalid language code: '%s' supplied falling back to 'nl'\n" % lang)
+                    self.log(self.text('config', 12, (lang,)))
 
             if self.ttvdb.check_ttvdb_title(series_title, lang) == -1:
                 return -1
@@ -1127,16 +1181,16 @@ class Configure:
         elif option == 'offset':
             if self.opt_dict['offset'] > 14:
                 if self.offset < 14:
-                    self.log("Een zo hoge offset van: %s is belachelijk. We resetten naar %s\n" % (self.opt_dict['offset'], self.offset),1,1)
+                    self.log(self.text('config', 13, (self.opt_dict['offset'], self.offset)),1,1)
                     self.opt_dict['offset'] = self.offset
 
                 else:
-                    self.log("Een zo hoge offset van: %s is belachelijk. We resetten naar 0\n" % (self.opt_dict['offset']),1,1)
+                    self.log(self.text('config', 13, (self.opt_dict['offset'], '0')),1,1)
                     self.opt_dict['offset'] = 0
 
         elif option == 'days':
             if self.opt_dict['days'] > (14 - self.opt_dict['offset']):
-                self.log("tvgids.nl/tvgids.tv kunnen maximaal 14 dagen vooruit kijken. Resetting\n",1,1)
+                self.log(self.text('config', 14),1,1)
 
             self.opt_dict['days'] = min(self.opt_dict['days'],(14 - self.opt_dict['offset']))
 
@@ -1148,7 +1202,7 @@ class Configure:
                 try:
                     output_dir = os.path.dirname(self.opt_dict['output_file'])
                     if (output_dir != '') and not os.path.exists(output_dir):
-                        self.log('Creating %s directory,\n' % output_dir)
+                        self.log(self.text('config', 15, (output_dir, )))
                         os.mkdir(output_dir)
 
                     if self.args.output_codeset:
@@ -1159,11 +1213,11 @@ class Configure:
                         self.output = self.IO_func.open_file(self.opt_dict['output_file'],'w')
 
                     if self.output == None:
-                        self.log('Cannot write to outputfile: %s\n' % self.opt_dict['output_file'])
+                        self.log(self.text('config', 16, (self.opt_dict['output_file'],)))
                         return(2)
 
                 except:
-                    self.log(['Cannot write to outputfile: %s\n' % self.opt_dict['output_file'], traceback.format_exc()])
+                    self.log([self.text('config', 16, (self.opt_dict['output_file'],)), traceback.format_exc()])
                     return(2)
 
             else: self.output = None
@@ -1174,31 +1228,31 @@ class Configure:
                 # check for the config/log dir
                 config_dir = os.path.dirname(self.opt_dict['config_file'])
                 if (config_dir != '') and not os.path.exists(config_dir):
-                    self.log('Creating %s directory,\n' % config_dir)
+                    self.log(self.text('config', 15, (config_dir,)))
                     os.mkdir(config_dir)
 
                 else:
                     self.IO_func.save_oldfile(self.opt_dict['log_file'])
 
             except:
-                self.logging.writelog('Cannot access the config/log directory: %s\n' % config_dir, 0,1)
+                self.logging.writelog(self.text('config', 17, (config_dir, )), 0,1)
                 self.logging.writelog(traceback.format_exc(), 0,1)
                 return(2)
 
             try:
                 self.log_output = self.IO_func.open_file(self.opt_dict['log_file'], mode = 'a')
                 if self.log_output == None:
-                    self.logging.writelog('Cannot open the logfile: %s\n' % self.opt_dict['log_file'], 0,1)
+                    self.logging.writelog(self.text('config', 18, (self.opt_dict['log_file'], )), 0,1)
                     return(2)
 
                 self.logging.start()
 
             except:
                 self.logging.writelog(traceback.format_exc(), 0,1)
-                self.logging.writelog('Cannot open the logfile: %s\n' % self.opt_dict['log_file'], 0,1)
+                self.logging.writelog(self.text('config', 18, (self.opt_dict['log_file'], )), 0,1)
                 return(2)
 
-            self.log('Using config file: %s\n' % self.opt_dict['config_file'])
+            self.log(self.text('config', 19, (self.opt_dict['config_file'], )))
             # get config if available Overrule if set by commandline
             if not self.read_config() and not self.args.configure:
                 return(1)
@@ -1216,7 +1270,7 @@ class Configure:
             try:
                 cache_dir = os.path.dirname(self.opt_dict['cache_file'])
                 if (cache_dir != '') and not os.path.exists(cache_dir):
-                    self.log('Creating %s directory,\n' % cache_dir)
+                    self.log(self.text('config', 15, (cache_dir, )))
                     os.mkdir(cache_dir)
 
                 if os.access(self.opt_dict['cache_file'], os.F_OK and os.W_OK):
@@ -1226,11 +1280,11 @@ class Configure:
                     pass
 
                 else:
-                    self.log('Cannot write to cachefile: %s\n' % self.opt_dict['cache_file'])
+                    self.log(self.text('config', 20, (self.opt_dict['cache_file'], )))
                     return(2)
 
             except:
-                self.log(['Error accessing cachefile(directory): %s\n' % self.opt_dict['cache_file'], traceback.format_exc()])
+                self.log([self.text('config', 21, (self.opt_dict['cache_file'], )), traceback.format_exc()])
                 return(2)
 
             self.program_cache = tv_grab_IO.ProgramCache(self, self.opt_dict['cache_file'])
@@ -1251,7 +1305,7 @@ class Configure:
                     if self.opt_dict['desc_length'] == 0:
                         # no description implies fast == True
                         if not self.opt_dict['fast']:
-                            self.log('Setting All to Fast Mode\n',1,1)
+                            self.log(self.text('config', 22),1,1)
                             self.opt_dict['fast'] = True
 
                 else:
@@ -1266,7 +1320,7 @@ class Configure:
                     if channel.opt_dict['desc_length'] == 0:
                         # no description implies fast == True
                         if not channel.opt_dict['fast']:
-                            self.log('Setting Channel: %s to Fast Mode\n' % channel.chan_name,1,1)
+                            self.log(self.text('config', 23, (channel.chan_name, )),1,1)
                             channel.opt_dict['fast'] = True
 
                 else:
@@ -1277,7 +1331,7 @@ class Configure:
 
         elif option == 'desc_length':
             if channel != None and channel.opt_dict['desc_length'] != self.opt_dict['desc_length']:
-                self.log('Using description length: %d for Cannel: %s\n' % (channel.opt_dict['desc_length'], channel.chan_name),1,1)
+                self.log(self.text('config', 24, (channel.opt_dict['desc_length'], channel.chan_name)),1,1)
 
         elif option == 'overlap_strategy':
             if channel == None:
@@ -1293,17 +1347,17 @@ class Configure:
                 if self.opt_dict['max_overlap'] == 0:
                     # no max_overlap implies strategie == 'None'
                     self.opt_dict['overlap_strategy'] = 'None'
-                    self.log('Maximum overlap 0 means overlap strategy set to: "%s"\n' % (self.opt_dict['overlap_strategy']),1,1)
+                    self.log(self.text('config', 25, (self.opt_dict['overlap_strategy'], )),1,1)
 
             elif channel.opt_dict['max_overlap'] == 0:
                 # no max_overlap implies strategie == 'None'
                 channel.opt_dict['overlap_strategy'] = 'None'
-                self.log('Maximum overlap 0 means overlap strategy for Channel: %s set to: "%s"\n' % (channel.chan_name, channel.opt_dict['overlap_strategy']),1,1)
+                self.log(self.text('config', 26, (channel.chan_name, channel.opt_dict['overlap_strategy'])),1,1)
 
             elif channel.opt_dict['max_overlap'] != self.opt_dict['max_overlap']:
-                self.log('Using Maximum Overlap: %d for Channel %s\n' % (channel.opt_dict['max_overlap'], channel.chan_name),1,1)
+                self.log(self.text('config', 27, (channel.opt_dict['max_overlap'], channel.chan_name)),1,1)
                 if channel.opt_dict['overlap_strategy'] != self.opt_dict['overlap_strategy']:
-                    self.log('overlap strategy for Channel: %s set to: "%s"\n' % (channel.chan_name, channel.opt_dict['overlap_strategy']),1,1)
+                    self.log(self.text('config', 28, (channel.chan_name, channel.opt_dict['overlap_strategy'])),1,1)
 
     # end validate_option()
 
@@ -1311,157 +1365,129 @@ class Configure:
         """Initiate argparser and read the commandline"""
         description = u"%s: %s\n" % (self.country, self.version(True)) + \
                         u"The Netherlands: %s\n" % self.version(True, True) + \
-                        u'  A grabber that grabs tvguide data from multiple sources,\n' + \
-                        u'  combining the data into one XMLTV campatible listing.'
+                        self.text('config', 29) + self.text('config', 30)
 
         parser = argparse.ArgumentParser(description = description, formatter_class=argparse.RawTextHelpFormatter)
 
         parser.add_argument('-V', '--version', action = 'store_true', default = False, dest = 'version',
-                        help = u'display version')
+                        help = self.text('config', 5, type='other'))
 
         parser.add_argument('--description', action = 'store_true', default = False, dest = 'description',
-                        help = u'prints the above short description of the grabber')
+                        help =self.text('config', 6, type='other'))
 
         parser.add_argument('-d', '--long-descr', action = 'store_true', default = False, dest = 'description_long',
-                        help = u'prints a long description in english of the grabber')
+                        help =self.text('config', 7, type='other'))
 
         parser.add_argument('--capabilities', action = 'store_true', default = False, dest = 'capabilities',
-                        help = u'xmltv required option')
+                        help =self.text('config', 8, type='other'))
 
         parser.add_argument('--preferredmethod', action = 'store_true', default = False, dest = 'preferredmethod',
-                        help = u'returns the preferred method to be called')
+                        help =self.text('config', 9, type='other'))
 
         parser.add_argument('--show-sources', action = 'store_true', default = False, dest = 'show_sources',
-                        help = u'returns the available sources')
+                        help =self.text('config', 10, type='other'))
 
         parser.add_argument('--disable-source', action = 'append', default = [], dest = 'disable_source',
-                        metavar = '<source ID>', type = int,
-                        help = u'disable a numbered source.\nSee "--show-sources" for a list.')
+                        metavar = '<source ID>', type = int, help =self.text('config', 11, type='other'))
 
         parser.add_argument('--show-detail-sources', action = 'store_true', default = False, dest = 'show_detail_sources',
-                        help = u'returns the available detail sources')
+                        help =self.text('config', 12, type='other'))
 
         parser.add_argument('--show-logo-sources', action = 'store_true', default = False, dest = 'show_logo_sources',
-                        help = u'returns the available logo sources')
+                        help =self.text('config', 13, type='other'))
 
         parser.add_argument('--disable-detail-source', action = 'append', default = [], dest = 'disable_detail_source',
-                        metavar = '<source ID>', type = int,
-                        help = u'disable a numbered source for detailfetches.\nSee "--show-detail-sources" for a list.')
+                        metavar = '<source ID>', type = int, help =self.text('config', 15, type='other'))
 
         parser.add_argument('--disable-ttvdb', action = 'store_true', default = None, dest = 'disable_ttvdb',
-                        help = u'disable fetching extra data from ttvdb.com.')
+                        help =self.text('config', 16, type='other'))
 
         parser.add_argument('--add-ttvdb-title', nargs = '*', metavar = '<title>', dest = 'ttvdb_title',
-                        help = u'Query ttvdb.com for a series-title and optionally store\n' +
-                                    u'it with the ID in the DB. Enclose the title in quotes!\n' +
-                                    u'Optionally add a language code after the title.\n' +
-                                    u'<cs, da, de, el, en, es, fi, fr, he, hr, hu, it, ja,\n' +
-                                    u' ko, nl, no, pl, pt, ru, sl, sv, tr, zh>')
+                        help =self.text('config', 17, type='other'))
 
         parser.add_argument('-x', '--compat', action = 'store_true', default = None, dest = 'compat',
-                        help = u'append tvgids.nl to the xmltv id\n(use this if you were using tv_grab_nl)')
+                        help =self.text('config', 18, type='other'))
 
         parser.add_argument('-X', '--legacy_xmltvids', action = 'store_true', default = None, dest = 'legacy_xmltvids',
-                        help = u'remove as in pre 2.2.8 for source 0 and 1 the sourceid\n' +
-                                    u'from the chanid to get the xmltvid.')
+                        help =self.text('config', 19, type='other'))
 
         parser.add_argument('-u', '--utc', action = 'store_true', default = None, dest = 'use_utc',
-                        help = u'generate all data in UTC time (use with timezone "auto"\nin mythtv)')
+                        help =self.text('config', 20, type='other'))
 
         parser.add_argument('-c', '--configure', action = 'store_true', default = False, dest = 'configure',
-                        help = u'create configfile; rename an existing file to *.old.')
+                        help =self.text('config', 21, type='other'))
 
         parser.add_argument('--group_active_channels', action = 'store_true', default = False, dest = 'group_active_channels',
-                        help = u'After running configure, place all active channels in\n' +
-                                    u'a separate group on top of the list.\n' +
-                                    u'Only relevant together with the configure option.')
+                        help =self.text('config', 22, type='other'))
 
         parser.add_argument('-C', '--config-file', type = str, default = self.opt_dict['config_file'], dest = 'config_file',
-                        metavar = '<file>',
-                        help = u'name of the configuration file\n<default = \'%s\'>' % self.opt_dict['config_file'])
+                        metavar = '<file>', help =self.text('config', 23, (self.opt_dict['config_file'], ), type='other'))
 
         parser.add_argument('-O', '--save-options', action = 'store_true', default = False, dest = 'save_options',
-                        help = u'save the currently defined options to the config file\n' +
-                                    u'add options to the command-line to adjust the file.')
+                        help =self.text('config', 24, type='other'))
 
         parser.add_argument('-A', '--cache', type = str, default = self.opt_dict['cache_file'], dest = 'cache_file',
-                        metavar = '<file>',
-                        help = u'cache descriptions and use the file to store\n<default = \'%s\'>' % self.opt_dict['cache_file'])
+                        metavar = '<file>', help =self.text('config', 25, (self.opt_dict['cache_file'], ), type='other'))
 
         parser.add_argument('--clean_cache', action = 'store_true', default = self.clean_cache, dest = 'clean_cache',
-                        help = u'clean the cache of outdated data before fetching')
+                        help =self.text('config', 26, type='other'))
 
         parser.add_argument('--clear_cache', '--clear-cache', action = 'store_true', default = self.clear_cache, dest = 'clear_cache',
-                        help = u'empties the program table before fetching data')
+                        help =self.text('config', 27, type='other'))
 
         parser.add_argument('--clear_ttvdb', '--clear-ttvdb', action = 'store_true', default = self.clear_cache, dest = 'clear_ttvdb',
-                        help = u'empties the ttvdb table before fetching data')
+                        help =self.text('config', 28, type='other'))
 
         parser.add_argument('-W', '--output', type = str, default = None, dest = 'output_file',
-                        metavar = '<file>',
-                        help = u'file where to send the output <default to the screen>')
+                        metavar = '<file>', help =self.text('config', 29, type='other'))
 
         parser.add_argument('--output-windows-codeset',  action = 'store_true', default = False, dest = 'output_codeset',
-                        help = u'use for the outputfile Windows codeset (cp1252)\n' +
-                                    u'instead of utf-8')
+                        help =self.text('config', 30, type='other'))
 
         parser.add_argument('-q', '--quiet', action = 'store_true', default = None, dest = 'quiet',
-                        help = u'suppress all output.')
+                        help =self.text('config', 31, type='other'))
 
         parser.add_argument('-v', '--verbose', action = 'store_false', default = None, dest = 'quiet',
-                        help = u'Sent log-info also to the screen.')
+                        help =self.text('config', 32, type='other'))
 
         parser.add_argument('-f', '--fast', action = 'store_true', default = None, dest = 'fast',
-                        help = u'do not grab details of programming (tvgids.nl/tv)')
+                        help =self.text('config', 33, type='other'))
 
         parser.add_argument('-s', '--slow', action = 'store_false', default = None, dest = 'fast',
-                        help = u'<default> grab details of programming (tvgids.nl/tv)')
+                        help =self.text('config', 34, type='other'))
 
         parser.add_argument('-o', '--offset', type = int, default = None, dest = 'offset',
-                        metavar = '<days>',
-                        help = u'The day to start grabbing <defaults to 0 is today>')
+                        metavar = '<days>', help =self.text('config', 35, type='other'))
 
         parser.add_argument('-g', '--days', type = int, default = None, dest = 'days',
-                        metavar = '<days>',
-                        help = u'# number of days to grab from the several sources.\n<max 14 = default>\n' +
-                                    u'Where every source has itś own max.\n')
+                        metavar = '<days>', help =self.text('config', 36, type='other'))
 
         parser.add_argument('-G', '--slowdays', type = int, default = None, dest = 'slowdays',
-                        metavar = '<days>',
-                        help = u'number of days to grab slow and the rest in fast mode\nDefaults to all days (tvgids.nl/tv)')
+                        metavar = '<days>', help =self.text('config', 38, type='other'))
 
         parser.add_argument('--logos', action = 'store_true', default = None, dest = 'logos',
-                        help = u'<default> insert urls to channel icons\n(mythfilldatabase will then use these)')
+                        help =self.text('config', 39, type='other'))
 
         parser.add_argument('-n', '--nologos', action = 'store_false', default = None, dest = 'logos',
-                        help = u'do not insert urls to channel icons')
+                        help =self.text('config', 40, type='other'))
 
         parser.add_argument('-H', '--mark-HD', action = 'store_true', default = None, dest = 'mark_hd',
-                        help = u'mark HD programs,\ndo not set if you only record analog SD')
+                        help =self.text('config', 41, type='other'))
 
         parser.add_argument('--cattrans', action = 'store_true', default = None, dest = 'cattrans',
-                        help = u'<default> translate the grabbed genres into\nMythTV-genres. See the %s.set file' % self.name)
+                        help =self.text('config', 42, (self.name,), type='other'))
 
         parser.add_argument('-t', '--nocattrans', action = 'store_false', default = None, dest = 'cattrans',
-                        help = u'do not translate the grabbed genres into MythTV-genres.\n' +
-                                    u'it then only uses the basic genres without possibility\n' +
-                                    u'to differentiate on subgenre.')
+                        help =self.text('config', 43, type='other'))
 
         parser.add_argument('-l ', '--desc-length', type = int, default = None, dest = 'desc_length',
-                        metavar = '<bytes>',
-                        help = u'maximum allowed length of program descriptions in bytes.')
+                        metavar = '<bytes>', help =self.text('config', 44, type='other'))
 
         parser.add_argument('-a', '--overlap_strategy', type = str, default = None, dest = 'overlap_strategy',
-                        metavar = '<strategy>',
-                        help = u'what strategy to use to correct overlaps:\n' +
-                                    u'\'avarage\' use average of stop and start of next program.\n          <default>\n' +
-                                    u'\'stop\'    keep stop time of current program and adjust\n          start time.\n' +
-                                    u'\'start\'   keep start time of next program and adjust\n          stop time.\n' +
-                                    u'\'none\'    do not use any strategy and see what happens.\n')
+                        metavar = '<strategy>', help =self.text('config', 45, type='other'))
 
         parser.add_argument('-m', '--max_overlap', type = int, default = None, dest = 'max_overlap',
-                        metavar = '<minutes>',
-                        help = u'maximum length of overlap between programming to correct\n<default 10 minutes>')
+                        metavar = '<minutes>', help =self.text('config', 46, type='other'))
 
         # Handle the sys.exit(0) exception on --help more gracefull
         try:
@@ -1478,7 +1504,7 @@ class Configure:
         f = self.IO_func.open_file(self.opt_dict['config_file'])
         if f == None:
             if not self.args.configure:
-                self.log('Re-run me with the --configure flag.\n')
+                self.log(self.text('config', 31))
             return False
 
         if not self.IO_func.check_encoding(f, None, True):
@@ -1494,10 +1520,10 @@ class Configure:
             type = 0
             section = ''
             if self.configversion < 2.208:
-                self.log("Adding 'legacy_xmltvids = True'\n", 0)
+                self.log(self.text('config', 32), 0)
                 self.opt_dict['legacy_xmltvids'] = True
                 if not self.args.configure:
-                    self.log("Run with '--configure' to make it permanent\n", 0)
+                    self.log(self.text('config', 33), 0)
 
         # Read the configuration into the self.config_dict dictionary
         f.seek(0,0)
@@ -1532,7 +1558,7 @@ class Configure:
 
                     # Unknown Section header, so ignore
                     else:
-                        self.log('Ignoring unknown section "%s"\n' % config_title.group(1))
+                        self.log(self.text('config', 34, (config_title.group(1), )))
                         section = ''
                         type = 0
 
@@ -1549,11 +1575,11 @@ class Configure:
                     self.config_dict[9][section].append(line)
 
                 else:
-                    self.log('Ignoring configuration line "%s". Outside any known section.\n' % line)
+                    self.log(self.text('config', 35, (line, )))
 
 
             except:
-                self.log([u'Error reading Config\n', traceback.format_exc()])
+                self.log([self.text('config', 36), traceback.format_exc()])
                 continue
 
         f.close()
@@ -1624,7 +1650,7 @@ class Configure:
                                 self.opt_dict[cfg_option] = cfg_value
 
             except:
-                self.log(['Invalid line in Configuration section of config file %s:' % (self.opt_dict['config_file']),'%r\n' % (line)])
+                self.log([self.text('config', 37, (self.opt_dict['config_file'],)),'%r\n' % (line)])
 
         # Read the channel stuff up to version 2.0
         channel_names = {}
@@ -1638,7 +1664,7 @@ class Configure:
                     channel_names[unicode(channel[1]).strip().lower()] = unicode(channel[0]).strip()
 
                 except:
-                    self.log(['Invalid line in Channels section of config file %s:' % (self.opt_dict['config_file']),'%r\n' % (line)])
+                    self.log([self.text('config', 38, (self.opt_dict['config_file'], )),'%r\n' % (line)])
 
         # Changed Channel config since version 2.1
         if self.configversion >= 2.1:
@@ -1723,7 +1749,7 @@ class Configure:
                         self.chan_count += 1
 
                 except:
-                    self.log(['Invalid line in Channels section of config file %s:\n' % (self.opt_dict['config_file']),'%r\n' % (line), traceback.print_exc()])
+                    self.log([self.text('config', 38, (self.opt_dict['config_file'], )),'%r\n' % (line), traceback.print_exc()])
 
             # Read the channel specific configuration
             for section, values in self.config_dict[9].items():
@@ -1744,7 +1770,7 @@ class Configure:
 
                 else:
                     # unknown chanid or channelname
-                    self.log('Channel section "%s" ignored. Unknown channel\n' % section)
+                    self.log(self.text('config', 39, (section, )))
                     continue
 
                 for line in values:
@@ -1811,7 +1837,7 @@ class Configure:
                                         self.validate_option(cfg_option, self.channels[chanid], cfg_value)
 
                     except:
-                        self.log(['Invalid line in %s section of config file %s:' % (section, self.opt_dict['config_file']),'%r\n' % (line), traceback.format_exc()])
+                        self.log([self.text('config', 40, (section, self.opt_dict['config_file'], )),'%r\n' % (line), traceback.format_exc()])
 
         # an extra option for gathering extra info to better the code
         if 'write_info_files' in self.opt_dict.keys():
@@ -1957,7 +1983,7 @@ class Configure:
 
 
             except:
-                self.log(['Error reading Defaults\n', traceback.format_exc()])
+                self.log([self.text('config', 41, (self.opt_dict['settings_file'], )), traceback.format_exc()])
                 continue
 
         f.close()
@@ -1988,7 +2014,7 @@ class Configure:
                 return lvar.copy()
 
             except:
-                self.log('Error loading %s data from sourcematching!' % gvar)
+                self.log(self.text('config', 42, (gvar,)))
                 return lvar.copy()
 
         def get_githubdata(gvar, default = []):
@@ -2009,6 +2035,7 @@ class Configure:
                     return lvar[:]
 
             except:
+                self.log(self.text('config', 42, (gvar,)))
                 return default
 
         try:
@@ -2054,9 +2081,9 @@ class Configure:
 
         except:
             githubdata = {}
-            self.log(['Error reading the datafile on github.\n', traceback.print_exc()], 0)
+            self.log([self.text('config', 43), traceback.print_exc()], 0)
             if configuring:
-                self.log(['Unable to continue with configure!\n'], 0)
+                self.log([self.text('config', 44)], 0)
                 return 2
 
         # Check on disabled sources
@@ -2091,7 +2118,7 @@ class Configure:
                             child['start'] = datetime.time(int(st[0]), int(st[1]), tzinfo=self.combined_channels_tz)
                         except:
                             traceback.print_exc()
-                            self.log('Invalid starttime for %s in combined channel: %s\n' % (child['chanid'], chanid))
+                            self.log(self.text('config', 45, (child['chanid'], chanid)))
                             del child['start']
 
                     if 'end' in child:
@@ -2100,7 +2127,7 @@ class Configure:
                             child['end'] = datetime.time(int(st[0]), int(st[1]), tzinfo=self.combined_channels_tz)
                         except:
                             traceback.print_exc()
-                            self.log('Invalid endtime for %s in combined channel: %s\n' % (child['chanid'], chanid))
+                            self.log(self.text('config', 46, (child['chanid'], chanid)))
                             del child['end']
 
                     if 'start' in child and not 'end' in child:
@@ -2178,37 +2205,37 @@ class Configure:
             oldactive = oldpresent and self.channels[oldch['chanid']].active
             if configuring:
                 if oldpresent:
-                    logarray.append('We merged %s into %s\n' % (oldch['chanid'], newch))
+                    logarray.append(self.text('config', 47, (oldch['chanid'], newch, )))
                     logarray.extend(oldch['message'])
                     # Initiate an alias if the old chanid is active
                     if oldactive and newactive:
-                        logarray.append('Since both were active, we have not set an alias\n')
-                        logarray.append('If you want to use the old chanid %s as xmltvid\n' % oldch['chanid'])
-                        logarray.append('you have to add:\n')
+                        logarray.append(self.text('config', 48))
+                        logarray.append(self.text('config', 49, (oldch['chanid'], )))
+                        logarray.append(self.text('config', 50))
                         logarray.append('  xmltvid_alias = %s\n' % oldch['chanid'])
-                        logarray.append('to the channel configuration for %s\n' % newch)
+                        logarray.append(self.text('config', 51, (newch, )))
 
                     elif oldactive and self.channels[newch].opt_dict['xmltvid_alias'] == None:
-                        logarray.append('Since the old chanid was active, we have set an alias\n')
+                        logarray.append(self.text('config', 52))
                         logarray.append('  xmltvid_alias = %s\n' % oldch['chanid'])
-                        logarray.append('to the channel configuration for %s\n' % newch)
+                        logarray.append(self.text('config', 53, (newch, )))
                         self.channels[newch].opt_dict['xmltvid_alias'] = oldch['chanid']
                         self.channels[newch].active = True
 
                     elif oldactive:
-                        logarray.append('Since %s already has an xmltvid_alias set\n' % newch)
-                        logarray.append('we have not changed this.\n')
-                        logarray.append('If you want to use the old chanid %s as xmltvid\n' % oldch['chanid'])
-                        logarray.append('you have to change:\n')
+                        logarray.append(self.text('config', 54, (newch, )))
+                        logarray.append(self.text('config', 55))
+                        logarray.append(self.text('config', 56, (oldch['chanid'], )))
+                        logarray.append(self.text('config', 57))
                         logarray.append('  xmltvid_alias = %s\n' % self.channels[newch].opt_dict['xmltvid_alias'])
-                        logarray.append('to:')
+                        logarray.append(self.text('config', 58))
                         logarray.append('  xmltvid_alias = %s\n' % oldch['chanid'])
-                        logarray.append('in the channel configuration for %s\n' % newch)
+                        logarray.append(self.text('config', 59, (newch, )))
                         self.channels[newch].active = True
 
                     self.channels[oldch['chanid']].active = False
-                    logarray.append('We could not check for any selfset options on the old chanid: %s\n' % oldch['chanid'])
-                    logarray.append('So check the settings for the new chanid: %s\n' % newch)
+                    logarray.append(self.text('config', 60, (oldch['chanid'], )))
+                    logarray.append(self.text('config', 61, (newch, )))
                     logarray.append('\n')
 
                 for source, id in oldch['sources'].items():
@@ -2269,9 +2296,9 @@ class Configure:
         for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8, 11, 12):
             self.channelsource[index].init_channels()
             if self.channelsource[index].get_channels() == 69:
-                self.log("Not all channel info could be retreived.\n")
+                self.log(self.text('config',62))
                 if not index in self.opt_dict['disable_source']:
-                    self.log("Try again in 15 minutes or so; or disable the failing source.\n")
+                    self.log(self.text('config',63))
                     return 69
 
             if self.write_info_files:
@@ -2412,7 +2439,7 @@ class Configure:
         if self.log_output == None:
             return(0)
 
-        log_array = [u'Python versie: %s.%s.%s' % (sys.version_info[0], sys.version_info[1], sys.version_info[2])]
+        log_array = [u'Python version: %s.%s.%s' % (sys.version_info[0], sys.version_info[1], sys.version_info[2])]
         log_array.append(u"%s: %s" % (self.country, self.version(True)))
         log_array.append(u"The Netherlands: %s" % self.version(True, True))
         log_array.append(u'Capabilities:"baseline" ,"cache" ,"manualconfig" ,"preferredmethod")')
@@ -2444,12 +2471,12 @@ class Configure:
         log_array.append(u'use_utc = %s' % (self.opt_dict['use_utc']))
         for index in self.source_order:
             if index in self.opt_dict['disable_source']:
-                log_array.append(u'Source %s (%s) disabled' % (index, self.channelsource[index].source))
+                log_array.append(self.text('config', 64, (index, self.channelsource[index].source)))
 
             elif index in self.opt_dict['disable_detail_source']:
-                log_array.append(u'No detailfetches from Source %s (%s)' % (index, self.channelsource[index].source))
+                log_array.append(self.text('config', 65, (index, self.channelsource[index].source)))
 
-        log_array.append(u'Channel specific settings other then the above (only for the active channels):')
+        log_array.append(self.text('config', 66))
         for chan_def in self.channels.values():
             if not (chan_def.active or chan_def.is_child):
                 continue
@@ -2462,20 +2489,19 @@ class Configure:
             log_array.append(u'  prime_source = %s (%s)\n' % (src_id, self.channelsource[src_id].source))
             #~ log_array.append(u'  prime_source = %s \n' % (src_id))
             if not self.opt_dict['always_use_json'] and chan_def.chanid in self.prime_source and self.prime_source[chan_def.chanid] != src_id:
-                log_array.append(u'  prime_source setting: %s (%s) in sourcematching.json not used\n' % \
-                    (self.prime_source[chan_def.chanid], self.channelsource[self.prime_source[chan_def.chanid]].source))
+                log_array.append(self.text('config', 67 ,(self.prime_source[chan_def.chanid], self.channelsource[self.prime_source[chan_def.chanid]].source)))
 
             for index in chan_def.opt_dict['disable_source']:
                 if index in self.opt_dict['disable_source']:
                     continue
 
-                log_array.append(u'  Source %s (%s) disabled\n' % (index, self.channelsource[index].source))
+                log_array.append(self.text('config', 68, (index, self.channelsource[index].source)))
 
             for index in chan_def.opt_dict['disable_detail_source']:
                 if index in chan_def.opt_dict['disable_source'] or index in self.opt_dict['disable_source'] or index in self.opt_dict['disable_detail_source']:
                     continue
 
-                log_array.append(u'  Detail Source %s (%s) disabled\n' % (index, self.channelsource[index].source))
+                log_array.append(self.text('config', 69, (index, self.channelsource[index].source)))
 
             if not chan_def.opt_dict['append_tvgidstv']:
                 log_array.append(u'  append_tvgidstv = False\n')
@@ -2521,23 +2547,20 @@ class Configure:
         f.write(u'\n')
 
         # Save the options
-        f.write(u'# See: https://github.com/tvgrabbers/tvgrabnlpy/wiki/Over_de_configuratie\n')
-        f.write(u'# This is a list with default options set by the --save-options (-O)\n')
-        f.write(u'# argument. Most can be overruled on the commandline.\n')
-        f.write(u'# Be carefull with manually editing. Invalid options will be\n')
-        f.write(u'# silently ignored. Boolean options can be set with True/False,\n')
-        f.write(u'# On/Off or 1/0. Leaving it blank sets them on. Setting an invalid\n')
-        f.write(u'# value sets them off. You can always check the log for the used values.\n')
-        f.write(u'# To edit you beter run --save-options with all the desired defaults.\n')
-        f.write(u'# Options not shown here can not be set this way.\n')
+        for i in range(50, 60):
+            line = self.text('config', i, type = 'other')
+            if line != '':
+                f.write(line)
+
         f.write(u'\n')
         f.write(u'[%s]\n' % self.__CONFIG_SECTIONS__[1])
-        f.write(u'# DO NOT CHANGE THIS VALUE!\n')
+        f.write(self.text('config', 61, type = 'other'))
         f.write(u'data_version = %s\n' % self.opt_dict['data_version'])
-        f.write(u'# Set always_use_json to False to ignore Channelname, Channelgroup \n')
-        f.write(u'# and prime_source set in sourcematching.json if they are set different\n')
-        f.write(u'# in this configuration file. If you do not have set any of those yourself\n')
-        f.write(u'# leave the value to True to profite from all updates.\n')
+        for i in range(63, 68):
+            line = self.text('config', i, type = 'other')
+            if line != '':
+                f.write(line)
+
         f.write(u'always_use_json = %s\n' % self.opt_dict['always_use_json'])
         f.write(u'group_active_channels = %s\n' % self.opt_dict['group_active_channels'])
         if self.write_info_files:
@@ -2546,49 +2569,34 @@ class Configure:
                 f.write(u'mail_info_address = %s\n' % self.opt_dict['mail_info_address'])
 
             f.write(u'\n')
-        f.write(u'# The following are tuning parameters. You normally do not need to change them.\n')
-        f.write(u'# global_timeout is the maximum time in seconds to wait for a fetch to complete\n')
-        f.write(u'#    before calling it a time-out failure.\n')
-        f.write(u'# max_simultaneous_fetches is the maximum number of simultaneous fetches\n')
-        f.write(u'#    that are allowed.\n')
-        f.write(u'#    With the growing number of sources it is possible that they all together\n')
-        f.write(u'#    try to get their page. This could lead to congestion and failure.\n')
-        f.write(u'#    If you see often "incomplete read failures" or "get_page timed out", you\n')
-        f.write(u'#    can try raising the first or lowering the second.\n')
-        f.write(u"#    This won't significantly alter the total runtime as this is mostley determined\n")
-        f.write(u'#    by the the highest number of fetches from a single source and the mandatory.\n')
-        f.write(u'#    waittime in between those fetches to not overload their resources.\n')
-        f.write(u'#    However all basepage fetches are retried on failure and a detailpagefailure\n')
-        f.write(u'#    can triger a retry on one of the other detailsources. So a lot of failures\n')
-        f.write(u'#    especially on source 0, 1 and 9 can increase the total runtime.\n')
+
+        for i in range(69, 85):
+            line = self.text('config', i, type = 'other')
+            if line != '':
+                f.write(line)
+
         f.write(u'global_timeout = %s\n' % self.opt_dict['global_timeout'])
         f.write(u'max_simultaneous_fetches = %s\n' % self.opt_dict['max_simultaneous_fetches'])
         f.write(u'\n')
-        f.write(u'# This handles what goes to the log and screen\n')
-        f.write(u'# 0 Nothing (use quiet mode to turns off screen output, but keep a log)\n')
-        f.write(u'# 1 include Errors and Warnings\n')
-        f.write(u'# 2 include page fetches\n')
-        f.write(u'# 4 include (merge) summaries\n')
-        f.write(u'# 8 include detail fetches and ttvdb lookups to the screen\n')
-        f.write(u'# 16 include detail fetches and ttvdb lookups to the log\n')
-        f.write(u'# 32 include matchlogging (see below)\n')
-        f.write(u'# 64 Title renames\n')
-        f.write(u'# 128 ttvdb failures\n')
+        for i in range(86, 97):
+            line = self.text('config', i, type = 'other')
+            if line != '':
+                f.write(line)
+
         f.write(u'log_level = %s\n' % self.opt_dict['log_level'])
-        f.write(u'# What match results go to the log/screen (needs code 32 above)\n')
-        f.write(u'# 0 = Log Nothing (just the overview)\n')
-        f.write(u'# 1 = log not matched programs added\n')
-        f.write(u'# 2 = log left over programs\n')
-        f.write(u'# 4 = Log matches\n')
-        f.write(u'# 8 = Log group slots\n')
+        for i in range(98, 105):
+            line = self.text('config', i, type = 'other')
+            if line != '':
+                f.write(line)
+
         f.write(u'match_log_level = %s\n' % self.opt_dict['match_log_level'])
         f.write(u'\n')
         f.write(u'mail_log = %s\n' % self.opt_dict['mail_log'])
-        f.write(u'# Set "mail_log" to True to send the log to the mailaddress below\n')
-        f.write(u'# Also set the mailserver and port apropriate\n')
-        f.write(u'# SSL/startTLS is NOT sopported at present. Neither is authentication\n')
-        f.write(u'# Make sure to first test on a console as mailing occures after \n')
-        f.write(u'# closing of the logfile!\n')
+        for i in range(106, 112):
+            line = self.text('config', i, type = 'other')
+            if line != '':
+                f.write(line)
+
         f.write(u'mail_log_address = %s\n' % self.opt_dict['mail_log_address'])
         f.write(u'mailserver = %s\n' % self.opt_dict['mailserver'])
         f.write(u'mailport = %s\n' % self.opt_dict['mailport'])
@@ -2616,58 +2624,18 @@ class Configure:
         f.write(u'overlap_strategy = %s\n' % self.opt_dict['overlap_strategy'] )
         f.write(u'max_overlap = %s\n' % self.opt_dict['max_overlap'])
         f.write(u'desc_length = %s\n' % self.opt_dict['desc_length'])
-        f.write(u'# Possible values for kijkwijzerstijl are:\n')
-        f.write(u'#   long  : add the long descriptions and the icons\n')
-        f.write(u'#   short : add the one word descriptions and the icons\n')
-        f.write(u'#   single: add a single string (mythtv only reads the first item)\n')
-        f.write(u"#   none  : don't add any\n")
+        for i in range(113, 119):
+            line = self.text('config', i, type = 'other')
+            if line != '':
+                f.write(line)
+
         f.write(u'kijkwijzerstijl = %s\n' % self.opt_dict['kijkwijzerstijl'])
         f.write(u'use_split_episodes = %s\n' % self.opt_dict['use_split_episodes'])
         f.write(u'\n')
-
-        f.write(u'# These are the channeldefinitions. You can disable a channel by placing\n')
-        f.write(u'# a \'#\' in front. Seperated by \';\' you see on every line: The Name,\n')
-        f.write(u'# the group, the channelID, the ID\'s for the sources in the order as\n')
-        f.write(u'# returned by the "--show-sources" option and finally the iconsource and name.\n')
-        f.write(u'# You can change the names to suit your own preferences.\n')
-        f.write(u'# A missing ID means the source doesn\'t supply the channel.\n')
-        f.write(u'# Removing an ID disables fetching from that source, but keep the \';\'s in place.\n')
-        f.write(u'# But you better use the "disable_source" option as described below.\n')
-        f.write(u'# Set iconsource to 99, to add your own full url.\n')
-        f.write(u'\n')
-        f.write(u'# To specify further Channel settings you can add sections in the form of\n')
-        f.write(u'# [Channel <channelID>], where <channelID> is the third item on the line, \n')
-        f.write(u'# You can use the following tags:\n')
-        f.write(u'# Boolean values (True, 1, on or no value means True. Everything else False):\n')
-        f.write(u'#   fast, compat, legacy_xmltvids, logos, cattrans, mark_hd, add_hd_id,\n')
-        f.write(u'#   append_tvgidstv, disable_ttvdb, use_split_episodes\n')
-        f.write(u'#     append_tvgidstv is True by default, which means: \'Don\'t get data\n')
-        f.write(u'#     from tvgids.tv if there is from tvgids.nl\' tvgids.tv data normally is\n')
-        f.write(u'#     inferiour, except for instance that for Veronica it fills in Disney XD\n')
-        f.write(u'#     add_hd_id: if set to True will create two listings for the given channel.\n')
-        f.write(u'#     One normal one without HD tagging and one with \'-hd\' added to the ID\n')
-        f.write(u'#     and with the HD tags. This will overrule any setting of mark_hd\n')
-        f.write(u'# Integer values:\n')
-        f.write(u'#   slowdays, max_overlap, desc_length, prime_source, prefered_description\n')
-        f.write(u'#   disable_source, disable_detail_source\n')
-        f.write(u'#     prime_source (0-8) is the source whose timings and titles are dominant\n')
-        f.write(u'#     It defaults to 2 for rtl channels, 4 for NPO channels, 5 for Dutch regional\n')
-        f.write(u'#     and 6 for group 2 and 9 (Flemmisch) channels or else the first available\n')
-        f.write(u'#     source as set in sourcematching.json (2, 4, 7, 0, 5, 1, 9, 6, 8)\n')
-        f.write(u'#     prefered_description (0-8) is the source whose description, if present,\n')
-        f.write(u'#     is used. It defaults to the longest description found.\n')
-        f.write(u'#     with disable_source and disable_detail_source you can disable a source\n')
-        f.write(u'#     for that channel either al together or only for the detail fetches\n')
-        f.write(u'#     disabling an unavailable source has no effect.\n')
-        f.write(u'#     With the commandline options: "--show-sources" and "--show-detail-sources"\n')
-        f.write(u'#     you can get a list of available sources and their ID\n')
-        f.write(u'# String values:\n')
-        f.write(u'#   overlap_strategy (With possible values): \n')
-        f.write(u'#     average, stop, start; everything else sets it to none\n')
-        f.write(u'#   xmltvid_alias: This is a string value to be used in place of the chanid\n')
-        f.write(u'#     for the xmltvID. Be careful not to set it to an existing chanid.\n')
-        f.write(u'#     It can get set by configure on chanid changes! See also the WIKI\n')
-        f.write(u'\n')
+        for i in range(120, 163):
+            line = self.text('config', i, type = 'other')
+            if line != '':
+                f.write(line)
 
         def get_channel_string(chanid, active = None, chan_string = None, icon_string = None):
             chan = self.channels[chanid]
@@ -2705,7 +2673,7 @@ class Configure:
             fo = self.IO_func.open_file(self.opt_dict['config_file'] + '.old')
             if fo == None or not self.IO_func.check_encoding(fo):
                 # We cannot read the old config, so we create a new one
-                self.log('Error Opening the old config. Creating a new one.\n')
+                self.log(self.text('config', 70))
                 add_channels = True
 
             else:
@@ -2738,7 +2706,7 @@ class Configure:
                             # We just copy everything except the old configuration (type = 1)
                             f.write(line + u'\n')
                     except:
-                        self.log('Error reading old config\n')
+                        self.log(self.text('config', 71))
                         continue
 
                 fo.close()
@@ -2758,7 +2726,7 @@ class Configure:
             fo = self.IO_func.open_file(self.opt_dict['config_file'] + '.old')
             if fo == None or not self.IO_func.check_encoding(fo, None, True):
                 # We cannot read the old config, so we create a new one
-                self.log('Error Opening the old config. Creating a new one.\n')
+                self.log(self.text('config', 70))
                 self.get_channels()
                 add_channels = True
 
@@ -2821,7 +2789,7 @@ class Configure:
                             configlines['9'][chanid].append(line)
 
                     except:
-                        self.log('Error reading old config\n')
+                        self.log(self.text('config', 71))
                         continue
 
                 fo.close()

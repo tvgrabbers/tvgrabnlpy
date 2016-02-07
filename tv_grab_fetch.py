@@ -143,7 +143,7 @@ class Functions():
                 return page
 
         except(socket.timeout):
-            self.config.log('get_page timed out on (>%s s): %s\n' % (self.config.opt_dict['global_timeout'], url), 1, 1)
+            self.config.log(self.config.text('fetch', 1, (self.config.opt_dict['global_timeout'], url)), 1, 1)
             if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('Fetch timeout: %s\n' % url)
 
@@ -430,7 +430,7 @@ class FetchURL(Thread):
             self.result = self.get_page_internal()
 
         except:
-            self.config.log('An unexpected error "%s:%s" has occured while fetching page: %s\n' %  (sys.exc_info()[0], sys.exc_info()[1], self.url), 0)
+            self.config.log(self.config.text('fetch', 2,  (sys.exc_info()[0], sys.exc_info()[1], self.url)), 0)
             if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('%s,%s:\n  %s\n' % (sys.exc_info()[0], sys.exc_info()[1], self.url))
 
@@ -465,21 +465,21 @@ class FetchURL(Thread):
                 return url_request.text
 
         except (requests.ConnectionError) as e:
-            self.config.log('Cannot open url %s\n' % (self.url), 1, 1)
+            self.config.log(self.config.text('fetch', 3, (self.url, )), 1, 1)
             if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('URLError: %s\n' % self.url)
 
             return None
 
         except (requests.HTTPError) as e:
-            self.config.log('Cannot parse url %s: code=%s\n' % (self.url, e.code), 1, 1)
+            self.config.log(self.config.text('fetch', 4, (self.url, e.code)), 1, 1)
             if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('HTTPError: %s\n' % self.url)
 
             return None
 
         except (requests.Timeout) as e:
-            self.config.log('get_page timed out on (>%s s): %s\n' % (self.config.opt_dict['global_timeout'], self.url), 1, 1)
+            self.config.log(self.config.text('fetch', 5, (self.config.opt_dict['global_timeout'], self.url)), 1, 1)
             if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('Fetch timeout: %s\n' % self.url)
 
@@ -645,7 +645,7 @@ class theTVDB(Thread):
                         eps.append({'tid': int(tid), 'sid': int(sid), 'eid': int(eid), 'title': title, 'airdate': airdate, 'lang': l, 'description': desc})
 
         except:
-            self.config.log(['Error retreiving episodes from theTVDB.com\n', traceback.print_exc()])
+            self.config.log([self.config.text('fetch', 6), traceback.print_exc()])
             return
 
         self.config.queues['cache'].put({'task':'add', 'episode': eps})
@@ -717,7 +717,7 @@ class theTVDB(Thread):
                         self.config.queues['cache'].put({'task':'add', 'ttvdb_alias': {'title':series_name, 'alias': alias_list[0]}})
 
             except:
-                self.config.log(['Error retreiving an ID from theTVdb.com', traceback.print_exc()])
+                self.config.log([self.config.text('fetch', 7), traceback.print_exc()])
                 return 0
 
         # And we retreive the episodes
@@ -756,7 +756,7 @@ class theTVDB(Thread):
             if parent != None:
                 self.functions.update_counter('lookup_fail', -2, parent.chanid)
 
-            self.config.log("  No ttvdb id for '%s' on channel %s\n" % (data['name'], data['channel']), 128)
+            self.config.log(self.config.text('fetch', 8, (data['name'], data['channel'])), 128)
             return data
 
         # First we just look for a matching subtitle
@@ -777,7 +777,7 @@ class theTVDB(Thread):
             if isinstance(eid['airdate'], (datetime.date)):
                 data['airdate'] = eid['airdate']
 
-            self.config.log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 24)
+            self.config.log(self.config.text('fetch', 9, (data['name'], data['titel aflevering'])), 24)
             return data
 
         # Now we get a list of episodes matching what we already know and compare with confusing characters removed
@@ -805,7 +805,7 @@ class theTVDB(Thread):
                 if isinstance(ep['airdate'], (datetime.date)):
                     data['airdate'] = ep['airdate']
 
-                self.config.log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 24)
+                self.config.log(self.config.text('fetch', 9, (data['name'], data['titel aflevering'])), 24)
                 return data
 
         # And finally we try a difflib match
@@ -821,13 +821,13 @@ class theTVDB(Thread):
             if isinstance(ep['airdate'], (datetime.date)):
                 data['airdate'] = ep['airdate']
 
-            self.config.log('ttvdb  lookup for %s: %s\n' % (data['name'], data['titel aflevering']), 24)
+            self.config.log(self.config.text('fetch', 9, (data['name'], data['titel aflevering'])), 24)
             return data
 
         if parent != None:
             self.functions.update_counter('lookup_fail', -2, parent.chanid)
 
-        self.config.log("ttvdb failure for '%s': '%s' on channel %s\n" % (data['name'], data['titel aflevering'], data['channel']), 128)
+        self.config.log(self.config.text('fetch', 10, (data['name'], data['titel aflevering'], data['channel'])), 128)
         return data
 
     def check_ttvdb_title(self, series_name, lang='nl'):
@@ -1008,8 +1008,7 @@ class FetchData(Thread):
                         for channel in self.config.channels.values():
                             if channel.is_alive() and not channel.detail_data.is_set():
                                 channel.detail_data.set()
-                                self.config.log('Channel %s seems to be waiting for %s lost detail requests from %s.\nSetting it to ready\n' % \
-                                    (channel.chan_name, channel.counters['fetch'][1], self.source))
+                                self.config.log([self.config.text('fetch', 11, (channel.chan_name, channel.counters['fetch'][1], self.source)), self.config.text('fetch', 12)])
 
                     self.ready = True
                     return -1
@@ -1048,7 +1047,7 @@ class FetchData(Thread):
             for q_no in self.testlist:
                 if cached_program != None and self.proc_id == q_no[1] and \
                   cached_program[self.config.channelsource[q_no[0]].detail_check]:
-                    self.config.log(u'      [cached] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+                    self.config.log(self.config.text('fetch', 18, (parent.chan_name, parent.get_counter(), logstring)), 8, 1)
                     tdict= parent.use_cache(tdict, cached_program)
                     self.functions.update_counter('detail', -1, parent.chanid)
                     parent.update_counter('fetch', self.proc_id, False)
@@ -1091,7 +1090,6 @@ class FetchData(Thread):
                     self.program_data[chanid] = []
 
                 self.init_channels()
-                self.current_date = datetime.datetime.now(self.site_tz).toordinal()
                 self.init_json()
                 # Load and proccess al the program pages
                 try:
@@ -1099,8 +1097,7 @@ class FetchData(Thread):
 
                 except:
                     self.fail_count += 1
-                    self.config.log(['Fatal Error processing the basepages from %s\n' % (self.source), \
-                        'Setting them all to being loaded, to let the other sources finish the job\n', traceback.print_exc()], 0)
+                    self.config.log([self.config.text('fetch', 13, (self.source,)), self.config.text('fetch', 14), traceback.print_exc()], 0)
                     for chanid in self.channels.keys():
                         self.channel_loaded[chanid] = True
                         self.config.channels[chanid].source_data[self.proc_id].set()
@@ -1165,7 +1162,7 @@ class FetchData(Thread):
                         except:
                             detailed_program = None
                             self.fail_count += 1
-                            self.config.log(['Error processing the detailpage: %s\n' % (tdict['detail_url'][self.proc_id]), traceback.print_exc()], 1)
+                            self.config.log([self.config.text('fetch', 15, (tdict['detail_url'][self.proc_id], )), traceback.print_exc()], 1)
 
                     else:
                         detailed_program = None
@@ -1180,14 +1177,13 @@ class FetchData(Thread):
                         except:
                             detailed_program = None
                             self.fail_count += 1
-                            self.config.log(['Error processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\n' \
-                                % tdict['prog_ID'][self.proc_id][3:], traceback.print_exc()], 1)
+                            self.config.log([self.config.text('fetch', 16, (tdict['prog_ID'][self.proc_id][3:], )), traceback.print_exc()], 1)
 
                     # It failed!
                     if detailed_program == None:
                         # If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the cache again
                         if self.proc_id == 1:
-                            self.config.log(u'[fetch failed or timed out] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+                            self.config.log(self.config.text('fetch', 17, (parent.chan_name, parent.get_counter(), logstring)), 8, 1)
                             #~ self.functions.update_counter('fail', self.proc_id, parent.chanid)
                             parent.update_counter('fetch', self.proc_id, False)
                             check_ttvdb(tdict, parent)
@@ -1210,16 +1206,8 @@ class FetchData(Thread):
                         detailed_program[self.config.channelsource[self.proc_id].detail_check] = True
                         detailed_program['ID'] = detailed_program['prog_ID'][self.proc_id]
                         check_ttvdb(detailed_program, parent)
-                        if self.proc_id == 0:
-                            self.config.log(u'[normal fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
+                        self.config.log(self.config.text('fetch', 19, (self.source, parent.chan_name, parent.get_counter(), logstring)), 8, 1)
 
-                        elif self.proc_id == 1:
-                            self.config.log(u'   [.tv fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
-
-                        elif self.proc_id == 9:
-                            self.config.log(u' [primo fetch] %s:(%3.0f%%) %s\n' % (parent.chan_name, parent.get_counter(), logstring), 8, 1)
-
-                        #~ self.functions.update_counter('detail', self.proc_id, parent.chanid)
                         parent.update_counter('fetch', self.proc_id, False)
                         self.detail_count += 1
 
@@ -1284,6 +1272,7 @@ class FetchData(Thread):
 
     # Helper functions
     def init_channel_source_ids(self):
+        self.current_date = datetime.datetime.now(self.site_tz).toordinal()
         for chanid, channel in self.config.channels.iteritems():
             self.program_data[chanid] = []
             # Is the channel active and this source for the channel not disabled
@@ -1370,7 +1359,7 @@ class FetchData(Thread):
             if (len(ptitle) > len(group) + 3) and (ptitle[0:len(group)].lower() == group):
                 p = ptitle.split(':')
                 if len(p) >1:
-                    self.config.log('Removing \"%s\" from \"%s\"\n' %  (group, ptitle), 64)
+                    self.config.log(self.config.text('fetch', 20,  (group, ptitle)), 64)
                     if self.config.write_info_files:
                         self.config.infofiles.addto_detail_list(unicode('Group removing = \"%s\" from \"%s\"' %  (group, ptitle)))
 
@@ -1396,7 +1385,7 @@ class FetchData(Thread):
 
         # Check the Title rename list
         if ptitle.lower() in self.config.titlerename:
-            self.config.log('Renaming %s to %s\n' % (ptitle, self.config.titlerename[ptitle.lower()]), 64)
+            self.config.log(self.config.text('fetch', 21 (ptitle, self.config.titlerename[ptitle.lower()])), 64)
             if self.config.write_info_files:
                 self.config.infofiles.addto_detail_list(unicode('Title renaming %s to %s\n' % (ptitle, self.config.titlerename[ptitle.lower()])))
 
@@ -1708,7 +1697,7 @@ class FetchData(Thread):
 
             # Try to correct missing end time by taking start time from next program on schedule
             if (programs[i]['stop-time'] == None and i < len(programs)-1):
-                self.config.log('Oops, "%s" has no end time. Trying to fix...\n' % programs[i]['name'], 64)
+                self.config.log(self.config.text('fetch', 22, (programs[i]['name'], )), 64)
                 programs[i]['stop-time'] = programs[i+1]['start-time']
 
             # The common case: start and end times are present and are not
@@ -1721,7 +1710,7 @@ class FetchData(Thread):
         # Han Holl: try to exclude programs that stop before they begin
         for i in range(len(good_programs)-1,-1,-1):
             if good_programs[i]['stop-time'] <= good_programs[i]['start-time']:
-                self.config.log('Deleting invalid stop/start time: %s\n' % good_programs[i]['name'], 64)
+                self.config.log(self.config.text('fetch', 23, (good_programs[i]['name'], )), 64)
 
         # Try to exclude programs that only identify a group or broadcaster and have overlapping start/end times with
         # the actual programs
@@ -1730,13 +1719,13 @@ class FetchData(Thread):
             if good_programs[i]['start-time'] == good_programs[i+1]['start-time'] \
                 and good_programs[i]['stop-time']  == good_programs[i+1]['stop-time'] \
                 and good_programs[i]['name']  == good_programs[i+1]['name']:
-                    self.config.log('Deleting duplicate: %s\n' % good_programs[i]['name'], 64)
+                    self.config.log(self.config.text('fetch', 24, (good_programs[i]['name'], )), 64)
                     del good_programs[i]
                     continue
 
             if good_programs[i]['start-time'] <= good_programs[i+1]['start-time'] \
                 and good_programs[i]['stop-time']  >= good_programs[i+1]['stop-time']:
-                    self.config.log('Deleting grouping/broadcaster: %s\n' % good_programs[i]['name'], 64)
+                    self.config.log(self.config.text('fetch', 25, (good_programs[i]['name'], )), 64)
                     del good_programs[i]
 
         # Fix overlaps/gaps
@@ -1772,11 +1761,9 @@ class FetchData(Thread):
                 # check for the size of the overlap
                 if 0 < abs(overlap) <= self.config.channels[chanid].opt_dict['max_overlap']*60:
                     if overlap > 0:
-                        self.config.log('"%s" and "%s" overlap %s minutes. Adjusting times.\n' % \
-                            (good_programs[i]['name'],good_programs[i+1]['name'],overlap // 60), 64)
+                        self.config.log(self.config.text('fetch', 26, (good_programs[i]['name'],good_programs[i+1]['name'],overlap // 60)), 64)
                     else:
-                        self.config.log('"%s" and "%s" have gap of %s minutes. Adjusting times.\n' % \
-                            (good_programs[i]['name'],good_programs[i+1]['name'],abs(overlap) // 60), 64)
+                        self.config.log(self.config.text('fetch', 27, (good_programs[i]['name'],good_programs[i+1]['name'],abs(overlap) // 60)), 64)
 
                     # stop-time of previous program wins
                     if overlap_strategy == 'stop':
@@ -1944,7 +1931,7 @@ class FetchData(Thread):
             # This is the already collected data to start with the prime source
             info = self.config.channels[chanid].all_programs[:]
 
-        match_array = [   'Match details:\n']
+        match_array = [self.config.text('fetch', 28)]
         def matchlog(matchstr, other_prog, tvgids_prog = None, mode = 1):
             if not (mode & self.config.opt_dict['match_log_level']):
                 return
@@ -2337,11 +2324,11 @@ class FetchData(Thread):
 
             x = match_name(pi['name'], tdict['name'], pi['titel aflevering'])
             if x != None:
-                matchlog('title match: ', pi, tdict, 4)
+                matchlog(self.config.text('fetch', 29), pi, tdict, 4)
                 retval = 1
 
             elif check_genre and match_genre(pi['genre'], tdict['genre'], pi['subgenre']):
-                matchlog('genre match: ', pi, tdict, 4)
+                matchlog(self.config.text('fetch', 30), pi, tdict, 4)
                 x = 0
                 retval = 2
 
@@ -2378,21 +2365,17 @@ class FetchData(Thread):
 
         # end check_match_to_info()
 
+        log_array =['\n']
         if merge_channel == None:
-            self.config.log(['\n', 'Now merging %s (channel %s of %s):\n' % (self.config.channels[chanid].chan_name , counter, self.config.chan_count), \
-                '  %s programs from %s into %s programs from %s\n' % \
-                (len(programs), other_source_name, len(info), prime_source_name)], 2)
-            log_array =['\n']
-            log_array.append('Merg statistics for %s (channel %s of %s) from %s into %s\n' % \
-                (self.config.channels[chanid].chan_name , counter, self.config.chan_count, other_source_name, prime_source_name))
+            log_array.append(self.config.text('fetch', 33, \
+                (self.config.channels[chanid].chan_name , counter, self.config.chan_count, other_source_name, prime_source_name)))
+            self.config.log(['\n', self.config.text('fetch', 31, (self.config.channels[chanid].chan_name , counter, self.config.chan_count)), \
+                self.config.text('fetch', 32 (len(programs), other_source_name, len(info), prime_source_name))], 2)
 
         else:
-            self.config.log(['\n', 'Now merging %s programs from %s into %s programs from %s\n' % \
-                    (len(programs), other_source_name, len(info), prime_source_name), \
-                    '    (channel %s of %s)' % (counter, self.config.chan_count)], 2)
-            log_array =['\n']
-            log_array.append('Merg statistics for %s (channel %s of %s) from %s\n' % \
-                (prime_source_name , counter, self.config.chan_count, other_source_name))
+            log_array.append(self.config.text('fetch', 36, (prime_source_name , counter, self.config.chan_count, other_source_name)))
+            self.config.log(['\n', self.config.text('fetch', 34, (len(programs), other_source_name, len(info), prime_source_name)), \
+                self.config.text('fetch', 35, (counter, self.config.chan_count))], 2)
 
         # Do some general renaming to match tvgids.nl naming
         for i in range(0, len(programs)):
@@ -2410,10 +2393,10 @@ class FetchData(Thread):
         progstarttime = programs[0]['start-time'] + datetime.timedelta(seconds = 5)
         progendtime = programs[-1]['stop-time'] - datetime.timedelta(seconds = 5)
 
-        log_array.append('%6.0f programs in %s for range: %s - %s, \n' % \
-            (len(info), prime_source_name.ljust(11), infostarttime.strftime('%d-%b %H:%M'), infoendtime.strftime('%d-%b %H:%M')))
-        log_array.append('%6.0f programs in %s for range: %s - %s\n' % \
-            (len(programs), other_source_name.ljust(11), progstarttime.strftime('%d-%b %H:%M'), progendtime.strftime('%d-%b %H:%M')))
+        log_array.append(self.config.text('fetch', 37, \
+            (len(info), prime_source_name.ljust(11), infostarttime.strftime('%d-%b %H:%M'), infoendtime.strftime('%d-%b %H:%M'))))
+        log_array.append(self.config.text('fetch', 38, \
+            (len(programs), other_source_name.ljust(11), progstarttime.strftime('%d-%b %H:%M'), progendtime.strftime('%d-%b %H:%M'))))
         log_array.append('\n')
 
         # move all programs outside the range of programs to matched_programs
@@ -2466,7 +2449,7 @@ class FetchData(Thread):
                 else:
                     matched_programs.append(tdict)
 
-                matchlog('added from info', None, tdict, 1)
+                matchlog(self.config.text('fetch', 46), None, tdict, 1)
                 if tdict in info: info.remove(tdict)
 
         # count the occurense of the rest and organise by name/start-time and stop-time
@@ -2506,7 +2489,7 @@ class FetchData(Thread):
                 else:
                     matched_programs.append(tdict)
 
-                matchlog('added from ', tdict, None, 1)
+                matchlog(self.config.text('fetch', 48), tdict, None, 1)
                 if tdict in programs: programs.remove(tdict)
                 if tdict['start-time'] in prog_starttimes: del prog_starttimes[tdict['start-time']]
                 continue
@@ -2524,14 +2507,14 @@ class FetchData(Thread):
                     else:
                         matched_programs.append(tdict)
 
-                    matchlog('added from ', tdict, None, 1)
+                    matchlog(self.config.text('fetch', 48), tdict, None, 1)
                     if tdict in programs: programs.remove(tdict)
                     if tdict['start-time'] in prog_starttimes: del prog_starttimes[tdict['start-time']]
                     break
 
-        log_array.append('%6.0f programs added outside common timerange\n' % ocount)
-        log_array.append('%6.0f programs left in %s to match\n' % (len(info), prime_source_name))
-        log_array.append('%6.0f programs left in %s to match\n' % (len(programs), other_source_name))
+        log_array.append(self.config.text('fetch', 39, (ocount, )))
+        log_array.append(self.config.text('fetch', 40, (len(info), prime_source_name)))
+        log_array.append(self.config.text('fetch', 40, (len(programs), other_source_name)))
         log_array.append('\n')
 
         ncount = 0
@@ -2715,7 +2698,7 @@ class FetchData(Thread):
                         tdict['subgenre'] = prog_names[match_list[0]]['subgenre']
                         rcount += 1
 
-            log_array.append('%6.0f programs generically matched on name to get genre\n' % rcount)
+            log_array.append(self.config.text('fetch', 41, (rcount, )))
             if rcount == 0 or no_genric_matching:
                 break
 
@@ -2734,7 +2717,7 @@ class FetchData(Thread):
 
                     matched_programs.append(tvdict)
                     if pcount == 1:
-                        matchlog('groupslot in ', tdict, None, 8)
+                        matchlog(self.config.text('fetch', 47), tdict, None, 8)
 
                     matchlog('', None, tvdict, 8)
                     if tvdict in info: info.remove(tvdict)
@@ -2755,7 +2738,7 @@ class FetchData(Thread):
                     tvdict['merge-source'] = other_source_name
                     matched_programs.append(tvdict)
                     if pcount == 1:
-                        matchlog('groupslot in info', None, tdict, 8)
+                        matchlog(self.config.text('fetch', 49), None, tdict, 8)
 
                     matchlog('', tvdict, None, 8)
                     if tvdict in programs: programs.remove(tvdict)
@@ -2766,19 +2749,19 @@ class FetchData(Thread):
                 if tdict['merge-source'] == '':
                     tdict['merge-source'] = prime_source_name
 
-                matchlog('added from info', None, tdict, 1)
+                matchlog(self.config.text('fetch', 46), None, tdict, 1)
                 matched_programs.append(tdict)
 
             if tdict in info: info.remove(tdict)
 
-        log_array.append('%6.0f programs matched on time and name\n' % ncount)
-        log_array.append('%6.0f programs matched on time and genre\n' % gcount)
-        log_array.append('%6.0f details  added from group slots\n' % scount)
-        log_array.append('%6.0f programs added unmatched from info\n' % len(info))
+        log_array.append(self.config.text('fetch', 42, (ncount, )))
+        log_array.append(self.config.text('fetch', 43, (gcount, )))
+        log_array.append(self.config.text('fetch', 44, (scount, )))
+        log_array.append(self.config.text('fetch', 45, (len(info), )))
 
         # List unmatched items to the log
         for tdict in info[:]:
-            matchlog('added from info', None, tdict, 1)
+            matchlog(self.config.text('fetch', 46), None, tdict, 1)
             tdict = set_main_id(tdict)
             if tdict['merge-source'] == '':
                 tdict['merge-source'] = prime_source_name
@@ -2792,7 +2775,7 @@ class FetchData(Thread):
 
         p.sort(key=lambda program: (program['start-time'],program['stop-time']))
         for tdict in p:
-            matchlog('left over in ', tdict, None , 2)
+            matchlog(self.config.text('fetch', 50), tdict, None , 2)
 
         log_array.append('\n')
         self.config.log(log_array, 4, 3)

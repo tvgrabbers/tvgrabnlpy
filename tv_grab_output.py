@@ -178,7 +178,7 @@ class Channel_Config(Thread):
                 if self.source_data[index].is_set():
                     if len(self.config.channelsource[index].program_data[self.chanid]) == 0:
                         if not (index == 1 and 0 in self.merge_order):
-                            self.config.log('No Data from %s for channel: %s\n'% (self.config.channelsource[index].source, self.chan_name))
+                            self.config.log(self.config.text('output', 1, (self.config.channelsource[index].source, self.chan_name)))
 
                     elif xml_data == False:
                         # This is the first source with data, so we just take in the data
@@ -210,7 +210,7 @@ class Channel_Config(Thread):
                                 break
 
                         if len(self.config.channels[c['chanid']].child_programs) == 0:
-                            self.config.log('No Data from %s for channel: %s\n'% (self.config.channels[c['chanid']].chan_name, self.chan_name))
+                            self.config.log(self.config.text('output', 1, (self.config.channels[c['chanid']].chan_name, self.chan_name)))
 
                         elif self.child_data.is_set():
                             # We always merge as there might be restrictions
@@ -257,8 +257,7 @@ class Channel_Config(Thread):
 
                     else:
                         self.detail_data.set()
-                        self.config.log('Detail sources: %s died.\n So we stop waiting for the pending details for channel %s\n' \
-                            % (log_string, self.chan_name))
+                        self.config.log([self.config.text('output', 2, (log_string, )), self.config.text('output', 3, (self.chan_name,))])
 
                 self.all_programs = self.detailed_programs
 
@@ -267,30 +266,30 @@ class Channel_Config(Thread):
                 self.functions.progress_counter+= 1
                 counter = self.functions.progress_counter
 
-            log_array = ['\n', 'Detail statistics for %s (channel %s of %s)\n' % (self.chan_name, counter, self.config.chan_count)]
-            log_array.append( '%6.0f cache hit(s)\n' % self.functions.get_counter('detail', -1, self.chanid))
+            log_array = ['\n', self.config.text('output', 4, (self.chan_name, counter, self.config.chan_count))]
+            log_array.append( self.config.text('output', 5, (self.functions.get_counter('detail', -1, self.chanid), )))
             if self.opt_dict['fast']:
-                log_array.append('%6.0f without details in cache\n' % self.functions.get_counter('fail', -1, self.chanid))
+                log_array.append(self.config.text('output', 6, (self.functions.get_counter('fail', -1, self.chanid), )))
                 log_array.append('\n')
-                log_array.append('%6.0f succesful ttvdb lookups\n' % self.functions.get_counter('detail', -2, self.chanid))
-                log_array.append('%6.0f failed ttvdb lookups\n' % self.functions.get_counter('fail', -2, self.chanid))
+                log_array.append(self.config.text('output', 7, (self.functions.get_counter('detail', -2, self.chanid), )))
+                log_array.append(self.config.text('output', 8, (self.functions.get_counter('fail', -2, self.chanid), )))
 
             else:
                 fail = 0
                 for source in self.config.detail_sources:
                     fail += self.functions.get_counter('fail', source, self.chanid)
-                    log_array.append('%6.0f detail fetch(es) from %s.\n' % \
-                        (self.functions.get_counter('detail', source, self.chanid), self.config.channelsource[source].source))
+                    log_array.append(self.config.text('output', 9, \
+                        (self.functions.get_counter('detail', source, self.chanid), self.config.channelsource[source].source)))
 
-                log_array.append('%6.0f failure(s)\n' % fail)
-                log_array.append('%6.0f without detail info\n' % self.functions.get_counter('fail', -1, self.chanid))
+                log_array.append(self.config.text('output', 10, (fail,)))
+                log_array.append(self.config.text('output', 11, (self.functions.get_counter('fail', -1, self.chanid), )))
                 log_array.append('\n')
-                log_array.append('%6.0f succesful ttvdb lookups\n' % self.functions.get_counter('lookup', -2, self.chanid))
-                log_array.append('%6.0f    failed ttvdb lookups\n' % self.functions.get_counter('lookup_fail', -2, self.chanid))
+                log_array.append(self.config.text('output', 7, (self.functions.get_counter('lookup', -2, self.chanid), )))
+                log_array.append(self.config.text('output', 8, (self.functions.get_counter('lookup_fail', -2, self.chanid), )))
                 log_array.append('\n')
                 for source in self.config.detail_sources:
-                    log_array.append('%6.0f left in the %s queue to process\n' % \
-                        (self.config.channelsource[source].detail_request.qsize(), self.config.channelsource[source].source))
+                    log_array.append(self.config.text('output', 12, \
+                        (self.config.channelsource[source].detail_request.qsize(), self.config.channelsource[source].source)))
 
             log_array.append('\n')
             self.config.log(log_array, 4, 3)
@@ -438,14 +437,14 @@ class Channel_Config(Thread):
         programs = self.all_programs[:]
 
         if self.opt_dict['fast']:
-            self.config.log(['\n', 'Now Checking cache for %s programs on %s(xmltvid=%s%s)\n' % \
-                (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
-                '    (channel %s of %s) for %s days.\n' % (self.counter, self.config.chan_count, self.config.opt_dict['days'])], 2)
+            self.config.log(['\n', self.config.text('output', 13, \
+                (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and '.tvgids.nl' or ''))), \
+                self.config.text('output', 14, (self.counter, self.config.chan_count, self.config.opt_dict['days']))], 2)
 
         else:
-            self.config.log(['\n', 'Now fetching details for %s programs on %s(xmltvid=%s%s)\n' % \
-                (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
-                '    (channel %s of %s) for %s days.\n' % (self.counter, self.config.chan_count, self.config.opt_dict['days'])], 2)
+            self.config.log(['\n', self.config.text('output', 15, \
+                (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and '.tvgids.nl' or ''))), \
+                self.config.text('output', 14, (self.counter, self.config.chan_count, self.config.opt_dict['days']))], 2)
 
         # randomize detail requests
         self.fetch_counter = 0
@@ -501,7 +500,7 @@ class Channel_Config(Thread):
                             (cached_program[self.config.channelsource[9].detail_check] or \
                                 (p['detail_url'][9] == '' and \
                                 cached_program[self.config.channelsource[1].detail_check])))):
-                        self.config.log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
+                        self.config.log(self.config.text('fetch', 18, (self.chan_name, self.get_counter(), logstring)), 8, 1)
                         self.functions.update_counter('detail', -1, self.chanid)
                         p = self.use_cache(p, cached_program)
                         if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
@@ -519,7 +518,7 @@ class Channel_Config(Thread):
                                                                 (p['detail_url'][1] == '')))
 
             if no_detail_fetch:
-                self.config.log(u'    [no fetch] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
+                self.config.log(self.config.text('output', 16, (self.chan_name, self.get_counter(), logstring)), 8, 1)
                 self.functions.update_counter('fail', -1, self.chanid)
                 if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
                     if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
@@ -575,7 +574,7 @@ class Channel_Config(Thread):
         # and do the title split test
         p = ptitle.split(':')
         if len(p) >1:
-            self.config.log('Splitting title \"%s\"\n' %  ptitle, 64)
+            self.config.log(self.config.text('output', 17, (ptitle, )), 64)
             program['name'] = p[0].strip()
             program['titel aflevering'] = "".join(p[1:]).strip()
             if self.config.write_info_files:

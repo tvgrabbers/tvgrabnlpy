@@ -16,11 +16,12 @@ from copy import deepcopy
 class Functions():
     """Some general IO functions"""
 
-    def __init__(self, logging):
+    def __init__(self, config):
         self.default_file_encoding = 'utf-8'
         self.encoding = None
         self.configversion = None
-        self.logging = logging
+        self.config = config
+        self.logging = config.logging
 
     # end init()
 
@@ -78,7 +79,7 @@ class Functions():
 
         except IOError as e:
             if e.errno == 2:
-                self.log('File: "%s" not found.\n' % file_name)
+                self.log(self.config.text('IO', 1, (file_name, )))
             else:
                 self.log('File: "%s": %s.\n' % (file_name, e.strerror))
             return None
@@ -113,7 +114,7 @@ class Functions():
                 return line
 
         except UnicodeError:
-            self.log('%s is not encoded in %s.\n' % (fle.name, encoding))
+            self.log(self.config.text('IO', 2, (fle.name, encoding)))
 
         return False
 
@@ -150,7 +151,7 @@ class Functions():
                         self.encoding = encoding
 
                     except LookupError:
-                        self.log('%s has invalid encoding %s.\n' % (fle.name, encoding))
+                        self.log(self.config.text('IO', 3, (fle.name, encoding)))
                         return False
 
                     if (not check_version) or self.configversion != None:
@@ -203,7 +204,7 @@ class Logging(Thread):
         Thread.__init__(self)
         self.quit = False
         self.config = config
-        self.functions = Functions(self)
+        self.functions = Functions(config)
         self.log_queue = Queue()
         self.log_output = None
         self.log_string = []
@@ -222,8 +223,9 @@ class Logging(Thread):
 
     def run(self):
         self.log_output = self.config.log_output
-        self.fatal_error = ['If you want assistence, please attach your configuration and log files!\n', \
-                '     %s\n' % (self.config.opt_dict['config_file']), '     %s\n' % (self.config.opt_dict['log_file'])]
+        self.fatal_error = [self.config.text('IO', 4), \
+                '     %s\n' % (self.config.opt_dict['config_file']), \
+                '     %s\n' % (self.config.opt_dict['log_file'])]
 
         while True:
             try:
@@ -305,7 +307,7 @@ class Logging(Thread):
 
                         continue
 
-                self.writelog('Unrecognized log-message: %s of type %s\n' % (message, type(message)))
+                self.writelog(self.config.text('IO', 5, (message, type(message))))
 
             except:
                 sys.stderr.write((self.now() + 'An error ocured while logging!\n').encode(self.local_encoding, 'replace'))
@@ -640,7 +642,7 @@ class ProgramCache(Thread):
 
     def open_db(self):
         if self.filename == None:
-            self.functions.log('Cache function disabled!\n')
+            self.functions.log(self.config.text('IO', 6))
             return
 
         if os.path.isfile(self.filename) and \
@@ -660,7 +662,7 @@ class ProgramCache(Thread):
                 return
 
             except:
-                self.functions.log('The cache directory is not accesible. Cache function disabled!\n')
+                self.functions.log(self.config.text('IO', 7))
                 self.filename = None
                 return
 
@@ -695,7 +697,7 @@ class ProgramCache(Thread):
                 self.pconn = sqlite3.connect(database=self.filename + '.db', isolation_level=None, detect_types=sqlite3.PARSE_DECLTYPES)
                 self.pconn.row_factory = sqlite3.Row
                 pcursor = self.pconn.cursor()
-                self.functions.log('Verifying the database\n')
+                self.functions.log(self.config.text('IO', 8))
                 pcursor.execute("PRAGMA main.integrity_check")
                 if pcursor.fetchone()[0] == 'ok':
                     # Making a backup copy
@@ -710,13 +712,11 @@ class ProgramCache(Thread):
                     break
 
                 if try_loading == 0:
-                    self.functions.log(['Error loading the database: %s.db (possibly corrupt)\n' % self.filename, \
-                        'Trying to load a backup copy', traceback.format_exc()])
+                    self.functions.log([self.config.text('IO', 9, (self.filename, )), self.config.text('IO', 10)])
 
             except:
                 if try_loading == 0:
-                    self.functions.log(['Error loading the database: %s.db (possibly corrupt)\n' % self.filename, \
-                        'Trying to load a backup copy', traceback.format_exc()])
+                    self.functions.log([self.config.text('IO', 9, (self.filename, )), self.config.text('IO', 10), traceback.format_exc()])
 
             try:
                 self.pconn.close()
@@ -736,7 +736,7 @@ class ProgramCache(Thread):
                         os.remove(self.filename + '.db.bak')
 
             except:
-                self.functions.log(['Failed to load the database: %s\n' % self.filename, traceback.format_exc(), 'Disableing Cache function'])
+                self.functions.log([self.config.text('IO', 11, (self.filename, )), traceback.format_exc(), self.config.text('IO', 12)])
                 self.filename = None
                 self.config.opt_dict['disable_ttvdb'] = True
                 return
@@ -767,7 +767,7 @@ class ProgramCache(Thread):
                     self.add('ttvdb_alias', {'title': t, 'alias': a})
 
         except:
-            self.functions.log(['Failed to load the database: %s\n' % self.filename, traceback.format_exc(), 'Disableing Cache function'])
+            self.functions.log([self.config.text('IO', 11, (self.filename, )), traceback.format_exc(), self.config.text('IO', 12)])
             self.filename = None
             self.config.opt_dict['disable_ttvdb'] = True
 
@@ -875,7 +875,7 @@ class ProgramCache(Thread):
                 self.pconn.execute(create_string)
 
             except:
-                self.functions.log(['Error creating the %s table!\n' % table, traceback.format_exc()])
+                self.functions.log([self.config.text('IO', 13, (table, )), traceback.format_exc()])
 
     def check_collumns(self, table, clist):
         def add_collumn(table, collumn):
@@ -884,7 +884,7 @@ class ProgramCache(Thread):
                     self.pconn.execute(u"ALTER TABLE %s ADD %s" % (table, collumn))
 
             except:
-                self.functions.log('Error updating the %s table with collumn "%s"!\n' % (table, collumn))
+                self.functions.log(self.config.text('IO', 14, (table, collumn)))
 
         def drop_table(table):
             with self.pconn:
@@ -1028,7 +1028,7 @@ class ProgramCache(Thread):
                     self.pconn.execute(u"CREATE INDEX IF NOT EXISTS '%s' ON %s %s" % (i, table, clist))
 
             except:
-                self.functions.log('Error updating the %s table with Index "%s"!\n' % (table, i))
+                self.functions.log(self.config.text('IO', 15, (table, i)))
 
         pcursor = self.pconn.cursor()
         # (id, Name, Type, Nullable = 0, Default, Pri_key index)
@@ -1072,11 +1072,11 @@ class ProgramCache(Thread):
             pdict = pickle.load(open(self.filename,'r'))
 
         except:
-            self.functions.log(['Error loading old cache file: %s (possibly corrupt)\n' % self.filename, traceback.format_exc()])
+            self.functions.log([self.config.text('IO', 16, (self.filename, )), traceback.format_exc()])
             return
 
         dnow = datetime.date.today()
-        self.functions.log(['Converting the old pickle cache to sqlite.\n', 'This may take some time!\n'])
+        self.functions.log([self.config.text('IO', 17), self.config.text('IO', 18)])
         pcount = 0
         for p in pdict.values():
             if 'stop-time'  in p and 'name'  in p and \
@@ -1087,7 +1087,7 @@ class ProgramCache(Thread):
                 self.add(p)
                 pcount += 1
 
-        self.functions.log('Added %s program records to the database.\n' % pcount)
+        self.functions.log(self.config.text('IO', 19, (pcount, )))
 
     def query(self, table='pid', item=None):
         """
@@ -1370,7 +1370,7 @@ class ProgramCache(Thread):
                         break
 
                 else:
-                    self.functions.log('Error saving program %s to the cache.\n' %  item['name'])
+                    self.functions.log(self.config.text('IO', 20, (item['name'], )))
                     return
 
             sql_flds = u"INSERT INTO programs ('pid'"
