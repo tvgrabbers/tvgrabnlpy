@@ -157,7 +157,7 @@ class Configure(tv_grab_config.Configure):
         self.major = 3
         self.minor = 0
         self.patch = 0
-        self.patchdate = u'20160204'
+        self.patchdate = u'20160208'
         self.alfa = True
         self.beta = True
         self.output_tz = pytz.timezone('Europe/Amsterdam')
@@ -191,16 +191,6 @@ def main():
 
         config.log("The Netherlands: %s\n" % config.version(True), 1, 1)
         config.log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
-
-        #~ test = vrt_JSON(10, 'vrt.be', 'vrt-ID', 'vrt-url', True)
-        #~ test.get_standaardgenres()
-        #~ test = oorboekje_HTML(12, 'oorboekje.nl', 'ob-ID', 'ob-url')
-        #~ test.init_channels()
-        #~ test.get_channels()
-        #~ config.opt_dict['offset'] = 0
-        #~ config.opt_dict['days'] = 1
-        #~ test.load_pages()
-        #~ return
 
         # Start the seperate fetching threads
         for source in config.channelsource.values():
@@ -236,39 +226,12 @@ def main():
         config.write_defaults_list()
         config.xml_output.print_string()
 
-        # Report duration
+        # Create a report
         end_time = datetime.datetime.now()
-        duration = end_time - start_time
-
-        log_array = ['\n', 'Execution complete.\n', '\n']
-        log_array.append('Fetch statistics for %s programms on %s channels:\n' % (config.xml_output.program_count, config.chan_count))
-        log_array.append(' Start time: %s\n'% (start_time.strftime('%Y-%m-%d %H:%M')))
-        log_array.append('   End time: %s\n' % (end_time.strftime('%Y-%m-%d %H:%M')))
-        log_array.append('   Duration: %s\n' % (duration))
-        fetch_count = config.fetch_func.get_counter('base', 'total') + config.fetch_func.get_counter('detail', 'total')
-        log_array.append( '%6.0f page(s) fetched, of which %s failed\n' % \
-            (fetch_count, config.fetch_func.get_counter('fail', 'total')))
-        log_array.append( '%6.0f cache hits\n' % (config.fetch_func.get_counter('detail', -1)))
-        log_array.append( '%6.0f succesful ttvdb.com lookups\n' % (config.fetch_func.get_counter('lookup', -2)))
-        log_array.append( '%6.0f    failed ttvdb.com lookups\n' % (config.fetch_func.get_counter('lookup_fail', -2)))
-        if fetch_count > 0:
-            log_array.extend([' Time/fetch: %s seconds\n' % (duration.total_seconds()/fetch_count), '\n'])
-        log_array.append('%6.0f page(s) fetched from theTVDB.com\n' % (config.fetch_func.get_counter('detail', -2)))
-        log_array.extend(['%6.0f failure(s) on theTVDB.com\n' % (config.fetch_func.get_counter('fail', -2)), '\n'])
-        for s, source in config.channelsource.items():
-            log_array.append('%6.0f   base page(s) fetched from %s\n' % (config.fetch_func.get_counter('base', s), source.source))
-            if source.detail_processor:
-                log_array.append('%6.0f detail page(s) fetched from %s\n' % (config.fetch_func.get_counter('detail', s), source.source))
-
-            log_array.extend(['%6.0f failure(s) on %s\n' % (config.fetch_func.get_counter('fail', s), source.source), '\n'])
-
-        config.log(log_array, 4, 3)
+        config.write_statistics(start_time, end_time)
 
     except:
-        config.log(['\n', 'An unexpected error has occured:\n', traceback.format_exc(), \
-            '\n', 'If you want assistence, please attach your self.configuration and log files!\n', \
-            '     %s\n' % (config.opt_dict['config_file']), '     %s\n' % (config.opt_dict['log_file'])],0)
-
+        config.logging.log_queue.put({'fatal': [traceback.format_exc(), '\n'], 'name': None})
         return(99)
 
     # and return success

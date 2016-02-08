@@ -6,1138 +6,1183 @@ p2
 sVtexts
 p3
 (dp4
-Voutput
+Vsources
 p5
 (dp6
-Vother
+Vtvgids.nl
 p7
 (dp8
-V
-p9
-g9
-ssVerror
-p10
-(dp11
-I1
-VNo Data from %s for channel: %s\u000a
-p12
-sI2
-VDetail sources: %s died.\u000a
-p13
-sI3
-VSo we stop waiting for the pending details for channel %s\u000a
-p14
-sI4
-VDetail statistics for %s (channel %s of %s)\u000a
-p15
-sI5
-V%6.0f cache hit(s)\u000a
-p16
-sI6
-V%6.0f without details in cache\u000a
-p17
-sI7
-V%6.0f succesful ttvdb lookups\u000a
-p18
-sI8
-V%6.0f    failed ttvdb lookups\u000a
-p19
-sI9
-V%6.0f detail fetch(es) from %s.\u000a
-p20
-sI10
-V%6.0f failure(s)\u000a
-p21
-sI11
-V%6.0f without detail info\u000a
-p22
-sI12
-V%6.0f left in the %s queue to process\u000a
-p23
-sI13
-VNow Checking cache for %s programs on %s(xmltvid=%s%s)\u000a
-p24
-sI14
-V    (channel %s of %s) for %s days.\u000a
-p25
-sI15
-VNow fetching details for %s programs on %s(xmltvid=%s%s)\u000a
-p26
-sI16
-V    [no fetch] %s:(%3.0f%%) %s\u000a
-p27
-sI17
-VSplitting title "%s"\u000a
-p28
-sssVconfig
-p29
-(dp30
-g7
-(dp31
-I1
-VThe available sources are: 
-p32
-sI2
-VThe available detail sources are: 
-p33
-sI3
-VThe available logo sources are: 
-p34
-sI4
-V 99: Your own full logo url
-p35
-sI5
-Vdisplay version
-p36
-sI6
-Vprints a short description of the grabber
-p37
-sI7
-Vprints a long description in english of the grabber
-p38
-sI8
-Vxmltv required option
-p39
-sI9
-Vreturns the preferred method to be called
-p40
-sI10
-Vreturns the available sources
-p41
-sI11
-Vdisable a numbered source.\u000aSee "--show-sources" for a list.
-p42
-sI12
-Vreturns the available detail sources
-p43
-sI13
-Vreturns the available logo sources
-p44
-sI15
-Vdisable a numbered source for detailfetches.\u000aSee "--show-detail-sources" for a list.
-p45
-sI16
-Vdisable fetching extra data from ttvdb.com.
-p46
-sI17
-VQuery ttvdb.com for a series-title and optionally store\u000ait with the ID in the DB. Enclose the title in quotes!\u000aOptionally add a language code after the title.\u000a
-p47
-sI18
-Vappend tvgids.nl to the xmltv id\u000a(use this if you were using tv_grab_nl)
-p48
-sI19
-Vremove as in pre 2.2.8 for source 0 and 1 the sourceid\u000afrom the chanid to get the xmltvid.
-p49
-sI20
-Vgenerate all data in UTC time (use with timezone "auto"\u000ain mythtv)
-p50
-sI21
-Vcreate configfile; rename an existing file to *.old.
-p51
-sI22
-VAfter running configure, place all active channels in\u000aa separate group on top of the list.\u000aOnly relevant together with the configure option.
-p52
-sI23
-Vname of the configuration file\u000a<default = "%s">
-p53
-sI24
-Vsave the currently defined options to the config file\u000aadd options to the command-line to adjust the file.
-p54
-sI25
-Vcache descriptions and use the file to store\u000a<default = "%s">
-p55
-sI26
-Vclean the cache of outdated data before fetching
-p56
-sI27
-Vempties the program table before fetching data
-p57
-sI28
-Vempties the ttvdb table before fetching data
-p58
-sI29
-Vfile where to send the output <default to the screen>
-p59
-sI30
-Vuse for the outputfile Windows codeset (cp1252)\u000ainstead of utf-8
-p60
-sI31
-Vsuppress all log output to the screen.
-p61
-sI32
-VSent log-info also to the screen.
-p62
-sI33
-Vdo not grab details of programming from any of the\u000adetail sources
-p63
-sI34
-V<default> grab details of programming from one of the\u000adetail sources
-p64
-sI35
-VThe day to start grabbing <defaults to 0 is today>
-p65
-sI36
-V# number of days to grab from the several sources.\u000a<max 14 = default>\u000aWhere every source has it\u015b own max.\u000a
-p66
-sI38
-Vnumber of days to grab slow and the rest in fast mode\u000aDefaults to all days possible
-p67
-sI39
-V<default> insert urls to channel icons\u000a(mythfilldatabase will then use these)
-p68
-sI40
-Vdo not insert urls to channel icons
-p69
-sI41
-Vmark HD programs,\u000ado not set if you only record analog SD
-p70
-sI42
-V<default> translate the grabbed genres into\u000aMythTV-genres. See the %s.set file
-p71
-sI43
-Vdo not translate the grabbed genres into MythTV-genres.\u000aIt then only uses the basic genres without possibility\u000ato differentiate on subgenre.
-p72
-sI44
-Vmaximum allowed length of program descriptions in\u000acharacters.
-p73
-sI45
-Vwhat strategy to use to correct overlaps:\u000a"avarage" use average of stop and start of next program.\u000a          <default>\u000a"stop"    keep stop time of current program and adjust\u000a          start time.\u000a"start"   keep start time of next program and adjust\u000a          stop time.\u000a"none"    do not use any strategy and see what happens.\u000a
-p74
-sI46
-Vmaximum length of overlap between programming to correct\u000a<default 10 minutes>
-p75
-sI47
-g9
-sI48
-g9
-sI49
-g9
-sI50
-V# See: https://github.com/tvgrabbers/tvgrabnlpy/wiki/Over_de_configuratie\u000a
-p76
-sI51
-V# This is a list with default options set by the --save-options (-O)\u000a
-p77
-sI52
-V# argument. Most can be overruled on the commandline.\u000a
-p78
-sI53
-V# Be carefull with manually editing. Invalid options will be\u000a
-p79
-sI54
-V# silently ignored. Boolean options can be set with True/False,\u000a
-p80
-sI55
-V# On/Off or 1/0. Leaving it blank sets them on. Setting an invalid\u000a
-p81
-sI56
-V# value sets them off. You can always check the log for the used values.\u000a
-p82
-sI57
-V# To edit you beter run --save-options with all the desired defaults.\u000a
-p83
-sI58
-V# Options not shown here can not be set this way.\u000a
-p84
-sI59
-g9
-sI60
-g9
-sI61
-V# DO NOT CHANGE THIS VALUE!\u000a
-p85
-sI62
-g9
-sI63
-V# Set always_use_json to False to ignore Channelname, Channelgroup \u000a
-p86
-sI64
-V# and prime_source set in sourcematching.json if they are set different\u000a
-p87
-sI65
-V# in this configuration file. If you do not have set any of those yourself\u000a
-p88
-sI66
-V# leave the value to True to profite from all updates.\u000a
-p89
-sI67
-g9
-sI68
-g9
-sI69
-V# The following are tuning parameters. You normally do not need to change them.\u000a
-p90
-sI70
-V# global_timeout is the maximum time in seconds to wait for a fetch to complete\u000a
-p91
-sI71
-V#    before calling it a time-out failure.\u000a
-p92
-sI72
-V# max_simultaneous_fetches is the maximum number of simultaneous fetches\u000a
-p93
-sI73
-V#    that are allowed.\u000a
-p94
-sI74
-V#    With the growing number of sources it is possible that they all together\u000a
-p95
-sI75
-V#    try to get their page. This could lead to congestion and failure.\u000a
-p96
-sI76
-V#    If you see often "incomplete read failures" or "get_page timed out", you\u000a
-p97
-sI77
-V#    can try raising the first or lowering the second.\u000a
-p98
-sI78
-V#    This won't significantly alter the total runtime as this is mostley determined\u000a
-p99
-sI79
-V#    by the the highest number of fetches from a single source and the mandatory.\u000a
-p100
-sI80
-V#    waittime in between those fetches to not overload their resources.\u000a
-p101
-sI81
-V#    However all basepage fetches are retried on failure and a detailpagefailure\u000a
-p102
-sI82
-V#    can triger a retry on one of the other detailsources. So a lot of failures\u000a
-p103
-sI83
-V#    especially on source 0, 1 and 9 can increase the total runtime.\u000a
-p104
-sI84
-g9
-sI85
-g9
-sI86
-V# This handles what goes to the log and screen\u000a
-p105
-sI87
-V# 0 Nothing (use quiet mode to turns off screen output, but keep a log)\u000a
-p106
-sI88
-V# 1 include Errors and Warnings\u000a
-p107
-sI89
-V# 2 include page fetches\u000a
-p108
-sI90
-V# 4 include (merge) summaries\u000a
-p109
-sI91
-V# 8 include detail fetches and ttvdb lookups to the screen\u000a
-p110
-sI92
-V# 16 include detail fetches and ttvdb lookups to the log\u000a
-p111
-sI93
-V# 32 include matchlogging (see below)\u000a
-p112
-sI94
-V# 64 Title renames\u000a
-p113
-sI95
-V# 128 ttvdb failures\u000a
-p114
-sI96
-g9
-sI97
-g9
-sI98
-V# What match results go to the log/screen (needs code 32 above)\u000a
-p115
-sI99
-V# 0 = Log Nothing (just the overview)\u000a
-p116
-sI100
-V# 1 = log not matched programs added\u000a
-p117
-sI101
-V# 2 = log left over programs\u000a
-p118
-sI102
-V# 4 = Log matches\u000a
-p119
-sI103
-V# 8 = Log group slots\u000a
-p120
-sI104
-g9
-sI105
-g9
-sI106
-V# Set "mail_log" to True to send the log to the mailaddress below\u000a
-p121
-sI107
-V# Also set the mailserver and port apropriate\u000a
-p122
-sI108
-V# SSL/startTLS is NOT sopported at present. Neither is authentication\u000a
-p123
-sI109
-V# Make sure to first test on a console as mailing occures after \u000a
-p124
-sI110
-V# closing of the logfile!\u000a
-p125
-sI111
-g9
-sI112
-g9
-sI113
-V# Possible values for kijkwijzerstijl are:\u000a
-p126
-sI114
-V#   long  : add the long descriptions and the icons\u000a
-p127
-sI115
-V#   short : add the one word descriptions and the icons\u000a
-p128
-sI116
-V#   single: add a single string (mythtv only reads the first item)\u000a
-p129
-sI117
-V#   none  : don't add any\u000a
-p130
-sI118
-g9
-sI119
-g9
-sI120
-V# These are the channeldefinitions. You can disable a channel by placing\u000a
-p131
-sI121
-V# a '#' in front. Seperated by ';' you see on every line: The Name,\u000a
-p132
-sI122
-V# the group, the channelID, the ID's for the sources in the order as\u000a
-p133
-sI123
-V# returned by the "--show-sources" option and finally the iconsource and name.\u000a
-p134
-sI124
-V# You can change the names to suit your own preferences.\u000a
-p135
-sI125
-V# A missing ID means the source doesn't supply the channel.\u000a
-p136
-sI126
-V# Removing an ID disables fetching from that source, but keep the ';'s in place.\u000a
-p137
-sI127
-V# But you better use the "disable_source" option as described below.\u000a
-p138
-sI128
-V# Set iconsource to 99, to add your own full url.\u000a
-p139
-sI129
-V#\u000a
-p140
-sI130
-V# To specify further Channel settings you can add sections in the form of\u000a
-p141
-sI131
-V# [Channel <channelID>], where <channelID> is the third item on the line,\u000a
-p142
-sI132
-V# You can use the following tags:\u000a
-p143
-sI133
-V# Boolean values (True, 1, on or no value means True. Everything else False):\u000a
-p144
-sI134
-V#   fast, compat, legacy_xmltvids, logos, cattrans, mark_hd, add_hd_id,\u000a
-p145
-sI135
-V#   append_tvgidstv, disable_ttvdb, use_split_episodes\u000a
-p146
-sI136
-V#     append_tvgidstv is True by default, which means: 'Don't get data\u000a
-p147
-sI137
-V#     from tvgids.tv if there is from tvgids.nl' tvgids.tv data normally is\u000a
-p148
-sI138
-V#     inferiour, except for instance that for Veronica it fills in Disney XD\u000a
-p149
-sI139
-V#     add_hd_id: if set to True will create two listings for the given channel.\u000a
-p150
-sI140
-V#     One normal one without HD tagging and one with '-hd' added to the ID\u000a
-p151
-sI141
-V#     and with the HD tags. This will overrule any setting of mark_hd\u000a
-p152
-sI142
-V# Integer values:\u000a
-p153
-sI143
-V#   slowdays, max_overlap, desc_length, prime_source, prefered_description\u000a
-p154
-sI144
-V#   disable_source, disable_detail_source\u000a
-p155
-sI145
-V#     prime_source (0-12) is the source whose timings and titles are dominant\u000a
-p156
-sI146
-V#     It defaults to 2 for rtl channels, 4 for NPO channels, 5 for Dutch regional\u000a
-p157
-sI147
-V#     and 6 for group 2 and 9 (Flemmisch) channels or else the first available\u000a
-p158
-sI148
-V#     source as set in sourcematching.json (2, 4, 7, 0, 5, 1, 9, 6, 8)\u000a
-p159
-sI149
-V#     prefered_description (0-12) is the source whose description, if present,\u000a
-p160
-sI150
-V#     is used. It defaults to the longest description found.\u000a
-p161
-sI151
-V#     with disable_source and disable_detail_source you can disable a source\u000a
-p162
-sI152
-V#     for that channel either al together or only for the detail fetches\u000a
-p163
-sI153
-V#     disabling an unavailable source has no effect.\u000a
-p164
-sI154
-V#     With the commandline options: "--show-sources" and "--show-detail-sources"\u000a
-p165
-sI155
-V#     you can get a list of available sources and their ID\u000a
-p166
-sI156
-V# String values:\u000a
-p167
-sI157
-V#   overlap_strategy (With possible values): \u000a
-p168
-sI158
-V#     average, stop, start; everything else sets it to none\u000a
-p169
-sI159
-V#   xmltvid_alias: This is a string value to be used in place of the chanid\u000a
-p170
-sI160
-V#     for the xmltvID. Be careful not to set it to an existing chanid.\u000a
-p171
-sI161
-V#     It can get set by configure on chanid changes! See also the WIKI\u000a
-p172
-sI162
-V\u000a
-p173
-sI163
-g9
-ssg10
-(dp174
-I0
-VText message not Found!\u000a
-p175
-sI1
-VError updating to new Config.\u000a
-p176
-sI2
-VPlease remove the old config and Re-run me with the --configure flag.\u000a
-p177
-sI3
-VUpdated the configfile %s!\u000a
-p178
-sI4
-VCheck if you are fine with the settings.\u000a
-p179
-sI5
-VIf this is a first install, you have to enable the desired channels!\u000a
-p180
-sI6
-VCreating config file: %s\u000a
-p181
-sI7
-VError writing new Config. Trying to restore an old one.\u000a
-p182
-sI8
-VCreated the configfile %s!\u000a
-p183
-sI9
-VUpdated the options in the configfile %s!\u000a
-p184
-sI10
-VSorry, thetvdb.com lookup is disabled!\u000a
-p185
-sI11
-VPlease supply a series title!\u000a
-p186
-sI12
-VInvalid language code: "%s" supplied falling back to "nl"\u000a
-p187
-sI13
-VAn offset %s higher then the max is ridiculeous. We reset to %s
-p188
-sI14
-VWe can look a maximum of 14 days ahead. Resetting!\u000a
-p189
-sI15
-VCreating %s directory,\u000a
-p190
-sI16
-VCannot write to outputfile: %s\u000a
-p191
-sI17
-VCannot access the config/log directory: %s\u000a
-p192
-sI18
-VCannot open the logfile: %s\u000a
-p193
-sI19
-VUsing config file: %s\u000a
-p194
-sI20
-VCannot write to cachefile: %s\u000a
-p195
-sI21
-VError accessing cachefile(directory): %s\u000a
-p196
-sI22
-VSetting All to Fast Mode\u000a
-p197
-sI23
-VSetting Channel: %s to Fast Mode\u000a
-p198
-sI24
-VUsing description length: %d for Cannel: %s\u000a
-p199
-sI25
-VMaximum overlap 0 means overlap strategy set to: "%s"\u000a
-p200
-sI26
-VMaximum overlap 0 means overlap strategy for Channel: %s set to: "%s"\u000a
-p201
-sI27
-VUsing Maximum Overlap: %d for Channel %s\u000a
-p202
-sI28
-Voverlap strategy for Channel: %s set to: "%s"\u000a
-p203
-sI29
-V  A grabber that grabs tvguide data from multiple sources,\u000a
-p204
-sI30
-V  combining the data into one XMLTV compatible listing.
-p205
-sI31
-VRe-run me with the --configure flag.\u000a
-p206
-sI32
-VAdding "legacy_xmltvids = True"\u000a
-p207
-sI33
-VRun with "--configure" to make it permanent\u000a
-p208
-sI34
-VIgnoring unknown section "%s"\u000a
-p209
-sI35
-VIgnoring configuration line "%s". Outside any known section.\u000a
-p210
-sI36
-VError reading Config\u000a
-p211
-sI37
-VInvalid line in Configuration section of config file %s:
-p212
-sI38
-VInvalid line in Channels section of config file %s:
-p213
-sI39
-VChannel section "%s" ignored. Unknown channel\u000a
-p214
-sI40
-VInvalid line in %s section of config file %s:
-p215
-sI41
-VError reading the Defaults file %s\u000a
-p216
-sI42
-VError loading %s data from sourcematching.json!
-p217
-sI43
-VError reading the datafile on github.\u000a
-p218
-sI44
-VUnable to continue with configure!\u000a
-p219
-sI45
-VInvalid starttime for %s in combined channel: %s\u000aRemoving it!
-p220
-sI46
-VInvalid endtime for %s in combined channel: %s\u000aRemoving it!
-p221
-sI47
-VWe merged %s into %s\u000a
-p222
-sI48
-VSince both were active, we have not set an alias\u000a
-p223
-sI49
-VIf you want to use the old chanid %s as xmltvid\u000a
-p224
-sI50
-Vyou have to add:\u000a
-p225
-sI51
-Vto the channel configuration for %s\u000a
-p226
-sI52
-VSince the old chanid was active, we have set an alias\u000a
-p227
-sI53
-Vto the channel configuration for %s\u000a
-p228
-sI54
-VSince %s already has an xmltvid_alias set\u000a
-p229
-sI55
-Vwe have not changed this.\u000a
-p230
-sI56
-VIf you want to use the old chanid %s as xmltvid\u000a
-p231
-sI57
-Vyou have to change:\u000a
-p232
-sI58
-Vto:
-p233
-sI59
-Vin the channel configuration for %s\u000a
-p234
-sI60
-VWe could not check for any selfset options on the old chanid: %s\u000a
-p235
-sI61
-VSo check the settings for the new chanid: %s\u000a
-p236
-sI62
-VNot all channel info could be retreived.\u000a
-p237
-sI63
-VTry again in 15 minutes or so; or disable the failing source.\u000a
-p238
-sI64
-VSource %s (%s) disabled
-p239
-sI65
-VNo detailfetches from Source %s (%s)
-p240
-sI66
-VChannel specific settings other then the above (only for the active channels):
-p241
-sI67
-V  prime_source setting: %s (%s) in sourcematching.json not used\u000a
-p242
-sI68
-V  Source %s (%s) disabled\u000a
-p243
-sI69
-V  Detail Source %s (%s) disabled\u000a
-p244
-sI70
-VError Opening the old config. Creating a new one.\u000a
-p245
-sI71
-VError reading the old config\u000a
-p246
-sI-1
-VError creating message text!\u000a
-p247
-sI-2
-VLoaded the English texts file\u000a
-p248
-sssVfetch
-p249
-(dp250
-g7
-(dp251
-g9
-g9
-ssg10
-(dp252
-I1
-Vget_page timed out on (>%s s): %s\u000a
-p253
-sI2
-VAn unexpected error "%s:%s" has occured while fetching page: %s\u000a
-p254
-sI3
-VCannot open url %s\u000a
-p255
-sI4
-VCannot parse url %s: code=%s\u000a
-p256
-sI5
-Vget_page timed out on (>%s s): %s\u000a
-p257
-sI6
-VError retreiving episodes from theTVDB.com\u000a
-p258
-sI7
-VError retreiving an ID from theTVdb.com\u000a
-p259
-sI8
-V  No ttvdb id for "%s" on channel %s\u000a
-p260
-sI9
-Vttvdb lookup for "%s: %s"\u000a
-p261
-sI10
-Vttvdb failure for "%s: %s" on channel %s\u000a
-p262
-sI11
-VChannel %s seems to be waiting for %s lost detail requests from %s.\u000a
-p263
-sI12
-VSetting it to ready\u000a
-p264
-sI13
-VFatal Error processing the basepages from %s\u000a
-p265
-sI14
-VSetting them all to being loaded, to let the other sources finish the job\u000a
-p266
-sI15
-VError processing the detailpage: %s\u000a
-p267
-sI16
-VError processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\u000a
-p268
-sI17
-V[fetch failed or timed out] %s:(%3.0f%%) %s\u000a
-p269
-sI18
-V      [cached] %s:(%3.0f%%) %s\u000a
-p270
-sI19
-V[%s fetch] %s:(%3.0f%%) %s\u000a
-p271
-sI20
-VRemoving "%s" from "%s"\u000a
-p272
-sI21
-VRenaming "%s" to "%s"\u000a
-p273
-sI22
-VOops, "%s" has no end time. Trying to fix...\u000a
-p274
-sI23
-VDeleting invalid stop/start time: %s\u000a
-p275
-sI24
-VDeleting duplicate: %s\u000a
-p276
-sI25
-VDeleting grouping/broadcaster: %s\u000a
-p277
-sI26
-V"%s" and "%s" overlap %s minutes. Adjusting times.\u000a
-p278
-sI27
-V"%s" and "%s" have gap of %s minutes. Adjusting times.\u000a
-p279
-sI28
-VMatch details:\u000a
-p280
-sI29
-Vtitle match: 
-p281
-sI30
-Vgenre match: 
-p282
-sI31
-VNow merging %s (channel %s of %s):\u000a
-p283
-sI32
-V  %s programs from %s into %s programs from %s\u000a
-p284
-sI33
-VMerg statistics for %s (channel %s of %s) from %s into %s\u000a
-p285
-sI34
-VNow merging %s programs from %s into %s programs from %s\u000a
-p286
-sI35
-V    (channel %s of %s)
-p287
-sI36
-VMerg statistics for %s (channel %s of %s) from %s\u000a
-p288
-sI37
-V%6.0f programs in %s for range: %s - %s, \u000a
-p289
-sI38
-V%6.0f programs in %s for range: %s - %s\u000a
-p290
-sI39
-V%6.0f programs added outside common timerange\u000a
-p291
-sI40
-V%6.0f programs left in %s to match\u000a
-p292
-sI41
-V%6.0f programs generically matched on name to get genre\u000a
-p293
-sI42
-V%6.0f programs matched on time and name\u000a
-p294
-sI43
-V%6.0f programs matched on time and genre\u000a
-p295
-sI44
-V%6.0f details  added from group slots\u000a
-p296
-sI45
-V%6.0f programs added unmatched from info\u000a
-p297
-sI46
-Vadded from info
-p298
-sI47
-Vgroupslot in 
-p299
-sI48
-Vadded from 
-p300
-sI49
-Vgroupslot in info
-p301
-sI50
-Vleft over in 
-p302
-sssVIO
-p303
-(dp304
-g7
-(dp305
-g9
-g9
-ssg10
-(dp306
-I1
-VFile: "%s" not found.\u000a
-p307
-sI2
-V%s is not encoded in %s.\u000a
-p308
-sI3
-V%s has invalid encoding %s.\u000a
-p309
-sI4
-VIf you want assistence, please attach your configuration and log files!\u000a
-p310
-sI5
-VUnrecognized log-message: %s of type %s\u000a
-p311
-sI6
-VCache function disabled!\u000a
-p312
-sI7
-VThe cache directory is not accesible. Cache function disabled!\u000a
-p313
-sI8
-VVerifying the database\u000a
-p314
-sI9
-VError loading the database: %s.db (possibly corrupt)\u000a
-p315
-sI10
-VTrying to load a backup copy
-p316
-sI11
-VFailed to load the database: %s.db\u000a
-p317
-sI12
-VDisableing Cache function
-p318
-sI13
-VError creating the %s table!\u000a
-p319
-sI14
-VError updating the %s table with collumn "%s"!\u000a
-p320
-sI15
-VError updating the %s table with Index "%s"!\u000a
-p321
-sI16
-VError loading old cache file: %s (possibly corrupt)\u000a
-p322
-sI17
-VConverting the old pickle cache to sqlite.\u000a
-p323
-sI18
-VThis may take some time!\u000a
-p324
-sI19
-VAdded %s program records to the database.\u000a
-p325
-sI20
-VError saving program %s to the database.\u000a
-p326
-sI21
-VAn unexpected error has occured in the %s thread:\u000a
-p327
-sssVsources
-p328
-(dp329
-Vtvgids.nl
-p330
-(dp331
 I1
 VMore then 2 sequential Cooky block pages encountered. Falling back to json\u000a
-p332
-ssg7
-(dp333
-g9
-g9
+p9
+ssVother
+p10
+(dp11
+V
+p12
+g12
 ssVtvgids.tv
-p334
-(dp335
+p13
+(dp14
 I1
 V   We assume further pages to be empty!\u000a
-p336
+p15
 sI2
 VPossibly an incomplete pagefetch. Retry in the early morning after 4/5 o'clock.\u000a
-p337
-ssg10
-(dp338
+p16
+ssVerror
+p17
+(dp18
 I1
 VUnable to get channel info from %s\u000a
-p339
+p19
 sI2
 VNow fetching %s channels from %s\u000a
-p340
+p20
 sI3
 V    (day %s of %s).\u000a
-p341
+p21
 sI4
 VNo data on %s for day=%d\u000a
-p342
+p22
 sI5
 VUnsubscriptable content from channel url: %r\u000a
-p343
+p23
 sI6
 VCan not determine program title for "%s" on channel: %s, source: %s\u000a
-p344
+p24
 sI7
 VCan not determine timings for "%s" on channel: %s, source: %s\u000a
-p345
+p25
 sI8
 VPage %s returned no data\u000a
-p346
+p26
 sI9
 VFetching page %s returned an error:\u000a
-p347
+p27
 sI10
 VError processing the description from: %s\u000a
-p348
+p28
 sI11
 VNow fetching %s channels from %s for %s days.\u000a
-p349
+p29
 sI12
 VError loading %s data\u000a
-p350
+p30
 sI13
 VNow fetching %s(xmltvid=%s%s) from %s\u000a
-p351
+p31
 sI14
 V    (channel %s of %s) for %s days, page %s.\u000a
-p352
+p32
 sI15
 VNo data on %s for %s page=%d\u000a
-p353
+p33
 sI16
 VNo data on %s %s-page for day=%d attempt %s\u000a
-p354
+p34
 sI17
 V    (channel %s of %s) for week %s of %s).\u000a
-p355
+p35
 sI18
 VNo data on %s for %s, week=%d!\u000a
-p356
+p36
 sI19
 VError: "%s" reading the %s basepage for channel=%s, week=%d.\u000a
-p357
+p37
 sI20
 VSkip channel=%s on %s!, day=%d. No data\u000a
-p358
+p38
 sI21
 VSkip channel=%s on %s!, day=%d. Wrong date!\u000a
-p359
+p39
 sI22
 VUnable to veryfy the right offset.\u000a
-p360
+p40
 sI23
 V    (channel %s of %s) for day %s of %s.\u000a
-p361
+p41
 sI24
 VError: "%s" reading the %s basepage for channel=%s, day=%d.\u000a
-p362
+p42
 sI25
 VNo data on %s for %s, day=%d!\u000a
-p363
+p43
 sI26
 VError extracting ElementTree for channel:%s day:%s on %s\u000a
-p364
+p44
 sI27
 VError processing %s data for channel:%s day:%s\u000a
-p365
+p45
 sI28
 VError Fetching detailpage %s\u000a
-p366
+p46
 sI29
 VError extracting ElementTree from:%s on %s\u000a
-p367
+p47
 sI30
 VError processing %s detailpage:%s\u000a
-p368
+p48
 sI31
 VAn error ocured while reading %s channel info.\u000a
-p369
+p49
 sI32
 VError extracting ElementTree for day:%s on %s\u000a
-p370
+p50
 sI33
 VError validating page for day:%s on %s. Wrong date!\u000a
-p371
+p51
 sI34
 V    (channel %s of %s) for %s days.\u000a
-p372
+p52
 sI35
 VSkip channel=%s on %s. No data!\u000a
-p373
+p53
 sI36
 VError: "%s" reading the %s basepage for channel=%s.\u000a
-p374
+p54
 sI37
 VSkip day=%s on %s. No data!\u000a
-p375
+p55
 sI38
 VError: "%s" reading the %s basepage for day=%s.\u000a
-p376
+p56
 sI39
 VSkip day=%d on %s. Wrong date.
+p57
+sssVconfig
+p58
+(dp59
+g10
+(dp60
+I1
+VThe available sources are: 
+p61
+sI2
+VThe available detail sources are: 
+p62
+sI3
+VThe available logo sources are: 
+p63
+sI4
+V 99: Your own full logo url
+p64
+sI5
+Vdisplay version
+p65
+sI6
+Vprints a short description of the grabber
+p66
+sI7
+Vprints a long description in english of the grabber
+p67
+sI8
+Vxmltv required option
+p68
+sI9
+Vreturns the preferred method to be called
+p69
+sI10
+Vreturns the available sources
+p70
+sI11
+Vdisable a numbered source.\u000aSee "--show-sources" for a list.
+p71
+sI12
+Vreturns the available detail sources
+p72
+sI13
+Vreturns the available logo sources
+p73
+sI15
+Vdisable a numbered source for detailfetches.\u000aSee "--show-detail-sources" for a list.
+p74
+sI16
+Vdisable fetching extra data from ttvdb.com.
+p75
+sI17
+VQuery ttvdb.com for a series-title and optionally store\u000ait with the ID in the DB. Enclose the title in quotes!\u000aOptionally add a language code after the title.\u000a
+p76
+sI18
+Vappend tvgids.nl to the xmltv id\u000a(use this if you were using tv_grab_nl)
+p77
+sI19
+Vremove as in pre 2.2.8 for source 0 and 1 the sourceid\u000afrom the chanid to get the xmltvid.
+p78
+sI20
+Vgenerate all data in UTC time (use with timezone "auto"\u000ain mythtv)
+p79
+sI21
+Vcreate configfile; rename an existing file to *.old.
+p80
+sI22
+VAfter running configure, place all active channels in\u000aa separate group on top of the list.\u000aOnly relevant together with the configure option.
+p81
+sI23
+Vname of the configuration file\u000a<default = "%s">
+p82
+sI24
+Vsave the currently defined options to the config file\u000aadd options to the command-line to adjust the file.
+p83
+sI25
+Vcache descriptions and use the file to store\u000a<default = "%s">
+p84
+sI26
+Vclean the cache of outdated data before fetching
+p85
+sI27
+Vempties the program table before fetching data
+p86
+sI28
+Vempties the ttvdb table before fetching data
+p87
+sI29
+Vfile where to send the output <default to the screen>
+p88
+sI30
+Vuse for the outputfile Windows codeset (cp1252)\u000ainstead of utf-8
+p89
+sI31
+Vsuppress all log output to the screen.
+p90
+sI32
+VSent log-info also to the screen.
+p91
+sI33
+Vdo not grab details of programming from any of the\u000adetail sources
+p92
+sI34
+V<default> grab details of programming from one of the\u000adetail sources
+p93
+sI35
+VThe day to start grabbing <defaults to 0 is today>
+p94
+sI36
+V# number of days to grab from the several sources.\u000a<max 14 = default>\u000aWhere every source has it\u015b own max.\u000a
+p95
+sI38
+Vnumber of days to grab slow and the rest in fast mode\u000aDefaults to all days possible
+p96
+sI39
+V<default> insert urls to channel icons\u000a(mythfilldatabase will then use these)
+p97
+sI40
+Vdo not insert urls to channel icons
+p98
+sI41
+Vmark HD programs,\u000ado not set if you only record analog SD
+p99
+sI42
+V<default> translate the grabbed genres into\u000aMythTV-genres. See the %s.set file
+p100
+sI43
+Vdo not translate the grabbed genres into MythTV-genres.\u000aIt then only uses the basic genres without possibility\u000ato differentiate on subgenre.
+p101
+sI44
+Vmaximum allowed length of program descriptions in\u000acharacters.
+p102
+sI45
+Vwhat strategy to use to correct overlaps:\u000a"avarage" use average of stop and start of next program.\u000a          <default>\u000a"stop"    keep stop time of current program and adjust\u000a          start time.\u000a"start"   keep start time of next program and adjust\u000a          stop time.\u000a"none"    do not use any strategy and see what happens.\u000a
+p103
+sI46
+Vmaximum length of overlap between programming to correct\u000a<default 10 minutes>
+p104
+sI47
+g12
+sI48
+g12
+sI49
+g12
+sI50
+V# See: https://github.com/tvgrabbers/tvgrabnlpy/wiki/Over_de_configuratie\u000a
+p105
+sI51
+V# This is a list with default options set by the --save-options (-O)\u000a
+p106
+sI52
+V# argument. Most can be overruled on the commandline.\u000a
+p107
+sI53
+V# Be carefull with manually editing. Invalid options will be\u000a
+p108
+sI54
+V# silently ignored. Boolean options can be set with True/False,\u000a
+p109
+sI55
+V# On/Off or 1/0. Leaving it blank sets them on. Setting an invalid\u000a
+p110
+sI56
+V# value sets them off. You can always check the log for the used values.\u000a
+p111
+sI57
+V# To edit you beter run --save-options with all the desired defaults.\u000a
+p112
+sI58
+V# Options not shown here can not be set this way.\u000a
+p113
+sI59
+g12
+sI60
+g12
+sI61
+V# DO NOT CHANGE THIS VALUE!\u000a
+p114
+sI62
+g12
+sI63
+V# Set always_use_json to False to ignore Channelname, Channelgroup \u000a
+p115
+sI64
+V# and prime_source set in sourcematching.json if they are set different\u000a
+p116
+sI65
+V# in this configuration file. If you do not have set any of those yourself\u000a
+p117
+sI66
+V# leave the value to True to profite from all updates.\u000a
+p118
+sI67
+g12
+sI68
+g12
+sI69
+V# The following are tuning parameters. You normally do not need to change them.\u000a
+p119
+sI70
+V# global_timeout is the maximum time in seconds to wait for a fetch to complete\u000a
+p120
+sI71
+V#    before calling it a time-out failure.\u000a
+p121
+sI72
+V# max_simultaneous_fetches is the maximum number of simultaneous fetches\u000a
+p122
+sI73
+V#    that are allowed.\u000a
+p123
+sI74
+V#    With the growing number of sources it is possible that they all together\u000a
+p124
+sI75
+V#    try to get their page. This could lead to congestion and failure.\u000a
+p125
+sI76
+V#    If you see often "incomplete read failures" or "get_page timed out", you\u000a
+p126
+sI77
+V#    can try raising the first or lowering the second.\u000a
+p127
+sI78
+V#    This won't significantly alter the total runtime as this is mostley determined\u000a
+p128
+sI79
+V#    by the the highest number of fetches from a single source and the mandatory.\u000a
+p129
+sI80
+V#    waittime in between those fetches to not overload their resources.\u000a
+p130
+sI81
+V#    However all basepage fetches are retried on failure and a detailpagefailure\u000a
+p131
+sI82
+V#    can triger a retry on one of the other detailsources. So a lot of failures\u000a
+p132
+sI83
+V#    especially on source 0, 1 and 9 can increase the total runtime.\u000a
+p133
+sI84
+g12
+sI85
+g12
+sI86
+V# This handles what goes to the log and screen\u000a
+p134
+sI87
+V# 0 Nothing (use quiet mode to turns off screen output, but keep a log)\u000a
+p135
+sI88
+V# 1 include Errors and Warnings\u000a
+p136
+sI89
+V# 2 include page fetches\u000a
+p137
+sI90
+V# 4 include (merge) summaries\u000a
+p138
+sI91
+V# 8 include detail fetches and ttvdb lookups to the screen\u000a
+p139
+sI92
+V# 16 include detail fetches and ttvdb lookups to the log\u000a
+p140
+sI93
+V# 32 include matchlogging (see below)\u000a
+p141
+sI94
+V# 64 Title renames\u000a
+p142
+sI95
+V# 128 ttvdb failures\u000a
+p143
+sI96
+g12
+sI97
+g12
+sI98
+V# What match results go to the log/screen (needs code 32 above)\u000a
+p144
+sI99
+V# 0 = Log Nothing (just the overview)\u000a
+p145
+sI100
+V# 1 = log not matched programs added\u000a
+p146
+sI101
+V# 2 = log left over programs\u000a
+p147
+sI102
+V# 4 = Log matches\u000a
+p148
+sI103
+V# 8 = Log group slots\u000a
+p149
+sI104
+g12
+sI105
+g12
+sI106
+V# Set "mail_log" to True to send the log to the mailaddress below\u000a
+p150
+sI107
+V# Also set the mailserver and port apropriate\u000a
+p151
+sI108
+V# SSL/startTLS is NOT sopported at present. Neither is authentication\u000a
+p152
+sI109
+V# Make sure to first test on a console as mailing occures after \u000a
+p153
+sI110
+V# closing of the logfile!\u000a
+p154
+sI111
+g12
+sI112
+g12
+sI113
+V# Possible values for kijkwijzerstijl are:\u000a
+p155
+sI114
+V#   long  : add the long descriptions and the icons\u000a
+p156
+sI115
+V#   short : add the one word descriptions and the icons\u000a
+p157
+sI116
+V#   single: add a single string (mythtv only reads the first item)\u000a
+p158
+sI117
+V#   none  : don't add any\u000a
+p159
+sI118
+g12
+sI119
+g12
+sI120
+V# These are the channeldefinitions. You can disable a channel by placing\u000a
+p160
+sI121
+V# a '#' in front. Seperated by ';' you see on every line: The Name,\u000a
+p161
+sI122
+V# the group, the channelID, the ID's for the sources in the order as\u000a
+p162
+sI123
+V# returned by the "--show-sources" option and finally the iconsource and name.\u000a
+p163
+sI124
+V# You can change the names to suit your own preferences.\u000a
+p164
+sI125
+V# A missing ID means the source doesn't supply the channel.\u000a
+p165
+sI126
+V# Removing an ID disables fetching from that source, but keep the ';'s in place.\u000a
+p166
+sI127
+V# But you better use the "disable_source" option as described below.\u000a
+p167
+sI128
+V# Set iconsource to 99, to add your own full url.\u000a
+p168
+sI129
+V#\u000a
+p169
+sI130
+V# To specify further Channel settings you can add sections in the form of\u000a
+p170
+sI131
+V# [Channel <channelID>], where <channelID> is the third item on the line,\u000a
+p171
+sI132
+V# You can use the following tags:\u000a
+p172
+sI133
+V# Boolean values (True, 1, on or no value means True. Everything else False):\u000a
+p173
+sI134
+V#   fast, compat, legacy_xmltvids, logos, cattrans, mark_hd, add_hd_id,\u000a
+p174
+sI135
+V#   append_tvgidstv, disable_ttvdb, use_split_episodes\u000a
+p175
+sI136
+V#     append_tvgidstv is True by default, which means: 'Don't get data\u000a
+p176
+sI137
+V#     from tvgids.tv if there is from tvgids.nl' tvgids.tv data normally is\u000a
+p177
+sI138
+V#     inferiour, except for instance that for Veronica it fills in Disney XD\u000a
+p178
+sI139
+V#     add_hd_id: if set to True will create two listings for the given channel.\u000a
+p179
+sI140
+V#     One normal one without HD tagging and one with '-hd' added to the ID\u000a
+p180
+sI141
+V#     and with the HD tags. This will overrule any setting of mark_hd\u000a
+p181
+sI142
+V# Integer values:\u000a
+p182
+sI143
+V#   slowdays, max_overlap, desc_length, prime_source, prefered_description\u000a
+p183
+sI144
+V#   disable_source, disable_detail_source\u000a
+p184
+sI145
+V#     prime_source (0-12) is the source whose timings and titles are dominant\u000a
+p185
+sI146
+V#     It defaults to 2 for rtl channels, 4 for NPO channels, 5 for Dutch regional\u000a
+p186
+sI147
+V#     and 6 for group 2 and 9 (Flemmisch) channels or else the first available\u000a
+p187
+sI148
+V#     source as set in sourcematching.json (2, 4, 7, 0, 5, 1, 9, 6, 8)\u000a
+p188
+sI149
+V#     prefered_description (0-12) is the source whose description, if present,\u000a
+p189
+sI150
+V#     is used. It defaults to the longest description found.\u000a
+p190
+sI151
+V#     with disable_source and disable_detail_source you can disable a source\u000a
+p191
+sI152
+V#     for that channel either al together or only for the detail fetches\u000a
+p192
+sI153
+V#     disabling an unavailable source has no effect.\u000a
+p193
+sI154
+V#     With the commandline options: "--show-sources" and "--show-detail-sources"\u000a
+p194
+sI155
+V#     you can get a list of available sources and their ID\u000a
+p195
+sI156
+V# String values:\u000a
+p196
+sI157
+V#   overlap_strategy (With possible values): \u000a
+p197
+sI158
+V#     average, stop, start; everything else sets it to none\u000a
+p198
+sI159
+V#   xmltvid_alias: This is a string value to be used in place of the chanid\u000a
+p199
+sI160
+V#     for the xmltvID. Be careful not to set it to an existing chanid.\u000a
+p200
+sI161
+V#     It can get set by configure on chanid changes! See also the WIKI\u000a
+p201
+sI162
+V\u000a
+p202
+sI163
+g12
+ssg17
+(dp203
+I0
+VText message not Found!\u000a
+p204
+sI1
+VError updating to new Config.\u000a
+p205
+sI2
+VPlease remove the old config and Re-run me with the --configure flag.\u000a
+p206
+sI3
+VUpdated the configfile %s!\u000a
+p207
+sI4
+VCheck if you are fine with the settings.\u000a
+p208
+sI5
+VIf this is a first install, you have to enable the desired channels!\u000a
+p209
+sI6
+VCreating config file: %s\u000a
+p210
+sI7
+VError writing new Config. Trying to restore an old one.\u000a
+p211
+sI8
+VCreated the configfile %s!\u000a
+p212
+sI9
+VUpdated the options in the configfile %s!\u000a
+p213
+sI10
+VSorry, thetvdb.com lookup is disabled!\u000a
+p214
+sI11
+VPlease supply a series title!\u000a
+p215
+sI12
+VInvalid language code: "%s" supplied falling back to "nl"\u000a
+p216
+sI13
+VAn offset %s higher then the max is ridiculeous. We reset to %s
+p217
+sI14
+VWe can look a maximum of 14 days ahead. Resetting!\u000a
+p218
+sI15
+VCreating %s directory,\u000a
+p219
+sI16
+VCannot write to outputfile: %s\u000a
+p220
+sI17
+VCannot access the config/log directory: %s\u000a
+p221
+sI18
+VCannot open the logfile: %s\u000a
+p222
+sI19
+VUsing config file: %s\u000a
+p223
+sI20
+VCannot write to cachefile: %s\u000a
+p224
+sI21
+VError accessing cachefile(directory): %s\u000a
+p225
+sI22
+VSetting All to Fast Mode\u000a
+p226
+sI23
+VSetting Channel: %s to Fast Mode\u000a
+p227
+sI24
+VUsing description length: %d for Cannel: %s\u000a
+p228
+sI25
+VMaximum overlap 0 means overlap strategy set to: "%s"\u000a
+p229
+sI26
+VMaximum overlap 0 means overlap strategy for Channel: %s set to: "%s"\u000a
+p230
+sI27
+VUsing Maximum Overlap: %d for Channel %s\u000a
+p231
+sI28
+Voverlap strategy for Channel: %s set to: "%s"\u000a
+p232
+sI29
+V  A grabber that grabs tvguide data from multiple sources,\u000a
+p233
+sI30
+V  combining the data into one XMLTV compatible listing.
+p234
+sI31
+VRe-run me with the --configure flag.\u000a
+p235
+sI32
+VAdding "legacy_xmltvids = True"\u000a
+p236
+sI33
+VRun with "--configure" to make it permanent\u000a
+p237
+sI34
+VIgnoring unknown section "%s"\u000a
+p238
+sI35
+VIgnoring configuration line "%s". Outside any known section.\u000a
+p239
+sI36
+VError reading Config\u000a
+p240
+sI37
+VInvalid line in Configuration section of config file %s:
+p241
+sI38
+VInvalid line in Channels section of config file %s:
+p242
+sI39
+VChannel section "%s" ignored. Unknown channel\u000a
+p243
+sI40
+VInvalid line in %s section of config file %s:
+p244
+sI41
+VError reading the Defaults file %s\u000a
+p245
+sI42
+VError loading %s data from sourcematching.json!
+p246
+sI43
+VError reading the datafile on github.\u000a
+p247
+sI44
+VUnable to continue with configure!\u000a
+p248
+sI45
+VInvalid starttime for %s in combined channel: %s\u000aRemoving it!
+p249
+sI46
+VInvalid endtime for %s in combined channel: %s\u000aRemoving it!
+p250
+sI47
+VWe merged %s into %s\u000a
+p251
+sI48
+VSince both were active, we have not set an alias\u000a
+p252
+sI49
+VIf you want to use the old chanid %s as xmltvid\u000a
+p253
+sI50
+Vyou have to add:\u000a
+p254
+sI51
+Vto the channel configuration for %s\u000a
+p255
+sI52
+VSince the old chanid was active, we have set an alias\u000a
+p256
+sI53
+Vto the channel configuration for %s\u000a
+p257
+sI54
+VSince %s already has an xmltvid_alias set\u000a
+p258
+sI55
+Vwe have not changed this.\u000a
+p259
+sI56
+VIf you want to use the old chanid %s as xmltvid\u000a
+p260
+sI57
+Vyou have to change:\u000a
+p261
+sI58
+Vto:
+p262
+sI59
+Vin the channel configuration for %s\u000a
+p263
+sI60
+VWe could not check for any selfset options on the old chanid: %s\u000a
+p264
+sI61
+VSo check the settings for the new chanid: %s\u000a
+p265
+sI62
+VNot all channel info could be retreived.\u000a
+p266
+sI63
+VTry again in 15 minutes or so; or disable the failing source.\u000a
+p267
+sI64
+VSource %s (%s) disabled
+p268
+sI65
+VNo detailfetches from Source %s (%s)
+p269
+sI66
+VChannel specific settings other then the above (only for the active channels):
+p270
+sI67
+V  prime_source setting: %s (%s) in sourcematching.json not used\u000a
+p271
+sI68
+V  Source %s (%s) disabled\u000a
+p272
+sI69
+V  Detail Source %s (%s) disabled\u000a
+p273
+sI70
+VError Opening the old config. Creating a new one.\u000a
+p274
+sI71
+VError reading the old config\u000a
+p275
+sI72
+VExecution complete.\u000a
+p276
+sI73
+VFetch statistics for %s programms on %s channels:\u000a
+p277
+sI74
+V Start time: %s\u000a
+p278
+sI75
+V   End time: %s\u000a
+p279
+sI76
+V   Duration: %s\u000a
+p280
+sI77
+V%6.0f page(s) fetched, of which %s failed\u000a
+p281
+sI78
+V%6.0f cache hits\u000a
+p282
+sI79
+V%6.0f succesful ttvdb.com lookups\u000a
+p283
+sI80
+V%6.0f    failed ttvdb.com lookups\u000a
+p284
+sI81
+V Time/fetch: %s seconds\u000a
+p285
+sI82
+V%6.0f page(s) fetched from theTVDB.com\u000a
+p286
+sI83
+V%6.0f failure(s) on theTVDB.com\u000a
+p287
+sI84
+V%6.0f   base page(s) fetched from %s\u000a
+p288
+sI85
+V%6.0f detail page(s) fetched from %s\u000a
+p289
+sI86
+V%6.0f failure(s) on %s\u000a
+p290
+sI87
+g12
+sI88
+g12
+sI89
+g12
+sI-2
+VLoaded the English texts file\u000a
+p291
+sI-1
+VError creating message text!\u000a
+p292
+sssVfetch
+p293
+(dp294
+g10
+(dp295
+g12
+g12
+ssg17
+(dp296
+I1
+Vget_page timed out on (>%s s): %s\u000a
+p297
+sI2
+VAn unexpected error "%s:%s" has occured while fetching page: %s\u000a
+p298
+sI3
+VCannot open url %s\u000a
+p299
+sI4
+VCannot parse url %s: code=%s\u000a
+p300
+sI5
+Vget_page timed out on (>%s s): %s\u000a
+p301
+sI6
+VError retreiving episodes from theTVDB.com\u000a
+p302
+sI7
+VError retreiving an ID from theTVdb.com\u000a
+p303
+sI8
+V  No ttvdb id for "%s" on channel %s\u000a
+p304
+sI9
+Vttvdb lookup for "%s: %s"\u000a
+p305
+sI10
+Vttvdb failure for "%s: %s" on channel %s\u000a
+p306
+sI11
+VChannel %s seems to be waiting for %s lost detail requests from %s.\u000a
+p307
+sI12
+VSetting it to ready\u000a
+p308
+sI13
+VFatal Error processing the basepages from %s\u000a
+p309
+sI14
+VSetting them all to being loaded, to let the other sources finish the job\u000a
+p310
+sI15
+VError processing the detailpage: %s\u000a
+p311
+sI16
+VError processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\u000a
+p312
+sI17
+V[fetch failed or timed out] %s:(%3.0f%%) %s\u000a
+p313
+sI18
+V      [cached] %s:(%3.0f%%) %s\u000a
+p314
+sI19
+V[%s fetch] %s:(%3.0f%%) %s\u000a
+p315
+sI20
+VRemoving "%s" from "%s"\u000a
+p316
+sI21
+VRenaming "%s" to "%s"\u000a
+p317
+sI22
+VOops, "%s" has no end time. Trying to fix...\u000a
+p318
+sI23
+VDeleting invalid stop/start time: %s\u000a
+p319
+sI24
+VDeleting duplicate: %s\u000a
+p320
+sI25
+VDeleting grouping/broadcaster: %s\u000a
+p321
+sI26
+V"%s" and "%s" overlap %s minutes. Adjusting times.\u000a
+p322
+sI27
+V"%s" and "%s" have gap of %s minutes. Adjusting times.\u000a
+p323
+sI28
+VMatch details:\u000a
+p324
+sI29
+Vtitle match: 
+p325
+sI30
+Vgenre match: 
+p326
+sI31
+VNow merging %s (channel %s of %s):\u000a
+p327
+sI32
+V  %s programs from %s into %s programs from %s\u000a
+p328
+sI33
+VMerg statistics for %s (channel %s of %s) from %s into %s\u000a
+p329
+sI34
+VNow merging %s programs from %s into %s programs from %s\u000a
+p330
+sI35
+V    (channel %s of %s)
+p331
+sI36
+VMerg statistics for %s (channel %s of %s) from %s\u000a
+p332
+sI37
+V%6.0f programs in %s for range: %s - %s, \u000a
+p333
+sI38
+V%6.0f programs in %s for range: %s - %s\u000a
+p334
+sI39
+V%6.0f programs added outside common timerange\u000a
+p335
+sI40
+V%6.0f programs left in %s to match\u000a
+p336
+sI41
+V%6.0f programs generically matched on name to get genre\u000a
+p337
+sI42
+V%6.0f programs matched on time and name\u000a
+p338
+sI43
+V%6.0f programs matched on time and genre\u000a
+p339
+sI44
+V%6.0f details  added from group slots\u000a
+p340
+sI45
+V%6.0f programs added unmatched from info\u000a
+p341
+sI46
+Vadded from info
+p342
+sI47
+Vgroupslot in 
+p343
+sI48
+Vadded from 
+p344
+sI49
+Vgroupslot in info
+p345
+sI50
+Vleft over in 
+p346
+sI51
+VNo Data from %s for channel: %s\u000a
+p347
+sI52
+VDetail sources: %s died.\u000a
+p348
+sI53
+VSo we stop waiting for the pending details for channel %s\u000a
+p349
+sI54
+VDetail statistics for %s (channel %s of %s)\u000a
+p350
+sI55
+V%6.0f cache hit(s)\u000a
+p351
+sI56
+V%6.0f without details in cache\u000a
+p352
+sI57
+V%6.0f succesful ttvdb lookups\u000a
+p353
+sI58
+V%6.0f    failed ttvdb lookups\u000a
+p354
+sI59
+V%6.0f detail fetch(es) from %s.\u000a
+p355
+sI60
+V%6.0f failure(s)\u000a
+p356
+sI61
+V%6.0f without detail info\u000a
+p357
+sI62
+V%6.0f left in the %s queue to process\u000a
+p358
+sI63
+VNow Checking cache for %s programs on %s(xmltvid=%s%s)\u000a
+p359
+sI64
+V    (channel %s of %s) for %s days.\u000a
+p360
+sI65
+VNow fetching details for %s programs on %s(xmltvid=%s%s)\u000a
+p361
+sI66
+V    [no fetch] %s:(%3.0f%%) %s\u000a
+p362
+sI67
+VSplitting title "%s"\u000a
+p363
+sssVIO
+p364
+(dp365
+g10
+(dp366
+g12
+g12
+ssg17
+(dp367
+I1
+VFile: "%s" not found.\u000a
+p368
+sI2
+V%s is not encoded in %s.\u000a
+p369
+sI3
+V%s has invalid encoding %s.\u000a
+p370
+sI4
+VIf you want assistence, please attach your configuration and log files!\u000a
+p371
+sI5
+VUnrecognized log-message: %s of type %s\u000a
+p372
+sI6
+VCache function disabled!\u000a
+p373
+sI7
+VThe cache directory is not accesible. Cache function disabled!\u000a
+p374
+sI8
+VVerifying the database\u000a
+p375
+sI9
+VError loading the database: %s.db (possibly corrupt)\u000a
+p376
+sI10
+VTrying to load a backup copy
 p377
-ssssVversion
+sI11
+VFailed to load the database: %s.db\u000a
 p378
+sI12
+VDisableing Cache function
+p379
+sI13
+VError creating the %s table!\u000a
+p380
+sI14
+VError updating the %s table with collumn "%s"!\u000a
+p381
+sI15
+VError updating the %s table with Index "%s"!\u000a
+p382
+sI16
+VError loading old cache file: %s (possibly corrupt)\u000a
+p383
+sI17
+VConverting the old pickle cache to sqlite.\u000a
+p384
+sI18
+VThis may take some time!\u000a
+p385
+sI19
+VAdded %s program records to the database.\u000a
+p386
+sI20
+VError saving program %s to the database.\u000a
+p387
+sI21
+VAn unexpected error has occured in the %s thread:\u000a
+p388
+sI22
+VAn unexpected error has occured:\u000a
+p389
+ssssVversion
+p390
 (I1
 I0
 I0
-tp379
+tp391
 s.

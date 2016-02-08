@@ -6,21 +6,9 @@ from __future__ import unicode_literals
 # from __future__ import print_function
 
 import re, sys, traceback, codecs
-import time, datetime, random, difflib
-import httplib, socket
+import time, datetime, random
 import tv_grab_fetch, pytz
-try:
-    import urllib.request as urllib
-except ImportError:
-    import urllib2 as urllib
-try:
-    from html.entities import name2codepoint
-except ImportError:
-    from htmlentitydefs import name2codepoint
-from threading import Thread, Lock, Semaphore
-from xml.sax import saxutils
 from xml.etree import cElementTree as ET
-from Queue import Queue, Empty
 try:
     unichr(42)
 except NameError:
@@ -196,7 +184,7 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
                 if self.day_loaded[0][offset]:
                     continue
 
-                self.config.log([self.config.text('sources', 2, (len(self.channels), self.source)), \
+                self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
                     self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
 
                 channel_url = self.get_url('day', offset)
@@ -299,7 +287,9 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
     def load_detailpage(self, tdict):
 
         try:
-            strdata = self.config.fetch_func.get_page(tdict['detail_url'][self.proc_id], txtdata = {'cookieoptin': 'true'}, counter = ['detail', self.proc_id])
+            strdata = self.config.fetch_func.get_page(tdict['detail_url'][self.proc_id],
+                                                                                txtdata = {'cookieoptin': 'true'},
+                                                                                counter = ['detail', self.proc_id, tdict['channelid']])
             if strdata == None:
                 self.config.log(self.config.text('sources', 8, (tdict['detail_url'][self.proc_id], )), 1)
                 return
@@ -508,7 +498,8 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
         try:
             # We first get the json url
             url = self.get_url('json_detail', id = tdict['prog_ID'][self.proc_id][3:])
-            detail_data = self.config.fetch_func.get_page(url[0], 'utf-8', None, url[1], ['detail', self.proc_id], True)
+            detail_data = self.config.fetch_func.get_page(url[0], 'utf-8', None, url[1],
+                                                                                    ['detail', self.proc_id, tdict['channelid']], True)
             if detail_data == None or detail_data == {}:
                 return None
 
@@ -896,7 +887,7 @@ class horizon_JSON(tv_grab_fetch.FetchData):
                     # get the raw programming for the day
                     program_list = self.config.fetch_func.get_page(channel_url[0], 'utf-8', None, channel_url[1], ['base', self.proc_id], True)
                     if program_list == None or program_list == {}:
-                        self.config.log(self.config.text('sources', 15 (self.source, self.config.channels[chanid].chan_name, page_count)))
+                        self.config.log(self.config.text('sources', 15, (self.source, self.config.channels[chanid].chan_name, page_count)))
                         self.fail_count += 1
                         page_fail += 1
                         last_start = start-1
@@ -1055,8 +1046,7 @@ class horizon_JSON(tv_grab_fetch.FetchData):
                     pass
 
         except:
-            self.config.log(['\n', self.config.text('IO', 21,  (self.source, )), traceback.format_exc()], 0)
-
+            self.config.log(['\n', self.config.text('IO', 21, (self.source, )), traceback.format_exc()], 0)
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 self.config.channels[chanid].source_data[self.proc_id].set()
@@ -1150,8 +1140,8 @@ class humo_JSON(tv_grab_fetch.FetchData):
                     if len(rest_channels) == 0:
                         continue
 
-                    self.config.log([self.config.text('sources', 2, (retry[0], self.source)), \
-                        self.config.text('sources', 3 (offset, self.config.opt_dict['days']))], 2)
+                    self.config.log(['\n', self.config.text('sources', 2, (retry[0], self.source)), \
+                        self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
 
                     if not first_fetch:
                         # be nice to humo.be
@@ -1326,8 +1316,7 @@ class humo_JSON(tv_grab_fetch.FetchData):
                     pass
 
         except:
-            self.config.log(['\n', self.config.text('IO', 21,  (self.source, )), traceback.format_exc()], 0)
-
+            self.config.log(['\n', self.config.text('IO', 21, (self.source, )), traceback.format_exc()], 0)
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 self.config.channels[chanid].source_data[self.proc_id].set()
@@ -1476,7 +1465,7 @@ class vrt_JSON(tv_grab_fetch.FetchData):
                             continue
 
                         url = self.get_url('week', fetch_range[offset], channel)
-                        self.config.log([self.config.text('sources', 13, \
+                        self.config.log(['\n', self.config.text('sources', 13, \
                             (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid , \
                             (self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), self.source)), \
                             self.config.text('sources', 17, (channel_cnt, len(self.channels), offset, len(fetch_range)))], 2)
@@ -1716,8 +1705,7 @@ class vrt_JSON(tv_grab_fetch.FetchData):
                             pass
 
         except:
-            self.config.log(['\n', self.config.text('IO', 21,  (self.source, )), traceback.format_exc()], 0)
-
+            self.config.log(['\n', self.config.text('IO', 21, (self.source, )), traceback.format_exc()], 0)
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 self.config.channels[chanid].source_data[self.proc_id].set()
@@ -2189,15 +2177,16 @@ class tvgidstv_HTML(tv_grab_fetch.FetchData):
                             pass
 
         except:
-            self.config.log(['\n', self.config.text('IO', 21  (self.source, )), traceback.format_exc()], 0)
+            self.config.log(['\n', self.config.text('IO', 21,  (self.source, )), traceback.format_exc()], 0)
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 self.config.channels[chanid].source_data[self.proc_id].set()
+            return None
 
     def load_detailpage(self, tdict):
 
         try:
-            strdata = self.config.fetch_func.get_page(tdict['detail_url'][self.proc_id], counter = ['detail', self.proc_id])
+            strdata = self.config.fetch_func.get_page(tdict['detail_url'][self.proc_id], counter = ['detail', self.proc_id, tdict['channelid']])
             if strdata == None:
                 return
 
@@ -2645,106 +2634,113 @@ class npo_HTML(tv_grab_fetch.FetchData):
             return
 
         last_added = {}
-        for retry in (0, 1):
-            for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), 7)):
-                if self.quit:
-                    return
+        try:
+            for retry in (0, 1):
+                for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), 7)):
+                    if self.quit:
+                        return
 
-                # Check if it is already loaded
-                if self.day_loaded[0][offset]:
-                    continue
-
-                self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
-                    self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
-
-                channel_url = self.get_url(offset)
-
-                if not first_fetch:
-                    # be nice to npo.nl
-                    time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-                    first_fetch = false
-
-                # get the raw programming for the day
-                strdata = self.config.fetch_func.get_page(channel_url, counter = ['base', self.proc_id])
-                if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
-                    self.config.log(self.config.text('sources', 4, (self.source, offset)))
-                    self.fail_count += 1
-                    continue
-
-                try:
-                    strdata = self.functions.clean_html(strdata)
-                    htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
-
-                except:
-                    self.config.log(self.config.text('sources', 32, (offset, self.source)))
-                    self.fail_count += 1
-                    if self.config.write_info_files:
-                        self.config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                        self.config.infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
-
-                    continue
-
-                # First we get the line-up and some date checks
-                self.base_count += 1
-                try:
-                    startdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-start')
-                    nextdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-end')
-                    if startdate == None or nextdate == None:
-                        self.config.log(self.config.text('sources', 33, (offset, self.source)))
+                    # Check if it is already loaded
+                    if self.day_loaded[0][offset]:
                         continue
 
-                    d = (startdate.split(',')[-1].strip()).split(' ')
-                    startdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+                    self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
+                        self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
 
-                    d = (nextdate.split(',')[-1].strip()).split(' ')
-                    nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+                    channel_url = self.get_url(offset)
 
-                    lineup = self.get_channel_lineup(htmldata)
+                    if not first_fetch:
+                        # be nice to npo.nl
+                        time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
+                        first_fetch = false
 
-                except:
-                    self.config.log(traceback.format_exc())
-                    continue
+                    # get the raw programming for the day
+                    strdata = self.config.fetch_func.get_page(channel_url, counter = ['base', self.proc_id])
+                    if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
+                        self.config.log(self.config.text('sources', 4, (self.source, offset)))
+                        self.fail_count += 1
+                        continue
 
-                try:
-                    channel_cnt = 0
-                    for c in htmldata.findall('div/div[@class="span12"]/div/div[@class="guide-scroller"]/div/div[@class="channels"]/div'):
+                    try:
+                        strdata = self.functions.clean_html(strdata)
+                        htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
 
-                        scid = lineup[channel_cnt]
-                        channel_cnt += 1
-                        if not scid in self.chanids.keys():
+                    except:
+                        self.config.log(self.config.text('sources', 32, (offset, self.source)))
+                        self.fail_count += 1
+                        if self.config.write_info_files:
+                            self.config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                            self.config.infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
+
+                        continue
+
+                    # First we get the line-up and some date checks
+                    self.base_count += 1
+                    try:
+                        startdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-start')
+                        nextdate = htmldata.find('div[@class="row-fluid"]/div[@class="span12"]/div').get('data-end')
+                        if startdate == None or nextdate == None:
+                            self.config.log(self.config.text('sources', 33, (offset, self.source)))
                             continue
 
-                        chanid = self.chanids[scid]
-                        if not chanid in last_added:
-                            last_added[chanid] = None
+                        d = (startdate.split(',')[-1].strip()).split(' ')
+                        startdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
 
-                        get_programs(c, chanid, offset, self.all_channels[scid]['group'] in (1, 7, 11))
-                        self.day_loaded[chanid][offset] = True
+                        d = (nextdate.split(',')[-1].strip()).split(' ')
+                        nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+
+                        lineup = self.get_channel_lineup(htmldata)
+
+                    except:
+                        self.config.log(traceback.format_exc())
+                        continue
+
+                    try:
+                        channel_cnt = 0
+                        for c in htmldata.findall('div/div[@class="span12"]/div/div[@class="guide-scroller"]/div/div[@class="channels"]/div'):
+
+                            scid = lineup[channel_cnt]
+                            channel_cnt += 1
+                            if not scid in self.chanids.keys():
+                                continue
+
+                            chanid = self.chanids[scid]
+                            if not chanid in last_added:
+                                last_added[chanid] = None
+
+                            get_programs(c, chanid, offset, self.all_channels[scid]['group'] in (1, 7, 11))
+                            self.day_loaded[chanid][offset] = True
+
+                    except:
+                        self.config.log(traceback.format_exc())
+
+                    self.day_loaded[0][offset] = True
+
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                if len(self.program_data[chanid]) == 0:
+                    self.config.channels[chanid].source_data[self.proc_id].set()
+                    continue
+
+                with self.source_lock:
+                    for tdict in self.program_data[chanid]:
+                        self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
+
+                self.parse_programs(chanid, 0, 'none')
+                self.config.channels[chanid].source_data[self.proc_id].set()
+
+                try:
+                    self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
 
                 except:
-                    self.config.log(traceback.format_exc())
+                    pass
 
-                self.day_loaded[0][offset] = True
-
-        for chanid in self.channels.keys():
-            self.channel_loaded[chanid] = True
-            if len(self.program_data[chanid]) == 0:
+        except:
+            self.config.log(['\n', self.config.text('IO', 21, (self.source, )), traceback.format_exc()], 0)
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
                 self.config.channels[chanid].source_data[self.proc_id].set()
-                continue
-
-            with self.source_lock:
-                for tdict in self.program_data[chanid]:
-                    self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
-
-            self.parse_programs(chanid, 0, 'none')
-            self.config.channels[chanid].source_data[self.proc_id].set()
-
-            try:
-                self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
-
-            except:
-                pass
-
+            return None
 
 # end npo_HTML
 
@@ -3054,127 +3050,135 @@ class vpro_HTML(tv_grab_fetch.FetchData):
             return
 
         last_added = {}
-        for retry in (0, 1):
-            for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), 5)):
-                if self.quit:
-                    return
+        try:
+            for retry in (0, 1):
+                for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), 5)):
+                    if self.quit:
+                        return
 
-                # Check if it is already loaded
-                if self.day_loaded[0][offset]:
-                    continue
-
-                if len(self.availabe_days) > 0 and not offset in self.availabe_days:
-                    continue
-
-                self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
-                    self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
-
-                channel_url = self.get_url(offset)
-
-                # get the raw programming for the day
-                strdata = self.config.fetch_func.get_page(channel_url[0], 'utf-8', None, channel_url[1], ['base', self.proc_id])
-                if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
-                    self.config.log(self.config.text('sources', 4, (self.source, offset)))
-                    self.fail_count += 1
-                    continue
-
-                try:
-                    strdata = self.functions.clean_html(strdata)
-                    if len(self.availabe_days) == 0:
-                        self.get_available_days(strdata)
-                        lineup = self.get_channel_lineup(strdata)
-
-                    strdata = self.fetch_data.search(strdata).group(0)
-                    noquote = strdata
-                    for t in self.fetch_titels.findall(strdata):
-                        t = re.sub('<span class="broadcaster">(.*?)</span>', '', t)
-                        t = t.strip()
-                        tt = t
-                        for s in (('"', '&quot;'), ('<', '&lt;'), ('>', '&gt;')):
-                            if s[0] in t:
-                                tt = re.sub(s[0], s[1], tt)
-                                t = re.sub('\?', '\\?', t)
-                                t = re.sub('\*', '\\*', t)
-                                t = re.sub('\+', '\\+', t)
-
-                        if t != tt:
-                            noquote = re.sub(t, tt, noquote, flags = re.IGNORECASE)
-
-                    htmldata = ET.fromstring( noquote.encode('utf-8'))
-
-                except:
-                    self.config.log(self.config.text('sources', 32, (offset, self.source)))
-                    self.fail_count += 1
-                    if self.config.write_info_files:
-                        self.config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                        self.config.infofiles.write_raw_string(noquote)
-
-                    continue
-
-                # First we get the line-up and some date checks
-                self.base_count += 1
-                try:
-                    startdate = htmldata.find('div[@class="grid"]/div/div').get('data-selected-guide-date')
-                    if startdate == None:
-                        self.config.log(self.config.text('sources', 33 (offset, self.source)))
+                    # Check if it is already loaded
+                    if self.day_loaded[0][offset]:
                         continue
 
-                    d = startdate.split('-')
-                    startdate = datetime.date(int(d[0]), int(d[1]), int(d[2]))
-                    nextdate = startdate + datetime.timedelta(days=1)
-                    if startdate.toordinal() - self.current_date != offset:
-                        self.config.log(self.config.text('sources', 33 (offset, self.source)))
+                    if len(self.availabe_days) > 0 and not offset in self.availabe_days:
                         continue
 
-                except:
-                    self.config.log(traceback.format_exc())
-                    continue
+                    self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
+                        self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
 
-                try:
-                    channel_cnt = 0
-                    for c in htmldata.findall('div[@class="grid"]/div/div/div/div/div/div[@class="epg-channels-container"]/ol'):
-                        scid = lineup[channel_cnt]
-                        channel_cnt += 1
-                        if not scid in self.chanids.keys():
+                    channel_url = self.get_url(offset)
+
+                    # get the raw programming for the day
+                    strdata = self.config.fetch_func.get_page(channel_url[0], 'utf-8', None, channel_url[1], ['base', self.proc_id])
+                    if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
+                        self.config.log(self.config.text('sources', 4, (self.source, offset)))
+                        self.fail_count += 1
+                        continue
+
+                    try:
+                        strdata = self.functions.clean_html(strdata)
+                        if len(self.availabe_days) == 0:
+                            self.get_available_days(strdata)
+                            lineup = self.get_channel_lineup(strdata)
+
+                        strdata = self.fetch_data.search(strdata).group(0)
+                        noquote = strdata
+                        for t in self.fetch_titels.findall(strdata):
+                            t = re.sub('<span class="broadcaster">(.*?)</span>', '', t)
+                            t = t.strip()
+                            tt = t
+                            for s in (('"', '&quot;'), ('<', '&lt;'), ('>', '&gt;')):
+                                if s[0] in t:
+                                    tt = re.sub(s[0], s[1], tt)
+                                    t = re.sub('\?', '\\?', t)
+                                    t = re.sub('\*', '\\*', t)
+                                    t = re.sub('\+', '\\+', t)
+
+                            if t != tt:
+                                noquote = re.sub(t, tt, noquote, flags = re.IGNORECASE)
+
+                        htmldata = ET.fromstring( noquote.encode('utf-8'))
+
+                    except:
+                        self.config.log(self.config.text('sources', 32, (offset, self.source)))
+                        self.fail_count += 1
+                        if self.config.write_info_files:
+                            self.config.infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                            self.config.infofiles.write_raw_string(noquote)
+
+                        continue
+
+                    # First we get the line-up and some date checks
+                    self.base_count += 1
+                    try:
+                        startdate = htmldata.find('div[@class="grid"]/div/div').get('data-selected-guide-date')
+                        if startdate == None:
+                            self.config.log(self.config.text('sources', 33, (offset, self.source)))
                             continue
 
-                        chanid = self.chanids[scid]
-                        if not chanid in last_added:
-                            last_added[chanid] = None
+                        d = startdate.split('-')
+                        startdate = datetime.date(int(d[0]), int(d[1]), int(d[2]))
+                        nextdate = startdate + datetime.timedelta(days=1)
+                        if startdate.toordinal() - self.current_date != offset:
+                            self.config.log(self.config.text('sources', 33, (offset, self.source)))
+                            continue
 
-                        get_programs(c, chanid, offset)
-                        if channel_cnt == 2:
-                            self.day_loaded[chanid][offset] = True
+                    except:
+                        self.config.log(traceback.format_exc())
+                        continue
+
+                    try:
+                        channel_cnt = 0
+                        for c in htmldata.findall('div[@class="grid"]/div/div/div/div/div/div[@class="epg-channels-container"]/ol'):
+                            scid = lineup[channel_cnt]
+                            channel_cnt += 1
+                            if not scid in self.chanids.keys():
+                                continue
+
+                            chanid = self.chanids[scid]
+                            if not chanid in last_added:
+                                last_added[chanid] = None
+
+                            get_programs(c, chanid, offset)
+                            if channel_cnt == 2:
+                                self.day_loaded[chanid][offset] = True
+
+                    except:
+                        self.config.log(traceback.format_exc())
+
+                    # be nice to vpro.nl
+                    self.day_loaded[0][offset] = True
+                    time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
+
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                if len(self.program_data[chanid]) == 0:
+                    self.config.channels[chanid].source_data[self.proc_id].set()
+                    continue
+
+                # Add starttime of the next program as the endtime
+                with self.source_lock:
+                    self.program_data[chanid].sort(key=lambda program: (program['start-time']))
+                    self.add_endtimes(chanid, 6)
+
+                    for tdict in self.program_data[chanid]:
+                        self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
+
+                self.parse_programs(chanid, 0, 'none')
+                self.config.channels[chanid].source_data[self.proc_id].set()
+
+                try:
+                    self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
 
                 except:
-                    self.config.log(traceback.format_exc())
+                    pass
 
-                # be nice to vpro.nl
-                self.day_loaded[0][offset] = True
-                time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-
-        for chanid in self.channels.keys():
-            self.channel_loaded[chanid] = True
-            if len(self.program_data[chanid]) == 0:
+        except:
+            self.config.log(['\n', self.config.text('IO', 21, (self.source, )), traceback.format_exc()], 0)
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
                 self.config.channels[chanid].source_data[self.proc_id].set()
-                continue
-
-            # Add starttime of the next program as the endtime
-            with self.source_lock:
-                self.program_data[chanid].sort(key=lambda program: (program['start-time']))
-                self.add_endtimes(chanid, 6)
-
-                for tdict in self.program_data[chanid]:
-                    self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
-
-            self.parse_programs(chanid, 0, 'none')
-            self.config.channels[chanid].source_data[self.proc_id].set()
-
-            try:
-                self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
-
-            except:
-                pass
+            return None
 
 # end vpro_HTML
 
@@ -3620,6 +3624,7 @@ class nieuwsblad_HTML(tv_grab_fetch.FetchData):
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 self.config.channels[chanid].source_data[self.proc_id].set()
+            return None
 
 # end nieuwsblad_HTML
 
@@ -3860,10 +3865,12 @@ class primo_HTML(tv_grab_fetch.FetchData):
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 self.config.channels[chanid].source_data[self.proc_id].set()
+            return None
 
     def load_detailpage(self, tdict):
         try:
-            strdata = self.config.fetch_func.get_page(tdict['detail_url'][self.proc_id], 'utf-8', counter = ['detail', self.proc_id])
+            strdata = self.config.fetch_func.get_page(tdict['detail_url'][self.proc_id], 'utf-8',
+                                                                                counter = ['detail', self.proc_id, tdict['channelid']])
             if strdata == None:
                 return
 
@@ -4270,6 +4277,7 @@ class oorboekje_HTML(tv_grab_fetch.FetchData):
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 self.config.channels[chanid].source_data[self.proc_id].set()
+            return None
 
 # end oorboekje_HTML
 

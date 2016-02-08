@@ -12,6 +12,8 @@ from threading import Thread, Lock
 from Queue import Queue, Empty
 from email.mime.text import MIMEText
 from copy import deepcopy
+from xml.sax import saxutils
+
 
 class Functions():
     """Some general IO functions"""
@@ -247,11 +249,11 @@ class Logging(Thread):
 
                 elif isinstance(message, dict) and 'fatal' in message:
                     # A fatal Error has been received, after logging we send all threads the quit signal
-                    if 'name'in message:
-                        mm =  ['\n', 'An unexpected error has occured in the %s thread\n' % message['name']]
+                    if 'name'in message and message['name'] != None:
+                        mm =  ['\n', self.config.text('IO', 21, (message['name'], ))]
 
                     else:
-                        mm = []
+                        mm = ['\n', self.config.text('IO', 22)]
 
                     if isinstance(message['fatal'], (str, unicode)):
                         mm.append(message['fatal'])
@@ -310,7 +312,7 @@ class Logging(Thread):
                 self.writelog(self.config.text('IO', 5, (message, type(message))))
 
             except:
-                sys.stderr.write((self.now() + 'An error ocured while logging!\n').encode(self.local_encoding, 'replace'))
+                sys.stderr.write((self.now() + u'An error ocured while logging!\n').encode(self.local_encoding, 'replace'))
                 traceback.print_exc()
 
     # end run()
@@ -636,7 +638,7 @@ class ProgramCache(Thread):
                     continue
 
         except:
-            self.config.queues['log'].put({'fatal': [traceback.print_exc(), '\n'], 'name': 'ProgramCache'})
+            self.config.queues['log'].put({'fatal': [traceback.format_exc(), '\n'], 'name': 'ProgramCache'})
             self.ready = True
             return(98)
 
@@ -1756,3 +1758,389 @@ class InfoFiles:
 
 # end InfoFiles
 
+class XMLoutput:
+    '''
+    This class collects the data and creates the output
+    '''
+    def __init__(self, config):
+
+        self.config = config
+        self.xmlencoding = 'UTF-8'
+        # Thes will contain the seperate XML strings
+        self.xml_channels = {}
+        self.xml_programs = {}
+        self.progress_counter = 0
+
+        # We have several sources of logos, the first provides the nice ones, but is not
+        # complete. We use the tvgids logos to fill the missing bits.
+        self.logo_source_preference = []
+        self.logo_provider = []
+
+        self.output_lock = Lock()
+        self.cache_return = Queue()
+
+        self.cache_count = 0
+        self.fetch_count = 0
+        self.fail_count = 0
+        self.ttvdb_count = 0
+        self.ttvdb_fail_count = 0
+        self.program_count = 0
+
+    def xmlescape(self, s):
+        """Escape <, > and & characters for use in XML"""
+        return saxutils.escape(s)
+
+    def format_timezone(self, td, use_utc=False, only_date=False ):
+        """
+        Given a datetime object, returns a string in XMLTV format
+        """
+        if not use_utc:
+            td = self.config.output_tz.normalize(td.astimezone(self.config.output_tz))
+
+        if only_date:
+            return td.strftime('%Y%m%d')
+
+        else:
+            return td.strftime('%Y%m%d%H%M%S %z')
+
+    def add_starttag(self, tag, ident = 0, attribs = '', text = '', close = False):
+        '''
+        Add a starttag with optional attributestring, textstring and optionally close it.
+        Give it the proper ident.
+        '''
+        if attribs != '':
+            attribs = ' %s' % attribs
+
+        if close and text == '':
+            return u'%s<%s%s/>\n' % (''.rjust(ident), self.xmlescape(tag), self.xmlescape(attribs))
+
+        if close and text != '':
+            return u'%s<%s%s>%s</%s>\n' % (''.rjust(ident), self.xmlescape(tag), self.xmlescape(attribs), self.xmlescape(text), self.xmlescape(tag))
+
+        else:
+            return u'%s<%s%s>%s\n' % (''.rjust(ident), self.xmlescape(tag), self.xmlescape(attribs), self.xmlescape(text))
+
+    def add_endtag(self, tag, ident = 0):
+        '''
+        Return a proper idented closing tag
+        '''
+        return u'%s</%s>\n' % (''.rjust(ident), self.xmlescape(tag))
+
+    def create_channel_strings(self, chanid, add_HD = None):
+        '''
+        Create the strings for the channels we fetched info about
+        '''
+        if add_HD == True:
+            xmltvid = '%s-hd' % self.config.channels[chanid].xmltvid
+
+        else:
+            xmltvid = self.config.channels[chanid].xmltvid
+
+        self.xml_channels[xmltvid] = []
+        self.xml_channels[xmltvid].append(self.add_starttag('channel', 2, 'id="%s%s"' % \
+            (xmltvid, self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
+        self.xml_channels[xmltvid].append(self.add_starttag('display-name', 4, 'lang="nl"', \
+            self.config.channels[chanid].chan_name, True))
+        if (self.config.channels[chanid].opt_dict['logos']):
+            if self.config.channels[chanid].icon_source in range(len(self.logo_provider)):
+                lpath = self.logo_provider[self.config.channels[chanid].icon_source]
+                lname = self.config.channels[chanid].icon
+                if self.config.channels[chanid].icon_source == 5 and lpath[-16:] == 'ChannelLogos/02/':
+                    if len(lname) > 16 and  lname[0:16] == 'ChannelLogos/02/':
+                        lname = lname[16:].split('?')[0]
+
+                    else:
+                        lname = lname.split('?')[0]
+
+                elif self.config.channels[chanid].icon_source == 5 and lpath[-16:] != 'ChannelLogos/02/':
+                    if len(lname) > 16 and  lname[0:16] == 'ChannelLogos/02/':
+                        lname = lname.split('?')[0]
+
+                    else:
+                        lpath = lpath + 'ChannelLogos/02/'
+                        lname = lname.split('?')[0]
+
+                full_logo_url = lpath + lname
+                self.xml_channels[xmltvid].append(self.add_starttag('icon', 4, 'src="%s"' % full_logo_url, '', True))
+
+            elif self.config.channels[chanid].icon_source == 99:
+                self.xml_channels[xmltvid].append(self.add_starttag('icon', 4, 'src="%s"' % self.config.channels[chanid].icon, '', True))
+
+        self.xml_channels[xmltvid].append(self.add_endtag('channel', 2))
+
+    def create_program_string(self, chanid, add_HD = None):
+        '''
+        Create all the program strings
+        '''
+        if add_HD == True:
+            xmltvid = '%s-hd' % self.config.channels[chanid].xmltvid
+
+        else:
+            xmltvid = self.config.channels[chanid].xmltvid
+            with self.output_lock:
+                self.program_count += len(self.config.channels[chanid].all_programs)
+
+        self.xml_programs[xmltvid] = []
+        self.config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
+        for program in self.config.channels[chanid].all_programs[:]:
+            xml = []
+
+            # Start/Stop
+            attribs = 'start="%s" stop="%s" channel="%s%s"' % \
+                (self.format_timezone(program['start-time'], self.config.opt_dict['use_utc']), \
+                self.format_timezone(program['stop-time'], self.config.opt_dict['use_utc']), \
+                xmltvid, self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')
+
+            if 'clumpidx' in program and program['clumpidx'] != '':
+                attribs += 'clumpidx="%s"' % program['clumpidx']
+
+            xml.append(self.add_starttag('programme', 2, attribs))
+
+            # Title
+            xml.append(self.add_starttag('title', 4, 'lang="nl"', program['name'], True))
+            if program['originaltitle'] != '' and program['country'] != '' and program['country'].lower() != 'nl' and program['country'].lower() != 'be':
+                xml.append(self.add_starttag('title', 4, 'lang="%s"' % (program['country'].lower()), program['originaltitle'], True))
+
+            # Subtitle
+            if 'titel aflevering' in program and program['titel aflevering'] != '':
+                xml.append(self.add_starttag('sub-title', 4, 'lang="nl"', program['titel aflevering'] ,True))
+
+            # Add an available subgenre in front off the description or give it as description
+
+            # A prefered description was set and found
+            if len(program['prefered description']) > 100:
+                program['description'] = program['prefered description']
+
+            desc_line = u''
+            if program['subgenre'] != '':
+                 desc_line = u'%s: ' % (program['subgenre'])
+
+            if program['omroep'] != ''and re.search('(\([A-Za-z \-]*?\))', program['omroep']):
+                desc_line = u'%s%s ' % (desc_line, re.search('(\([A-Za-z \-]*?\))', program['omroep']).group(1))
+
+            if program['description'] != '':
+                desc_line = u'%s%s ' % (desc_line, program['description'])
+
+            # Limit the length of the description
+            if desc_line != '':
+                desc_line = re.sub('\n', ' ', desc_line)
+                if len(desc_line) > self.config.channels[chanid].opt_dict['desc_length']:
+                    spacepos = desc_line[0:self.config.channels[chanid].opt_dict['desc_length']-3].rfind(' ')
+                    desc_line = desc_line[0:spacepos] + '...'
+
+                xml.append(self.add_starttag('desc', 4, 'lang="nl"', desc_line.strip(),True))
+
+            # Process credits section if present.
+            # This will generate director/actor/presenter info.
+            if program['credits'] != {}:
+                xml.append(self.add_starttag('credits', 4))
+                for role in ('director', 'actor', 'writer', 'adapter', 'producer', 'composer', 'editor', 'presenter', 'commentator', 'guest'):
+                    if role in program['credits']:
+                        for name in program['credits'][role]:
+                            if name != '':
+                                xml.append(self.add_starttag((role), 6, '', self.xmlescape(name),True))
+
+                xml.append(self.add_endtag('credits', 4))
+
+            # Original Air-Date
+            if isinstance(program['airdate'], datetime.date):
+                xml.append(self.add_starttag('date', 4, '',  \
+                    self.format_timezone(program['airdate'], self.config.opt_dict['use_utc'],True), True))
+
+            elif program['jaar van premiere'] != '':
+                xml.append(self.add_starttag('date', 4, '', program['jaar van premiere'],True))
+
+            # Genre
+            if self.config.channels[chanid].opt_dict['cattrans']:
+                cat0 = ('', '')
+                cat1 = (program['genre'].lower(), '')
+                cat2 = (program['genre'].lower(), program['subgenre'].lower())
+                if cat2 in self.config.cattrans.keys() and self.config.cattrans[cat2] != '':
+                    cat = self.config.cattrans[cat2].capitalize()
+
+                elif cat1 in self.config.cattrans.keys() and self.config.cattrans[cat1] != '':
+                    cat = self.config.cattrans[cat1].capitalize()
+
+                elif cat0 in self.config.cattrans.keys() and self.config.cattrans[cat0] != '':
+                   cat = self.config.cattrans[cat0].capitalize()
+
+                else:
+                    cat = 'Unknown'
+
+                xml.append(self.add_starttag('category', 4 , '', cat, True))
+
+            else:
+                cat = program['genre']
+                if program['genre'] != '':
+                    xml.append(self.add_starttag('category', 4, 'lang="nl', program['genre'], True))
+
+                else:
+                    xml.append(self.add_starttag('category', 4 , '', 'Overige', True))
+
+            # An available url
+            if program['infourl'] != '':
+                xml.append(self.add_starttag('url', 4, '', program['infourl'],True))
+
+            if program['country'] != '':
+                xml.append(self.add_starttag('country', 4, '', program['country'],True))
+
+            # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
+            # Also exclude Sports for MythTV will make it into a Series
+            if cat.lower() != 'sports' and cat.lower() != 'sport':
+                if program['season'] != 0 and program['episode'] != 0:
+                    if program['season'] == 0:
+                        text = ' . %d . '  % (int(program['episode']) - 1)
+
+                    else:
+                        text = '%d . %d . '  % (int(program['season']) - 1, int(program['episode']) - 1)
+
+                    xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
+
+            # Process video/audio/teletext sections if present
+            if (program['video']['breedbeeld'] or program['video']['blackwhite'] \
+              or (self.config.channels[chanid].opt_dict['mark_hd'] \
+              or add_HD == True) and (program['video']['HD'])):
+                xml.append(self.add_starttag('video', 4))
+
+                if program['video']['breedbeeld']:
+                    xml.append(self.add_starttag('aspect', 6, '', '16:9',True))
+
+                if program['video']['blackwhite']:
+                    xml.append(self.add_starttag('colour', 6, '', 'no',True))
+
+                if (self.config.channels[chanid].opt_dict['mark_hd'] \
+                  or add_HD == True) and (program['video']['HD']):
+                    xml.append(self.add_starttag('quality', 6, '', 'HDTV',True))
+
+                xml.append(self.add_endtag('video', 4))
+
+            if program['audio'] != '':
+                xml.append(self.add_starttag('audio', 4))
+                xml.append(self.add_starttag('stereo', 6, '',program['audio'] ,True))
+                xml.append(self.add_endtag('audio', 4))
+
+            # It's been shown before
+            if program['rerun']:
+                xml.append(self.add_starttag('previously-shown', 4, '', '',True))
+
+            # It's a first
+            if program['premiere']:
+                xml.append(self.add_starttag('premiere', 4, '', '',True))
+
+            # It's the last showing
+            if program['last-chance']:
+                xml.append(self.add_starttag('last-chance', 4, '', '',True))
+
+            # It's new
+            if program['new']:
+                xml.append(self.add_starttag('new', 4, '', '',True))
+
+            # There are teletext subtitles
+            if program['teletekst']:
+                xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
+
+            # Add any Kijkwijzer items
+            if self.config.opt_dict['kijkwijzerstijl'] in ('long', 'short', 'single'):
+                kstring = ''
+                # First only one age limit from high to low
+                for k in ('4', '3', '9', '2', '1'):
+                    if k in program['kijkwijzer']:
+                        if self.config.opt_dict['kijkwijzerstijl'] == 'single':
+                            kstring += (self.config.kijkwijzer[k]['code'] + ': ')
+
+                        else:
+                            xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
+                            if self.config.opt_dict['kijkwijzerstijl'] == 'long':
+                                xml.append(self.add_starttag('value', 6, '', self.config.kijkwijzer[k]['text'], True))
+
+                            else:
+                                xml.append(self.add_starttag('value', 6, '', self.config.kijkwijzer[k]['code'], True))
+
+                            xml.append(self.add_starttag('icon', 6, 'src="%s"' % self.config.kijkwijzer[k]['icon'], '', True))
+                            xml.append(self.add_endtag('rating', 4))
+                        break
+
+                # And only one of any of the others
+                for k in ('g', 'a', 's', 't', 'h', 'd'):
+                    if k in program['kijkwijzer']:
+                        if self.config.opt_dict['kijkwijzerstijl'] == 'single':
+                            kstring += k.upper()
+
+                        else:
+                            xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
+                            if self.config.opt_dict['kijkwijzerstijl'] == 'long':
+                                xml.append(self.add_starttag('value', 6, '', self.config.kijkwijzer[k]['text'], True))
+
+                            else:
+                                xml.append(self.add_starttag('value', 6, '', self.config.kijkwijzer[k]['code'], True))
+
+                            xml.append(self.add_starttag('icon', 6, 'src="%s"' % self.config.kijkwijzer[k]['icon'], '', True))
+                            xml.append(self.add_endtag('rating', 4))
+
+                if self.config.opt_dict['kijkwijzerstijl'] == 'single' and kstring != '':
+                    xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
+                    xml.append(self.add_starttag('value', 6, '', kstring, True))
+                    xml.append(self.add_endtag('rating', 4))
+
+            # Set star-rating if applicable
+            if program['star-rating'] != '':
+                xml.append(self.add_starttag('star-rating', 4))
+                xml.append(self.add_starttag('value', 6, '',('%s/10' % (program['star-rating'])).strip(),True))
+                xml.append(self.add_endtag('star-rating', 4))
+
+            xml.append(self.add_endtag('programme', 2))
+            self.xml_programs[xmltvid].append(xml)
+
+    def get_xmlstring(self):
+        '''
+        Compound the compleet XML output and return it
+        '''
+        if self.config.output == None:
+            startstring =[u'<?xml version="1.0" encoding="%s"?>\n' % logging.local_encoding]
+
+        else:
+            startstring =[u'<?xml version="1.0" encoding="%s"?>\n' % self.xmlencoding]
+
+        startstring.append(u'<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
+        startstring.append(u'<tv generator-info-name="%s" generator-info-url="https://github.com/tvgrabbers/tvgrabnlpy">\n' % self.config.version(True))
+        closestring = u'</tv>\n'
+
+        xml = []
+        xml.append(u"".join(startstring))
+
+        for channel in self.config.channels.values():
+            if channel.active and channel.xmltvid in self.xml_channels:
+                xml.append(u"".join(self.xml_channels[channel.xmltvid]))
+                if channel.opt_dict['add_hd_id'] and '%s-hd' % (channel.xmltvid) in self.xml_channels:
+                    xml.append(u"".join(self.xml_channels['%s-hd' % channel.xmltvid]))
+
+        for channel in self.config.channels.values():
+            if channel.active and channel.xmltvid in self.xml_programs:
+                for program in self.xml_programs[channel.xmltvid]:
+                    xml.append(u"".join(program))
+
+                if channel.opt_dict['add_hd_id'] and '%s-hd' % (channel.xmltvid) in self.xml_channels:
+                    for program in self.xml_programs['%s-hd' % channel.xmltvid]:
+                        xml.append(u"".join(program))
+
+        xml.append(closestring)
+
+        return u"".join(xml)
+
+    def print_string(self):
+        '''
+        Print the compleet XML string to stdout or selected file
+        '''
+        xml = self.get_xmlstring()
+
+        if xml != None:
+            if self.config.output == None:
+                sys.stdout.write(xml.encode(logging.local_encoding, 'replace'))
+
+            else:
+                self.config.output.write(xml)
+
+            if self.config.write_info_files:
+                self.config.infofiles.write_xmloutput(xml)
+
+# end XMLoutput

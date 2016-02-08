@@ -125,7 +125,7 @@ description_text = """
 """
 
 import os, re, sys, argparse, traceback, datetime, codecs, pickle
-import tv_grab_IO, tv_grab_fetch , tv_grab_output, pytz
+import tv_grab_IO, tv_grab_fetch , pytz
 try:
     unichr(42)
 except NameError:
@@ -139,7 +139,7 @@ class Configure:
         self.api_major = 1
         self.api_minor = 0
         self.api_patch = 0
-        self.api_patchdate = u'20160204'
+        self.api_patchdate = u'20160207'
         self.api_alfa = True
         self.api_beta = True
         try:
@@ -668,7 +668,7 @@ class Configure:
         self.logging = tv_grab_IO.Logging(self)
         self.IO_func = tv_grab_IO.Functions(self)
         self.fetch_func = tv_grab_fetch.Functions(self)
-        self.xml_output = tv_grab_output.XMLoutput(self)
+        self.xml_output = tv_grab_IO.XMLoutput(self)
         self.sources = {0: 'tvgids.nl', 1: 'tvgids.tv', 2: 'rtl.nl', 3: 'teveblad.be', 4: 'npo.nl',
                                   5: 'horizon.tv', 6: 'humo.be', 7: 'vpro.nl', 8: 'nieuwsblad.be', 9:'primo.eu',
                                   10: 'vrt.be', 11: 'virtual', 12: 'oorboekje.nl'}
@@ -803,7 +803,7 @@ class Configure:
                         if isinstance(addintuple, tuple) and len(addintuple) > 0:
                             txt = txt % addintuple
 
-                        if isinstance(txt, unicode) and txt != u'':
+                        if isinstance(txt, unicode):
                             return txt
 
             return self.texts['config']['error'][0]
@@ -1659,7 +1659,7 @@ class Configure:
             for line in self.config_dict[2]:
                 try:
                     channel = line.split(None, 1) # split on first whitespace
-                    self.channels[unicode(channel[0]).strip()] = tv_grab_output.Channel_Config(self, unicode(channel[0]).strip(), unicode(channel[1]).strip())
+                    self.channels[unicode(channel[0]).strip()] = tv_grab_fetch.Channel_Config(self, unicode(channel[0]).strip(), unicode(channel[1]).strip())
                     self.channels[unicode(channel[0]).strip()].active = True
                     channel_names[unicode(channel[1]).strip().lower()] = unicode(channel[0]).strip()
 
@@ -1713,7 +1713,7 @@ class Configure:
 
                         chanid = u'%s-%s' % (index, old_chanid)
                         old_chanids[old_chanid] = chanid
-                        self.channels[chanid] = tv_grab_output.Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
+                        self.channels[chanid] = tv_grab_fetch.Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
                         for index in range(4):
                             self.channels[chanid].source_id[index] = unicode(channel[index + 2]).strip()
 
@@ -1729,7 +1729,7 @@ class Configure:
 
                         chanid = unicode(channel[2])
                         channel_names[unicode(channel[0]).strip().lower()] = chanid
-                        self.channels[chanid] = tv_grab_output.Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
+                        self.channels[chanid] = tv_grab_fetch.Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
                         for index in range(min(self.source_count,len(channel) - 5)):
                             self.channels[chanid].source_id[index] = unicode(channel[index + 3]).strip()
 
@@ -1749,7 +1749,7 @@ class Configure:
                         self.chan_count += 1
 
                 except:
-                    self.log([self.text('config', 38, (self.opt_dict['config_file'], )),'%r\n' % (line), traceback.print_exc()])
+                    self.log([self.text('config', 38, (self.opt_dict['config_file'], )),'%r\n' % (line), traceback.format_exc()])
 
             # Read the channel specific configuration
             for section, values in self.config_dict[9].items():
@@ -2081,7 +2081,7 @@ class Configure:
 
         except:
             githubdata = {}
-            self.log([self.text('config', 43), traceback.print_exc()], 0)
+            self.log([self.text('config', 43), traceback.format_exc()], 0)
             if configuring:
                 self.log([self.text('config', 44)], 0)
                 return 2
@@ -2117,7 +2117,6 @@ class Configure:
                             st = child['start'].split(':')
                             child['start'] = datetime.time(int(st[0]), int(st[1]), tzinfo=self.combined_channels_tz)
                         except:
-                            traceback.print_exc()
                             self.log(self.text('config', 45, (child['chanid'], chanid)))
                             del child['start']
 
@@ -2126,7 +2125,6 @@ class Configure:
                             st = child['end'].split(':')
                             child['end'] = datetime.time(int(st[0]), int(st[1]), tzinfo=self.combined_channels_tz)
                         except:
-                            traceback.print_exc()
                             self.log(self.text('config', 46, (child['chanid'], chanid)))
                             del child['end']
 
@@ -2351,7 +2349,7 @@ class Configure:
                     if (chan_scid in self.empty_channels[index]):
                         continue
 
-                    self.channels[chanid] = tv_grab_output.Channel_Config(self, chanid, chan['name'] )
+                    self.channels[chanid] = tv_grab_fetch.Channel_Config(self, chanid, chan['name'] )
 
                 self.channels[chanid].source_id[index] = chan_scid
                 # Set the group
@@ -3220,14 +3218,38 @@ class Configure:
         f.close()
     # end write_defaults_list()
 
-    def close(self):
+    def write_statistics(self, start, end):
+        log_array = ['\n', self.text('config', 72), '\n']
+        log_array.append(self.text('config', 73, (self.xml_output.program_count, self.chan_count)))
+        log_array.append(self.text('config', 74, (start.strftime('%Y-%m-%d %H:%M'), )))
+        log_array.append(self.text('config', 75, (end.strftime('%Y-%m-%d %H:%M'), )))
+        log_array.append(self.text('config', 76, (end - start, )))
+        fetch_count = self.fetch_func.get_counter('base', 'total') + self.fetch_func.get_counter('detail', 'total')
+        log_array.append( self.text('config', 77, (fetch_count, self.fetch_func.get_counter('fail', 'total'))))
+        log_array.append(self.text('config', 78, (self.fetch_func.get_counter('detail', -1), )))
+        log_array.append(self.text('config', 79, (self.fetch_func.get_counter('lookup', -2), )))
+        log_array.append(self.text('config', 80, (self.fetch_func.get_counter('lookup_fail', -2), )))
+        if fetch_count > 0:
+            log_array.extend([self.text('config', 81, ((end - start).total_seconds()/fetch_count, )), '\n'])
+        log_array.append(self.text('config', 82, (self.fetch_func.get_counter('detail', -2), )))
+        log_array.extend([self.text('config', 83, (self.fetch_func.get_counter('fail', -2), )), '\n'])
+        for s, source in self.channelsource.items():
+            log_array.append(self.text('config', 84, (self.fetch_func.get_counter('base', s), source.source)))
+            if source.detail_processor:
+                log_array.append(self.text('config', 85, (self.fetch_func.get_counter('detail', s), source.source)))
 
+            log_array.extend([self.text('config', 86, (self.fetch_func.get_counter('fail', s), source.source)), '\n'])
+
+        self.log(log_array, 4, 3)
+    # write_statistics()
+
+    def close(self):
         try:
             if self.infofiles != None:
                 self.infofiles.close(self.channels, self.combined_channels, self.channelsource)
 
         except:
-            self.logging.log_queue.put({'fatal': [traceback.print_exc(), '\n'], 'name': 'InfoFiles'})
+            self.logging.log_queue.put({'fatal': [traceback.format_exc(), '\n'], 'name': 'InfoFiles'})
             self.ready = True
 
         if self.program_cache != None and self.program_cache.is_alive():
