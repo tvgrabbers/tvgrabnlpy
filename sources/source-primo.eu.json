@@ -1,0 +1,15 @@
+{"file-name":"source-primo.eu",
+    "name":"primo.eu",
+    "language":"nl",
+	"site-timezone":"Europe/Brussels",
+    "version":0,
+    "api-version":[1,0,0],
+    "detail_id":"primo-ID",
+    "detail_url":"primo-url",
+    "detail_processor":true,
+    "detail_check":"primo-fetched",
+	"no_genric_matching":["disneyxd", "npo1", "npo2", "npo3", "sbss6", "net5", "veronica"],
+	"empty_channels":[],
+    "cattrans":{},
+    "kijkwijzer":{}}
+        

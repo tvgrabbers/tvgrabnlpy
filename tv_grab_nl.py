@@ -125,7 +125,7 @@ description_text = """
 """
 
 # Modules we need
-import sys, locale, traceback
+import sys, locale, traceback, json
 import time, datetime, pytz
 import tv_grab_config, tv_grab_fetch, sources
 try:
@@ -150,6 +150,8 @@ if tv_grab_config.Configure().version()[1:4] < (1,0,0):
 class Configure(tv_grab_config.Configure):
     def __init__(self):
         self.name ='tv_grab_nl_py'
+        self.datafile = 'tv_grab_nl.json'
+        self.compat_text = '.tvgids.nl'
         tv_grab_config.Configure.__init__(self)
         # Version info as returned by the version function
         self.country = 'The Netherlands'
@@ -164,18 +166,21 @@ class Configure(tv_grab_config.Configure):
         self.combined_channels_tz = pytz.timezone('Europe/Amsterdam')
 
     def init_sources(self):
-        self.channelsource[0] = sources.tvgids_JSON(self, 0, 'tvgids.nl', 'nl-ID', 'nl-url', True, 'tvgids-fetched', True)
-        self.channelsource[1] = sources.tvgidstv_HTML(self, 1, 'tvgids.tv', 'tv-ID', 'tv-url', False, 'tvgidstv-fetched', True)
-        self.channelsource[2] = sources.rtl_JSON(self, 2, 'rtl.nl', 'rtl-ID', 'rtl-url', True)
-        self.channelsource[4] = sources.npo_HTML(self, 4, 'npo.nl', 'npo-ID', 'npo-url')
-        self.channelsource[5] = sources.horizon_JSON(self, 5, 'horizon.tv', 'horizon-ID', 'horizon-url', True)
-        self.channelsource[6] = sources.humo_JSON(self, 6, 'humo.be', 'humo-ID', 'humo-url', True)
-        self.channelsource[7] = sources.vpro_HTML(self, 7, 'vpro.nl', 'vpro-ID', 'vpro-url')
-        self.channelsource[8] = sources.nieuwsblad_HTML(self, 8, 'nieuwsblad.be', 'nb-ID', 'nb-url')
-        self.channelsource[9] = sources.primo_HTML(self, 9, 'primo.eu', 'primo-ID', 'primo-url', False, 'primo-fetched', True)
-        self.channelsource[10] = sources.vrt_JSON(self, 10, 'vrt.be', 'vrt-ID', 'vrt-url', True)
-        self.channelsource[11] = tv_grab_fetch.Virtual_Channels(self, 11, 'virtual', 'virtual-ID', 'virtual-url')
-        self.channelsource[12] = sources.oorboekje_HTML(self, 12, 'oorboekje.nl', 'ob-ID', 'ob-url')
+        self.channelsource[0] = sources.tvgids_JSON(self, 0, 'source-tvgids.nl', True)
+        #~ self.channelsource[2] = sources.rtl_JSON(self, 2, 'source-rtl.nl', True)
+        self.channelsource[5] = sources.horizon_JSON(self, 5, 'source-horizon.tv', True)
+        #~ self.channelsource[6] = sources.humo_JSON(self, 6, 'source-humo.be', True)
+        #~ self.channelsource[10] = sources.vrt_JSON(self, 10, 'source-vrt.be', True)
+        self.channelsource[1] = sources.tvgidstv_HTML(self, 1, 'source-tvgids.tv')
+        self.channelsource[4] = sources.npo_HTML(self, 4, 'source-npo.nl')
+        self.channelsource[7] = sources.vpro_HTML(self, 7, 'source-vpro.nl')
+        self.channelsource[8] = sources.nieuwsblad_HTML(self, 8, 'source-nieuwsblad.be')
+        self.channelsource[9] = sources.primo_HTML(self, 9, 'source-primo.eu')
+        self.channelsource[12] = sources.oorboekje_HTML(self, 12, 'source-oorboekje.nl')
+        self.channelsource[2] = tv_grab_fetch.FetchData(self, 2, 'source-rtl.nl', True)
+        self.channelsource[6] = tv_grab_fetch.FetchData(self, 6, 'source-humo.be', True)
+        self.channelsource[10] = tv_grab_fetch.FetchData(self, 10, 'source-vrt.be', True)
+        self.channelsource[11] = tv_grab_fetch.FetchData(self, 11, 'source-virtual.nl')
 
 # end Configure()
 config = Configure()
@@ -184,6 +189,39 @@ def main():
     # We want to handle unexpected errors nicely. With a message to the log
     try:
         # Get the options, channels and other configuration
+        #~ data = 'source-tvgids.nl'
+        #~ data = 'source-rtl.nl'
+        #~ data = 'source-horizon.tv'
+        #~ try:
+            #~ fle = config.IO_func.open_file('%s.json' % data, 'r', 'utf-8')
+            #~ source_data = json.load(fle)
+
+        #~ except:
+            #~ traceback.print_exc()
+        #~ site_tz = pytz.timezone('Europe/Amsterdam')
+        #~ current_date = datetime.datetime.now(site_tz).toordinal()
+        #~ for offset in range(14):
+            #~ weekday = int(datetime.date.fromordinal(current_date + offset).strftime('%w'))
+            #~ first_day = offset + 2 - weekday
+            #~ if weekday < 2:
+                #~ first_day -= 7
+            #~ print weekday, first_day, datetime.date.fromordinal(current_date + first_day).strftime('%Y%m%d')
+
+        #~ config.init_sources()
+        #~ config.channelsource[6].init_channel_source_ids()
+        #~ config.channelsource[6].get_channels()
+
+        #~ wp = tv_grab_fetch.WebParser(config,
+            #~ '<html><head><title test="start &lt; midden &gt; eind &#62;"><link href="http://2.nieuwsbladcdn.be/extra/assets/css/pages/tv-gids/page-all.css" rel="stylesheet">Test</title></head><body><h1>Parse me!</h1></body></html>',
+            #~ {"init-path":[{"tag":"html"},{"tag":"head"}]})
+        #~ print wp.raw
+        #~ print
+        #~ print wp.start_node
+        #~ print
+        #~ print wp.get_subitem([{"tag":"title","varid":1, "default":'t',"attr":"test"}])
+
+        #~ return
+
         start_time = datetime.datetime.now()
         x = config.validate_commandline()
         if x != None:
@@ -231,7 +269,8 @@ def main():
         config.write_statistics(start_time, end_time)
 
     except:
-        config.logging.log_queue.put({'fatal': [traceback.format_exc(), '\n'], 'name': None})
+        traceback.print_exc()
+        #~ config.logging.log_queue.put({'fatal': [traceback.format_exc(), '\n'], 'name': None})
         return(99)
 
     # and return success

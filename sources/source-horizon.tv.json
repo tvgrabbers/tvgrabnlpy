@@ -1,0 +1,98 @@
+{"file-name":"source-horizon.tv",
+    "name":"horizon.tv",
+    "language":"nl",
+	"site-timezone":"Europe/Amsterdam",
+    "version":0,
+    "api-version":[1,0,0],
+    "detail_id":"horizon-ID",
+    "detail_url":"horizon-url",
+    "detail_processor":false,
+    "detail_check":"",
+    "channels":{
+        "url":["https://www.horizon.tv/oesp/api/NL/nld/web/channels/"],
+        "data-format":"application/json",
+        "encoding":"utf-8",
+        "accept-header":null,
+        "url-type": 0,
+        "url-data":{},
+        "data":[
+            {"path":["channels"],
+            "type":"list",
+            "content":"dict",
+            "key-path":["stationSchedules",0,"station"],
+            "keys":{
+                "id":1,
+                "title":2,
+                "isHd":3,
+                "images":{
+                    "type":"keyed_list",
+                    "content":"dict",
+                    "link_key":"assetType",
+                    "link_value":"station-logo-large",
+                    "keys":{
+                        "url":4}}}}],
+		"values":{
+			"channelid":{"funcid":4, "data":[{"varid": 1}]},
+			"name":{"funcid":0, "data":[{"varid":2}, " HD"]},
+			"group":null,
+			"icon":{"funcid":1, "data":[{"varid":4}]},
+			"icongrp":null,
+			"HD":{"varid": 3}}},
+    "base":{
+        "url":["https://www.horizon.tv/oesp/api/NL/nld/web/listings/"],
+        "data-format":"application/json",
+        "encoding":"utf-8",
+        "accept-header":null,
+        "url-type":0,
+        "url-data":{
+			"byStationId": 2,
+            "byStartTime": 15,
+            "sort": "startTime"},
+		"max days":14,
+		"url-date-type":3,
+        "datetime-type":3,
+        "data":[
+            {"path":["listings"],
+            "type":"list",
+            "content":"dict",
+            "key-path":[],
+            "keys":{
+                "stationId":"channelid",
+                "startTime":"start-time",
+                "endTime":"stop-time",
+                "program":{
+                    "type":"item",
+                    "content":"dict",
+                    "keys":{
+                        "title":"name",
+                        "secondaryTitle":"titel aflevering",
+                        "seriesEpisodeNumber":"episode",
+                        "shortDescription":"description",
+                        "description":"",
+                        "airdate":"",
+                        "year":"",
+                        "latestBroadcastStartTime":"",
+                        "cast":"",
+                        "directors":"",
+                        "mediaType":"",
+                        "categories":""}}}}],
+		"values":{
+			"ID":{"varid": 1},
+			"start-time":{"varid": 2},
+			"stop-time":{"varid": 3},
+			"name":{"varid": 4},
+			"genre":{"varid": 5},
+			"subgenre":{"varid": 6},
+			"kijkwijzer":{"varid": 7},
+			"description":{"varid": 8}}},
+	"no_genric_matching":[
+		"24443942983", "24443942987", "24443943012", "24443943014", "24443943071", "24443943091",
+		"24443943096", "24443943143", "24443943146", "24443943182", "24443943184", "120746535305", 
+		"672816167173"],
+	"empty_channels":[
+		"614261799194", "615722023372", "24443943133", "624196647052", "635928103346", "635928103347", 
+		"635928103348", "635928103349"],
+    "cattrans":{},
+    "kijkwijzer":{}
+ }
+        

@@ -5,7 +5,7 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-import re, sys, traceback, codecs
+import re, sys, traceback, codecs, json
 import time, datetime, random
 import tv_grab_fetch, pytz
 from xml.etree import cElementTree as ET
@@ -107,7 +107,6 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
 
         self.url_channels = ''
         self.cooky_cnt = 0
-        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
         for channel in self.channels.values():
             if self.url_channels == '':
@@ -136,153 +135,159 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
         elif type == 'json_detail':
             return [u'%sprogram.php' % (tvgids_json), {'id':id}]
 
-    def get_channels(self):
-        """
-        Get a list of all available channels and store these
-        in all_channels.
-        """
+    #~ def get_channels(self):
+        #~ """
+        #~ Get a list of all available channels and store these
+        #~ in all_channels.
+        #~ """
 
-        channel_list = self.config.fetch_func.get_page(self.get_url(), 'utf-8', counter = ['base', self.proc_id], is_json = True)
-        if channel_list == None:
-            self.config.log(self.config.text('sources', 1, (self.source, )))
-            return 69  # EX_UNAVAILABLE
+        #~ channel_list = self.config.fetch_func.get_page(self.get_url(), 'utf-8', counter = ['base', self.proc_id], is_json = True)
+        #~ if channel_list == None:
+            #~ self.config.log(self.config.text('sources', 1, (self.source, )))
+            #~ return 69  # EX_UNAVAILABLE
 
-        # and create a file with the channels
-        self.all_channels ={}
-        for channel in channel_list:
-            # the json data has the channel names in XML entities.
-            chanid = channel['id']
-            self.all_channels[chanid] = {}
-            self.all_channels[chanid]['name'] = self.functions.unescape(channel['name']).strip()
+        #~ # and create a file with the channels
+        #~ self.all_channels ={}
+        #~ for channel in channel_list:
+            #~ # the json data has the channel names in XML entities.
+            #~ chanid = channel['id']
+            #~ self.all_channels[chanid] = {}
+            #~ self.all_channels[chanid]['name'] = self.functions.unescape(channel['name']).strip()
 
-    def load_pages(self):
+    #~ def load_pages(self):
 
-        if self.config.opt_dict['offset'] > 4:
-            for chanid in self.channels.keys():
-                self.channel_loaded[chanid] = True
-                self.config.channels[chanid].source_data[self.proc_id].set()
+        #~ if self.config.opt_dict['offset'] > 4:
+            #~ for chanid in self.channels.keys():
+                #~ self.channel_loaded[chanid] = True
+                #~ self.config.channels[chanid].source_data[self.proc_id].set()
 
-            return
+            #~ return
 
-        if len(self.channels) == 0 :
-            return
+        #~ if len(self.channels) == 0 :
+            #~ return
 
-        dl = {}
-        dd = {}
-        for chanid in self.channels.values():
-            dl[chanid] =[]
-            dd[chanid] =[]
+        #~ self.dl = {}
+        #~ self.dd = {}
+        #~ for chanid in self.channels.values():
+            #~ self.dl[chanid] =[]
+            #~ self.dd[chanid] =[]
 
-        first_fetch = True
+        #~ first_fetch = True
 
-        for retry in (0, 1):
-            for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), 4)):
-                if self.quit:
-                    return
+        #~ for retry in (0, 1):
+            #~ for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), 4)):
+                #~ if self.quit:
+                    #~ return
 
-                # Check if it is already loaded
-                if self.day_loaded[0][offset]:
-                    continue
+                #~ # Check if it is already loaded
+                #~ if self.day_loaded[0][offset]:
+                    #~ continue
 
-                self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
-                    self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
+                #~ self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
+                    #~ self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
 
-                channel_url = self.get_url('day', offset)
+                #~ channel_url = self.get_url('day', offset)
 
-                if not first_fetch:
-                    # be nice to tvgids.nl
-                    time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-                    first_fetch = false
+                #~ if not first_fetch:
+                    #~ # be nice to tvgids.nl
+                    #~ time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
+                    #~ first_fetch = false
 
-                # get the raw programming for the day
-                strdata = self.config.fetch_func.get_page(channel_url[0], 'utf-8', None, channel_url[1], ['base', self.proc_id], True)
-                if strdata == None or strdata == {}:
-                    self.config.log(self.config.text('sources', 4, (self.source, offset)))
-                    self.fail_count += 1
-                    continue
+                #~ # get the raw programming for the day
+                #~ strdata = self.config.fetch_func.get_page(channel_url[0], 'utf-8', None, channel_url[1], ['base', self.proc_id], True)
+                #~ if strdata == None or strdata == {}:
+                    #~ self.config.log(self.config.text('sources', 4, (self.source, offset)))
+                    #~ self.fail_count += 1
+                    #~ continue
 
-                # Just let the json library parse it.
-                self.base_count += 1
-                for chanid, v in strdata.iteritems():
-                    # Most channels provide a list of program dicts, some a numbered dict
-                    try:
-                        if isinstance(v, dict):
-                            v=list(v.values())
+                #~ self.parse_basepage(strdata)
 
-                        elif not isinstance(v, (list,tuple)):
-                            raise TypeError
+        #~ self.parse_basepage2()
+    #~ def parse_basepage(self,strdata, offset):
+        #~ offset = offset['offset']
+        #~ # Just let the json library parse it.
+        #~ self.base_count += 1
+        #~ for chanid, v in strdata.iteritems():
+            #~ # Most channels provide a list of program dicts, some a numbered dict
+            #~ try:
+                #~ if isinstance(v, dict):
+                    #~ v=list(v.values())
 
-                    except (TypeError, LookupError):
-                        self.config.log(self.config.text('sources', 5, (channel_url, )))
-                        continue
-                    # remove the overlap at daychange and seperate the channels
-                    for p in v:
-                        if not p in dl[chanid]:
-                            dd[chanid].append(p)
+                #~ elif not isinstance(v, (list,tuple)):
+                    #~ raise TypeError
 
-                self.day_loaded[0][offset] = True
-                for chanid, chan_scid in self.channels.items():
-                    if len(dd) > 0:
-                        self.day_loaded[chanid][offset] = True
-                        dl[chan_scid].extend(dd[chan_scid])
-                        dd[chan_scid] =[]
+            #~ except (TypeError, LookupError):
+                #~ self.config.log(self.config.text('sources', 5, (channel_url, )))
+                #~ continue
+            #~ # remove the overlap at daychange and seperate the channels
+            #~ for p in v:
+                #~ if not p in self.dl[chanid]:
+                    #~ self.dd[chanid].append(p)
 
-        for chanid, chan_scid in self.channels.items():
-            if len(dl[chan_scid]) == 0:
-                self.config.channels[chanid].source_data[self.proc_id].set()
-                continue
+        #~ self.day_loaded[0][offset] = True
+        #~ for chanid, chan_scid in self.channels.items():
+            #~ if len(self.dd) > 0:
+                #~ self.day_loaded[chanid][offset] = True
+                #~ self.dl[chan_scid].extend(self.dd[chan_scid])
+                #~ self.dd[chan_scid] =[]
 
-            # parse the list to adjust to what we want
-            for item in dl[chan_scid]:
-                tdict = self.functions.checkout_program_dict()
-                if (item['db_id'] != '') and (item['db_id'] != None):
-                    tdict['prog_ID'][self.proc_id] = u'nl-%s' % (item['db_id'])
-                    self.json_by_id[tdict['prog_ID'][self.proc_id]] = item
-                    tdict['ID'] = tdict['prog_ID'][self.proc_id]
+    #~ def parse_basepage2(self):
+        #~ for chanid, chan_scid in self.channels.items():
+            #~ if len(self.dl[chan_scid]) == 0:
+                #~ self.config.channels[chanid].source_data[self.proc_id].set()
+                #~ continue
 
-                tdict['source'] = self.source
-                tdict['channelid'] = chanid
-                tdict['channel']  = self.config.channels[chanid].chan_name
-                tdict['detail_url'][self.proc_id] = self.get_url(type= 'detail', id = item['db_id'])
+            #~ # parse the list to adjust to what we want
+            #~ for item in self.dl[chan_scid]:
+                #~ tdict = self.functions.checkout_program_dict()
+                #~ if (item['db_id'] != '') and (item['db_id'] != None):
+                    #~ tdict['prog_ID'][self.proc_id] = u'nl-%s' % (item['db_id'])
+                    #~ self.json_by_id[tdict['prog_ID'][self.proc_id]] = item
+                    #~ tdict['ID'] = tdict['prog_ID'][self.proc_id]
 
-                # The Title
-                tdict['name'] = self.functions.unescape(item['titel'])
-                tdict = self.check_title_name(tdict)
-                if  tdict['name'] == None or tdict['name'] == '':
-                    self.config.log(self.config.text('sources', 6, (tdict['detail_url'][self.proc_id], tdict['channel'], self.source)))
-                    continue
+                #~ tdict['source'] = self.source
+                #~ tdict['channelid'] = chanid
+                #~ tdict['channel']  = self.config.channels[chanid].chan_name
+                #~ tdict['detail_url'][self.proc_id] = self.get_url(type= 'detail', id = item['db_id'])
 
-                # The timing
-                tdict['start-time'] = self.functions.get_datetime(item['datum_start'], tzinfo = self.site_tz)
-                tdict['stop-time']  = self.functions.get_datetime(item['datum_end'], tzinfo = self.site_tz)
-                if tdict['start-time'] == None or tdict['stop-time'] == None:
-                    self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
-                    continue
+                #~ # The Title
+                #~ tdict['name'] = self.functions.unescape(item['titel'])
+                #~ tdict = self.check_title_name(tdict)
+                #~ if  tdict['name'] == None or tdict['name'] == '':
+                    #~ self.config.log(self.config.text('sources', 6, (tdict['detail_url'][self.proc_id], tdict['channel'], self.source)))
+                    #~ continue
 
-                tdict['offset'] = self.functions.get_offset(tdict['start-time'], self.current_date)
+                #~ # The timing
+                #~ tdict['start-time'] = self.functions.get_datetime(item['datum_start'], tzinfo = self.site_tz)
+                #~ tdict['stop-time']  = self.functions.get_datetime(item['datum_end'], tzinfo = self.site_tz)
+                #~ if tdict['start-time'] == None or tdict['stop-time'] == None:
+                    #~ self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
+                    #~ continue
 
-                tdict['genre'] = self.functions.unescape(item['genre']) if ('genre' in item and item['genre'] != None) else ''
-                tdict['subgenre'] = self.functions.unescape(item['soort']) if ('soort' in item and item['soort'] != None) else ''
-                if  ('kijkwijzer' in item and not (item['kijkwijzer'] == None or item['kijkwijzer'] == '')):
-                    for k in item['kijkwijzer']:
-                        if k in self.config.kijkwijzer.keys() and k not in tdict['kijkwijzer']:
-                            tdict['kijkwijzer'].append(k)
+                #~ tdict['offset'] = self.functions.get_offset(tdict['start-time'], self.current_date)
 
-                self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
-                with self.source_lock:
-                    self.program_data[chanid].append(tdict)
+                #~ tdict['genre'] = self.functions.unescape(item['genre']) if ('genre' in item and item['genre'] != None) else ''
+                #~ tdict['subgenre'] = self.functions.unescape(item['soort']) if ('soort' in item and item['soort'] != None) else ''
+                #~ if  ('kijkwijzer' in item and not (item['kijkwijzer'] == None or item['kijkwijzer'] == '')):
+                    #~ for k in item['kijkwijzer']:
+                        #~ if k in self.config.kijkwijzer.keys() and k not in tdict['kijkwijzer']:
+                            #~ tdict['kijkwijzer'].append(k)
 
-                self.config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
+                #~ self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
+                #~ with self.source_lock:
+                    #~ self.program_data[chanid].append(tdict)
 
-            self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
-            self.parse_programs(chanid, 0, 'None')
-            self.channel_loaded[chanid] = True
-            self.config.channels[chanid].source_data[self.proc_id].set()
-            try:
-                self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
+                #~ self.config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
 
-            except:
-                pass
+            #~ self.program_data[chanid].sort(key=lambda program: (program['start-time'],program['stop-time']))
+            #~ self.parse_programs(chanid, 0, 'None')
+            #~ self.channel_loaded[chanid] = True
+            #~ self.config.channels[chanid].source_data[self.proc_id].set()
+            #~ try:
+                #~ self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
+
+            #~ except:
+                #~ pass
 
     def load_detailpage(self, tdict):
 
@@ -570,211 +575,6 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
 
 # end tvgids_JSON
 
-class rtl_JSON(tv_grab_fetch.FetchData):
-    """
-    Get all available days of programming for the requested channels
-    from the rtl.nl json page. Based on FetchData
-    """
-    def init_channels(self):
-        """ json Layout
-            {
-            "schedule": [
-                {"abstract_key":"       ","season_key":"        ","episode_key":"       ","station":"   ","rerun":false,"unixtime":1421278680}, ...
-            ],
-            "library": [{
-                "abstracts": [
-                    {"abstract_key":"   ","name":"Up All Night"}, ...
-                ],
-                "seasons": [
-                    {"season_key":"273426","season_number":"1","name":"Seizoen 1"}, ...
-                ],
-                "episodes": [
-                    {"episode_key":"    ","episode_number":"10","name":"Week off","nicam":"ALt","synopsis":"                    ."}, ...
-                ]}
-            ]}
-        """
-
-        self.page_loaded = False
-        self.schedule = {}
-        self.site_tz = pytz.timezone('Europe/Amsterdam')
-        self.init_channel_source_ids()
-        for sourceid in self.channels.values():
-            self.schedule[sourceid] =[]
-
-    def init_json(self):
-
-        self.json_by_id = {}
-        self.jsondata = {}
-        self.jsondict = {}
-        self.jsondict['abstracts'] = {}
-        self.jsondict['seasons'] = {}
-        self.jsondict['episodes'] = {}
-        self.jsondata = {'abstract_name': {'listname':'abstracts','keyname':'abstract_key','valuename':'name'}, \
-                                   'season':                {'listname':'seasons','keyname':'season_key','valuename':'season_number'}, \
-                                   'season_name':      {'listname':'seasons','keyname':'season_key','valuename':'name'}, \
-                                   'episode':              {'listname':'episodes','keyname':'episode_key','valuename':'episode_number'}, \
-                                   'episode_name':    {'listname':'episodes','keyname':'episode_key','valuename':'name'}, \
-                                   'description':      {'listname':'episodes','keyname':'episode_key','valuename':'synopsis'}, \
-                                   'nicam':                  {'listname':'episodes','keyname':'episode_key','valuename':'nicam'}}
-
-    def get_url(self, abstract = None, days = 0):
-
-        rtl_general = 'http://www.rtl.nl/system/s4m/tvguide/guide_for_one_day.xml'
-        rtl_abstract = 'http://www.rtl.nl/system/s4m/tvguide/guide_for_one_abstract.xml'
-
-        if abstract == None:
-            channels = ''
-            for chanid in self.channels.values():
-                if len(channels) == 0:
-                    channels = chanid
-
-                else:
-                    channels = '%s,%s' % (channels, chanid)
-
-            return [ rtl_general, {'output': 'json',
-                                        'days_ahead': self.config.opt_dict['offset'] + self.config.opt_dict['days'] -1,
-                                        'days_back': - self.config.opt_dict['offset'],
-                                        'station': channels}]
-
-        else:
-            return [ rtl_abstract, {'output': 'json',
-                                        'abstract_key': abstract,
-                                        'days_ahead': days}]
-
-    def get_channels(self):
-        self.all_channels = self.config.rtl_channellist
-
-    def load_pages(self):
-
-        if len(self.channels) == 0 :
-            return
-
-        self.config.log(['\n', self.config.text('sources', 11,  (len(self.channels), self.source, self.config.opt_dict['days']))], 2)
-
-        channel_url = self.get_url()
-
-        # be nice to rtl.nl
-        time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-
-        # get the raw programming for the day
-        total = self.config.fetch_func.get_page(channel_url[0], 'utf-8', None, channel_url[1], ['base', self.proc_id], True)
-
-        if total == None or total == {}:
-            # Wait a while and try again
-            time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-            total = self.config.fetch_func.get_page(channel_url[0], 'utf-8', None, channel_url[1], ['base', self.proc_id], True)
-            if total == None or total == {}:
-                self.config.log(self.config.text('sources', 12, (self.source + ' json', )))
-                self.fail_count += 1
-                for chanid in self.channels.keys():
-                    self.config.channels[chanid].source_data[self.proc_id].set()
-
-                return False
-
-        self.base_count += 1
-        # and find relevant programming info
-        schedules = total['schedule']
-        for r in schedules:
-            self.schedule[r['station']].append(r)
-
-        library = total['library'][0]
-
-        for i in library['abstracts']:
-            self.jsondict['abstracts'][i['abstract_key']] = i
-
-        for i in library['seasons']:
-           self.jsondict['seasons'][i['season_key']] = i
-
-        for i in library['episodes']:
-            self.jsondict['episodes'][i['episode_key']] = i
-
-        self.page_loaded = True
-
-        for chanid, channel in self.channels.iteritems():
-            if len( self.schedule[channel]) == 0:
-                self.config.channels[chanid].source_id[self.proc_id] = ''
-                continue
-
-            for item in self.schedule[channel]:
-                tdict = self.functions.checkout_program_dict()
-                tdict['prog_ID'][self.proc_id] = u'%s-%s' % (channel,  item['unixtime'])
-                self.json_by_id[tdict['prog_ID'][self.proc_id]] = item
-                tdict['source'] = self.source
-                tdict['channelid'] = chanid
-                tdict['channel']  = self.config.channels[chanid].chan_name
-
-                # The Title
-                tdict['name'] = self.get_json_data(tdict['prog_ID'][self.proc_id],'abstract_name')
-                if  tdict['name'] == None or tdict['name'] == '':
-                    self.config.log(self.config.text('sources', 6, ('', tdict['channel'], self.source)))
-                    continue
-
-                # The timing
-                tdict['unixtime']  =int( item['unixtime'])
-                tdict['start-time']  = datetime.datetime.fromtimestamp(tdict['unixtime'], self.config.utc_tz)
-                tdict['offset'] = self.functions.get_offset(tdict['start-time'], self.current_date)
-                tdict['rerun']  = (item['rerun'] == 'true')
-
-                # The Season Number
-                season = self.get_json_data(tdict['prog_ID'][self.proc_id],'season')
-                tdict['season'] = int(season) if (season != None) else 0
-
-                # The Episode Number, SubTitle and Descriptionseason
-                episode = self.get_json_data(tdict['prog_ID'][self.proc_id],'episode')
-                tdict['episode'] = int(episode) if (episode != None) else 0
-
-                subtitle = self.get_json_data(tdict['prog_ID'][self.proc_id],'episode_name')
-                tdict['titel aflevering'] = subtitle if ((subtitle != None) and (subtitle != tdict['name'])) else ''
-                tdict = self.check_title_name(tdict)
-
-                description = self.get_json_data(tdict['prog_ID'][self.proc_id],'description')
-                tdict['description'] = description if (description != None) else ''
-
-                nicam = self.get_json_data(tdict['prog_ID'][self.proc_id],'nicam')
-                if '16' in nicam:
-                    tdict['kijkwijzer'].append('4')
-
-                elif '12' in nicam:
-                    tdict['kijkwijzer'].append('3')
-
-                elif '9' in nicam:
-                    tdict['kijkwijzer'].append('9')
-
-                elif '6' in nicam:
-                    tdict['kijkwijzer'].append('2')
-
-                elif 'AL' in nicam:
-                    tdict['kijkwijzer'].append('1')
-
-                for k in ('g', 'a', 's', 't', 'h', 'd'):
-                    if k in nicam:
-                        tdict['kijkwijzer'].append(k)
-
-                with self.source_lock:
-                    self.program_data[chanid].append(tdict)
-
-            # Add starttime of the next program as the endtime
-            with self.source_lock:
-                self.program_data[chanid].sort(key=lambda program: (program['start-time']))
-                self.add_endtimes(chanid, 7)
-
-                for tdict in self.program_data[chanid]:
-                    self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
-
-            self.parse_programs(chanid, 0, 'None')
-            self.channel_loaded[chanid] = True
-            for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
-                self.day_loaded[chanid][day] = True
-
-            self.config.channels[chanid].source_data[self.proc_id].set()
-            try:
-                self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
-
-            except:
-                pass
-
-# end rtl_JSON
-
 class horizon_JSON(tv_grab_fetch.FetchData):
     """
     Get all available days of programming for the requested channels
@@ -782,7 +582,6 @@ class horizon_JSON(tv_grab_fetch.FetchData):
     """
     def init_channels(self):
         self.url_channels = ''
-        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
 
     def init_json(self):
@@ -803,37 +602,6 @@ class horizon_JSON(tv_grab_fetch.FetchData):
                             {'byStationId': channel,
                               'byStartTime': '%s~%s' % (start, end),
                               'sort': 'startTime'}]
-
-    def get_channels(self):
-        """
-        Get a list of all available channels and store these
-        in all_channels.
-        """
-
-        # download the json feed
-        channel_list = self.config.fetch_func.get_page(self.get_url(), 'utf-8', counter = ['base', self.proc_id], is_json = True)
-        if channel_list == None:
-            self.fail_count += 1
-            self.config.log(self.config.text('sources', 1, (self.source, )))
-            return 69  # EX_UNAVAILABLE
-
-        # and create a file with the channels
-        self.all_channels ={}
-        for channel in channel_list['channels']:
-            for schedule in channel['stationSchedules']:
-                chanid = schedule['station']['id']
-                self.all_channels[chanid] = {}
-                self.all_channels[chanid]['name'] = self.functions.unescape(schedule['station']['title']).strip()
-                if self.all_channels[chanid]['name'][-3:] == ' HD':
-                    self.all_channels[chanid]['name'] = self.all_channels[chanid]['name'][:-3].strip()
-
-                self.all_channels[chanid]['HD'] = schedule['station']['isHd']
-                for icon in schedule['station']['images']:
-                    if icon['assetType'] == 'station-logo-large' and icon['url'] != '':
-                        icon = re.split('/', icon['url'])
-                        #~ icon = '%s/%s/%s' % (icon[-3], icon[-2], icon[-1])
-                        self.all_channels[chanid]['icon'] = icon[-1].split('?')[0]
-                        break
 
     def load_pages(self):
         first_fetch = True
@@ -874,7 +642,7 @@ class horizon_JSON(tv_grab_fetch.FetchData):
                     page_count += 1
                     self.config.log(['\n', self.config.text('sources', 13, \
                         (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid, \
-                        (self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), self.source)), \
+                        (self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or ''), self.source)), \
                         self.config.text('sources', 14, \
                         ( channel_cnt, len(self.channels), self.config.opt_dict['days'], page_count))], 2)
 
@@ -1061,7 +829,6 @@ class humo_JSON(tv_grab_fetch.FetchData):
     """
     def init_channels(self):
 
-        self.site_tz = pytz.timezone('Europe/Brussels')
         self.init_channel_source_ids()
 
     def init_json(self):
@@ -1087,33 +854,6 @@ class humo_JSON(tv_grab_fetch.FetchData):
 
         else:
             return '%s/schedule/%s/%s/full' % (base_json, channels, scan_day)
-
-    def get_channels(self):
-        """
-        Get a list of all available channels and store these
-        in all_channels.
-        """
-
-        # download the json feed
-        channel_list = self.config.fetch_func.get_page(self.get_url(), 'utf-8', counter = ['base', self.proc_id], is_json = True)
-        if channel_list == None:
-            self.fail_count += 1
-            self.config.log(self.config.text('sources', 1, (self.source, )))
-            return 69  # EX_UNAVAILABLE
-
-        # and create a file with the channels
-        self.all_channels ={}
-        for chan_grp in channel_list['groups']:
-            grp_name = chan_grp['name']
-            grp_code = chan_grp['code']
-            for channel in chan_grp['broadcasters']:
-                chanid = unicode(channel['id'])
-                icon = channel['media'][0]['resized_urls']['small']
-                icon = icon.split('/')
-                self.all_channels[chanid] = {}
-                self.all_channels[chanid]['name'] = channel['display_name']
-                self.all_channels[chanid]['icon'] = icon[-1]
-                self.all_channels[chanid]['fetch_grp'] = grp_code
 
     def load_pages(self):
 
@@ -1214,7 +954,7 @@ class humo_JSON(tv_grab_fetch.FetchData):
                                 tdict['jaar van premiere'] = item['program']['year']
 
                             if 'countries' in item['program'].keys():
-                                #~ tdict['country'] = item['program']['countries']
+                                # tdict['country'] = item['program']['countries']
                                 for cstr in item['program']['countries']:
                                     cstr = cstr.upper().strip()
                                     if '(' in cstr:
@@ -1296,7 +1036,7 @@ class humo_JSON(tv_grab_fetch.FetchData):
                                       'programduration', 'episodetitle', 'episodenumber', 'episodeseason', 'episodetotal', \
                                       'description', 'content_short', 'content_long', 'year', 'countries', 'credits', 'genres', \
                                       'opinion'):
-                                      #~ 'opinion', 'appreciation'):
+                                      # 'opinion', 'appreciation'):
                                         self.config.infofiles.addto_detail_list('new humo programitem => %s=%s' % (key, item['program'][key]))
 
                             tdict = self.check_title_name(tdict)
@@ -1326,7 +1066,6 @@ class humo_JSON(tv_grab_fetch.FetchData):
 
 class vrt_JSON(tv_grab_fetch.FetchData):
     def init_channels(self):
-        self.site_tz = pytz.timezone('Europe/Brussels')
         self.init_channel_source_ids()
 
     def get_url(self, type = 'channels', offset = 0, chanid = None):
@@ -1350,45 +1089,45 @@ class vrt_JSON(tv_grab_fetch.FetchData):
                             'application/vnd.epg.vrt.be.schedule_3.1+json',
                             {'type': 'day', 'channel_code': chanid}]
 
-    def get_channels(self):
-        """
-        Get a list of all available channels and store these
-        in all_channels.
-        """
+    #~ def get_channels(self):
+        #~ """
+        #~ Get a list of all available channels and store these
+        #~ in all_channels.
+        #~ """
 
-        # download the json feed
-        url = self.get_url()
-        channel_list = self.config.fetch_func.get_page(url[0], 'utf-8', url[1], counter = ['base', self.proc_id], is_json = True)
-        if channel_list == None:
-            self.config.log(self.config.text('sources', 1, (self.source, )))
-            return 69  # EX_UNAVAILABLE
+        #~ # download the json feed
+        #~ url = self.get_url()
+        #~ channel_list = self.config.fetch_func.get_page(url[0], 'utf-8', url[1], counter = ['base', self.proc_id], is_json = True)
+        #~ if channel_list == None:
+            #~ self.config.log(self.config.text('sources', 1, (self.source, )))
+            #~ return 69  # EX_UNAVAILABLE
 
-        # and create a file with the channels
-        self.all_channels ={}
-        for channel in channel_list['channels']:
-            if channel['state'] == 'inactive':
-                continue
+        #~ # and create a file with the channels
+        #~ self.all_channels ={}
+        #~ for channel in channel_list['channels']:
+            #~ if channel['state'] == 'inactive':
+                #~ continue
 
-            chanid = channel['code']
-            self.all_channels[chanid] = {}
-            self.all_channels[chanid]['name'] = self.functions.unescape(channel['displayName']).strip()
-            if channel['type'] == 'tv':
-                self.all_channels[chanid]['group'] = 2
+            #~ chanid = channel['code']
+            #~ self.all_channels[chanid] = {}
+            #~ self.all_channels[chanid]['name'] = self.functions.unescape(channel['displayName']).strip()
+            #~ if channel['type'] == 'tv':
+                #~ self.all_channels[chanid]['group'] = 2
 
-            elif channel['type'] == 'radio':
-                self.all_channels[chanid]['group'] = 12
+            #~ elif channel['type'] == 'radio':
+                #~ self.all_channels[chanid]['group'] = 12
 
-            else:
-                self.all_channels[chanid]['group'] = 99
+            #~ else:
+                #~ self.all_channels[chanid]['group'] = 99
 
-            icon = channel['logoUrl'].split('/')
-            if icon[2] == 'images.vrt.be':
-                self.all_channels[chanid]['icon'] =  '%s/%s' % (icon[-2] , icon[-1])
-                self.all_channels[chanid]['icongrp'] = 11
+            #~ icon = channel['logoUrl'].split('/')
+            #~ if icon[2] == 'images.vrt.be':
+                #~ self.all_channels[chanid]['icon'] =  '%s/%s' % (icon[-2] , icon[-1])
+                #~ self.all_channels[chanid]['icongrp'] = 11
 
-            if icon[2] == 'services.vrt.be':
-                self.all_channels[chanid]['icon'] = icon[-1]
-                self.all_channels[chanid]['icongrp'] = 10
+            #~ if icon[2] == 'services.vrt.be':
+                #~ self.all_channels[chanid]['icon'] = icon[-1]
+                #~ self.all_channels[chanid]['icongrp'] = 10
 
     def get_standaardgenres(self):
         url = self.get_url('genres')
@@ -1433,7 +1172,7 @@ class vrt_JSON(tv_grab_fetch.FetchData):
 
         first_fetch = True
         groupitems = {}
-        week_loaded = {}
+        self.week_loaded = {}
         fetch_dates = []
         first_day = int(datetime.date.fromordinal(self.current_date + self.config.opt_dict['offset']).strftime('%w'))
         first_day = self.config.opt_dict['offset'] + 1 - first_day if first_day > 0 else self.config.opt_dict['offset'] - 6
@@ -1443,9 +1182,9 @@ class vrt_JSON(tv_grab_fetch.FetchData):
 
         for chanid in self.channels.keys():
             groupitems[chanid] = 0
-            week_loaded[chanid] = {}
+            self.week_loaded[chanid] = {}
             for r in range(len(fetch_range)):
-                week_loaded[chanid][r] = False
+                self.week_loaded[chanid][r] = False
 
         try:
             for retry in (0, 1):
@@ -1461,13 +1200,13 @@ class vrt_JSON(tv_grab_fetch.FetchData):
                             return
 
                         # Check if it is already loaded
-                        if week_loaded[chanid][offset]:
+                        if self.week_loaded[chanid][offset]:
                             continue
 
                         url = self.get_url('week', fetch_range[offset], channel)
                         self.config.log(['\n', self.config.text('sources', 13, \
                             (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid , \
-                            (self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), self.source)), \
+                            (self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or ''), self.source)), \
                             self.config.text('sources', 17, (channel_cnt, len(self.channels), offset, len(fetch_range)))], 2)
 
                         # be nice to vrt.be
@@ -1493,7 +1232,7 @@ class vrt_JSON(tv_grab_fetch.FetchData):
                             continue
 
                         self.base_count += 1
-                        week_loaded[chanid][offset] = True
+                        self.week_loaded[chanid][offset] = True
                         for p in jsondata['events']:
                             if not (p['date'] in fetch_dates and p['channel']['code'] in self.channels.values()):
                                 continue
@@ -1787,7 +1526,6 @@ class tvgidstv_HTML(tv_grab_fetch.FetchData):
         self.daydata = re.compile('<div class="section-content">(.*?)<div class="advertisement">',re.DOTALL)
         self.detaildata = re.compile('<div class="section-title">(.*?)<div class="advertisement">',re.DOTALL)
 
-        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
 
     def get_url(self, channel = None, offset = 0, href = None):
@@ -2023,7 +1761,7 @@ class tvgidstv_HTML(tv_grab_fetch.FetchData):
 
                         self.config.log(['\n', self.config.text('sources', 13, \
                             (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid , \
-                            (self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), self.source)), \
+                            (self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or ''), self.source)), \
                             self.config.text('sources', 23, (channel_cnt, len(self.channels), offset, self.config.opt_dict['days']))], 2)
                         if not first_fetch:
                             # be nice to tvgids.tv
@@ -2402,7 +2140,6 @@ class npo_HTML(tv_grab_fetch.FetchData):
             </div>
         """
 
-        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
 
     def get_url(self, offset = 0, href = None, vertical = False):
@@ -2766,7 +2503,6 @@ class vpro_HTML(tv_grab_fetch.FetchData):
         self.fetch_subgenre3 = re.compile('^(.*?) uit (\d{4})')
         self.fetch_subgenre4 = re.compile('^(.*?) (naar|waarin|over).*?')
 
-        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
         self.availabe_days = []
 
@@ -3290,7 +3026,6 @@ class nieuwsblad_HTML(tv_grab_fetch.FetchData):
         self.getprograms = re.compile("<!-- start block 'tvgids-left-center' -->(.*?)<!-- end block 'tvgids-left-center' -->",re.DOTALL)
         self.getchannelgroups = re.compile("<div id=\"accordion\" class=\"accordion\" data-accordion data-jq-plugin=\"accordion\">(.*?)<!-- end block 'tvgids-right-center' -->",re.DOTALL)
 
-        self.site_tz = pytz.timezone('Europe/Brussels')
         self.init_channel_source_ids()
 
     def get_url(self, channel = None, offset = 0, chan_group = 0):
@@ -3309,23 +3044,23 @@ class nieuwsblad_HTML(tv_grab_fetch.FetchData):
         else:
             return u'%s/%s/%s' % (base_url,  scan_day, chan_group)
 
-    def get_channels(self):
-        """
-        Get a list of all available channels and store these
-        in all_channels.
-        """
+    #~ def get_channels(self):
+        #~ """
+        #~ Get a list of all available channels and store these
+        #~ in all_channels.
+        #~ """
 
-        try:
-            strdata = self.config.fetch_func.get_page(self.get_url('base'), counter = ['base', self.proc_id])
-            if self.get_channel_lineup(strdata) == 69:
-                self.fail_count += 1
-                self.config.log([self.config.text('sources', 1, (self.source, ))])
-                return 69  # EX_UNAVAILABLE
+        #~ try:
+            #~ strdata = self.config.fetch_func.get_page(self.get_url('base'), counter = ['base', self.proc_id])
+            #~ if self.get_channel_lineup(strdata) == 69:
+                #~ self.fail_count += 1
+                #~ self.config.log([self.config.text('sources', 1, (self.source, ))])
+                #~ return 69  # EX_UNAVAILABLE
 
-        except:
-            self.fail_count += 1
-            self.config.log([self.config.text('sources', 1, (self.source, )), traceback.format_exc()])
-            return 69  # EX_UNAVAILABLE
+        #~ except:
+            #~ self.fail_count += 1
+            #~ self.config.log([self.config.text('sources', 1, (self.source, )), traceback.format_exc()])
+            #~ return 69  # EX_UNAVAILABLE
 
     def get_channel_lineup(self, chandata):
 
@@ -3505,7 +3240,7 @@ class nieuwsblad_HTML(tv_grab_fetch.FetchData):
 
                     self.config.log(['\n', self.config.text('sources', 13, \
                         (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid , \
-                        (self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or ''), self.source)), \
+                        (self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or ''), self.source)), \
                         self.config.text('sources', 34, (channel_cnt, len(self.channels), '6'))], 2)
 
                     # get the raw programming for the day
@@ -3640,7 +3375,6 @@ class primo_HTML(tv_grab_fetch.FetchData):
         self.getchannelstring = re.compile('(.*?) channel channel-(.*?) channel-.*?')
         self.getprogduur = re.compile('width:(\d+)px;')
 
-        self.site_tz = pytz.timezone('Europe/Brussels')
         self.init_channel_source_ids()
 
     def get_url(self, offset = 0, detail = None):
@@ -4029,7 +3763,6 @@ class oorboekje_HTML(tv_grab_fetch.FetchData):
         self.gettime = re.compile('([0-9]{2}:[0-9]{2})')
         self.geticons = re.compile('<IMG src=".*?" alt="(.*?)".*?>',re.DOTALL)
 
-        self.site_tz = pytz.timezone('Europe/Amsterdam')
         self.init_channel_source_ids()
 
     def get_url(self, type = None, offset = 0):

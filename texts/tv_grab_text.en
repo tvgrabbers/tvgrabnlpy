@@ -82,7 +82,7 @@ sI16
 VNo data on %s %s-page for day=%d attempt %s\u000a
 p34
 sI17
-V    (channel %s of %s) for week %s of %s).\u000a
+V    (channel %s of %s) for periode %s of %s).\u000a
 p35
 sI18
 VNo data on %s for %s, week=%d!\u000a
@@ -1104,85 +1104,91 @@ p362
 sI67
 VSplitting title "%s"\u000a
 p363
-sssVIO
+sI68
+VError parsing the %spage description for source: %s\u000a
 p364
-(dp365
+sI69
+VError processing %s-function %s for source %s\u000a
+p365
+sssVIO
+p366
+(dp367
 g10
-(dp366
+(dp368
 g12
 g12
 ssg17
-(dp367
+(dp369
 I1
 VFile: "%s" not found.\u000a
-p368
+p370
 sI2
 V%s is not encoded in %s.\u000a
-p369
+p371
 sI3
 V%s has invalid encoding %s.\u000a
-p370
+p372
 sI4
 VIf you want assistence, please attach your configuration and log files!\u000a
-p371
+p373
 sI5
 VUnrecognized log-message: %s of type %s\u000a
-p372
+p374
 sI6
 VCache function disabled!\u000a
-p373
+p375
 sI7
 VThe cache directory is not accesible. Cache function disabled!\u000a
-p374
+p376
 sI8
 VVerifying the database\u000a
-p375
+p377
 sI9
 VError loading the database: %s.db (possibly corrupt)\u000a
-p376
+p378
 sI10
 VTrying to load a backup copy
-p377
+p379
 sI11
 VFailed to load the database: %s.db\u000a
-p378
+p380
 sI12
 VDisableing Cache function
-p379
+p381
 sI13
 VError creating the %s table!\u000a
-p380
+p382
 sI14
 VError updating the %s table with collumn "%s"!\u000a
-p381
+p383
 sI15
 VError updating the %s table with Index "%s"!\u000a
-p382
+p384
 sI16
 VError loading old cache file: %s (possibly corrupt)\u000a
-p383
+p385
 sI17
 VConverting the old pickle cache to sqlite.\u000a
-p384
+p386
 sI18
 VThis may take some time!\u000a
-p385
+p387
 sI19
 VAdded %s program records to the database.\u000a
-p386
+p388
 sI20
 VError saving program %s to the database.\u000a
-p387
+p389
 sI21
 VAn unexpected error has occured in the %s thread:\u000a
-p388
+p390
 sI22
 VAn unexpected error has occured:\u000a
-p389
+p391
 ssssVversion
-p390
+p392
 (I1
 I0
 I0
-tp391
+tp393
 s.

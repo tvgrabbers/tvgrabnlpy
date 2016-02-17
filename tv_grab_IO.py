@@ -1582,7 +1582,7 @@ class InfoFiles:
             self.fetch_list = self.functions.open_file(self.config.opt_dict['xmltv_dir'] + '/fetched-programs','w')
             self.raw_output =  self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/raw_output', 'w')
 
-    def check_new_channels(self, source, source_channels, empty_channels):
+    def check_new_channels(self, source, source_channels):
         if not self.write_info_files:
             return
 
@@ -1590,14 +1590,17 @@ class InfoFiles:
             source.get_channels()
 
         for chan_scid, channel in source.all_channels.items():
-            if not (chan_scid in source_channels[source.proc_id].values() or chan_scid in empty_channels[source.proc_id]):
+            #~ if not (chan_scid in source_channels[source.proc_id].values() or chan_scid in empty_channels[source.proc_id]):
+            if not (chan_scid in source_channels[source.proc_id].values() or chan_scid in source.empty_channels):
                 self.lineup_changes.append( u'New channel on %s => %s (%s)\n' % (source.source, chan_scid, channel['name']))
 
         for chanid, chan_scid in source_channels[source.proc_id].items():
-            if not (chan_scid in source.all_channels.keys() or chan_scid in empty_channels[source.proc_id]):
+            #~ if not (chan_scid in source.all_channels.keys() or chan_scid in empty_channels[source.proc_id]):
+            if not (chan_scid in source.all_channels.keys() or chan_scid in source.empty_channels):
                 self.lineup_changes.append( u'Removed channel on %s => %s (%s)\n' % (source.source, chan_scid, chanid))
 
-        for chan_scid in empty_channels[source.proc_id]:
+        #~ for chan_scid in empty_channels[source.proc_id]:
+        for chan_scid in source.empty_channels:
             if not chan_scid in source.all_channels.keys():
                 self.lineup_changes.append( u"Empty channelID %s on %s doesn't exist\n" % (chan_scid, source.source))
 
@@ -1774,7 +1777,7 @@ class XMLoutput:
         # We have several sources of logos, the first provides the nice ones, but is not
         # complete. We use the tvgids logos to fill the missing bits.
         self.logo_source_preference = []
-        self.logo_provider = []
+        self.logo_provider = {}
 
         self.output_lock = Lock()
         self.cache_return = Queue()
@@ -1842,7 +1845,7 @@ class XMLoutput:
         self.xml_channels[xmltvid].append(self.add_starttag('display-name', 4, 'lang="nl"', \
             self.config.channels[chanid].chan_name, True))
         if (self.config.channels[chanid].opt_dict['logos']):
-            if self.config.channels[chanid].icon_source in range(len(self.logo_provider)):
+            if self.config.channels[chanid].icon_source in self.logo_provider.keys():
                 lpath = self.logo_provider[self.config.channels[chanid].icon_source]
                 lname = self.config.channels[chanid].icon
                 if self.config.channels[chanid].icon_source == 5 and lpath[-16:] == 'ChannelLogos/02/':

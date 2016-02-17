@@ -1,0 +1,15 @@
+{"file-name":"source-npo.nl",
+    "name":"npo.nl",
+    "language":"nl",
+	"site-timezone":"Europe/Amsterdam",
+    "version":0,
+    "api-version":[1,0,0],
+    "detail_id":"npo-ID",
+    "detail_url":"npo-url",
+    "detail_processor":false,
+    "detail_check":"",
+	"no_genric_matching":["270", "271", "275"],
+	"empty_channels":[],
+    "cattrans":{},
+    "kijkwijzer":{}}
+        

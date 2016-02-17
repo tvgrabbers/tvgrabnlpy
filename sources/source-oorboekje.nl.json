@@ -1,0 +1,15 @@
+{"file-name":"source-oorboekje.nl",
+    "name":"oorboekje.nl",
+    "language":"nl",
+	"site-timezone":"Europe/Amsterdam",
+    "version":0,
+    "api-version":[1,0,0],
+    "detail_id":"ob-ID",
+    "detail_url":"ob-url",
+    "detail_processor":false,
+    "detail_check":"",
+	"no_genric_matching":[],
+	"empty_channels":[],
+    "cattrans":{},
+    "kijkwijzer":{}}
+        

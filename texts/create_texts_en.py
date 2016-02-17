@@ -11,7 +11,7 @@ import pickle, io, os, sys
 #       - keep the '%' (%s, %d, etc) markers in place as they get replaced by things like the name of a file
 #       - if there is an EOL '\n' at the end, leave it also in place, but also do not add your own
 #       - keep any indentations at the start
-#       - The first message should contain the name of your language
+#       - The first message texts[u'config][u'error'][-2] should contain the name of your language
 # - run this new created script to create the langage file for your own use
 # - send us this new created script and we probably include it with the language file in the package.
 # - check regularily if you need to update the script, update the version and send us the updated version.
@@ -312,6 +312,8 @@ def load_texts():
                 3: u'Cannot open url %s\n',
                 4: u'Cannot parse url %s: code=%s\n',
                 5: u'get_page timed out on (>%s s): %s\n',
+                68: u'Error parsing the %spage description for source: %s\n',
+                69: u'Error processing %s-function %s for source %s\n',
                 6: u'Error retreiving episodes from theTVDB.com\n',
                 7: u'Error retreiving an ID from theTVdb.com\n',
                 8: u'  No ttvdb id for "%s" on channel %s\n',
@@ -387,7 +389,7 @@ def load_texts():
                 11: u'Now fetching %s channels from %s for %s days.\n',
                 13: u'Now fetching %s(xmltvid=%s%s) from %s\n',
                 14: u'    (channel %s of %s) for %s days, page %s.\n',
-                17: u'    (channel %s of %s) for week %s of %s).\n',
+                17: u'    (channel %s of %s) for periode %s of %s).\n',
                 23: u'    (channel %s of %s) for day %s of %s.\n',
                 34: u'    (channel %s of %s) for %s days.\n',
                 15: u'No data on %s for %s page=%d\n',

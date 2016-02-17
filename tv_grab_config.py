@@ -124,7 +124,7 @@ description_text = """
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os, re, sys, argparse, traceback, datetime, codecs, pickle
+import os, re, sys, argparse, traceback, datetime, codecs, pickle, json
 import tv_grab_IO, tv_grab_fetch , pytz
 try:
     unichr(42)
@@ -139,7 +139,7 @@ class Configure:
         self.api_major = 1
         self.api_minor = 0
         self.api_patch = 0
-        self.api_patchdate = u'20160207'
+        self.api_patchdate = u'20160208'
         self.api_alfa = True
         self.api_beta = True
         try:
@@ -765,7 +765,7 @@ class Configure:
             return
 
         name = 'tv_grab_text'
-        fle_name = u'%s/%s.%s' % (sys.path[0], name, lang)
+        fle_name = u'%s/texts/%s.%s' % (sys.path[0], name, lang)
         try:
             if os.path.isfile(fle_name):
                 fle_dict = self.pdict = pickle.load(open(fle_name,'r'))
@@ -820,6 +820,9 @@ class Configure:
     def validate_commandline(self):
         """Read the commandline and validate the values"""
         self.init_sources()
+        self.sourceid_by_name = {}
+        for k, v in self.channelsource.items():
+            self.sourceid_by_name[v.source] = k
         if self.read_commandline() == 0:
              return(0)
 
@@ -1036,15 +1039,15 @@ class Configure:
             self.get_sourcematching_file(show_info=False)
             if stdoutput:
                 print(self.text('config', 3, type='other'))
-                for i in range(len(self.xml_output.logo_provider)):
-                    print('  %s: %s' % (i, self.xml_output.logo_provider[i]))
+                for k, v in self.xml_output.logo_provider.items():
+                    print('  %s: %s' % (k, v))
 
                 print(self.text('config', 4, type='other'))
 
             else:
                 tdict = {}
-                for i in range(len(self.xml_output.logo_provider)):
-                    tdict[i] = self.xml_output.logo_provider[i]
+                for k, v in self.xml_output.logo_provider.items():
+                    tdict[k] = v
 
                     tdict[99] = 'free-form'
                 return tdict
@@ -1101,7 +1104,8 @@ class Configure:
             if channel.group in self.prime_source_groups and channel.get_source_id(self.prime_source_groups[channel.group]) != '' \
                 and not (self.prime_source_groups[channel.group] in self.opt_dict['disable_source'] \
                 or self.prime_source_groups[channel.group] in channel.opt_dict['disable_source'] \
-                or channel.get_source_id(self.prime_source_groups[channel.group]) in self.no_genric_matching[self.prime_source_groups[channel.group]]):
+                or channel.get_source_id(self.prime_source_groups[channel.group]) in self.channelsource[self.prime_source_groups[channel.group]].no_genric_matching):
+                #~ or channel.get_source_id(self.prime_source_groups[channel.group]) in self.no_genric_matching[self.prime_source_groups[channel.group]]):
                     # A group default in sourcematching.json
                     def_value = self.prime_source_groups[channel.group]
 
@@ -1109,7 +1113,8 @@ class Configure:
                 for s in self.prime_source_order:
                     if channel.get_source_id(s) != '' \
                         and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source'] \
-                        or channel.get_source_id(s) in self.no_genric_matching[s]):
+                        or channel.get_source_id(s) in self.channelsource[s].no_genric_matching):
+                        #~ or channel.get_source_id(s) in self.no_genric_matching[s]):
                             # The first available not set in no_genric_matching
                             def_value = s
                             break
@@ -1142,7 +1147,8 @@ class Configure:
 
             if self.opt_dict['always_use_json']:
                 for v in (json_value, custom_value):
-                    if v != None and not channel.get_source_id(v) in self.no_genric_matching[v]:
+                    #~ if v != None and not channel.get_source_id(v) in self.no_genric_matching[v]:
+                    if v != None and not channel.get_source_id(v) in self.channelsource[v].no_genric_matching:
                         value = v
                         break
 
@@ -1151,7 +1157,8 @@ class Configure:
 
             else:
                 for v in (custom_value, json_value):
-                    if v != None and not channel.get_source_id(v) in self.no_genric_matching[v]:
+                    #~ if v != None and not channel.get_source_id(v) in self.no_genric_matching[v]:
+                    if v != None and not channel.get_source_id(v) in self.channelsource[v].no_genric_matching:
                         value = v
                         break
 
@@ -2039,45 +2046,50 @@ class Configure:
                 return default
 
         try:
-            url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master/sourcematching.json'
-            #~ githubdata = json.loads(self.fetch_func.get_page(url, 'utf-8'))
-            githubdata = self.fetch_func.get_page(url, 'utf-8', is_json = True)
-            # Check on data or program updates
-            dv = int(githubdata["data_version"])
-            nv = githubdata["program_version"]
-            pv = u'%s.%s.%s' % (self.api_major+2, self.api_minor, self.api_patch)
-            if not "data_version" in self.opt_dict:
-                self.opt_dict["data_version"] = 0
+            fle = self.IO_func.open_file('%s/sources/tv_grab_API.json' % (sys.path[0]), 'r', 'utf-8')
+            githubdata = json.load(fle)
+            fle = self.IO_func.open_file('%s/sources/%s' % (sys.path[0], self.datafile), 'r', 'utf-8')
+            githubdata2 = json.load(fle)
+            for k, v in githubdata2.items():
+                githubdata[k] = v
+            #~ url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master/sourcematching.json'
+            #~ githubdata = self.fetch_func.get_page(url, 'utf-8', is_json = True)
+            #~ # Check on data or program updates
+            #~ dv = int(githubdata["data_version"])
+            #~ nv = githubdata["program_version"]
+            #~ pv = u'%s.%s.%s' % (self.api_major+2, self.api_minor, self.api_patch)
+            #~ if not "data_version" in self.opt_dict:
+                #~ self.opt_dict["data_version"] = 0
 
-            if pv < nv or (pv == nv and (self.alfa or self.beta)):
-                loglist = ['There is a newer stable release available on github!\n']
-                if "version_message" in githubdata:
-                    if isinstance(githubdata["version_message"], (str, unicode)):
-                        loglist.append(githubdata["version_message"])
+            #~ if pv < nv or (pv == nv and (self.alfa or self.beta)):
+                #~ loglist = ['There is a newer stable release available on github!\n']
+                #~ if "version_message" in githubdata:
+                    #~ if isinstance(githubdata["version_message"], (str, unicode)):
+                        #~ loglist.append(githubdata["version_message"])
 
-                    elif isinstance(githubdata["version_message"], list):
-                        loglist.extend(githubdata["version_message"])
+                    #~ elif isinstance(githubdata["version_message"], list):
+                        #~ loglist.extend(githubdata["version_message"])
 
-                loglist.append("Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n")
-                if show_info:
-                    self.log(loglist, 0)
+                #~ loglist.append("Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n")
+                #~ if show_info:
+                    #~ self.log(loglist, 0)
 
-            elif dv > self.opt_dict["data_version"]:
-                loglist = ['The channel/source matching data on github is newer!\n']
-                if "warning_message_2" in githubdata:
-                    for v, tekst in githubdata["warning_message_2"].items():
-                        if int(v) > self.opt_dict["data_version"]:
-                            if isinstance(tekst, (str, unicode)):
-                                loglist.append(tekst)
+            #~ elif dv > self.opt_dict["data_version"]:
+                #~ loglist = ['The channel/source matching data on github is newer!\n']
+                #~ if "warning_message_2" in githubdata:
+                    #~ for v, tekst in githubdata["warning_message_2"].items():
+                        #~ if int(v) > self.opt_dict["data_version"]:
+                            #~ if isinstance(tekst, (str, unicode)):
+                                #~ loglist.append(tekst)
 
-                            elif isinstance(tekst, list):
-                                loglist.extend(tekst)
+                            #~ elif isinstance(tekst, list):
+                                #~ loglist.extend(tekst)
 
-                if not configuring:
-                    loglist.append("Run with '--configure' to implement it\n")
+                #~ if not configuring:
+                    #~ loglist.append("Run with '--configure' to implement it\n")
 
-                if show_info:
-                    self.log(loglist, 0)
+                #~ if show_info:
+                    #~ self.log(loglist, 0)
 
         except:
             githubdata = {}
@@ -2105,7 +2117,15 @@ class Configure:
                 self.prime_source_order.remove(s)
 
         # Read in the tables needed for normal grabbing
-        self.xml_output.logo_provider = get_githubdata("logo_provider")
+        self.xml_output.logo_provider = {}
+        logo_provider = get_githubdict("logo_provider", 1)
+        if isinstance(logo_provider, list):
+            i=0
+            for lp in logo_provider:
+                self.xml_output.logo_provider[i] =lp
+                i+=1
+        else:
+            self.xml_output.logo_provider = logo_provider
         combined_channels = get_githubdict("combined_channels_2")
         self.combined_channels = {}
         for chanid, chanlist in combined_channels.items():
@@ -2153,10 +2173,14 @@ class Configure:
 
         self.notitlesplit = get_githubdata("notitlesplit", self.notitlesplit)
         self.user_agents = get_githubdata("user_agents", self.user_agents)
-        self.no_genric_matching = get_githubdict("no_genric_matching", 1)
+        #~ self.no_genric_matching = get_githubdict("no_genric_matching", 1)
 
         # Read the tables only needed during configuring
         self.xml_output.logo_source_preference = get_githubdata("logo_source_preference")
+        for k in self.xml_output.logo_provider.keys():
+            if k not in self.xml_output.logo_source_preference:
+                self.xml_output.logo_source_preference.append(k)
+
         self.xml_output.logo_names = get_githubdict("logo_names")
         for icon in self.xml_output.logo_names.values():
             if icon[1][-4:] not in ('.png', '.jpg', '.gif'):
@@ -2186,14 +2210,14 @@ class Configure:
                 del self.prime_source_groups[g]
 
         self.source_channels = get_githubdict("source_channels", 1)
-        self.empty_channels = get_githubdict("empty_channels", 1)
+        #~ self.empty_channels = get_githubdict("empty_channels", 1)
         self.channel_grouping = get_githubdict("channel_grouping", 2)
         self.rtl_channellist = get_githubdict("rtl_channellist")
         self.virtual_channellist = get_githubdict("virtual_channellist")
         self.channel_rename = get_githubdict("channel_rename")
         self.merge_into = get_githubdict("merge_into")
-        if configuring:
-            self.opt_dict["data_version"] = dv
+        #~ if configuring:
+            #~ self.opt_dict["data_version"] = dv
 
         logarray = []
         for newch, oldch  in self.merge_into.items():
@@ -2300,7 +2324,8 @@ class Configure:
                     return 69
 
             if self.write_info_files:
-                self.infofiles.check_new_channels(self.channelsource[index], self.source_channels, self.empty_channels)
+                #~ self.infofiles.check_new_channels(self.channelsource[index], self.source_channels, self.empty_channels)
+                self.infofiles.check_new_channels(self.channelsource[index], self.source_channels)
 
             # a dict with coresponding source, id and chanid
             reverse_channels[index] = {}
@@ -2314,7 +2339,8 @@ class Configure:
                 reverse_channels[index][v]['chan_scid'] = unicode(i[1])
 
             for chan_scid in self.channelsource[index].all_channels.keys():
-                if not (chan_scid in self.empty_channels[index]):
+                #~ if not (chan_scid in self.empty_channels[index]):
+                if not (chan_scid in self.channelsource[index].empty_channels):
                     source_keys[index].append(chan_scid)
 
         for index in (0, 1, 10, 6, 5, 2, 4, 7, 9, 8, 11, 12):
@@ -2341,12 +2367,14 @@ class Configure:
                     chan['hd'] = False
 
                 # These channels are for show, but we like the icons from source 2, 6 and 5!
-                if (chan_scid in self.empty_channels[index]):
+                #~ if (chan_scid in self.empty_channels[index]):
+                if (chan_scid in self.channelsource[index].empty_channels):
                     chan['scid'] = ''
                     chan_scid = ''
 
                 if not chanid in self.channels:
-                    if (chan_scid in self.empty_channels[index]):
+                    #~ if (chan_scid in self.empty_channels[index]):
+                    if (chan_scid in self.channelsource[index].empty_channels):
                         continue
 
                     self.channels[chanid] = tv_grab_fetch.Channel_Config(self, chanid, chan['name'] )
