@@ -107,7 +107,7 @@
 			"name":{"funcid":0, "data":[{"varid": 4}]},
 			"icon":{"funcid":1, "data":[{"varid": 2}]},
 			"icongrp":null,
-			"group":{"funcid":2,{"default":99}, "data":[{"varid":3},
+			"group":{"funcid":2,"default":99, "data":[{"varid":3},
 					{"Vlaams":2, "Nederlands":1,"Frans":5, "Duits":4,"Engels":3, "Overige":99}]},
 			"HD":null}},
 	"no_genric_matching":["npo1", "npo2", "npo3", "sbs6", "net5", "veronica"],

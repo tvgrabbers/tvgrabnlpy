@@ -29,10 +29,10 @@
 		"values":{
 			"channelid":{"funcid":4, "data":[{"varid": 1}]},
 			"name":{"funcid":0, "data":[{"varid":2}, " HD"]},
-			"group":{"funcid":2,{"default":99}, "data":[{"varid":4},{"tv":2, "radio":12}]},
+			"group":{"funcid":2,"default":99, "data":[{"varid":4},{"tv":2, "radio":12}]},
 			"icon":{"funcid":1, "data":[{"varid":3}]},
 			"icongrp":null,
-			"inactive_channel":{"funcid":2,{"default":true}, 
+			"inactive_channel":{"funcid":2,"default":true, 
 					"data":[{"varid":5},{"active":false, "inactive":true}]},
 			"HD":null}},
     "base":{
