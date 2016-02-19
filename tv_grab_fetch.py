@@ -1530,6 +1530,175 @@ class WebParser(HTMLParser):
 
 # end WebParser
 
+class JSONnode():
+    def __init__(self, jtree, data = None, parent = None):
+        self.jtree = jtree
+        self.parent = parent
+        self.type = "value"
+        self.value = None
+        self.items = {}
+        self.is_root = bool(parent == None)
+        n = self
+        while not n.is_root:
+            n = n.parent
+
+        self.root = n
+        self.level = 0
+        if isinstance(parent, JSONnode):
+            self.level = parent.level+1
+
+        self.init_data(data)
+
+    def init_data(self, data):
+        self.value = None
+        self.items = {}
+        if isinstance(data, list):
+            self.type = "list"
+            for item in range(len(data)):
+                self.items[item] = JSONnode(self.jtree, data[item], self)
+
+        elif isinstance(data, dict):
+            self.type = "dict"
+            for k, item in data.items():
+                self.items[k] = JSONnode(self.jtree, item, self)
+
+        else:
+            self.type = "value"
+            self.value = data
+
+    def get_children(self, data_def):
+        if not isinstance(data_def, list) or len(data_def) == 0:
+            return [self]
+
+        childs = []
+        if data_def[0] in ('all', 'select'):
+            for item in self.items.values():
+                jl = item.get_children(data_def[1:])
+                if isinstance(jl, list):
+                    childs.extend(jl)
+
+                elif jl != None:
+                    childs.append(jl)
+
+            return childs
+
+        elif isinstance(data_def[0], dict):
+            if "value" in data_def[0].keys():
+                pass
+
+            elif "key" in data_def[0].keys():
+                if data_def[0]["key"] in self.items.keys():
+                    return self.items[data_def[0]["key"]].get_children(data_def[1:])
+
+            elif "keys" in data_def[0].keys():
+                if isinstance(data_def[0]["keys"], list):
+                    for item in data_def[0]["keys"]:
+                        if item in self.items.keys():
+                            jl = self.items[item].get_children(data_def[1:])
+                            if isinstance(jl, list):
+                                childs.extend(jl)
+
+                            elif jl != None:
+                                childs.append(jl)
+
+                    return childs
+
+        return childs
+
+# end JSONnode
+
+class JSONtree():
+    def __init__(self, config, data, data_def):
+        self.config = config
+        self.data = data
+        self.data_def = data_def
+        self.root = JSONnode(self, data)
+        if self.is_data_value(['data',"iter"],list):
+            def_list = self.data_value(['data','iter'],list)
+
+        elif self.is_data_value('data',dict):
+            def_list = [self.data_value('data',dict)]
+
+        self.result = []
+        for dset in def_list:
+            self.key_list = self.root.get_children(self.data_value(["key-path"], list, dset))
+            for k in self.key_list:
+                if not isinstance(k, JSONnode) or not isinstance(k.parent, JSONnode):
+                    continue
+
+                tlist = [k]
+                for v in self.data_value(["values"], list, dset):
+                    if not isinstance(v, list):
+                        continue
+
+                    tlist.extend(k.parent.get_children(v))
+
+                self.result.append(tlist)
+
+    def is_data_value(self, dpath, dtype = None, subpath = None):
+        if isinstance(dpath, (str, unicode)):
+            dpath = [dpath]
+
+        if not isinstance(dpath, (list, tuple)):
+            return False
+
+        if subpath == None:
+            subpath = self.data_def
+
+        for d in dpath:
+            if not isinstance(subpath, dict):
+                return False
+
+            if not d in subpath.keys():
+                return False
+
+            subpath = subpath[d]
+
+        if subpath in (None, "", {}, []):
+            return False
+
+        if dtype == None:
+            return True
+
+        if dtype in (str, unicode):
+            return bool(isinstance(subpath, (str, unicode)))
+
+        if dtype in (list, tuple):
+            return bool(isinstance(subpath, (list, tuple)))
+
+        return bool(isinstance(subpath, dtype))
+
+    def data_value(self, dpath, dtype = None, subpath = None, default = None):
+        if self.is_data_value(dpath, dtype, subpath):
+            if isinstance(dpath, (str, unicode)):
+                dpath = [dpath]
+
+            if subpath == None:
+                subpath = self.data_def
+
+            for d in dpath:
+                subpath = subpath[d]
+
+        else:
+            subpath = None
+
+        if subpath == None:
+            if default != None:
+                return default
+
+            elif dtype in (str, unicode):
+                return ""
+
+            elif dtype == dict:
+                return {}
+
+            elif dtype in (list, tuple):
+                return []
+
+        return subpath
+
+# end JSONtree
+
 class FetchData(Thread):
     """
     Generic Class to fetch the data
@@ -2104,6 +2273,10 @@ class FetchData(Thread):
 
             page = self.functions.get_page(url, encoding, accept_header, url_data, counter, is_json)
             if is_json and page != None:
+                if ptype == 'channels' and self.proc_id == 0:
+                    jt = JSONtree(self.config, page, self.data_value(ptype, dict))
+                    return jt.result
+
                 if ptype == 'base' and self.proc_id == 5:
                     return page
 
@@ -2141,49 +2314,88 @@ class FetchData(Thread):
             return None
 
     def link_values(self, ptype, linkdata):
-        if not isinstance(linkdata, dict):
-            return {}
-
         values = {}
-        for k, v in self.data_value([ptype,"values"], dict).items():
-            varid = self.data_value("varid", int, v)
-            if varid != None:
-                if not varid in linkdata.keys():
+        if isinstance(linkdata, list):
+            for k, v in self.data_value([ptype,"values"], dict).items():
+                varid = self.data_value("varid", int, v)
+                if varid != None:
+                    if not (0 <= varid < len(linkdata)):
+                        continue
+
+                    d = linkdata[varid].value if (not  isinstance(linkdata[varid].value, (unicode, str))) else linkdata[varid].value.strip()
+                    values[k] = d
                     continue
 
-                d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else linkdata[varid].strip()
-                values[k] = d
-                continue
+                funcid = self.data_value("funcid", int, v)
+                default = self.data_value("funcid", None, v)
+                if funcid != None:
+                    funcdata = self.data_value("data", list, v)
+                    data = []
+                    for d in funcdata:
+                        varid = self.data_value("varid", int, d)
 
-            funcid = self.data_value("funcid", int, v)
-            default = self.data_value("funcid", None, v)
-            if funcid != None:
-                funcdata = self.data_value("data", list, v)
-                data = []
-                for d in funcdata:
-                    varid = self.data_value("varid", int, d)
+                        if varid != None:
+                            if 0 <= varid < len(linkdata):
+                                data.append(linkdata[varid].value)
 
-                    if varid != None:
-                        if varid in linkdata.keys():
-                            data.append(linkdata[varid])
+                            else:
+                                data.append('')
 
                         else:
-                            data.append('')
+                            data.append(d)
 
-                    else:
-                        data.append(d)
+                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, default)
+                    if cval != None:
+                        values[k] = cval
+                        if funcid == 1 and self.functions.icongrp != -1:
+                            values['icongrp'] = self.functions.icongrp
 
-                cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, default)
-                if cval != None:
-                    values[k] = cval
-                    if funcid == 1 and self.functions.icongrp != -1:
-                        values['icongrp'] = self.functions.icongrp
+                    continue
 
-                continue
+                value = self.data_value("value", unicode, v)
+                if value != '':
+                    values[k] = value
 
-            value = self.data_value("value", unicode, v)
-            if value != '':
-                values[k] = value
+        if isinstance(linkdata, dict):
+            for k, v in self.data_value([ptype,"values"], dict).items():
+                varid = self.data_value("varid", int, v)
+                if varid != None:
+                    if not varid in linkdata.keys():
+                        continue
+
+                    d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else linkdata[varid].strip()
+                    values[k] = d
+                    continue
+
+                funcid = self.data_value("funcid", int, v)
+                default = self.data_value("funcid", None, v)
+                if funcid != None:
+                    funcdata = self.data_value("data", list, v)
+                    data = []
+                    for d in funcdata:
+                        varid = self.data_value("varid", int, d)
+
+                        if varid != None:
+                            if varid in linkdata.keys():
+                                data.append(linkdata[varid])
+
+                            else:
+                                data.append('')
+
+                        else:
+                            data.append(d)
+
+                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, default)
+                    if cval != None:
+                        values[k] = cval
+                        if funcid == 1 and self.functions.icongrp != -1:
+                            values['icongrp'] = self.functions.icongrp
+
+                    continue
+
+                value = self.data_value("value", unicode, v)
+                if value != '':
+                    values[k] = value
 
         return values
 
@@ -2205,7 +2417,6 @@ class FetchData(Thread):
             self.config.log(self.config.text('sources', 1, (self.source, )))
             return 69
 
-        #~ print channel_list
         if isinstance(channel_list, list):
             for channel in channel_list:
                 # link the data to the right variable, doing any defined adjustments
@@ -2220,8 +2431,8 @@ class FetchData(Thread):
 
                     self.all_channels[channelid] = values
 
-            if self.proc_id == 8:
-                print self.all_channels
+            #~ if self.proc_id == 8:
+            print self.all_channels
         else:
             self.config.log(self.config.text('sources', 1, (self.source, )))
             return 69

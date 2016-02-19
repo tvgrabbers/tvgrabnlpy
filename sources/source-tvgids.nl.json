@@ -15,7 +15,7 @@
         "accept-header":null,
         "url-type":0,
         "url-data":{},
-        "data":[
+        "data-old":[
 			{"path":[],
 			"type":"list",
 			"content":"dict",
@@ -23,9 +23,13 @@
 			"keys":{
 				"id":1,
 				"name":2}}],
+        "data":{
+			"key-path":["all",{"key":"id"}],
+			"values":[
+				[{"key":"name"}]]}, 
 		"values":{
-			"channelid":{"funcid":4, "data":[{"varid": 1}]},
-			"name":{"funcid":0, "data":[{"varid":2}]},
+			"channelid":{"funcid":4, "data":[{"varid": 0}]},
+			"name":{"funcid":0, "data":[{"varid":1}]},
 			"group":null,
 			"icon":null,
 			"icongrp":null,
@@ -41,7 +45,7 @@
             "day":11},
 		"max days":4,
 		"parse2": false,
-        "data":[
+        "data-old":[
 			{"path":[],
 			"type":"dicted_list",
 			"value_key":1,
@@ -59,6 +63,9 @@
 					"soort":7,
 					"kijkwijzer":8,
 					"artikel_tekst":9}}}],
+        "data":{
+			"key-path":[],
+			"vars":[]},
 		"values":{
 			"channelid":{"funcid":4, "data":[{"varid": 1}]},
 			"prog_ID":{"funcid":4, "data":["nl-",{"varid":2}]},

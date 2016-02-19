@@ -207,11 +207,11 @@ def main():
                 #~ first_day -= 7
             #~ print weekday, first_day, datetime.date.fromordinal(current_date + first_day).strftime('%Y%m%d')
 
-        #~ config.init_sources()
-        #~ config.channelsource[6].init_channel_source_ids()
-        #~ config.channelsource[6].get_channels()
+        config.init_sources()
+        config.channelsource[8].init_channel_source_ids()
+        config.channelsource[8].get_channels()
 
-        #~ wp = tv_grab_fetch.WebParser(config,
+        #~ wp = tv_grab_fetch.HTMLtree(config,
             #~ '<html><head><title test="start &lt; midden &gt; eind &#62;"><link href="http://2.nieuwsbladcdn.be/extra/assets/css/pages/tv-gids/page-all.css" rel="stylesheet">Test</title></head><body><h1>Parse me!</h1></body></html>',
             #~ {"init-path":[{"tag":"html"},{"tag":"head"}]})
         #~ print wp.raw
@@ -220,7 +220,7 @@ def main():
         #~ print
         #~ print wp.get_subitem([{"tag":"title","varid":1, "default":'t',"attr":"test"}])
 
-        #~ return
+        return
 
         start_time = datetime.datetime.now()
         x = config.validate_commandline()
