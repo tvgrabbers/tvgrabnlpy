@@ -211,15 +211,6 @@ def main():
         config.channelsource[8].init_channel_source_ids()
         config.channelsource[8].get_channels()
 
-        #~ wp = tv_grab_fetch.HTMLtree(config,
-            #~ '<html><head><title test="start &lt; midden &gt; eind &#62;"><link href="http://2.nieuwsbladcdn.be/extra/assets/css/pages/tv-gids/page-all.css" rel="stylesheet">Test</title></head><body><h1>Parse me!</h1></body></html>',
-            #~ {"init-path":[{"tag":"html"},{"tag":"head"}]})
-        #~ print wp.raw
-        #~ print
-        #~ print wp.start_node
-        #~ print
-        #~ print wp.get_subitem([{"tag":"title","varid":1, "default":'t',"attr":"test"}])
-
         return
 
         start_time = datetime.datetime.now()

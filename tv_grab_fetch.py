@@ -1116,7 +1116,7 @@ class theTVDB(Thread):
 
 # end theTVDB
 
-class HTMLnode():
+class HTMLnode_oud():
     def __init__(self, tag, attributes=[], parent = None):
         self.tag = tag
         self.text = u''
@@ -1288,7 +1288,7 @@ class HTMLnode():
 
 # end HTMLnode
 
-class WebParser(HTMLParser):
+class WebParser_oud(HTMLParser):
     def __init__(self, config, data='', data_def={}, autoclose_tags=[]):
         HTMLParser.__init__(self)
         self.print_tags = False
@@ -1530,6 +1530,459 @@ class WebParser(HTMLParser):
 
 # end WebParser
 
+class HTMLnode():
+    def __init__(self, htree, tag, attributes=[], parent = None):
+        self.htree = htree
+        self.tag = tag
+        self.text = u''
+        self.attributes = {}
+        self.value = None
+        self.set_attributes(attributes)
+
+        self.parent = parent
+        self.children = []
+        self.is_root = bool(parent == None)
+        n = self
+        while not n.is_root:
+            n = n.parent
+
+        self.root = n
+        self.level = -1
+        if isinstance(parent, HTMLnode):
+            parent.children.append(self)
+            self.level = parent.level+1
+
+        self.is_value = False
+        self.show_result =False
+
+    def set_attributes(self, attributes):
+        for a in attributes:
+            self.attributes[a[0].lower()] = a[1]
+
+    def get_attribute(self, name):
+        if name in self.attributes.keys():
+            return self.attributes[name]
+
+        return None
+
+    def is_attribute(self, name, value = None):
+        if name in self.attributes.keys():
+            if value in (None, self.attributes[name]):
+                return True
+
+        return False
+
+    def get_children(self, tag = None, attributes = {}, node_def = None):
+        childs = []
+        if node_def == None:
+            for c in self.children:
+                if c.match_node(tag, attributes):
+                    childs.append(c)
+
+            return childs
+
+        d_def = node_def if isinstance(node_def, list) else [node_def]
+        if len(d_def) == 0 or d_def[0] == None:
+            if self.root.show_result:
+                self.htree.print_text(u'    adding node%s %s: %s\n' % (self.level, self.tag, self.find_value()))
+                #~ self.root.fle.write('%s: %s\n'.encode('utf-8') % (path[level]['varid'], nv))
+            return [self]
+
+        elif isinstance(d_def[0], dict):
+            if not 'tag' in d_def[0].keys():
+                if self.root.show_result:
+                    self.htree.print_text(u'    adding node%s %s: %s\n'.encode('utf-8', 'replace') % (self.level, self.tag, self.find_value(d_def[0])))
+                return [self]
+
+            for item in self.children:
+                if item.match_node(node_def = d_def[0]):
+                    if self.root.show_result:
+                        self.htree.print_text(u'  checking node%s: %s %s\n'.encode('utf-8', 'replace') % (self.level, self.tag, d_def[0]))
+                    jl = item.get_children(node_def = d_def[1:])
+                    if isinstance(jl, list):
+                        childs.extend(jl)
+
+                    elif jl != None:
+                        childs.append(jl)
+
+            return childs
+
+        elif d_def[0] == 'parent' and not self.is_root:
+            if self.root.show_result:
+                self.htree.print_text(u'  checking node%s: %s %s\n'.encode('utf-8', 'replace') % (self.level, self.tag, d_def[0]))
+            return parent.get_children(node_def = d_def[1:])
+
+        elif d_def[0] == 'all':
+            for item in self.items.values():
+                if self.root.show_result:
+                    self.htree.print_text(u'  checking node%s: %s %s\n'.encode('utf-8', 'replace') % (self.level, self.tag, d_def[0]))
+                jl = item.get_children(node_def = d_def[1:])
+                if isinstance(jl, list):
+                    childs.extend(jl)
+
+                elif jl != None:
+                    childs.append(jl)
+
+            return childs
+
+        else:
+            if self.root.show_result:
+                self.htree.print_text(u'    adding node%s %s: %s\n'.encode('utf-8', 'replace') % (self.level, self.tag, self.find_value(d_def[0])))
+            return [self]
+
+        return childs
+
+    def match_node(self, tag = None, attributes = {}, node_def = None):
+        if node_def == None:
+            if tag in (None, self.tag):
+                if attributes == None:
+                    return True
+
+                if not isinstance(attributes, dict):
+                    return False
+
+                for a, v in attributes.items():
+                    if not self.is_attribute(a, v):
+                        return False
+
+                return True
+
+            else:
+                return False
+
+        elif isinstance(node_def, dict) and 'tag' in node_def.keys():
+            if node_def['tag'] in (None, self.tag):
+                if not 'attrs' in node_def.keys() or node_def['attrs'] == None:
+                    return True
+
+                if not isinstance(node_def['attrs'], dict):
+                    return False
+
+                for a, v in node_def['attrs'].items():
+                    if not self.is_attribute(a, v):
+                        return False
+
+                return True
+
+            else:
+                return False
+
+        else:
+            return False
+
+    def find_value(self, node_def = None):
+        if isinstance(node_def, dict) and 'attr' in node_def.keys() :
+            sv = self.get_attribute(node_def[ 'attr'].lower())
+
+        else:
+            sv = self.text
+
+        if sv == None and'default' in node_def.keys():
+            sv = node_def['default']
+
+        if isinstance(sv, (str, unicode)):
+            return re.sub('\n','', re.sub('\r','', self.htree.unescape(unicode(sv)))).strip()
+
+        else:
+            return sv
+
+    def print_tree(self):
+        if not self.root.show_result:
+            return
+
+        sstr = u''
+        for i in range(self.level):
+            sstr += u'  '
+
+        sstr =u'%s%s%s%s\n' % (sstr, self.tag, self.attributes, self.text.strip())
+        self.htree.print_text(sstr.encode('utf-8'))
+        for n in self.children:
+            n.print_tree()
+
+# end HTMLnode
+
+class HTMLtree(HTMLParser):
+    def __init__(self, config, data='', data_def={}, autoclose_tags=[]):
+        HTMLParser.__init__(self)
+        self.print_tags = False
+        self.show_result = True
+        self.fle = sys.stdout
+        self.config = config
+        self.data_def = data_def
+        self.autoclose_tags = []
+        self.root = HTMLnode(self, 'root')
+        self.root.show_result = self.show_result
+        self.current_node = self.root
+        self.text = u''
+        self.init_path = []
+        self.result = []
+        self.count_tags(data)
+        # read the html page into the tree
+        self.feed(data)
+        # And find the dataset into self.result
+        self.start_node = self.root
+        self.find_start_node()
+        self.extract_datalist()
+
+    def count_tags(self, data):
+        tag_list = re.compile("\<(.*?)\>", re.DOTALL)
+        self.tag_count = {}
+        for t in tag_list.findall(data):
+            if t[0] == '\\':
+                t = t[1:]
+
+            if t[0] == '/':
+                sub = 'close'
+                tag = t.split (' ')[0][1:].lower()
+
+            elif t[:3] == '!--':
+                continue
+                sub = 'comment'
+                tag = t[3:].lower()
+
+            elif t[0] == '?':
+                continue
+                sub = 'pi'
+                tag = t[1:].lower()
+
+            elif t[0] == '!':
+                continue
+                sub = 'html'
+                tag = t[1:].lower()
+
+            elif t[-1] == '/':
+                sub = 'auto'
+                tag = t.split(' ')[0].lower()
+
+            else:
+                sub = 'start'
+                tag = t.split (' ')[0].lower()
+
+            if not tag in self.tag_count.keys():
+                self.tag_count[tag] ={}
+                self.tag_count[tag]['close'] = 0
+                self.tag_count[tag]['comment'] = 0
+                self.tag_count[tag]['pi'] = 0
+                self.tag_count[tag]['html'] = 0
+                self.tag_count[tag]['auto'] = 0
+                self.tag_count[tag]['start'] = 0
+
+            self.tag_count[tag][sub] += 1
+
+        for t, c in self.tag_count.items():
+            if c['close'] == 0 and (c['start'] >0 or c['auto'] > 0):
+                self.autoclose_tags.append(t)
+
+            if self.print_tags:
+                self.fle.write('%s %s %s %s\n'.encode('utf-8') % (t.ljust(12), c['start'], c['close'], c['auto']))
+
+    def find_start_node(self):
+        if self.is_data_value(['data',"init-path"],list):
+            self.init_path = self.data_value(['data',"init-path"],list)
+
+            # sanatise the init_path
+            for ip in range(len(self.init_path)):
+                if not isinstance(self.init_path[ip], dict):
+                    tag = self.init_path[ip]
+                    self.init_path[ip] = {}
+
+                elif not "tag"in self.init_path[ip]:
+                    tag = None
+                    # give an error
+                    return
+
+                else:
+                    tag = self.init_path[ip]["tag"]
+
+                self.init_path[ip]["tag"] = tag.lower()
+                if not "attrs" in self.init_path[ip].keys() or not isinstance(self.init_path[ip]["attrs"], dict):
+                    self.init_path[ip]["attrs"] = {}
+
+            # and find the start node
+            if self.show_result:
+                self.fle.write('parsing %s %s\n'.encode('utf-8') % (self.root.tag, self.root.attributes))
+
+            sn = self.root.get_children(node_def = self.init_path)
+            self.start_node = self.root if (sn == None or len(sn) == 0) else sn[0]
+
+    def extract_datalist(self):
+        self.result = []
+        # Are there multiple data definitions
+        if self.is_data_value(['data',"iter"],list):
+            def_list = self.data_value(['data','iter'],list)
+
+        # Or just one
+        elif self.is_data_value('data',dict):
+            def_list = [self.data_value('data',dict)]
+
+        else:
+            return
+
+        for dset in def_list:
+            # Get all the key nodes
+            if self.is_data_value(["key-path"], list, dset):
+                kp = self.data_value(["key-path"], list, dset)
+                if self.show_result:
+                    self.fle.write('parsing keypath %s\n'.encode('utf-8') % (kp[0]))
+
+                self.key_list = self.start_node.get_children(node_def = kp)
+                for k in self.key_list:
+                    if not isinstance(k, HTMLnode):
+                        continue
+
+                    # And if it's a valid node, find the belonging values (the last dict in a path list contains the value definition)
+                    tlist = [k.find_value(kp[-1])]
+                    for v in self.data_value(["values"], list, dset):
+                        if not isinstance(v, list):
+                            continue
+
+                        if self.show_result:
+                            self.fle.write('parsing key %s %s\n'.encode('utf-8') % ( [k.find_value(kp[-1])], v[-1]))
+
+                        nlist = k.get_children(node_def = v)
+                        for node in nlist:
+                            tlist.append(node.find_value(v[-1]))
+
+                    self.result.append(tlist)
+
+    def handle_starttag(self, tag, attrs):
+        if self.print_tags:
+            self.fle.write('starting %s %s\n'.encode('utf-8') % (self.current_node.level, tag))
+
+        node = HTMLnode(self, tag.lower(), attrs, self.current_node)
+        self.add_text()
+        self.current_node = node
+        if tag.lower() in self.autoclose_tags:
+            self.handle_endtag(tag)
+            return False
+
+        return True
+
+    def handle_endtag(self, tag):
+        if self.print_tags:
+            self.fle.write('  closing %s %s %s\n'.encode('utf-8') % (tag, self.current_node.level, self.current_node.tag))
+
+        if self.current_node.tag != tag.lower():
+            # To catch missing close tags
+            self.remove_text()
+            self.handle_endtag(self.current_node.tag)
+
+        self.add_text()
+        self.current_node = self.current_node.parent
+        if self.current_node.is_root:
+            self.reset()
+
+    def handle_startendtag(self, tag, attrs):
+        if self.handle_starttag(tag, attrs):
+            self.handle_endtag(tag)
+
+    def handle_data(self, data):
+        self.text += data
+
+    def handle_entityref(self, name):
+        try:
+            c = unichr(name2codepoint[name])
+            self.text += c
+
+        except:
+            pass
+
+    def handle_charref(self, name):
+        if name.startswith('x'):
+            c = unichr(int(name[1:], 16))
+
+        else:
+            c = unichr(int(name))
+
+        self.text += c
+
+    def handle_comment(self, data):
+        # <!--comment-->
+        pass
+
+    def handle_decl(self, decl):
+        # <!DOCTYPE html>
+        pass
+
+    def handle_pi(self, data):
+        # <?proc color='red'>
+        pass
+
+    def add_text(self):
+        self.current_node.text += unicode(re.sub('\n','', re.sub('\r','', self.text)))
+        self.text = u''
+
+    def remove_text(self):
+        self.text += self.current_node.text
+        self.current_node.text = u''
+
+    def is_data_value(self, dpath, dtype = None, subpath = None):
+        if isinstance(dpath, (str, unicode)):
+            dpath = [dpath]
+
+        if not isinstance(dpath, (list, tuple)):
+            return False
+
+        if subpath == None:
+            subpath = self.data_def
+
+        for d in dpath:
+            if not isinstance(subpath, dict):
+                return False
+
+            if not d in subpath.keys():
+                return False
+
+            subpath = subpath[d]
+
+        if subpath in (None, "", {}, []):
+            return False
+
+        if dtype == None:
+            return True
+
+        if dtype in (str, unicode):
+            return bool(isinstance(subpath, (str, unicode)))
+
+        if dtype in (list, tuple):
+            return bool(isinstance(subpath, (list, tuple)))
+
+        return bool(isinstance(subpath, dtype))
+
+    def print_text(self, tekst):
+        self.fle.write(tekst.encode('utf-8', 'replace'))
+
+    def data_value(self, dpath, dtype = None, subpath = None, default = None):
+        if self.is_data_value(dpath, dtype, subpath):
+            if isinstance(dpath, (str, unicode)):
+                dpath = [dpath]
+
+            if subpath == None:
+                subpath = self.data_def
+
+            for d in dpath:
+                subpath = subpath[d]
+
+        else:
+            subpath = None
+
+        if subpath == None:
+            if default != None:
+                return default
+
+            elif dtype in (str, unicode):
+                return ""
+
+            elif dtype == dict:
+                return {}
+
+            elif dtype in (list, tuple):
+                return []
+
+        return subpath
+
+# end HTMLtree
+
 class JSONnode():
     def __init__(self, jtree, data = None, parent = None):
         self.jtree = jtree
@@ -1567,34 +2020,17 @@ class JSONnode():
             self.value = data
 
     def get_children(self, data_def):
-        if not isinstance(data_def, list) or len(data_def) == 0:
+        d_def = data_def if isinstance(data_def, list) else [data_def]
+        childs = []
+        if len(d_def) == 0 or d_def[0] == None:
             return [self]
 
-        childs = []
-        if data_def[0] in ('all', 'select'):
-            for item in self.items.values():
-                jl = item.get_children(data_def[1:])
-                if isinstance(jl, list):
-                    childs.extend(jl)
-
-                elif jl != None:
-                    childs.append(jl)
-
-            return childs
-
-        elif isinstance(data_def[0], dict):
-            if "value" in data_def[0].keys():
-                pass
-
-            elif "key" in data_def[0].keys():
-                if data_def[0]["key"] in self.items.keys():
-                    return self.items[data_def[0]["key"]].get_children(data_def[1:])
-
-            elif "keys" in data_def[0].keys():
-                if isinstance(data_def[0]["keys"], list):
-                    for item in data_def[0]["keys"]:
+        elif isinstance(d_def[0], dict):
+            if "keys" in d_def[0].keys():
+                if isinstance(d_def[0]["keys"], list):
+                    for item in d_def[0]["keys"]:
                         if item in self.items.keys():
-                            jl = self.items[item].get_children(data_def[1:])
+                            jl = self.items[item].get_children(d_def[1:])
                             if isinstance(jl, list):
                                 childs.extend(jl)
 
@@ -1602,6 +2038,27 @@ class JSONnode():
                                 childs.append(jl)
 
                     return childs
+
+            elif "key" in d_def[0].keys():
+                if d_def[0]["key"] in self.items.keys():
+                    return self.items[d_def[0]["key"]].get_children(d_def[1:])
+
+            else:
+                return [self]
+
+        elif d_def[0] == 'parent' and not self.is_root:
+            return parent.get_children(d_def[1:])
+
+        elif d_def[0] in ('all', 'select'):
+            for item in self.items.values():
+                jl = item.get_children(d_def[1:])
+                if isinstance(jl, list):
+                    childs.extend(jl)
+
+                elif jl != None:
+                    childs.append(jl)
+
+            return childs
 
         return childs
 
@@ -1612,28 +2069,41 @@ class JSONtree():
         self.config = config
         self.data = data
         self.data_def = data_def
+        self.result = []
+        # Read the json data into the tree
         self.root = JSONnode(self, data)
+        # and extract the dataset into self.result
+        self.extract_datalist()
+
+    def extract_datalist(self):
+        # Are there multiple data definitions
         if self.is_data_value(['data',"iter"],list):
             def_list = self.data_value(['data','iter'],list)
 
+        # Or just one
         elif self.is_data_value('data',dict):
             def_list = [self.data_value('data',dict)]
 
         self.result = []
         for dset in def_list:
-            self.key_list = self.root.get_children(self.data_value(["key-path"], list, dset))
-            for k in self.key_list:
-                if not isinstance(k, JSONnode) or not isinstance(k.parent, JSONnode):
-                    continue
-
-                tlist = [k]
-                for v in self.data_value(["values"], list, dset):
-                    if not isinstance(v, list):
+            # Get all the key nodes
+            if self.is_data_value(["key-path"], list, dset):
+                self.key_list = self.root.get_children(self.data_value(["key-path"], list, dset))
+                for k in self.key_list:
+                    if not isinstance(k, JSONnode) or not isinstance(k.parent, JSONnode):
                         continue
 
-                    tlist.extend(k.parent.get_children(v))
+                    # And if it's a valid node, find the belonging values
+                    tlist = [k.value]
+                    for v in self.data_value(["values"], list, dset):
+                        if not isinstance(v, list):
+                            continue
 
-                self.result.append(tlist)
+                        nlist = k.parent.get_children(v)
+                        for node in nlist:
+                            tlist.append(node.value)
+
+                    self.result.append(tlist)
 
     def is_data_value(self, dpath, dtype = None, subpath = None):
         if isinstance(dpath, (str, unicode)):
@@ -2305,7 +2775,8 @@ class FetchData(Thread):
                     return page
 
                 autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
-                wp = WebParser(self.config, page, self.data_value([ptype, "data"], dict), autoclose_tags)
+                #~ wp = WebParser(self.config, page, self.data_value([ptype, "data"], dict), autoclose_tags)
+                wp = HTMLtree(self.config, page, self.data_value(ptype, dict), autoclose_tags)
                 wp.reset()
                 return wp.result
 
@@ -2322,7 +2793,7 @@ class FetchData(Thread):
                     if not (0 <= varid < len(linkdata)):
                         continue
 
-                    d = linkdata[varid].value if (not  isinstance(linkdata[varid].value, (unicode, str))) else linkdata[varid].value.strip()
+                    d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else linkdata[varid].strip()
                     values[k] = d
                     continue
 
@@ -2336,7 +2807,7 @@ class FetchData(Thread):
 
                         if varid != None:
                             if 0 <= varid < len(linkdata):
-                                data.append(linkdata[varid].value)
+                                data.append(linkdata[varid])
 
                             else:
                                 data.append('')
