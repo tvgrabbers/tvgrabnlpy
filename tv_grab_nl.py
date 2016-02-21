@@ -358,10 +358,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 9
-        self.patchdate = u'20160129'
+        self.patch = 10
+        self.patchdate = u'20160221'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
