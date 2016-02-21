@@ -11394,7 +11394,7 @@ class vpro_HTML(FetchData):
                         # No title Found
                         continue
 
-                    ptime = p.findtext('div[@class="content"]/div[@class="meta"]')
+                    ptime = p.findtext('div[@class="content"]/div[@class="meta"]/span[@class="epg-start-time"]')
                     if ptime == None:
                         # No start-stop time Found
                         continue
@@ -11414,6 +11414,7 @@ class vpro_HTML(FetchData):
                     pstart = re.sub('vpro', '', ptime).strip()
                     pstart = pstart.split(':')
                     prog_time = datetime.time(int(pstart[0]), int(pstart[1]), 0 ,0 ,CET_CEST)
+
                     if day_offset == 0 and int(pstart[0]) < 6:
                         day_offset = 1
 
@@ -11526,6 +11527,9 @@ class vpro_HTML(FetchData):
 
                         if t != tt:
                             noquote = re.sub(t, tt, noquote, flags = re.IGNORECASE)
+
+                        noquote = re.sub('data-playable\n', 'data-playable=""\n', noquote)
+                        noquote = re.sub('data-playable ', 'data-playable="" ', noquote)
 
                     htmldata = ET.fromstring( noquote.encode('utf-8'))
 
