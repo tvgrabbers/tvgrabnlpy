@@ -359,9 +359,9 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 10
-        self.patchdate = u'20160221'
+        self.patchdate = u'20160224'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
@@ -2080,8 +2080,12 @@ class Configure:
             githubdata = json.loads(self.get_page(url, 'utf-8'))
             # Check on data or program updates
             dv = int(githubdata["data_version"])
-            nv = githubdata["program_version"]
-            pv = u'%s.%s.%s' % (self.major, self.minor, self.patch)
+            nsv = githubdata["program_version"].split('.')
+            nv = []
+            for i in range(len(nsv)):
+                nv.append(int(nsv[i]))
+
+            pv = [self.major, self.minor, self.patch]
             if not "data_version" in self.opt_dict:
                 self.opt_dict["data_version"] = 0
 
@@ -11375,14 +11379,18 @@ class vpro_HTML(FetchData):
 
             # Alternative Acters list
             if 'met oa' in desc_items and not 'met'in desc_items:
-                role = config.roletrans['met']
-                if not role in tdict['credits']:
-                    tdict['credits'][role] = []
+                try:
+                    role = config.roletrans['met']
+                    if not role in tdict['credits']:
+                        tdict['credits'][role] = []
 
-                cast = re.sub(' en ',  ' , ', desc_items['met oa'][0])
-                cast = re.split(',', cast)
-                for cn in cast:
-                    tdict['credits'][role].append(cn.split('(')[0].strip())
+                    cast = re.sub(' en ',  ' , ', desc_items['met oa'][0])
+                    cast = re.split(',', cast)
+                    for cn in cast:
+                        tdict['credits'][role].append(cn.split('(')[0].strip())
+
+                except:
+                    pass
 
         def get_programs(xml, chanid):
             try:
