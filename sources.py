@@ -1590,43 +1590,43 @@ class tvgidstv_HTML(tv_grab_fetch.FetchData):
             self.config.log(self.config.text('sources', 21, (channel, self.source, offset)))
             return None
 
-    def get_channels(self):
-        """
-        Get a list of all available channels and store these
-        in all_channels.
-        """
+    #~ def get_channels(self):
+        #~ """
+        #~ Get a list of all available channels and store these
+        #~ in all_channels.
+        #~ """
 
-        try:
-            strdata = self.config.fetch_func.get_page(self.get_url(), counter = ['base', self.proc_id])
-            if strdata == None:
-                self.fail_count += 1
-                return
+        #~ try:
+            #~ strdata = self.config.fetch_func.get_page(self.get_url(), counter = ['base', self.proc_id])
+            #~ if strdata == None:
+                #~ self.fail_count += 1
+                #~ return
 
-            strdata = self.functions.clean_html('<div>' + self.getcontent.search(strdata).group(1)).encode('utf-8')
-            htmldata = ET.fromstring(strdata)
+            #~ strdata = self.functions.clean_html('<div>' + self.getcontent.search(strdata).group(1)).encode('utf-8')
+            #~ htmldata = ET.fromstring(strdata)
 
-        except:
-            self.fail_count += 1
-            self.config.log([self.config.text('sources', 1, (self.source, )), traceback.format_exc()])
-            return 69  # EX_UNAVAILABLE
+        #~ except:
+            #~ self.fail_count += 1
+            #~ self.config.log([self.config.text('sources', 1, (self.source, )), traceback.format_exc()])
+            #~ return 69  # EX_UNAVAILABLE
 
-        self.all_channels ={}
-        for changroup in htmldata.findall('div[@class="section"]'):
-            group_name = self.functions.empersant(changroup.findtext('div[@class="section-title"]')).strip()
-            for chan in changroup.findall('div[@class="section-content"]/div[@class="section-item channels"]/div[@class="section-item-content"]/a'):
-                chanid = chan.get('href')
-                if chanid == None:
-                    continue
+        #~ self.all_channels ={}
+        #~ for changroup in htmldata.findall('div[@class="section"]'):
+            #~ group_name = self.functions.empersant(changroup.findtext('div[@class="section-title"]')).strip()
+            #~ for chan in changroup.findall('div[@class="section-content"]/div[@class="section-item channels"]/div[@class="section-item-content"]/a'):
+                #~ chanid = chan.get('href')
+                #~ if chanid == None:
+                    #~ continue
 
-                chanid = re.split('/', chanid)[2]
-                name = self.functions.empersant(chan.findtext('div[@class="channel-name ellipsis"]'))
-                self.all_channels[chanid] = {}
-                self.all_channels[chanid]['name'] = name
-                self.all_channels[chanid]['group'] = 99
-                for id in self.config.group_order:
-                    if group_name == self.config.chan_groups[id]:
-                        self.all_channels[chanid]['group'] = id
-                        break
+                #~ chanid = re.split('/', chanid)[2]
+                #~ name = self.functions.empersant(chan.findtext('div[@class="channel-name ellipsis"]'))
+                #~ self.all_channels[chanid] = {}
+                #~ self.all_channels[chanid]['name'] = name
+                #~ self.all_channels[chanid]['group'] = 99
+                #~ for id in self.config.group_order:
+                    #~ if group_name == self.config.chan_groups[id]:
+                        #~ self.all_channels[chanid]['group'] = id
+                        #~ break
 
     def match_genre(self, dtext, tdict):
         if len(dtext) > 20:
@@ -2159,22 +2159,22 @@ class npo_HTML(tv_grab_fetch.FetchData):
         else:
             return u'%s%s' % (npo_zoeken,  href)
 
-    def get_channels(self):
-        try:
-            strdata = self.config.fetch_func.get_page(self.get_url(), counter = ['base', self.proc_id])
-            strdata = self.functions.clean_html(strdata)
-            if strdata == None:
-                self.fail_count += 1
-                self.config.log([self.config.text('sources', 1, (self.source, ))])
-                return 69  # EX_UNAVAILABLE
+    #~ def get_channels(self):
+        #~ try:
+            #~ strdata = self.config.fetch_func.get_page(self.get_url(), counter = ['base', self.proc_id])
+            #~ strdata = self.functions.clean_html(strdata)
+            #~ if strdata == None:
+                #~ self.fail_count += 1
+                #~ self.config.log([self.config.text('sources', 1, (self.source, ))])
+                #~ return 69  # EX_UNAVAILABLE
 
-            htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
-            self.get_channel_lineup(htmldata)
+            #~ htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
+            #~ self.get_channel_lineup(htmldata)
 
-        except:
-            self.fail_count += 1
-            self.config.log([self.config.text('sources', 1, (self.source, )), traceback.format_exc()])
-            return 69  # EX_UNAVAILABLE
+        #~ except:
+            #~ self.fail_count += 1
+            #~ self.config.log([self.config.text('sources', 1, (self.source, )), traceback.format_exc()])
+            #~ return 69  # EX_UNAVAILABLE
 
     def get_channel_lineup(self, htmldata):
         chan_list = []
@@ -2517,23 +2517,23 @@ class vpro_HTML(tv_grab_fetch.FetchData):
             #~ return u'%s/content/0.html?day=%s' % (vpro_base,  scan_date.strftime('%Y-%m-%d'))
             return [u'%s/content/0.html' % (vpro_base), {'day': scan_date.strftime('%Y-%m-%d')}]
 
-    def get_channels(self):
+    #~ def get_channels(self):
 
-        try:
-            strdata = self.config.fetch_func.get_page(self.get_url(), counter = ['base', self.proc_id])
-            strdata = self.functions.clean_html(strdata)
-            if strdata == None:
-                self.fail_count += 1
-                self.config.log([self.config.text('sources', 1, (self.source, ))])
-                return 69  # EX_UNAVAILABLE
+        #~ try:
+            #~ strdata = self.config.fetch_func.get_page(self.get_url(), counter = ['base', self.proc_id])
+            #~ strdata = self.functions.clean_html(strdata)
+            #~ if strdata == None:
+                #~ self.fail_count += 1
+                #~ self.config.log([self.config.text('sources', 1, (self.source, ))])
+                #~ return 69  # EX_UNAVAILABLE
 
-            self.get_available_days(strdata)
-            self.get_channel_lineup(strdata)
+            #~ self.get_available_days(strdata)
+            #~ self.get_channel_lineup(strdata)
 
-        except:
-            self.fail_count += 1
-            self.config.log([self.config.text('sources', 1, (self.source, )), traceback.format_exc()])
-            return 69  # EX_UNAVAILABLE
+        #~ except:
+            #~ self.fail_count += 1
+            #~ self.config.log([self.config.text('sources', 1, (self.source, )), traceback.format_exc()])
+            #~ return 69  # EX_UNAVAILABLE
 
     def get_channel_lineup(self, htmldata):
         chan_list = []
@@ -3389,22 +3389,22 @@ class primo_HTML(tv_grab_fetch.FetchData):
         else:
             return u'%s/tvprograms/ajaxcallback/%s' % (base_url,  detail)
 
-    def get_channels(self):
-        """
-        Get a list of all available channels and store these
-        in all_channels.
-        """
+    #~ def get_channels(self):
+        #~ """
+        #~ Get a list of all available channels and store these
+        #~ in all_channels.
+        #~ """
 
-        try:
-            strdata = self.config.fetch_func.get_page(self.get_url('channels'), counter = ['base', self.proc_id])
-            if self.get_channel_lineup(strdata) == 69:
-                self.config.log([self.config.text('sources', 1, (self.source, ))])
-                return 69  # EX_UNAVAILABLE
+        #~ try:
+            #~ strdata = self.config.fetch_func.get_page(self.get_url('channels'), counter = ['base', self.proc_id])
+            #~ if self.get_channel_lineup(strdata) == 69:
+                #~ self.config.log([self.config.text('sources', 1, (self.source, ))])
+                #~ return 69  # EX_UNAVAILABLE
 
-        except:
-            self.fail_count += 1
-            self.config.log([self.config.text('sources', 1, (self.source, )),traceback.format_exc()])
-            return 69  # EX_UNAVAILABLE
+        #~ except:
+            #~ self.fail_count += 1
+            #~ self.config.log([self.config.text('sources', 1, (self.source, )),traceback.format_exc()])
+            #~ return 69  # EX_UNAVAILABLE
 
     def get_channel_lineup(self, chandata):
 
@@ -3777,22 +3777,22 @@ class oorboekje_HTML(tv_grab_fetch.FetchData):
             #~ return u'%sprogram.php?dag=%s' % (base_url, week_day)
             return [u'%sprogram.php' % (base_url), {'dag': week_day}]
 
-    def get_channels(self):
-        """
-        Get a list of all available channels and store these
-        in all_channels.
-        """
+    #~ def get_channels(self):
+        #~ """
+        #~ Get a list of all available channels and store these
+        #~ in all_channels.
+        #~ """
 
-        try:
-            strdata = self.config.fetch_func.get_page(self.get_url('channels'), counter = ['base', self.proc_id])
-            if self.get_channel_lineup(strdata) == 69:
-                self.config.log(["Unable to get channel info from %s\n" % self.source, traceback.format_exc()])
-                return 69  # EX_UNAVAILABLE
+        #~ try:
+            #~ strdata = self.config.fetch_func.get_page(self.get_url('channels'), counter = ['base', self.proc_id])
+            #~ if self.get_channel_lineup(strdata) == 69:
+                #~ self.config.log(["Unable to get channel info from %s\n" % self.source, traceback.format_exc()])
+                #~ return 69  # EX_UNAVAILABLE
 
-        except:
-            self.fail_count += 1
-            self.config.log([self.config.text('sources', 1, (self.source, )), traceback.format_exc()])
-            return 69  # EX_UNAVAILABLE
+        #~ except:
+            #~ self.fail_count += 1
+            #~ self.config.log([self.config.text('sources', 1, (self.source, )), traceback.format_exc()])
+            #~ return 69  # EX_UNAVAILABLE
 
     def get_channel_lineup(self, chandata):
 

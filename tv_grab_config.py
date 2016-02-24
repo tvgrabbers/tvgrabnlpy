@@ -139,7 +139,7 @@ class Configure:
         self.api_major = 1
         self.api_minor = 0
         self.api_patch = 0
-        self.api_patchdate = u'20160208'
+        self.api_patchdate = u'20160224'
         self.api_alfa = True
         self.api_beta = True
         try:
@@ -2211,7 +2211,7 @@ class Configure:
 
         self.source_channels = get_githubdict("source_channels", 1)
         #~ self.empty_channels = get_githubdict("empty_channels", 1)
-        self.channel_grouping = get_githubdict("channel_grouping", 2)
+        self.channel_grouping = get_githubdict("channel_grouping", 1)
         self.rtl_channellist = get_githubdict("rtl_channellist")
         self.virtual_channellist = get_githubdict("virtual_channellist")
         self.channel_rename = get_githubdict("channel_rename")
@@ -2382,9 +2382,9 @@ class Configure:
                 self.channels[chanid].source_id[index] = chan_scid
                 # Set the group
                 if ((not self.opt_dict['always_use_json'] and self.channels[chanid].group >= 99)
-                    or self.opt_dict['always_use_json']) and index in self.channel_grouping:
-                        for g in self.channel_grouping[index]:
-                            if chan_scid in self.channel_grouping[index][g]:
+                    or self.opt_dict['always_use_json']):
+                        for g, chan_list in self.channel_grouping.items():
+                            if chanid in chan_list:
                                 channel['group'] = g
                                 break
 

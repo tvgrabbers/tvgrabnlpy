@@ -17,7 +17,7 @@
 			"npopolitiekbest": {"name": "NPO Politiek/Best", "group": 1},
 			"npozapphumor": {"name": "NPO Zapp Xtra/Humor TV", "group": 1},
 			"omroepbrabantsat": {"name": "Omroep Brabant (satelliet)", "group": 6, "icon": "omroep_brabant.png", "icongrp": 4},
-			"veronicadxd": {"name": "Veronica / Disney XD (experimenteel)", "group": 99, "icon": "veronica_disney_xd2.png", "icongrp": 4}}},
+			"veronicadxd": {"name": "Veronica / Disney XD (experimenteel)", "group": 1, "icon": "veronica_disney_xd2.png", "icongrp": 4}}},
 	"no_genric_matching":[],
 	"empty_channels":[],
     "cattrans":{},

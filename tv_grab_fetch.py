@@ -114,6 +114,14 @@ class Functions():
         timeout exception
         """
         try:
+            if isinstance(url, (list, tuple)) and len(url) > 0:
+                encoding = url[1] if len(url) > 1 else None
+                accept_header = url[2] if len(url) > 2 else None
+                txtdata = url[3] if len(url) > 3 else None
+                counter = url[4] if len(url) > 4 else None
+                is_json = url[5] if len(url) > 5 else False
+                url = url[0]
+
             txtheaders = {'Keep-Alive' : '300',
                           'User-Agent' : self.config.user_agents[random.randint(0, len(self.config.user_agents)-1)] }
 
@@ -433,8 +441,8 @@ class Functions():
 
     def link_functions(self, fid, data=[], source = '', tzinfo = None, default = None):
         try:
+            # strip data[1] from the end of data[0] if present and make sure it's unicode
             if fid == 0:
-                # strip data[1] from the end of data[0] if present
                 if len(data) == 0:
                     if default != None:
                         return default
@@ -450,10 +458,10 @@ class Functions():
                 else:
                     return unicode(data[0]).strip()
 
+            # split logo name and logo provider
             if fid == 1:
-                # split logo name and logo provider
                 self.icongrp = -1
-                if len(data)< 1:
+                if len(data)< 1 or data[0] == None:
                     return default
 
                 d = data[0].split('?')[0]
@@ -462,36 +470,8 @@ class Functions():
                         self.icongrp = k
                         return d[len(v):]
 
+            # concatenate stringparts and make sure it's unicode
             if fid == 2:
-                # Replace values with the values in the dict in data[1]
-                if len(data)< 2 or not isinstance(data[1], dict):
-                    return default
-
-                if data[0] in data[1].keys():
-                    return data[1][data[0]]
-
-                return default
-
-            if fid == 3:
-                # Get a season or episode number
-                if len(data) > 0:
-                    if data[0] != None:
-                        try:
-                            return int(data[0])
-
-                        except:
-                            if default != None:
-                                return default
-
-                            return 0
-
-                if default != None:
-                    return default
-
-                return 0
-
-            if fid == 4:
-                # Replace a None value with an empty string
                 dd = u''
                 for d in data:
                     if d != None:
@@ -503,41 +483,13 @@ class Functions():
 
                 return dd
 
-            if fid == 5:
-                # Check on a boolean value
-                if len(data) > 0:
-                    if isinstance(data[0], bool):
-                        return data[0]
-
-                if len(data) >1 and isinstance(data[1], bool):
-                    return data[1]
-
-                if default != None:
-                    return default
-
-                return False
-
-            if fid == 6:
-                # Strip a channelid or prog_ID from a path
+            # Strip a channelid or prog_ID from a path
+            if fid == 3:
                 if len(data)< 2 or not isinstance(data[1], int) or data[0] in ('', None):
                     return default
 
                 #~ for index in range(1, len(data)):
                 return data[0].split('/')[data[1]]
-
-            # datetime functions
-            if fid == 101:
-                if len(data) > 0:
-                    return datetime.datetime.fromtimestamp(data[0], self.config.utc_tz)
-
-            if fid == 104:
-                if len(data) == 2:
-                    return self.get_datetime(data[0], data[1], tzinfo)
-
-                elif len(data) > 2:
-                    return self.get_datetime(data[0], data[1], tzinfo, data[2])
-
-                return default
 
         except:
             self.config.log([self.config.text('fetch', 69, ('link', fid, source)), traceback.format_exc()], 1)
@@ -563,11 +515,23 @@ class Functions():
             elif urlid == 3 and "channelgrp" in data:
                 return data["channelgrp"]
 
-            elif urlid == 11 and "offset" in data:
+            elif urlid == 4 and "item-count" in data:
+                if not "offset" in data:
+                    data["offset"] = 0
+
+                return u'%s-%s' % (data["offset"] * data["item-count"] + 1, (data["offset"] + 1) * data["item-count"])
+
+            elif urlid == 11:
+                if not "offset" in data:
+                    data["offset"] = 0
+
                 if data['url-date-type'] == 0:
                     return str(data["offset"])
 
-            elif urlid == 12 and "offset" in data and data["url-date-format"] not in (None, ''):
+            elif urlid == 12 and data["url-date-format"] not in (None, ''):
+                if not "offset" in data:
+                    data["offset"] = 0
+
                 return datetime.date.fromordinal(data['current_date'] + data["offset"]).strftime(data["url-date-format"])
 
             elif urlid == 13:
@@ -1116,489 +1080,50 @@ class theTVDB(Thread):
 
 # end theTVDB
 
-class HTMLnode_oud():
-    def __init__(self, tag, attributes=[], parent = None):
-        self.tag = tag
-        self.text = u''
-        self.attributes = {}
-        self.set_attributes(attributes)
-
-        self.parent = parent
+class DATAnode():
+    def __init__(self, dtree, parent = None):
+        self.show_result = False
         self.children = []
-        self.is_root = bool(parent == None)
-        n = self
-        while not n.is_root:
-            n = n.parent
-
-        self.root = n
-        self.level = -1
-        if isinstance(parent, HTMLnode):
-            parent.children.append(self)
-            self.level = parent.level+1
-
-        self.is_value = False
-        self.show_result =False
-        self.fle = sys.stdout
-
-    def set_attributes(self, attributes):
-        for a in attributes:
-            self.attributes[a[0].lower()] = a[1]
-
-    def get_attribute(self, name):
-        if name in self.attributes.keys():
-            return self.attributes[name]
-
-        return None
-
-    def is_attribute(self, name, value = None):
-        if name in self.attributes.keys():
-            if value in (None, self.attributes[name]):
-                return True
-
-        return False
-
-    def get_children(self, tag = None, attributes = {}):
-        childs = []
-        for c in self.children:
-            if tag in (None, c.tag):
-                for a, v in attributes.items():
-                    if not c.is_attribute(a, v):
-                        break
-
-                else:
-                    childs.append(c)
-
-        return childs
-
-    def match_node(self, tag = None, attributes = {}, node_def = None):
-        if node_def == None:
-            if tag in (None, self.tag):
-                if attributes == None:
-                    return True
-
-                if not isinstance(attributes, dict):
-                    return False
-
-                for a, v in attributes.items():
-                    if not self.is_attribute(a, v):
-                        return False
-
-                return True
-
-            else:
-                return False
-
-        elif isinstance(node_def, dict) and 'tag' in node_def.keys():
-            if node_def['tag'] in (None, self.tag):
-                if not 'attrs' in node_def.keys() or node_def['attrs'] == None:
-                    return True
-
-                if not isinstance(node_def['attrs'], dict):
-                    return False
-
-                for a, v in node_def['attrs'].items():
-                    if not self.is_attribute(a, v):
-                        return False
-
-                return True
-
-            else:
-                return False
-
-        else:
-            return False
-
-    def find_value(self, node_def):
-        if 'attr' in node_def.keys() :
-            sv = self.get_attribute(node_def[ 'attr'].lower())
-
-        else:
-            sv = self.text
-
-        if sv == None and'default' in node_def.keys():
-            sv = node_def['default']
-
-        if sv == None:
-            return
-
-        else:
-            return {node_def['varid']: re.sub('\n','', re.sub('\r','', sv)).strip()}
-
-    def parse_node(self, path, level = 0):
-        nodes = []
-        if level == 0 and not 'tag' in path[0].keys():
-            if self.root.show_result:
-                self.root.fle.write('  found node%s: %s\n'.encode('utf-8') % (level, self.tag))
-
-            if 'varid' in path[level].keys():
-                self.root.is_value = True
-                nv = self.find_value(path[level])
-                if self.root.show_result:
-                    self.root.fle.write('%s: %s\n'.encode('utf-8') % (path[level]['varid'], nv))
-
-                return nv
-
-            else:
-                return
-
-        for nd in self.children:
-            #~ print len(path), nd.level,'checking:', level, nd.tag, ':   ', nd.get_attribute('class')
-            if nd.match_node(node_def=path[level]):
-                if self.root.show_result:
-                    self.root.fle.write('  found node%s: %s\n'.encode('utf-8') % (level, path[level]['tag']))
-
-                if 'varid' in path[level].keys():
-                    self.root.is_value = True
-                    nv = nd.find_value(path[level])
-                    if self.root.show_result:
-                        self.root.fle.write('%s: %s\n'.encode('utf-8') % (path[level]['varid'], nv))
-
-                    return nv
-
-                elif level == len(path)-1:
-                    nodes.append(nd)
-                    if self.root.show_result:
-                        self.root.fle.write('    adding node%s %s: class=%s\n'.encode('utf-8') % (level, nd.tag, nd.get_attribute('class')))
-
-                else:
-                    sv = nd.parse_node(path, level+1)
-                    if self.root.is_value:
-                        return sv
-
-                    elif isinstance(sv, list):
-                        nodes.extend(sv)
-
-                    else:
-                        nodes.append(sv)
-
-        return nodes
-
-    def print_tree(self):
-        if not self.root.show_result:
-            return
-
-        sstr = u''
-        for i in range(self.level):
-            sstr += u'  '
-
-        sstr =u'%s%s%s%s\n' % (sstr, self.tag, self.attributes, self.text.strip())
-        self.root.fle.write(sstr.encode('utf-8'))
-        for n in self.children:
-            n.print_tree()
-
-# end HTMLnode
-
-class WebParser_oud(HTMLParser):
-    def __init__(self, config, data='', data_def={}, autoclose_tags=[]):
-        HTMLParser.__init__(self)
-        self.print_tags = False
-        self.show_result = True
-        self.fle = sys.stdout
-        self.config = config
-        self.data_def = data_def
-        self.autoclose_tags = []
-        self.root = HTMLnode('root')
-        self.root.show_result = self.show_result
-        self.root.fle = self.fle
-        self.current_node = self.root
-        self.text = u''
-        self.start_node = self.root
-        self.init_path = []
-        self.result = []
-        self.count_tags(data)
-        self.feed(data)
-        self.find_start_node()
-        self.extract_datalist()
-
-    def count_tags(self, data):
-        tag_list = re.compile("\<(.*?)\>", re.DOTALL)
-        self.tag_count = {}
-        for t in tag_list.findall(data):
-            if t[0] == '\\':
-                t = t[1:]
-
-            if t[0] == '/':
-                sub = 'close'
-                tag = t.split (' ')[0][1:].lower()
-
-            elif t[:3] == '!--':
-                continue
-                sub = 'comment'
-                tag = t[3:].lower()
-
-            elif t[0] == '?':
-                continue
-                sub = 'pi'
-                tag = t[1:].lower()
-
-            elif t[0] == '!':
-                continue
-                sub = 'html'
-                tag = t[1:].lower()
-
-            elif t[-1] == '/':
-                sub = 'auto'
-                tag = t.split(' ')[0].lower()
-
-            else:
-                sub = 'start'
-                tag = t.split (' ')[0].lower()
-
-            if not tag in self.tag_count.keys():
-                self.tag_count[tag] ={}
-                self.tag_count[tag]['close'] = 0
-                self.tag_count[tag]['comment'] = 0
-                self.tag_count[tag]['pi'] = 0
-                self.tag_count[tag]['html'] = 0
-                self.tag_count[tag]['auto'] = 0
-                self.tag_count[tag]['start'] = 0
-
-            self.tag_count[tag][sub] += 1
-
-        for t, c in self.tag_count.items():
-            if c['close'] == 0 and (c['start'] >0 or c['auto'] > 0):
-                self.autoclose_tags.append(t)
-
-            if self.print_tags:
-                self.fle.write('%s %s %s %s\n'.encode('utf-8') % (t.ljust(12), c['start'], c['close'], c['auto']))
-
-    def find_start_node(self):
-        if "init-path" in self.data_def.keys() and isinstance(self.data_def["init-path"], list):
-            self.init_path = self.data_def["init-path"]
-
-        # sanatise the init_path
-        for ip in range(len(self.init_path)):
-            if not isinstance(self.init_path[ip], dict):
-                tag = self.init_path[ip]
-                self.init_path[ip] = {}
-
-            elif not "tag"in self.init_path[ip]:
-                tag = None
-                # give an error
-                return
-
-            else:
-                tag = self.init_path[ip]["tag"]
-
-            self.init_path[ip]["tag"] = tag.lower()
-            if not "attrs" in self.init_path[ip].keys() or not isinstance(self.init_path[ip]["attrs"], dict):
-                self.init_path[ip]["attrs"] = {}
-
-        # and find the start node
-        self.start_node = self.get_subitem(self.init_path)
-        if self.start_node == None:
-            self.start_node = self.root
-
-    def extract_datalist(self):
-        if "iter" in self.data_def.keys() and isinstance(self.data_def["iter"], list):
-            for ilist in self.data_def["iter"]:
-                start_node = self.start_node
-                if isinstance(ilist, dict) and "path" in ilist:
-                    sn = self.get_subitem(ilist['path'])
-                    sn = [sn] if isinstance(sn, HTMLnode) else sn
-                    start_node = sn if isinstance(sn, list) else self.start_node
-
-                if isinstance(ilist, dict) and "values" in ilist:
-                    if isinstance(ilist["values"], dict):
-                        ilist["values"] = [ilist["values"]]
-
-                    if not isinstance(ilist["values"], list):
-                        continue
-
-                    for snode in start_node:
-                        vitem = {}
-                        for vsel in ilist["values"]:
-                            vdict = self.get_subitem(vsel, snode)
-                            if isinstance(vdict, dict):
-                                for k, v in vdict.items():
-                                    vitem[k] = v
-
-                        self.result.append(vitem)
-
-    def handle_starttag(self, tag, attrs):
-        if self.print_tags:
-            self.fle.write('starting %s %s\n'.encode('utf-8') % (self.current_node.level, tag))
-
-        node = HTMLnode(tag.lower(), attrs, self.current_node)
-        self.add_text()
-        self.current_node = node
-        if tag.lower() in self.autoclose_tags:
-            self.handle_endtag(tag)
-            return False
-
-        return True
-
-    def handle_endtag(self, tag):
-        if self.print_tags:
-            self.fle.write('  closing %s %s %s\n'.encode('utf-8') % (tag, self.current_node.level, self.current_node.tag))
-
-        if self.current_node.tag != tag.lower():
-            # To catch missing close tags
-            self.remove_text()
-            self.handle_endtag(self.current_node.tag)
-
-        self.add_text()
-        self.current_node = self.current_node.parent
-        if self.current_node.is_root:
-            self.reset()
-
-    def handle_startendtag(self, tag, attrs):
-        if self.handle_starttag(tag, attrs):
-            self.handle_endtag(tag)
-
-    def handle_data(self, data):
-        self.text += data
-
-    def handle_entityref(self, name):
-        try:
-            c = unichr(name2codepoint[name])
-            self.text += c
-
-        except:
-            pass
-
-    def handle_charref(self, name):
-        if name.startswith('x'):
-            c = unichr(int(name[1:], 16))
-
-        else:
-            c = unichr(int(name))
-
-        self.text += c
-
-    def handle_comment(self, data):
-        # <!--comment-->
-        pass
-
-    def handle_decl(self, decl):
-        # <!DOCTYPE html>
-        pass
-
-    def handle_pi(self, data):
-        # <?proc color='red'>
-        pass
-
-    def add_text(self):
-        self.current_node.text += unicode(re.sub('\n','', re.sub('\r','', self.text)))
-        self.text = u''
-
-    def remove_text(self):
-        self.text += self.current_node.text
-        self.current_node.text = u''
-
-    def get_subitem(self, spath, start_node = None):
-        if not isinstance(spath, list) or len(spath) == 0:
-            return
-
-        nodes = []
-        if start_node == None:
-            start_node = self.start_node
-
-        if isinstance(start_node, HTMLnode):
-            if self.show_result:
-                self.fle.write('parsing %s %s\n'.encode('utf-8') % (start_node.tag, start_node.attributes))
-                start_node.print_tree()
-
-            start_node.root.is_value = False
-            sv = start_node.parse_node(spath)
-            start_node.root.is_value = False
-            return sv
-
-        if isinstance(start_node, dict):
-            start_node = list(start_node.values())
-
-        if isinstance(start_node, list):
-            nodes = []
-            for nd in start_node:
-                if isinstance(nd, HTMLnode):
-                    if self.show_result:
-                        self.fle.write('parsing %s %s\n'.encode('utf-8') % (nd.tag, nd.attributes))
-                        nd.print_tree()
-                    nd.root.is_value = False
-                    sv = nd.parse_node(spath)
-                    if nd.root.is_value:
-                        nd.root.is_value = False
-                        return sv
-
-                    elif isinstance(sv, list):
-                        nodes.extend(sv)
-
-                    else:
-                        nodes.append(sv)
-
-        return nodes
-
-# end WebParser
-
-class HTMLnode():
-    def __init__(self, htree, tag, attributes=[], parent = None):
-        self.htree = htree
-        self.tag = tag
-        self.text = u''
-        self.attributes = {}
+        self.dtree = dtree
+        self.parent = parent
         self.value = None
-        self.set_attributes(attributes)
-
-        self.parent = parent
-        self.children = []
-        self.is_root = bool(parent == None)
+        self.level = 0
+        self.is_root = bool(self.parent == None)
         n = self
         while not n.is_root:
             n = n.parent
 
         self.root = n
-        self.level = -1
-        if isinstance(parent, HTMLnode):
-            parent.children.append(self)
-            self.level = parent.level+1
+        if isinstance(parent, DATAnode):
+            self.parent.append_child(self)
+            self.level = parent.level + 1
 
-        self.is_value = False
-        self.show_result =False
+    def append_child(self, node):
+        self.children.append(node)
 
-    def set_attributes(self, attributes):
-        for a in attributes:
-            self.attributes[a[0].lower()] = a[1]
-
-    def get_attribute(self, name):
-        if name in self.attributes.keys():
-            return self.attributes[name]
-
-        return None
-
-    def is_attribute(self, name, value = None):
-        if name in self.attributes.keys():
-            if value in (None, self.attributes[name]):
-                return True
-
-        return False
-
-    def get_children(self, tag = None, attributes = {}, node_def = None):
+    def get_children(self, data_def = None, link_values={}):
         childs = []
-        if node_def == None:
-            for c in self.children:
-                if c.match_node(tag, attributes):
-                    childs.append(c)
-
-            return childs
-
-        d_def = node_def if isinstance(node_def, list) else [node_def]
+        d_def = data_def if isinstance(data_def, list) else [data_def]
         if len(d_def) == 0 or d_def[0] == None:
+            # It's not a child definition
             if self.root.show_result:
-                self.htree.print_text(u'    adding node%s %s: %s\n' % (self.level, self.tag, self.find_value()))
-                #~ self.root.fle.write('%s: %s\n'.encode('utf-8') % (path[level]['varid'], nv))
+                self.dtree.print_text(u'    adding node %s\n'.encode('utf-8', 'replace') % (self.print_node()))
+            return [self]
+
+        elif len(d_def) == 1 and self.match_node(node_def = d_def[0], link_values=link_values) == None:
+            # It's not a child definition
+            if self.root.show_result:
+                self.dtree.print_text(u'    adding node %s; %s\n'.encode('utf-8', 'replace') % (self.print_node(), d_def[0]))
             return [self]
 
         elif isinstance(d_def[0], dict):
-            if not 'tag' in d_def[0].keys():
-                if self.root.show_result:
-                    self.htree.print_text(u'    adding node%s %s: %s\n'.encode('utf-8', 'replace') % (self.level, self.tag, self.find_value(d_def[0])))
-                return [self]
-
             for item in self.children:
-                if item.match_node(node_def = d_def[0]):
+                # We look for matching children
+                if item.match_node(node_def = d_def[0], link_values=link_values):
+                    # We found a matching child
                     if self.root.show_result:
-                        self.htree.print_text(u'  checking node%s: %s %s\n'.encode('utf-8', 'replace') % (self.level, self.tag, d_def[0]))
-                    jl = item.get_children(node_def = d_def[1:])
+                        self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (item.print_node(), d_def[0]))
+                    jl = item.get_children(data_def = d_def[1:], link_values=link_values)
                     if isinstance(jl, list):
                         childs.extend(jl)
 
@@ -1609,14 +1134,19 @@ class HTMLnode():
 
         elif d_def[0] == 'parent' and not self.is_root:
             if self.root.show_result:
-                self.htree.print_text(u'  checking node%s: %s %s\n'.encode('utf-8', 'replace') % (self.level, self.tag, d_def[0]))
-            return parent.get_children(node_def = d_def[1:])
+                self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (self.parent.print_node(), d_def[0]))
+            return self.parent.get_children(data_def = d_def[1:], link_values=link_values)
+
+        elif d_def[0] == 'root':
+            if self.root.show_result:
+                self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (self.root.print_node(), d_def[0]))
+            return self.root.get_children(data_def = d_def[1:], link_values=link_values)
 
         elif d_def[0] == 'all':
-            for item in self.items.values():
+            for item in self.children:
                 if self.root.show_result:
-                    self.htree.print_text(u'  checking node%s: %s %s\n'.encode('utf-8', 'replace') % (self.level, self.tag, d_def[0]))
-                jl = item.get_children(node_def = d_def[1:])
+                    self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (item.print_node(), d_def[0]))
+                jl = item.get_children(data_def = d_def[1:], link_values=link_values)
                 if isinstance(jl, list):
                     childs.extend(jl)
 
@@ -1625,14 +1155,216 @@ class HTMLnode():
 
             return childs
 
-        else:
-            if self.root.show_result:
-                self.htree.print_text(u'    adding node%s %s: %s\n'.encode('utf-8', 'replace') % (self.level, self.tag, self.find_value(d_def[0])))
-            return [self]
+        #~ else:
+            #~ if self.root.show_result:
+                #~ self.dtree.print_text(u'    adding node %s; %s\n'.encode('utf-8', 'replace') % (self.print_node(), d_def[0]))
+            #~ return [self]
 
         return childs
 
-    def match_node(self, tag = None, attributes = {}, node_def = None):
+    def match_node(self, node_def = None, link_values ={}):
+        return False
+
+    def find_value(self, node_def = None):
+        return self.calc_value(self.value, node_def)
+
+    def calc_value(self, value, node_def = None):
+        if isinstance(value, (str, unicode)):
+            if node_def == 'lower-ascii':
+                value = value.lower()
+                value =re.sub('[ /]', '_', value)
+                value =re.sub('[!(),]', '', value)
+                value = re.sub('á','a', value)
+                value = re.sub('à','a', value)
+                value = re.sub('ä','a', value)
+                value = re.sub('â','a', value)
+                value = re.sub('ã','a', value)
+                value = re.sub('@','a', value)
+                value = re.sub('é','e', value)
+                value = re.sub('è','e', value)
+                value = re.sub('ë','e', value)
+                value = re.sub('ê','e', value)
+                value = re.sub('í','i', value)
+                value = re.sub('ì','i', value)
+                value = re.sub('ï','i', value)
+                value = re.sub('î','i', value)
+                value = re.sub('ó','o', value)
+                value = re.sub('ò','o', value)
+                value = re.sub('ö','o', value)
+                value = re.sub('ô','o', value)
+                value = re.sub('õ','o', value)
+                value = re.sub('ú','u', value)
+                value = re.sub('ù','u', value)
+                value = re.sub('ü','u', value)
+                value = re.sub('û','u', value)
+                value = re.sub('ý','y', value)
+                value = re.sub('ÿ','y', value)
+                value = value.encode('ascii','replace')
+
+            # Is there something to strip of
+            if self.dtree.is_data_value('ascii-replace', list, node_def) and len(node_def['ascii-replace']) > 0:
+                arep = node_def['ascii-replace']
+                value = value.lower()
+                if len(arep) > 2:
+                    value = re.sub(arep[2], arep[1], value)
+
+                value = value.encode('ascii','replace')
+                value = re.sub('\?', arep[0], value)
+
+            if self.dtree.is_data_value('lstrip', str, node_def):
+                if value.strip().lower()[:len(node_def['lstrip'])] == node_def['lstrip'].lower():
+                    value = unicode(value[len(node_def['lstrip']):]).strip()
+
+            if self.dtree.is_data_value('rstrip', str, node_def):
+                if value.strip().lower()[-len(node_def['rstrip']):] == node_def['rstrip'].lower():
+                    value = unicode(value[:-len(node_def['rstrip'])]).strip()
+
+            # Is there something to substitute
+            if self.dtree.is_data_value('sub', list, node_def) and len(node_def['sub']) > 1:
+                value = re.sub(node_def['sub'][0], node_def['sub'][1], value)
+
+            # Is there a split list
+            if self.dtree.is_data_value('split', list, node_def) and len(node_def['split']) > 0:
+                if not isinstance(node_def['split'][0],list):
+                    slist = [node_def['split']]
+
+                else:
+                    slist = node_def['split']
+
+                for sdef in slist:
+                    if len(sdef) < 2 or not isinstance(sdef[0],(str,unicode)) or not isinstance(sdef[1], int):
+                        continue
+
+                    try:
+                        dat = re.split(sdef[0],value)
+                        value = dat[sdef[1]]
+                        for i in range(2, len(sdef)):
+                            if isinstance(sdef[i], int) and (( 0<= sdef[i] < len(dat)) or (-len(dat) <= sdef[i] < 0)):
+                                value = value + sdef[0] +  dat[sdef[i]]
+
+                    except:
+                        pass
+
+        # Is there a replace dict
+        if self.dtree.is_data_value('replace', dict, node_def):
+            if value.strip().lower() in node_def['replace'].keys():
+                value = node_def['replace'][value.strip().lower()]
+
+            else:
+                value = None
+
+        # is there a default
+        if value == None and self.dtree.is_data_value('default', None, node_def):
+            value = node_def['default']
+
+        # Make sure a string is unicode and free of HTML entities
+        if isinstance(value, (str, unicode)):
+            value = re.sub('\n','', re.sub('\r','', self.dtree.unescape(unicode(value)))).strip()
+
+        # is there a type definition in node_def
+        if self.dtree.is_data_value('type', unicode, node_def):
+            try:
+                if node_def['type'] == 'timestamp':
+                    val = value
+                    if self.dtree.is_data_value('divider', int, node_def):
+                        val = value/node_def['divider']
+
+                    value = datetime.datetime.fromtimestamp(val, self.dtree.utc)
+
+                elif node_def['type'] == 'datetimestring':
+                    date = self.dtree.timezone.localize(datetime.datetime.strptime(value, self.dtree.datetimestring))
+                    value = self.dtree.utc.normalize(date.astimezone(self.dtree.utc))
+
+                elif node_def['type'] == 'timestring':
+                    pass
+
+                elif node_def['type'] == 'string':
+                    value = unicode(value)
+
+                elif node_def['type'] == 'int':
+                    if value == '':
+                        value = 0
+
+                    else:
+                        value = int(value)
+
+                elif node_def['type'] == 'boolean':
+                    if not isinstance(value, bool):
+                        if isinstance(value, int):
+                            value = bool(value>0)
+
+                        elif isinstance(value, (str, unicode)):
+                            value = bool(len(value) > 0 and value != '0')
+
+                        else:
+                            value = False
+
+                elif node_def['type'] == '':
+                    pass
+
+            except:
+                #~ traceback.print_exc()
+                pass
+
+        return value
+
+    def print_node(self):
+        return u'%s = %s' % (self.level, self.find_value())
+
+    def print_tree(self):
+        #~ if not self.root.show_result:
+            #~ return
+
+        sstr = u''
+        for i in range(self.level):
+            sstr += u'  '
+
+        sstr =u'%s%s\n' % (sstr, self.print_node())
+        self.dtree.print_text(sstr)
+        for n in self.children:
+            n.print_tree()
+
+# end DATAnode
+
+class HTMLnode(DATAnode):
+    def __init__(self, dtree, data = None, parent = None):
+        self.tag = u''
+        self.text = u''
+        self.attributes = {}
+        DATAnode.__init__(self, dtree, parent)
+        if isinstance(data, (str, unicode)):
+            self.tag = data
+
+        elif isinstance(data, list):
+            if len(data) > 0:
+                self.tag = data[0]
+
+            if len(data) > 1 and isinstance(data[1], (list, tuple)):
+                for a in data[1]:
+                    self.attributes[a[0].lower()] = a[1]
+
+    def get_attribute(self, name):
+        if name in self.attributes.keys():
+            return self.attributes[name]
+
+        return None
+
+    def is_attribute(self, name, value = None):
+        if name in self.attributes.keys():
+            if value in (None, self.attributes[name]):
+                return True
+
+        return False
+
+    def get_child(self, tag = None, attributes = {}):
+        childs = []
+        for c in self.children:
+            if c.match_node(tag, attributes):
+                childs.append(c)
+
+        return childs
+
+    def match_node(self, tag = None, attributes = {}, node_def = None, link_values={}):
         if node_def == None:
             if tag in (None, self.tag):
                 if attributes == None:
@@ -1652,14 +1384,21 @@ class HTMLnode():
 
         elif isinstance(node_def, dict) and 'tag' in node_def.keys():
             if node_def['tag'] in (None, self.tag):
-                if not 'attrs' in node_def.keys() or node_def['attrs'] == None:
+                if not self.dtree.is_data_value('attrs', dict, node_def):
                     return True
 
-                if not isinstance(node_def['attrs'], dict):
-                    return False
-
                 for a, v in node_def['attrs'].items():
-                    if not self.is_attribute(a, v):
+                    if self.dtree.is_data_value('not', list, v):
+                        for val in v['not']:
+                            if self.is_attribute(a) and self.attributes[a] == val:
+                                return False
+
+                     #~ and self.dtree.is_data_value(v['link'], str, link_values)
+                    elif self.dtree.is_data_value('link', int, v):
+                        if not self.is_attribute(a, link_values[v["link"]]):
+                            return False
+
+                    elif not self.is_attribute(a, v):
                         return False
 
                 return True
@@ -1667,8 +1406,7 @@ class HTMLnode():
             else:
                 return False
 
-        else:
-            return False
+        return None
 
     def find_value(self, node_def = None):
         if isinstance(node_def, dict) and 'attr' in node_def.keys() :
@@ -1677,135 +1415,122 @@ class HTMLnode():
         else:
             sv = self.text
 
-        if sv == None and'default' in node_def.keys():
-            sv = node_def['default']
+        return self.calc_value(sv, node_def)
 
-        if isinstance(sv, (str, unicode)):
-            return re.sub('\n','', re.sub('\r','', self.htree.unescape(unicode(sv)))).strip()
-
-        else:
-            return sv
-
-    def print_tree(self):
-        if not self.root.show_result:
-            return
-
-        sstr = u''
-        for i in range(self.level):
-            sstr += u'  '
-
-        sstr =u'%s%s%s%s\n' % (sstr, self.tag, self.attributes, self.text.strip())
-        self.htree.print_text(sstr.encode('utf-8'))
-        for n in self.children:
-            n.print_tree()
+    def print_node(self):
+        return u'%s: %s = %s' % (self.level, self.tag, self.find_value())
+        #~ sstr =u'%s%s%s%s\n' % (sstr, self.tag, self.attributes, self.text.strip())
 
 # end HTMLnode
 
-class HTMLtree(HTMLParser):
-    def __init__(self, config, data='', data_def={}, autoclose_tags=[]):
-        HTMLParser.__init__(self)
-        self.print_tags = False
-        self.show_result = True
+class JSONnode(DATAnode):
+    def __init__(self, dtree, data = None, parent = None, key = None):
+        self.type = "value"
+        self.key = key
+        self.keys = []
+        self.key_pos = {}
+        self.value = None
+        DATAnode.__init__(self, dtree, parent)
+        if isinstance(data, list):
+            self.type = "list"
+            for k in range(len(data)):
+                JSONnode(self.dtree, data[k], self, k)
+
+        elif isinstance(data, dict):
+            self.type = "dict"
+            for k, item in data.items():
+                JSONnode(self.dtree, item, self, k)
+
+        else:
+            self.type = "value"
+            self.value = data
+
+    def append_child(self, node):
+        self.key_pos[node.key] = len(self.children)
+        self.children.append(node)
+        self.keys.append(node.key)
+
+    def get_child(self, key):
+        if key in self.keys:
+            return self.children[self.key_pos[key]]
+
+        return None
+
+    def match_node(self, node_def = None, link_values ={}):
+        if not isinstance(link_values, dict):
+            link_values ={}
+
+        if isinstance(node_def, dict):
+            if self.dtree.is_data_value('key', None, node_def):
+                if self.key == node_def["key"]:
+                    # The requested key matches
+                    return True
+                #~ if self.dtree.is_data_value('link', int, node_def):
+
+                return False
+
+            elif self.dtree.is_data_value('keys', list, node_def):
+                if self.key in node_def['keys']:
+                    # This key is in the list with requested keys
+                    return True
+
+                return False
+
+            elif self.dtree.is_data_value('keys', dict, node_def):
+                # Does it contain the requested key/value pairs
+                for item, v in node_def["keys"].items():
+                    if not item in self.keys:
+                        return False
+
+                    val = v
+                    if self.dtree.is_data_value('link', int, v) and v["link"] in link_values.keys():
+                        # The requested value is in link_values
+                        val = link_values[v["link"]]
+
+                    if self.get_child(item).value != val:
+                        return False
+
+                return True
+
+        return None
+
+    def find_value(self, node_def = None):
+        if node_def == 'key':
+            sv = self.key
+
+        else:
+            sv = self.value
+
+        return self.calc_value(sv, node_def)
+
+    def print_node(self):
+        return u'%s: %s = %s' % (self.level, self.key, self.find_value())
+
+# end JSONnode
+
+class DATAtree():
+    def __init__(self, config):
+        self.show_result = False
         self.fle = sys.stdout
+        self.extract_from_parent = False
         self.config = config
-        self.data_def = data_def
-        self.autoclose_tags = []
-        self.root = HTMLnode(self, 'root')
-        self.root.show_result = self.show_result
-        self.current_node = self.root
-        self.text = u''
-        self.init_path = []
         self.result = []
-        self.count_tags(data)
-        # read the html page into the tree
-        self.feed(data)
-        # And find the dataset into self.result
-        self.start_node = self.root
-        self.find_start_node()
-        self.extract_datalist()
+        self.datetimestring = ''
+        self.utc = pytz.utc
+        self.timezone = pytz.utc
 
-    def count_tags(self, data):
-        tag_list = re.compile("\<(.*?)\>", re.DOTALL)
-        self.tag_count = {}
-        for t in tag_list.findall(data):
-            if t[0] == '\\':
-                t = t[1:]
+    def find_start_node(self, data_def={}):
+        self.data_def = data_def
+        init_path = self.data_value(['data',"init-path"],list)
+        if self.show_result:
+            self.fle.write('parsing %s %s\n'.encode('utf-8') % (self.root.tag, self.root.attributes))
 
-            if t[0] == '/':
-                sub = 'close'
-                tag = t.split (' ')[0][1:].lower()
+        sn = self.root.get_children(data_def = init_path)
+        self.start_node = self.root if (sn == None or len(sn) == 0) else sn[0]
 
-            elif t[:3] == '!--':
-                continue
-                sub = 'comment'
-                tag = t[3:].lower()
-
-            elif t[0] == '?':
-                continue
-                sub = 'pi'
-                tag = t[1:].lower()
-
-            elif t[0] == '!':
-                continue
-                sub = 'html'
-                tag = t[1:].lower()
-
-            elif t[-1] == '/':
-                sub = 'auto'
-                tag = t.split(' ')[0].lower()
-
-            else:
-                sub = 'start'
-                tag = t.split (' ')[0].lower()
-
-            if not tag in self.tag_count.keys():
-                self.tag_count[tag] ={}
-                self.tag_count[tag]['close'] = 0
-                self.tag_count[tag]['comment'] = 0
-                self.tag_count[tag]['pi'] = 0
-                self.tag_count[tag]['html'] = 0
-                self.tag_count[tag]['auto'] = 0
-                self.tag_count[tag]['start'] = 0
-
-            self.tag_count[tag][sub] += 1
-
-        for t, c in self.tag_count.items():
-            if c['close'] == 0 and (c['start'] >0 or c['auto'] > 0):
-                self.autoclose_tags.append(t)
-
-            if self.print_tags:
-                self.fle.write('%s %s %s %s\n'.encode('utf-8') % (t.ljust(12), c['start'], c['close'], c['auto']))
-
-    def find_start_node(self):
-        if self.is_data_value(['data',"init-path"],list):
-            self.init_path = self.data_value(['data',"init-path"],list)
-
-            # sanatise the init_path
-            for ip in range(len(self.init_path)):
-                if not isinstance(self.init_path[ip], dict):
-                    tag = self.init_path[ip]
-                    self.init_path[ip] = {}
-
-                elif not "tag"in self.init_path[ip]:
-                    tag = None
-                    # give an error
-                    return
-
-                else:
-                    tag = self.init_path[ip]["tag"]
-
-                self.init_path[ip]["tag"] = tag.lower()
-                if not "attrs" in self.init_path[ip].keys() or not isinstance(self.init_path[ip]["attrs"], dict):
-                    self.init_path[ip]["attrs"] = {}
-
-            # and find the start node
-            if self.show_result:
-                self.fle.write('parsing %s %s\n'.encode('utf-8') % (self.root.tag, self.root.attributes))
-
-            sn = self.root.get_children(node_def = self.init_path)
-            self.start_node = self.root if (sn == None or len(sn) == 0) else sn[0]
-
-    def extract_datalist(self):
+    def extract_datalist(self, data_def={}):
+        self.data_def = data_def
+        #~ self.start_node.print_tree()
         self.result = []
         # Are there multiple data definitions
         if self.is_data_value(['data',"iter"],list):
@@ -1825,31 +1550,207 @@ class HTMLtree(HTMLParser):
                 if self.show_result:
                     self.fle.write('parsing keypath %s\n'.encode('utf-8') % (kp[0]))
 
-                self.key_list = self.start_node.get_children(node_def = kp)
+                self.key_list = self.start_node.get_children(data_def = kp)
                 for k in self.key_list:
-                    if not isinstance(k, HTMLnode):
+                    if not isinstance(k, DATAnode):
                         continue
 
                     # And if it's a valid node, find the belonging values (the last dict in a path list contains the value definition)
                     tlist = [k.find_value(kp[-1])]
+                    link_values = {}
+                    if self.is_data_value('link', int, kp[-1]):
+                        link_values = {kp[-1]["link"]: k.find_value(kp[-1])}
+
                     for v in self.data_value(["values"], list, dset):
                         if not isinstance(v, list):
+                            continue
+
+                        if self.is_data_value('value',None, v[0]):
+                            tlist.append(self.data_value('value',None, v[0]))
                             continue
 
                         if self.show_result:
                             self.fle.write('parsing key %s %s\n'.encode('utf-8') % ( [k.find_value(kp[-1])], v[-1]))
 
-                        nlist = k.get_children(node_def = v)
-                        for node in nlist:
-                            tlist.append(node.find_value(v[-1]))
+                        if self.extract_from_parent and isinstance(k.parent, DATAnode):
+                            nlist = k.parent.get_children(data_def = v, link_values = link_values)
+
+                        else:
+                            nlist = k.get_children(data_def = v, link_values = link_values)
+
+                        # Nothing found, so give the default or None
+                        if nlist in ([], None):
+                            if isinstance(v, list) and len(v)>0:
+                                if self.data_value('type', None, v[-1]) == 'list':
+                                    tlist.append([])
+
+                                else:
+                                    tlist.append(self.data_value('default', None, v[-1]))
+
+                            else:
+                                tlist.append(None)
+
+                        # We found multiple values
+                        elif len(nlist) > 1 or (isinstance(v, list) and len(v)>0 and self.data_value('type', None, v[-1]) == 'list'):
+                            vlist = []
+                            for node in nlist:
+                                vlist.append(node.find_value(v[-1]))
+
+                            tlist.append(vlist)
+
+                        # We found one value
+                        else:
+                            tlist.append(nlist[0].find_value(v[-1]))
 
                     self.result.append(tlist)
 
+    def print_text(self, text):
+        self.fle.write(text.encode('utf-8', 'replace'))
+
+    def is_data_value(self, dpath, dtype = None, subpath = None):
+        if isinstance(dpath, (str, unicode)):
+            dpath = [dpath]
+
+        if not isinstance(dpath, (list, tuple)):
+            return False
+
+        if subpath == None:
+            subpath = self.data_def
+
+        for d in dpath:
+            if not isinstance(subpath, dict):
+                return False
+
+            if not d in subpath.keys():
+                return False
+
+            subpath = subpath[d]
+
+        #~ if subpath in (None, "", {}, []):
+            #~ return False
+
+        if dtype == None:
+            return True
+
+        if dtype in (str, unicode, 'string'):
+            return bool(isinstance(subpath, (str, unicode)))
+
+        if dtype in (list, tuple, 'list'):
+            return bool(isinstance(subpath, (list, tuple)))
+
+        return bool(isinstance(subpath, dtype))
+
+    def data_value(self, dpath, dtype = None, subpath = None, default = None):
+        if self.is_data_value(dpath, dtype, subpath):
+            if isinstance(dpath, (str, unicode)):
+                dpath = [dpath]
+
+            if subpath == None:
+                subpath = self.data_def
+
+            for d in dpath:
+                subpath = subpath[d]
+
+        else:
+            subpath = None
+
+        if subpath == None:
+            if default != None:
+                return default
+
+            elif dtype in (str, unicode, 'string'):
+                return ""
+
+            elif dtype == dict:
+                return {}
+
+            elif dtype in (list, tuple, 'list'):
+                return []
+
+        return subpath
+
+# end DATAtree
+
+class HTMLtree(HTMLParser, DATAtree):
+    def __init__(self, config, data='', autoclose_tags=[]):
+        HTMLParser.__init__(self)
+        DATAtree.__init__(self, config)
+
+        self.print_tags = False
+        self.autoclose_tags = autoclose_tags
+        self.root = HTMLnode(self, 'root')
+        self.root.show_result = self.show_result
+        self.current_node = self.root
+        self.text = u''
+        self.open_tags = {}
+        self.count_tags(data)
+        # read the html page into the tree
+        self.feed(data)
+        self.reset()
+        # And find the dataset into self.result
+        self.start_node = self.root
+
+    def count_tags(self, data):
+        tag_list = re.compile("\<(.*?)\>", re.DOTALL)
+        self.tag_count = {}
+        for t in tag_list.findall(data):
+            if t[0] == '\\':
+                t = t[1:]
+
+            if t[0] == '/':
+                sub = 'close'
+                tag = t.split (' ')[0][1:].lower()
+
+            elif t[:3] == '!--':
+                continue
+                sub = 'comment'
+                tag = t[3:].lower()
+
+            elif t[0] == '?':
+                continue
+                sub = 'pi'
+                tag = t[1:].lower()
+
+            elif t[0] == '!':
+                continue
+                sub = 'html'
+                tag = t[1:].lower()
+
+            elif t[-1] == '/':
+                sub = 'auto'
+                tag = t.split(' ')[0].lower()
+
+            else:
+                sub = 'start'
+                tag = t.split (' ')[0].lower()
+
+            if not tag in self.tag_count.keys():
+                self.tag_count[tag] ={}
+                self.tag_count[tag]['close'] = 0
+                self.tag_count[tag]['comment'] = 0
+                self.tag_count[tag]['pi'] = 0
+                self.tag_count[tag]['html'] = 0
+                self.tag_count[tag]['auto'] = 0
+                self.tag_count[tag]['start'] = 0
+
+            self.tag_count[tag][sub] += 1
+
+        for t, c in self.tag_count.items():
+            if c['close'] == 0 and (c['start'] >0 or c['auto'] > 0):
+                self.autoclose_tags.append(t)
+
+            if self.print_tags:
+                self.fle.write('%s %s %s %s\n'.encode('utf-8') % (t.ljust(12), c['start'], c['close'], c['auto']))
+
     def handle_starttag(self, tag, attrs):
+        if not tag in self.open_tags.keys():
+            self.open_tags[tag] = 0
+
+        self.open_tags[tag] += 1
         if self.print_tags:
             self.fle.write('starting %s %s\n'.encode('utf-8') % (self.current_node.level, tag))
 
-        node = HTMLnode(self, tag.lower(), attrs, self.current_node)
+        node = HTMLnode(self, [tag.lower(), attrs], self.current_node)
         self.add_text()
         self.current_node = node
         if tag.lower() in self.autoclose_tags:
@@ -1859,6 +1760,10 @@ class HTMLtree(HTMLParser):
         return True
 
     def handle_endtag(self, tag):
+        if not tag in self.open_tags.keys() or self.open_tags[tag] == 0:
+            return
+
+        self.open_tags[tag] -= 1
         if self.print_tags:
             self.fle.write('  closing %s %s %s\n'.encode('utf-8') % (tag, self.current_node.level, self.current_node.tag))
 
@@ -1916,258 +1821,69 @@ class HTMLtree(HTMLParser):
         self.text += self.current_node.text
         self.current_node.text = u''
 
-    def is_data_value(self, dpath, dtype = None, subpath = None):
-        if isinstance(dpath, (str, unicode)):
-            dpath = [dpath]
-
-        if not isinstance(dpath, (list, tuple)):
-            return False
-
-        if subpath == None:
-            subpath = self.data_def
-
-        for d in dpath:
-            if not isinstance(subpath, dict):
-                return False
-
-            if not d in subpath.keys():
-                return False
-
-            subpath = subpath[d]
-
-        if subpath in (None, "", {}, []):
-            return False
-
-        if dtype == None:
-            return True
-
-        if dtype in (str, unicode):
-            return bool(isinstance(subpath, (str, unicode)))
-
-        if dtype in (list, tuple):
-            return bool(isinstance(subpath, (list, tuple)))
-
-        return bool(isinstance(subpath, dtype))
-
-    def print_text(self, tekst):
-        self.fle.write(tekst.encode('utf-8', 'replace'))
-
-    def data_value(self, dpath, dtype = None, subpath = None, default = None):
-        if self.is_data_value(dpath, dtype, subpath):
-            if isinstance(dpath, (str, unicode)):
-                dpath = [dpath]
-
-            if subpath == None:
-                subpath = self.data_def
-
-            for d in dpath:
-                subpath = subpath[d]
-
-        else:
-            subpath = None
-
-        if subpath == None:
-            if default != None:
-                return default
-
-            elif dtype in (str, unicode):
-                return ""
-
-            elif dtype == dict:
-                return {}
-
-            elif dtype in (list, tuple):
-                return []
-
-        return subpath
-
 # end HTMLtree
 
-class JSONnode():
-    def __init__(self, jtree, data = None, parent = None):
-        self.jtree = jtree
-        self.parent = parent
-        self.type = "value"
-        self.value = None
-        self.items = {}
-        self.is_root = bool(parent == None)
-        n = self
-        while not n.is_root:
-            n = n.parent
-
-        self.root = n
-        self.level = 0
-        if isinstance(parent, JSONnode):
-            self.level = parent.level+1
-
-        self.init_data(data)
-
-    def init_data(self, data):
-        self.value = None
-        self.items = {}
-        if isinstance(data, list):
-            self.type = "list"
-            for item in range(len(data)):
-                self.items[item] = JSONnode(self.jtree, data[item], self)
-
-        elif isinstance(data, dict):
-            self.type = "dict"
-            for k, item in data.items():
-                self.items[k] = JSONnode(self.jtree, item, self)
-
-        else:
-            self.type = "value"
-            self.value = data
-
-    def get_children(self, data_def):
-        d_def = data_def if isinstance(data_def, list) else [data_def]
-        childs = []
-        if len(d_def) == 0 or d_def[0] == None:
-            return [self]
-
-        elif isinstance(d_def[0], dict):
-            if "keys" in d_def[0].keys():
-                if isinstance(d_def[0]["keys"], list):
-                    for item in d_def[0]["keys"]:
-                        if item in self.items.keys():
-                            jl = self.items[item].get_children(d_def[1:])
-                            if isinstance(jl, list):
-                                childs.extend(jl)
-
-                            elif jl != None:
-                                childs.append(jl)
-
-                    return childs
-
-            elif "key" in d_def[0].keys():
-                if d_def[0]["key"] in self.items.keys():
-                    return self.items[d_def[0]["key"]].get_children(d_def[1:])
-
-            else:
-                return [self]
-
-        elif d_def[0] == 'parent' and not self.is_root:
-            return parent.get_children(d_def[1:])
-
-        elif d_def[0] in ('all', 'select'):
-            for item in self.items.values():
-                jl = item.get_children(d_def[1:])
-                if isinstance(jl, list):
-                    childs.extend(jl)
-
-                elif jl != None:
-                    childs.append(jl)
-
-            return childs
-
-        return childs
-
-# end JSONnode
-
-class JSONtree():
-    def __init__(self, config, data, data_def):
-        self.config = config
+class JSONtree(DATAtree):
+    def __init__(self, config, data):
+        DATAtree.__init__(self, config)
+        self.extract_from_parent = True
         self.data = data
-        self.data_def = data_def
-        self.result = []
         # Read the json data into the tree
         self.root = JSONnode(self, data)
-        # and extract the dataset into self.result
-        self.extract_datalist()
+        self.root.show_result = self.show_result
+        self.start_node = self.root
 
-    def extract_datalist(self):
-        # Are there multiple data definitions
-        if self.is_data_value(['data',"iter"],list):
-            def_list = self.data_value(['data','iter'],list)
+    def unescape(self, text):
+        # Removes HTML or XML character references and entities from a text string.
+        # source: http://effbot.org/zone/re-sub.htm#unescape-html
+        #
+        # @param text The HTML (or XML) source text.
+        # @return The plain text, as a Unicode string
 
-        # Or just one
-        elif self.is_data_value('data',dict):
-            def_list = [self.data_value('data',dict)]
+        def fixup(m):
+            text = m.group(0)
+            if text[:2] == "&#":
+                # character reference
+                try:
+                    if text[:3] == "&#x":
+                        return unichr(int(text[3:-1], 16))
 
-        self.result = []
-        for dset in def_list:
-            # Get all the key nodes
-            if self.is_data_value(["key-path"], list, dset):
-                self.key_list = self.root.get_children(self.data_value(["key-path"], list, dset))
-                for k in self.key_list:
-                    if not isinstance(k, JSONnode) or not isinstance(k.parent, JSONnode):
-                        continue
+                    else:
+                        return unichr(int(text[2:-1]))
 
-                    # And if it's a valid node, find the belonging values
-                    tlist = [k.value]
-                    for v in self.data_value(["values"], list, dset):
-                        if not isinstance(v, list):
-                            continue
+                except ValueError:
+                    pass
 
-                        nlist = k.parent.get_children(v)
-                        for node in nlist:
-                            tlist.append(node.value)
+            else:
+                # named entity
+                try:
+                    text = unichr(name2codepoint[text[1:-1]])
 
-                    self.result.append(tlist)
+                except KeyError:
+                    pass
 
-    def is_data_value(self, dpath, dtype = None, subpath = None):
-        if isinstance(dpath, (str, unicode)):
-            dpath = [dpath]
+            return text # leave as is
 
-        if not isinstance(dpath, (list, tuple)):
-            return False
+        if not isinstance(text,(str, unicode)):
+            return text
 
-        if subpath == None:
-            subpath = self.data_def
-
-        for d in dpath:
-            if not isinstance(subpath, dict):
-                return False
-
-            if not d in subpath.keys():
-                return False
-
-            subpath = subpath[d]
-
-        if subpath in (None, "", {}, []):
-            return False
-
-        if dtype == None:
-            return True
-
-        if dtype in (str, unicode):
-            return bool(isinstance(subpath, (str, unicode)))
-
-        if dtype in (list, tuple):
-            return bool(isinstance(subpath, (list, tuple)))
-
-        return bool(isinstance(subpath, dtype))
-
-    def data_value(self, dpath, dtype = None, subpath = None, default = None):
-        if self.is_data_value(dpath, dtype, subpath):
-            if isinstance(dpath, (str, unicode)):
-                dpath = [dpath]
-
-            if subpath == None:
-                subpath = self.data_def
-
-            for d in dpath:
-                subpath = subpath[d]
-
-        else:
-            subpath = None
-
-        if subpath == None:
-            if default != None:
-                return default
-
-            elif dtype in (str, unicode):
-                return ""
-
-            elif dtype == dict:
-                return {}
-
-            elif dtype in (list, tuple):
-                return []
-
-        return subpath
+        return unicode(re.sub("&#?\w+;", fixup, text))
 
 # end JSONtree
+
+class ProgramNode():
+    def __init__(self, config, data):
+        self.program_lock = Lock()
+        with self.program_lock:
+            self.config = config
+            self.data = data
+
+class ChannelNode():
+    def __init__(self, config, chanid):
+        self.channel_lock = Lock()
+        with self.channel_lock:
+            self.config = config
+            self.chanid = chanid
 
 class FetchData(Thread):
     """
@@ -2209,6 +1925,8 @@ class FetchData(Thread):
         self.config.queues['source'][self.proc_id] = self.detail_request
         self.config.threads.append(self)
         self.site_tz = self.config.utc_tz
+        self.item_count = 0
+        self.current_item_count = 0
 
         self.source_data = {}
         try:
@@ -2517,257 +2235,85 @@ class FetchData(Thread):
         self.jsondata = {}
         self.jsondict = {}
 
-    def get_url(self):
+    def get_url2(self, ptype, data):
         """return the several url's for ordinairy, detail and channel info"""
-        pass
-
-    def get_page_data(self, ptype, data={}):
         data['source'] = self.source
         data['channels'] = self.channels
         data['current_date'] = self.current_date
-        def getj_subpath(data, key_list ):
-            # remove intermediate path levels
-            d =data
-            for key in key_list:
-                if (isinstance(d, dict) and not key in d) or \
-                    (isinstance(d, list) and (not isinstance(key, int) or key+1 > len(d))):
-                        return data
-
-                dd = d[key]
-                d = dd
-
-            return d
-
-        def transpose_jdata(data, data_def):
-            # transpose dict to list or list to dict, optionaly returning a specific subitem
-            if self.data_value("type", unicode, data_def) == "keyed_list" and isinstance(data, list):
-                d = {}
-                for item in data:
-                    lk = self.data_value("link_key", unicode, data_def)
-                    if isinstance(item, dict) and lk in item.keys():
-                        kval = item[lk]
-                        item = getj_subpath(item, self.data_value("key-path", list, data_def))
-                        d[kval] = item
-                        if self.is_data_value("link_value", unicode, data_def) and kval == self.data_value("link_value", unicode, data_def):
-                            return item
-
-                return d
-
-            if self.data_value("type", unicode, data_def) == "list" and isinstance(data, dict):
-                return list(data.values())
-
-            return data
-
-        def parse_jsondict(data, data_def):
-            # return the values as defined by the keys dict
-            d = {}
-            dlist = []
-            for k, v in self.data_value("keys", dict, data_def).items():
-                if k == '--remark--':
-                    continue
-
-                if isinstance(v, int):
-                    # These are items to add to the dict
-                    if not k in data.keys():
-                        continue
-
-                    if isinstance(data[k], (str, unicode)):
-                        d[v] = self.functions.unescape(data[k])
-
-                    else:
-                        d[v] = data[k]
-
-                elif isinstance(v, dict):
-                    if self.is_data_value('link', int, v):
-                        # it's a link to another dict/list with the ID lnk, where the value is the link_value
-                        lnk = self.data_value('link', int, v)
-                        if not lnk in tablelist.keys() or not k in data.keys() or not data[k] in tablelist[lnk]['data']:
-                            continue
-
-                        dd = parse_jsondata(tablelist[lnk]['data'], tablelist[lnk]['def'], data[k])
-
-                    elif self.is_data_value('type', unicode, v):
-                        # it's a sub list
-                        if not k in data.keys():
-                            continue
-
-                        dd = parse_jsondata(data[k], v)
-
-                    else:
-                        continue
-
-                    if isinstance(dd, dict):
-                        # We add the resuling dict to the dict
-                        for k1, v1 in dd.items():
-                            d[k1] = v1
-
-                    elif isinstance(dd, list):
-                        # The result is a list of dicts, we should add the base dict to all the separate dicts
-                        # This should not occure more then ones as we can get a mixed list
-                        dlist.extend(dd)
-
-            if len(dlist) > 0:
-                # We add the dict to every item in the list
-                for dd in dlist:
-                    for k, v in d.items():
-                        dd[k] = v
-
-                if len(dlist) == 1:
-                    return dlist[0]
-
-                else:
-                    return dlist
-
-            return d
-
-        def parse_jsondata(data, data_def, link_value = None):
-            data = transpose_jdata(getj_subpath(data, self.data_value("path", list, data_def)), data_def)
-            dtype = self.data_value("type", unicode, data_def)
-            dcontent = self.data_value("content", None, data_def)
-            if dtype == "item" and dcontent == "dict":
-                listitem = getj_subpath(data, self.data_value("key-path", list, data_def))
-                return parse_jsondict(listitem, data_def)
-
-            elif dtype == "list":
-                dlist = []
-                for li in data:
-                    listitem = getj_subpath(li, self.data_value("key-path", list, data_def))
-                    if dcontent == "dict":
-                        dd = parse_jsondict(listitem, data_def)
-                        if isinstance(dd, list):
-                            dlist.extend(dd)
-
-                        else:
-                            dlist.append(dd)
-
-                return dlist
-
-            elif dtype == "keyed_list":
-                # It's a list of dicts where one of the keys: "link_key" in the dicts contains the key value
-                # this is transposed in transpose_jdata, if also "link_value" is given,
-                # only the dict with that value is used linking it strait
-
-                if dcontent == 'dict':
-                    if self.is_data_value("link_value", None, data_def):
-                        # This is a list of subitems, where one is chosen
-                        return parse_jsondict(data, data_def)
-
-                    elif link_value != None:
-                        # This is a seperate list that can be linked to
-                        return parse_jsondict(data[link_value], data_def)
-
-                    else:
-                        return None
-
-                elif self.is_data_value(["content", "type"], unicode, data_def):
-                    return parse_jsondata(data, dcontent)
-
-                else:
-                    return None
-
-            elif dtype == "dicted_list":
-                # It's a dict that must be parsed as a list, adding the key to the child dict if 'value_key' is defined
-                # This especially for a layered channel/program list
-
-                dlist = [] if self.is_data_value("value_key", int, data_def) else {}
-                for k, v in data.items():
-                    dd = parse_jsondata( v, dcontent)
-                    if self.is_data_value("value_key", int, data_def):
-                        if not isinstance(dd, list):
-                            continue
-
-                        for d in dd:
-                            d[data_def['value_key']] = k
-
-                        dlist.extend(dd)
-
-                    else:
-                        dlist[k] = dd
-
-                return dlist
-
-        if not self.is_data_value(ptype, dict):
+        data['item-count'] = self.data_value([ptype, 'item-count'], int, default=0)
+        data['url-date-type'] = self.data_value([ptype, "url-date-type"], int, default=0)
+        data['url-date-format'] = self.data_value([ptype, "url-date-format"], unicode)
+        if not self.is_data_value([ptype, "url"]):
+            self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
             return None
 
-        try:
-            if not self.is_data_value([ptype, "url"]):
-                self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
-                return None
+        if self.is_data_value([ptype, "url"], list):
+            url = ''
+            for u_part in self.data_value([ptype, "url"], list):
+                if isinstance(u_part, (str, unicode)):
+                    url += u_part
 
-            if self.is_data_value([ptype, "url"], list):
-                url = ''
-                for u_part in self.data_value([ptype, "url"], list):
-                    if isinstance(u_part, (str, unicode)):
-                        url += u_part
-
-                    elif isinstance(u_part, int):
-                        # get a variable
-                        data['url-date-type'] = self.data_value([ptype, "url-date-type"], int, default=0)
-                        data['url-date-format'] = self.data_value([ptype, "url-date-format"], unicode)
-                        uval = self.functions.url_functions(u_part, data)
-                        if uval == None:
-                            self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
-                            return None
-
-                        else:
-                            url += uval
-
-            else:
-                url = self.data_value([ptype, "url"])
-
-            is_json = bool('json' in self.data_value([ptype, "data-format"], str))
-            encoding = self.data_value([ptype, "encoding"])
-            accept_header = self.data_value([ptype, "accept-header"])
-            url_data = {}
-            for k, v in self.data_value([ptype, "url-data"], dict).items():
-                if isinstance(v, (str, unicode)):
-                    url_data[k] = v
-
-                elif isinstance(v, int):
+                elif isinstance(u_part, int):
                     # get a variable
-                    data['url-date-type'] = self.data_value([ptype, "url-date-type"], int, default=0)
-                    data['url-date-format'] = self.data_value([ptype, "url-date-format"], unicode)
-                    uval = self.functions.url_functions(v, data)
+                    uval = self.functions.url_functions(u_part, data)
                     if uval == None:
                         self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
                         return None
 
                     else:
-                        url_data[k] = uval
+                        url += uval
 
-            if ptype in ('detail', 'detail2'):
-                counter = ['detail', self.proc_id, data['channelid']]
+        else:
+            url = self.data_value([ptype, "url"])
 
-            else:
-                counter = ['base', self.proc_id]
+        is_json = bool('json' in self.data_value([ptype, "data-format"], str))
+        encoding = self.data_value([ptype, "encoding"])
+        accept_header = self.data_value([ptype, "accept-header"])
+        url_data = {}
+        for k, v in self.data_value([ptype, "url-data"], dict).items():
+            if isinstance(v, (str, unicode)):
+                url_data[k] = v
 
-            page = self.functions.get_page(url, encoding, accept_header, url_data, counter, is_json)
+            elif isinstance(v, int):
+                # get a variable
+                uval = self.functions.url_functions(v, data)
+                if uval == None:
+                    self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
+                    return None
+
+                else:
+                    url_data[k] = uval
+
+        if ptype in ('detail', 'detail2'):
+            counter = ['detail', self.proc_id, data['channelid']]
+
+        else:
+            counter = ['base', self.proc_id]
+
+        return (url, encoding, accept_header, url_data, counter, is_json)
+
+    def get_page_data(self, ptype, data={}):
+        try:
+            url = self. get_url2(ptype, data)
+            if url == None:
+                return
+
+            is_json = url[5]
+            page = self.functions.get_page(url)
             if is_json and page != None:
-                if ptype == 'channels' and self.proc_id == 0:
-                    jt = JSONtree(self.config, page, self.data_value(ptype, dict))
-                    return jt.result
-
-                if ptype == 'base' and self.proc_id == 5:
-                    return page
-
                 if ptype in ('detail', 'detail2'):
                     return page
 
-                index = 0
-                tablelist = {}
-                # get the separate main lists and their description
-                for table in self.data_value([ptype, "data"], list):
-                    tablelist[index] = {}
-                    tablelist[index]['data'] = transpose_jdata(getj_subpath(page, self.data_value("path", list, table)), table)
-                    tablelist[index]['def'] =table
-                    index+=1
-
-                return parse_jsondata(tablelist[0]['data'], tablelist[0]['def'])
+                self.current_item_count = self.data_value(self.data_value([ptype, "item-count-path"],list), int, page, 0)
+                jt = JSONtree(self.config, page)
+                jt.datetimestring = self.data_value([ptype, "datetimestring"], str)
+                jt.timezone = self.site_tz
+                jt.extract_datalist(self.data_value(ptype, dict))
+                #~ print jt.result
+                #~ print
+                return jt.result
 
             elif page != None:
-                if ptype == 'channels' and self.proc_id in (1, 4, 7, 9, 12):
-                    return page
-
                 if ptype == 'base' and self.proc_id in (1, 4, 7, 8, 9, 12):
                     return page
 
@@ -2775,10 +2321,15 @@ class FetchData(Thread):
                     return page
 
                 autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
-                #~ wp = WebParser(self.config, page, self.data_value([ptype, "data"], dict), autoclose_tags)
-                wp = HTMLtree(self.config, page, self.data_value(ptype, dict), autoclose_tags)
-                wp.reset()
-                return wp.result
+                if self.data_value([ptype, "enclose-with-html-tag"], bool, default=False):
+                    page = u'<html>%s</html>' % page
+
+                ht = HTMLtree(self.config, page, autoclose_tags)
+                ht.find_start_node(self.data_value(ptype, dict))
+                ht.extract_datalist(self.data_value(ptype, dict))
+                #~ print ht.result
+                #~ print
+                return ht.result
 
         except:
             self.config.log([self.config.text('fetch', 68, (ptype, self.source)), traceback.format_exc()], 1)
@@ -2873,17 +2424,23 @@ class FetchData(Thread):
     def get_channels(self):
         """The code for the retreiving a list of supported channels"""
         self.all_channels ={}
-        if not self.is_data_value(["channels", "data"]):
+        ptype = "channels"
+        if not self.is_data_value([ptype], dict):
+            ptype = "base-channels"
+            if not self.is_data_value([ptype], dict):
+                return
+
+        if not self.is_data_value([ptype, "data"]):
             return
 
-        if not self.is_data_value(["channels", "url"]):
+        if not self.is_data_value([ptype, "url"]):
             # The channels are defined in the datafile
-            self.all_channels = self.data_value(["channels", "data"], dict)
+            self.all_channels = self.data_value([ptype, "data"], dict)
             #~ print self.all_channels
             return
 
         #extract the data
-        channel_list = self.get_page_data("channels")
+        channel_list = self.get_page_data(ptype)
         if channel_list == None:
             self.config.log(self.config.text('sources', 1, (self.source, )))
             return 69
@@ -2891,7 +2448,7 @@ class FetchData(Thread):
         if isinstance(channel_list, list):
             for channel in channel_list:
                 # link the data to the right variable, doing any defined adjustments
-                values = self.link_values("channels", channel)
+                values = self.link_values(ptype, channel)
                 if "inactive_channel" in values.keys() and values["inactive_channel"]:
                     continue
 
@@ -2903,7 +2460,7 @@ class FetchData(Thread):
                     self.all_channels[channelid] = values
 
             #~ if self.proc_id == 8:
-            print self.all_channels
+            #~ print self.all_channels
         else:
             self.config.log(self.config.text('sources', 1, (self.source, )))
             return 69
@@ -2921,12 +2478,12 @@ class FetchData(Thread):
             day_channels[day] = []
             self.day_loaded[0][day] = False
 
-        self.week_loaded = {}
+        self.page_loaded = {}
         self.channel_loaded = {}
         for chanid in self.config.channels.keys():
             self.channel_loaded[chanid] = False
             self.day_loaded[chanid] ={}
-            self.week_loaded[chanid] = {}
+            self.page_loaded[chanid] = {}
             for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
                 self.day_loaded[chanid][day] = False
 
@@ -2964,7 +2521,40 @@ class FetchData(Thread):
                 fetch_range = range(first_day, (self.config.opt_dict['offset'] + self.config.opt_dict['days']), offset_step)
                 for chanid in self.channels.keys():
                     for r in range(len(fetch_range)):
-                        self.week_loaded[chanid][r] = False
+                        self.page_loaded[chanid][r] = False
+
+            elif (url_type & 12) == 12:
+                self.item_count = self.data_value(['base', 'item-count'], int, default=0)
+                udt = self.data_value([ptype, "url-date-type"], int, default=0)
+                udd = self.data_value(['base', 'url-date-divider'], int, default=0)
+                fs = self.config.opt_dict['offset']
+                fe = min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days)
+                if udt == 0:
+                    fetch_start = fs
+                    fetch_end = fe
+
+                if udt == 1:
+                    fetch_start = int(time.mktime(datetime.date.fromordinal(self.current_date + fs).timetuple()))
+                    fetch_end = int(time.mktime(datetime.date.fromordinal(self.current_date + fe).timetuple()))
+                    if udd != 0:
+                        fetch_start = fetch_start * udd
+                        fetch_end = fetch_end * udd
+
+                if udt == 2:
+                    pass
+
+                if udt == 4:
+                    pass
+
+                if udt == 5:
+                    pass
+
+                if udt == 6:
+                    pass
+
+                if udt == 7:
+                    pass
+
 
             self.dl = {}
             self.dd = {}
@@ -3028,8 +2618,8 @@ class FetchData(Thread):
                                 if not first_fetch:
                                     # be nice to the source
                                     time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-                                    first_fetch = false
 
+                                first_fetch = False
                                 strdata = self.get_page_data('base',{'channel': channel, 'offset': offset})
                                 if strdata == None:
                                     self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
@@ -3053,8 +2643,8 @@ class FetchData(Thread):
                             if not first_fetch:
                                 # be nice to the source
                                 time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-                                first_fetch = false
 
+                            first_fetch = False
                             strdata = self.get_page_data('base',{'channel': channel,
                                                                                     'start': self.config.opt_dict['offset'],
                                                                                     'days': self.config.opt_dict['days']})
@@ -3074,7 +2664,7 @@ class FetchData(Thread):
                                     return
 
                                 # Check if it is already loaded
-                                if self.week_loaded[chanid][offset]:
+                                if self.page_loaded[chanid][offset]:
                                     continue
 
                                 self.config.log(['\n', self.config.text('sources', 13, \
@@ -3085,8 +2675,8 @@ class FetchData(Thread):
                                 if not first_fetch:
                                     # be nice to the source
                                     time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-                                    first_fetch = false
 
+                                first_fetch = False
                                 strdata = self.get_page_data('base',{'channel': channel, 'offset': fetch_range[offset]})
                                 if strdata == None:
                                     self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
@@ -3095,12 +2685,49 @@ class FetchData(Thread):
                                     continue
 
                                 self.parse_basepage(strdata, {'offset': offset, 'channelid': channel})
-                                self.week_loaded[chanid][offset] = True
+                                self.page_loaded[chanid][offset] = True
 
                         # horizon.nl
                         # We fetch a set number of  records in one
                         elif (url_type & 12) == 12:
-                            pass
+                            if self.item_count == 0:
+                                return
+
+                            self.current_item_count = self.item_count
+                            page_count = 0
+                            while self.current_item_count == self.item_count:
+                                if not page_count in self.page_loaded[chanid]:
+                                    self.page_loaded[chanid][page_count] = False
+
+                                if self.quit:
+                                    return
+
+                                # Check if it is already loaded
+                                if self.page_loaded[chanid][page_count]:
+                                    continue
+
+                                self.config.log(['\n', self.config.text('sources', 13, \
+                                    (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid, \
+                                    (self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or ''), self.source)), \
+                                    self.config.text('sources', 14, \
+                                    ( channel_cnt, len(self.channels), self.config.opt_dict['days'], page_count))], 2)
+
+                                if not first_fetch:
+                                    # be nice to the source
+                                    time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
+
+                                first_fetch = False
+                                strdata = self.get_page_data('base',{'channel': channel, 'offset': page_count, 'start': fetch_start, 'end': fetch_end})
+                                if strdata == None:
+                                    self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
+                                    failure_count += 1
+                                    self.fail_count += 1
+                                    continue
+
+                                self.parse_basepage(strdata, {'offset': offset, 'channelid': channel})
+                                self.page_loaded[chanid][page_count] = True
+                                page_count += 1
+
 
                         if failure_count == 0 or retry == 1:
                             with self.source_lock:
@@ -3148,8 +2775,8 @@ class FetchData(Thread):
                             if not first_fetch:
                                 # be nice to the source
                                 time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-                                first_fetch = false
 
+                            first_fetch = False
                             strdata = self.get_page_data('base',{'offset': offset})
                             if strdata == None:
                                 self.config.log(self.config.text('sources', 4, (self.source, offset)))
@@ -3231,8 +2858,8 @@ class FetchData(Thread):
                                 if not first_fetch:
                                     # be nice to the source
                                     time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-                                    first_fetch = False
 
+                                first_fetch = False
                                 strdata = self.get_page_data('base',{'channelgrp': channelgrp, 'offset': offset})
                                 if strdata == None:
                                     self.config.log(self.config.text('sources', 4, (self.source, offset)))
