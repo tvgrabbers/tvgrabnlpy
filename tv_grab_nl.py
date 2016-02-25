@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 10
-        self.patchdate = u'20160224'
+        self.patchdate = u'20160225'
         self.alfa = False
         self.beta = False
 
@@ -10322,6 +10322,7 @@ class npo_HTML(FetchData):
             return
 
         last_added = {}
+        month_names = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
         for retry in (0, 1):
             for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 7)):
                 if self.quit:
@@ -10371,10 +10372,16 @@ class npo_HTML(FetchData):
                         continue
 
                     d = (startdate.split(',')[-1].strip()).split(' ')
-                    startdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+                    for i in range(len(month_names)):
+                        if d[1].lower() == month_names[i]:
+                            startdate = datetime.datetime.strptime('%s %2.0f %s' % (d[0], i, d[2]),'%d %m %Y').date()
+                            break
 
                     d = (nextdate.split(',')[-1].strip()).split(' ')
-                    nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+                    for i in range(len(month_names)):
+                        if d[1].lower() == month_names[i]:
+                            nextdate = datetime.datetime.strptime('%s %2.0f %s' % (d[0], i, d[2]),'%d %m %Y').date()
+                            break
 
                     lineup = self.get_channel_lineup(htmldata)
 
@@ -10479,10 +10486,16 @@ class npo_HTML(FetchData):
                     continue
 
                 d = (startdate.split(',')[-1].strip()).split(' ')
-                startdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+                for i in range(len(month_names)):
+                    if d[1].lower() == month_names[i]:
+                        startdate = datetime.datetime.strptime('%s %2.0f %s' % (d[0], i, d[2]),'%d %m %Y').date()
+                        break
 
                 d = (nextdate.split(',')[-1].strip()).split(' ')
-                nextdate = datetime.datetime.strptime('%s %s %s' % (d[0], d[1], d[2]),'%d %b %Y').date()
+                for i in range(len(month_names)):
+                    if d[1].lower() == month_names[i]:
+                        nextdate = datetime.datetime.strptime('%s %2.0f %s' % (d[0], i, d[2]),'%d %m %Y').date()
+                        break
 
                 fetch_list = {}
                 channel_cnt = 0
