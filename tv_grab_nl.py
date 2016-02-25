@@ -10322,7 +10322,7 @@ class npo_HTML(FetchData):
             return
 
         last_added = {}
-        month_names = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+        month_names = ['dummy', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
         for retry in (0, 1):
             for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 7)):
                 if self.quit:
