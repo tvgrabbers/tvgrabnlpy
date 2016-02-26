@@ -17,31 +17,39 @@
         "url-data":{},
 		"autoclose-tags":["meta", "link"],
         "data":{
-			"key-path":[
+			"init-path":[
 				{"tag":"html"},
 				{"tag":"body"},
 				{"tag":"div", "attrs":{"id":"wrap"}},
 				{"tag":"div", "attrs":{"class":"container"}},
 				{"tag":"div", "attrs":{"class":"row"}},
 				{"tag":"div", "attrs":{"class":"span47 offset1"}},
-				{"tag":"div", "attrs":{"class":"section"}},
-				{"tag":"div", "attrs":{"class":"section-content"}},
-				{"tag":"div", "attrs":{"class":"section-item channels"}},
-				{"tag":"div", "attrs":{"class":"section-item-content"}},
-				{"tag":"a","attr":"href", "split":[["/",-1]]}],
-			"values":[
-				["parent","parent","parent","parent",
+				{"tag":"div", "attrs":{"class":"section"}}
+				],
+			"iter":[
+				{"key-path":[
+					{"tag":"div", "attrs":{"class":"section-content"}},
+					{"tag":"div", "attrs":{"class":"section-item channels"}},
+					{"tag":"div", "attrs":{"class":"section-item-content"}},
+					{"tag":"a","attr":"href", "split":[["/",-1]]}
+					],
+				"values":[
+					[{"path":"parent"},
+					{"path":"parent"},
+					{"path":"parent"},
+					{"path":"parent"},
 					{"tag":"div", "attrs":{"class":"section-title"},"default":99, 
-					"replace":{"nederlands":1, 
-									"nederlands overig":7, 
-									"nederlands regionaal":6,
-									"vlaams":2, 
-									"vlaams overig":9, 
-									"engels":3, 
-									"duits":4, 
-									"frans":5, 
-									"internationaal":10}}],
-				[{"tag":"div", "attrs":{"class":"channel-name ellipsis"}}]]},
+						"replace":{"nederlands":1, 
+										"nederlands overig":7, 
+										"nederlands regionaal":6,
+										"vlaams":2, 
+										"vlaams overig":9, 
+										"engels":3, 
+										"duits":4, 
+										"frans":5, 
+										"internationaal":10}}],
+					[{"tag":"div", "attrs":{"class":"channel-name ellipsis"}}]
+					]}]},
 		"values":{
 			"channelid":{"varid": 0},
 			"name":{"funcid":0, "data":[{"varid": 2}]},
@@ -50,28 +58,35 @@
 			"icongrp":null,
 			"HD":null}},
     "base":{
+		"append_to_source": "tvgids.nl",
         "url":["http://www.tvgids.tv/zenders/",2, "/",11, "/"],
         "data-format":"text/html",
         "encoding":"utf-8",
         "accept-header":null,
         "url-type": 1,
         "url-data":{},
-		"--remark--":["url-date-type and datetime-type",
-			"null = offset",
-			"1 = timestamp",
-			"2 = timestamp set to midnight starting",
-			"3 = timestamp x 1000",
-			"4 = with a format string in url-date-format/datetime-format",
-			"5 = with timestring uu:mm:ss to merge with the day, seperator in (url-)date-format",
-			"6 = isoweekdaynr, mo-su = 1-7",
-			"7 = weekdaynr, mo-su = 0-6"],
 		"max days":14,
         "datetime-type":5,
         "datetime-format":":",
-		"append_to_source": "tvgids.nl",
 		"autoclose-tags":["meta", "link"],
-        "data":[],
-		"values":{}},
+        "data":{
+			"init-path":[
+				{"tag":"html"},
+				{"tag":"body"},
+				{"tag":"div", "attrs":{"id":"wrap"}},
+				{"tag":"div", "attrs":{"class":"container"}},
+				{"tag":"div", "attrs":{"class":"row"}},
+				{"tag":"div", "attrs":{"class":"span47 offset1"}},
+				{"tag":"div", "attrs":{"class":"section"}}
+				],
+			"iter":[
+				{"key-path":[
+					{"tag":"div", "attrs":{"class":"section-content"}},
+					{"tag":"a", "attrs":{"class":null},"attr":"title"}
+					],
+				"values":[
+					]}],
+		"values":{}}},
     "detail":{
         "url":["http://www.tvgids.tv/tv/",0, "/"],
         "data-format":"text/html",
@@ -80,7 +95,14 @@
         "url-type":0,
         "url-data":{},
 		"autoclose-tags":["meta", "link"],
-        "data":[],
+        "data":{
+			"init-path":[
+				],
+			"iter":[
+				{"key-path":[
+						],
+				"values":[
+					]}]},
 		"values":{}},
 	"no_genric_matching":["nederland-1", "nederland-2", "nederland-3", "rtl-4", "rtl-5", "rtl-7", "rtl-8", "net-5",
 			"rtv-west", "comedy-central", "disney-xd", "fox", "sport1-racing", "sport-1-extra-1", "sport1-extra-2"],

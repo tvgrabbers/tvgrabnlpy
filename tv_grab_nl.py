@@ -181,6 +181,7 @@ class Configure(tv_grab_config.Configure):
         self.channelsource[6] = tv_grab_fetch.FetchData(self, 6, 'source-humo.be', True)
         self.channelsource[10] = tv_grab_fetch.FetchData(self, 10, 'source-vrt.be', True)
         self.channelsource[11] = tv_grab_fetch.FetchData(self, 11, 'source-virtual.nl')
+        self.channelsource[8] = tv_grab_fetch.FetchData(self, 8, 'source-nieuwsblad.be')
 
 # end Configure()
 config = Configure()
@@ -189,30 +190,6 @@ def main():
     # We want to handle unexpected errors nicely. With a message to the log
     try:
         # Get the options, channels and other configuration
-        #~ data = 'source-tvgids.nl'
-        #~ data = 'source-rtl.nl'
-        #~ data = 'source-horizon.tv'
-        #~ try:
-            #~ fle = config.IO_func.open_file('%s.json' % data, 'r', 'utf-8')
-            #~ source_data = json.load(fle)
-
-        #~ except:
-            #~ traceback.print_exc()
-        #~ site_tz = pytz.timezone('Europe/Amsterdam')
-        #~ current_date = datetime.datetime.now(site_tz).toordinal()
-        #~ for offset in range(14):
-            #~ weekday = int(datetime.date.fromordinal(current_date + offset).strftime('%w'))
-            #~ first_day = offset + 2 - weekday
-            #~ if weekday < 2:
-                #~ first_day -= 7
-            #~ print weekday, first_day, datetime.date.fromordinal(current_date + first_day).strftime('%Y%m%d')
-
-        config.init_sources()
-        config.channelsource[8].init_channel_source_ids()
-        config.channelsource[8].get_channels()
-
-        return
-
         start_time = datetime.datetime.now()
         x = config.validate_commandline()
         if x != None:

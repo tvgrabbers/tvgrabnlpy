@@ -292,7 +292,7 @@ class tvgids_JSON(tv_grab_fetch.FetchData):
     def load_detailpage(self, tdict):
 
         try:
-            strdata = self.config.fetch_func.get_page(tdict['detail_url'][self.proc_id],
+            strdata = self.config.fetch_func.get_page(self.get_url('detail', id = tdict['detail_url'][self.proc_id]),
                                                                                 txtdata = {'cookieoptin': 'true'},
                                                                                 counter = ['detail', self.proc_id, tdict['channelid']])
             if strdata == None:

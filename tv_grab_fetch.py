@@ -396,10 +396,12 @@ class Functions():
             datenu += 86400
 
         return datenu + offset * 86400
-
-    #~ def get_timestamp(self, offset=0, current_date):
-        #~ start = int(time.mktime(datetime.date.fromordinal(current_date + offset).timetuple()))*1000
     # end get_datestamp()
+
+    #~ def get_timestamp(self, current_date, offset=0):
+        #~ return = int(time.mktime(datetime.date.fromordinal(current_date + offset).timetuple()))
+
+    # end get_timestamp()
 
     def get_datetime(self, date_string, match_string = '%Y-%m-%d %H:%M:%S', tzinfo = None, round_down = True):
         if tzinfo == None:
@@ -528,6 +530,12 @@ class Functions():
                 if data['url-date-type'] == 0:
                     return str(data["offset"])
 
+                if data['url-date-type'] == 1:
+                    return str(data["offset"])
+
+                if data['url-date-type'] == 2:
+                    return str(data["offset"])
+
             elif urlid == 12 and data["url-date-format"] not in (None, ''):
                 if not "offset" in data:
                     data["offset"] = 0
@@ -547,6 +555,18 @@ class Functions():
 
             elif urlid == 15 and "start" in data and "end" in data:
                 return '%s~%s' % (data["start"], data["end"] )
+
+            elif urlid == 16:
+                if not "offset" in data:
+                    data["offset"] = 0
+
+                wd = datetime.date.fromordinal(data['current_date'] + data["offset"]).weekday()
+                if "weekdays" in data and isinstance(data["weekdays"], list) and len(data["weekdays"]) == 7:
+                    return unicode(data["weekdays"][wd])
+
+                #~ if "url-date-week-start" in data and isinstance(data["url-date-week-start"], int):
+
+                return wd
 
             else:
                 return None
@@ -635,6 +655,931 @@ class FetchURL(Thread):
             return None
 
 # end FetchURL
+
+class ProgramNode():
+    def __init__(self, config, data):
+        self.node_lock = Lock()
+        with self.node_lock:
+            self.config = config
+            self.data = data
+
+class ChannelNode():
+    def __init__(self, config, chanid):
+        self.node_lock = Lock()
+        with self.node_lock:
+            self.config = config
+            self.chanid = chanid
+
+class DATAnode():
+    def __init__(self, dtree, parent = None):
+        self.node_lock = Lock()
+        with self.node_lock:
+            self.children = []
+            self.dtree = dtree
+            self.parent = parent
+            self.value = None
+            self.child_index = 0
+            self.level = 0
+            self.link_value = {}
+
+            self.is_root = bool(self.parent == None)
+            n = self
+            while not n.is_root:
+                n = n.parent
+
+            self.root = n
+            if isinstance(parent, DATAnode):
+                self.parent.append_child(self)
+                self.level = parent.level + 1
+
+    def append_child(self, node):
+        with self.node_lock:
+            node.child_index = len(self.children)
+            self.children.append(node)
+
+    def get_children(self, data_def = None, link_values={}):
+        childs = []
+        d_def = data_def if isinstance(data_def, list) else [data_def]
+        if len(d_def) == 0 or d_def[0] == None:
+            # It's not a child definition
+            if self.dtree.show_result:
+                self.dtree.print_text(u'    adding node %s\n'.encode('utf-8', 'replace') % (self.print_node()))
+            return [self]
+
+        elif len(d_def) == 1 and self.match_node(node_def = d_def[0], link_values=link_values) == None:
+            # It's not a child definition
+            if self.dtree.show_result:
+                self.dtree.print_text(u'    adding node %s; %s\n'.encode('utf-8', 'replace') % (self.print_node(), d_def[0]))
+            return [self]
+
+        elif self.dtree.is_data_value('path', None, d_def[0]):
+            sel_val = d_def[0]['path']
+            if sel_val == 'parent' and not self.is_root:
+                if self.dtree.show_result:
+                    self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (self.parent.print_node(), d_def[0]))
+                self.parent.match_node(node_def = d_def[0], link_values=link_values)
+                if len(self.parent.link_value) > 0:
+                    for k, v in self.parent.link_value.items():
+                        link_values[k] = v
+
+                self.parent.link_value = {}
+                return self.parent.get_children(data_def = d_def[1:], link_values=link_values)
+
+            elif sel_val == 'root':
+                if self.dtree.show_result:
+                    self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (self.root.print_node(), d_def[0]))
+                self.root.match_node(node_def = d_def[0], link_values=link_values)
+                if len(self.root.link_value) > 0:
+                    for k, v in self.root.link_value.items():
+                        link_values[k] = v
+
+                self.root.link_value = {}
+                return self.root.get_children(data_def = d_def[1:], link_values=link_values)
+
+            elif sel_val == 'all':
+                for item in self.children:
+                    if self.dtree.show_result:
+                        self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (item.print_node(), d_def[0]))
+                    item.match_node(node_def = d_def[0], link_values=link_values)
+                    if len(item.link_value) > 0:
+                        for k, v in item.link_value.items():
+                            link_values[k] = v
+
+                    item.link_value = {}
+                    jl = item.get_children(data_def = d_def[1:], link_values=link_values)
+                    if isinstance(jl, list):
+                        childs.extend(jl)
+
+                    elif jl != None:
+                        childs.append(jl)
+
+                return childs
+
+        else:
+            for item in self.children:
+                # We look for matching children
+                if item.match_node(node_def = d_def[0], link_values=link_values):
+                    # We found a matching child
+                    if self.dtree.show_result:
+                        self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (item.print_node(), d_def[0]))
+                    if len(item.link_value) > 0:
+                        for k, v in item.link_value.items():
+                            link_values[k] = v
+
+                    item.link_value = {}
+                    jl = item.get_children(data_def = d_def[1:], link_values=link_values)
+                    if isinstance(jl, list):
+                        childs.extend(jl)
+
+                    elif jl != None:
+                        childs.append(jl)
+
+            return childs
+
+        #~ else:
+            #~ if self.dtree.show_result:
+                #~ self.dtree.print_text(u'    adding node %s; %s\n'.encode('utf-8', 'replace') % (self.print_node(), d_def[0]))
+            #~ return [self]
+
+        return childs
+
+    def match_node(self, node_def = None, link_values ={}):
+        self.link_value = {}
+        return False
+
+    def find_value(self, node_def = None):
+        return self.calc_value(self.value, node_def)
+
+    def calc_value(self, value, node_def = None):
+        if isinstance(value, (str, unicode)):
+            # Is there something to strip of
+            if self.dtree.is_data_value('ascii-replace', list, node_def) and len(node_def['ascii-replace']) > 0:
+                arep = node_def['ascii-replace']
+                value = value.lower()
+                if len(arep) > 2:
+                    value = re.sub(arep[2], arep[1], value)
+
+                value = value.encode('ascii','replace')
+                value = re.sub('\?', arep[0], value)
+
+            if self.dtree.is_data_value('lstrip', str, node_def):
+                if value.strip().lower()[:len(node_def['lstrip'])] == node_def['lstrip'].lower():
+                    value = unicode(value[len(node_def['lstrip']):]).strip()
+
+            if self.dtree.is_data_value('rstrip', str, node_def):
+                if value.strip().lower()[-len(node_def['rstrip']):] == node_def['rstrip'].lower():
+                    value = unicode(value[:-len(node_def['rstrip'])]).strip()
+
+            # Is there something to substitute
+            if self.dtree.is_data_value('sub', list, node_def) and len(node_def['sub']) > 1:
+                value = re.sub(node_def['sub'][0], node_def['sub'][1], value)
+
+            # Is there a split list
+            if self.dtree.is_data_value('split', list, node_def) and len(node_def['split']) > 0:
+                if not isinstance(node_def['split'][0],list):
+                    slist = [node_def['split']]
+
+                else:
+                    slist = node_def['split']
+
+                for sdef in slist:
+                    if len(sdef) < 2 or not isinstance(sdef[0],(str,unicode)) or not isinstance(sdef[1], int):
+                        continue
+
+                    try:
+                        dat = re.split(sdef[0],value)
+                        value = dat[sdef[1]]
+                        for i in range(2, len(sdef)):
+                            if isinstance(sdef[i], int) and (( 0<= sdef[i] < len(dat)) or (-len(dat) <= sdef[i] < 0)):
+                                value = value + sdef[0] +  dat[sdef[i]]
+
+                    except:
+                        pass
+
+        # Is there a replace dict
+        if self.dtree.is_data_value('replace', dict, node_def):
+            if value.strip().lower() in node_def['replace'].keys():
+                value = node_def['replace'][value.strip().lower()]
+
+            else:
+                value = None
+
+        # is there a default
+        if value == None and self.dtree.is_data_value('default', None, node_def):
+            value = node_def['default']
+
+        # Make sure a string is unicode and free of HTML entities
+        if isinstance(value, (str, unicode)):
+            value = re.sub('\n','', re.sub('\r','', self.dtree.unescape(unicode(value)))).strip()
+
+        # is there a type definition in node_def
+        if self.dtree.is_data_value('type', unicode, node_def):
+            try:
+                if node_def['type'] == 'timestamp':
+                    val = value
+                    if self.dtree.is_data_value('divider', int, node_def):
+                        val = value/node_def['divider']
+
+                    value = datetime.datetime.fromtimestamp(val, self.dtree.utc)
+
+                elif node_def['type'] == 'datetimestring':
+                    date = self.dtree.timezone.localize(datetime.datetime.strptime(value, self.dtree.datetimestring))
+                    value = self.dtree.utc.normalize(date.astimezone(self.dtree.utc))
+
+                elif node_def['type'] == 'timestring':
+                    pass
+
+                elif node_def['type'] == 'string':
+                    value = unicode(value)
+
+                elif node_def['type'] == 'int':
+                    if value == '':
+                        value = 0
+
+                    else:
+                        value = int(value)
+
+                elif node_def['type'] == 'boolean':
+                    if not isinstance(value, bool):
+                        if isinstance(value, int):
+                            value = bool(value>0)
+
+                        elif isinstance(value, (str, unicode)):
+                            value = bool(len(value) > 0 and value != '0')
+
+                        else:
+                            value = False
+
+                elif node_def['type'] == 'lower-ascii' and isinstance(value, (str, unicode)):
+                    value = value.lower()
+                    value =re.sub('[ /]', '_', value)
+                    value =re.sub('[!(),]', '', value)
+                    value = re.sub('á','a', value)
+                    value = re.sub('à','a', value)
+                    value = re.sub('ä','a', value)
+                    value = re.sub('â','a', value)
+                    value = re.sub('ã','a', value)
+                    value = re.sub('@','a', value)
+                    value = re.sub('é','e', value)
+                    value = re.sub('è','e', value)
+                    value = re.sub('ë','e', value)
+                    value = re.sub('ê','e', value)
+                    value = re.sub('í','i', value)
+                    value = re.sub('ì','i', value)
+                    value = re.sub('ï','i', value)
+                    value = re.sub('î','i', value)
+                    value = re.sub('ó','o', value)
+                    value = re.sub('ò','o', value)
+                    value = re.sub('ö','o', value)
+                    value = re.sub('ô','o', value)
+                    value = re.sub('õ','o', value)
+                    value = re.sub('ú','u', value)
+                    value = re.sub('ù','u', value)
+                    value = re.sub('ü','u', value)
+                    value = re.sub('û','u', value)
+                    value = re.sub('ý','y', value)
+                    value = re.sub('ÿ','y', value)
+                    value = value.encode('ascii','replace')
+
+                elif node_def['type'] == '':
+                    pass
+
+            except:
+                #~ traceback.print_exc()
+                pass
+
+        return value
+
+    def print_node(self):
+        return u'%s = %s' % (self.level, self.find_value())
+
+    def print_tree(self):
+        sstr =u'%s%s\n' % (self.dtree.get_leveltabs(self.level,4), self.print_node())
+        self.dtree.print_text(sstr)
+        for n in self.children:
+            n.print_tree()
+
+# end DATAnode
+
+class HTMLnode(DATAnode):
+    def __init__(self, dtree, data = None, parent = None):
+        self.tag = u''
+        self.text = u''
+        self.attributes = {}
+        DATAnode.__init__(self, dtree, parent)
+        if isinstance(data, (str, unicode)):
+            self.tag = data
+
+        elif isinstance(data, list):
+            if len(data) > 0:
+                self.tag = data[0]
+
+            if len(data) > 1 and isinstance(data[1], (list, tuple)):
+                for a in data[1]:
+                    self.attributes[a[0].lower()] = a[1]
+
+    def get_attribute(self, name):
+        if name in self.attributes.keys():
+            return self.attributes[name]
+
+        return None
+
+    def is_attribute(self, name, value = None):
+        if name in self.attributes.keys():
+            if value in (None, self.attributes[name]):
+                return True
+
+        return False
+
+    def get_child(self, tag = None, attributes = {}):
+        childs = []
+        for c in self.children:
+            if c.match_node(tag, attributes):
+                childs.append(c)
+
+        return childs
+
+    def match_node(self, tag = None, attributes = {}, node_def = None, link_values={}):
+        self.link_value = {}
+        if self.dtree.is_data_value('link', int, node_def):
+            self.link_value[node_def['link']] = self.find_value(node_def)
+
+        if node_def == None:
+            if tag in (None, self.tag):
+                if attributes == None:
+                    return True
+
+                if not isinstance(attributes, dict):
+                    return False
+
+                for a, v in attributes.items():
+                    if not self.is_attribute(a, v):
+                        return False
+
+                return True
+
+            else:
+                return False
+
+        elif self.dtree.is_data_value('tag', None, node_def):
+        #~ elif isinstance(node_def, dict) and ('select' in node_def.keys() or 'tag' in node_def.keys()):
+            if node_def['tag'] in (None, self.tag):
+                # The tag matches
+                if self.dtree.is_data_value(['index','link'], int, node_def):
+                    # There is an index request to an earlier linked index
+                    if self.child_index != link_values[self.dtree.data_value(['index','link'], int, node_def)]:
+                        return False
+
+                if not self.dtree.is_data_value('attrs', dict, node_def):
+                    # And there are no attrib matches requested
+                    return True
+
+                for a, v in node_def['attrs'].items():
+                    if self.dtree.is_data_value('not', list, v):
+                        # There is a negative attrib match requested
+                        for val in v['not']:
+                            if self.is_attribute(a) and self.attributes[a] == val:
+                                return False
+
+                    elif self.dtree.is_data_value('link', int, v):
+                        # The requested value is in link_values
+                        if not self.is_attribute(a, link_values[v["link"]]):
+                            return False
+
+                    elif not self.is_attribute(a, v):
+                        return False
+
+                return True
+
+            else:
+                return False
+
+        elif self.dtree.is_data_value('path', None, node_def):
+            return False
+
+        return None
+
+    def find_value(self, node_def = None):
+        if self.dtree.is_data_value('value', None, node_def):
+            sv = node_def['value']
+
+        elif self.dtree.is_data_value('attr', None, node_def):
+            sv = self.get_attribute(node_def[ 'attr'].lower())
+
+        elif self.dtree.is_data_value('select', None, node_def):
+            if node_def[ 'select'] == 'index':
+                sv = self.child_index
+
+            elif node_def[ 'select'] == 'tag':
+                sv = self.tag
+
+            elif node_def[ 'select'] == 'text':
+                sv = self.text
+
+        else:
+            sv = self.text
+
+        return self.calc_value(sv, node_def)
+
+    def print_node(self):
+        attributes = u''
+        spc = self.dtree.get_leveltabs(self.level,4)
+        if len(self.attributes) > 0:
+            for a, v in self.attributes.items():
+                vv = v
+                if isinstance(v, (str,unicode)):
+                    vv = re.sub('\r','', v)
+                    vv = re.sub('\n', ' ', vv)
+                attributes = u'%s%s = "%s",\n    %s' % (attributes, a, vv, spc)
+            attributes = attributes[:-(len(spc)+6)]
+
+        tx = self.find_value()
+        if tx == "":
+            return u'%s: %s(%s)' % (self.level, self.tag, attributes)
+
+        else:
+            #~ tx = re.sub('\r','', tx)
+            #~ retx = u'\n    %s' % spc
+            #~ tx = re.sub('\n', retx, tx)
+            return u'%s: %s(%s)\n    %s%s' % (self.level, self.tag, attributes, spc, tx)
+
+# end HTMLnode
+
+class JSONnode(DATAnode):
+    def __init__(self, dtree, data = None, parent = None, key = None):
+        self.type = "value"
+        self.key = key
+        self.keys = []
+        self.key_index = {}
+        self.value = None
+        DATAnode.__init__(self, dtree, parent)
+        if isinstance(data, list):
+            self.type = "list"
+            for k in range(len(data)):
+                JSONnode(self.dtree, data[k], self, k)
+
+        elif isinstance(data, dict):
+            self.type = "dict"
+            for k, item in data.items():
+                JSONnode(self.dtree, item, self, k)
+
+        else:
+            self.type = "value"
+            self.value = data
+
+    def append_child(self, node):
+        with self.node_lock:
+            node.child_index = len(self.children)
+            self.key_index[node.key] = node.child_index
+            self.children.append(node)
+            self.keys.append(node.key)
+
+    def get_child(self, key):
+        if key in self.keys:
+            return self.children[self.key_index[key]]
+
+        return None
+
+    def match_node(self, node_def = None, link_values ={}):
+        self.link_value = {}
+        if not isinstance(link_values, dict):
+            link_values ={}
+
+        if self.dtree.is_data_value('key', None, node_def):
+            if self.key == node_def["key"]:
+                # The requested key matches
+                if self.dtree.is_data_value('link', int, node_def):
+                    self.link_value[node_def['link']] = self.find_value(node_def)
+                return True
+
+            return False
+
+        elif self.dtree.is_data_value('keys', list, node_def):
+            if self.key in node_def['keys']:
+                # This key is in the list with requested keys
+                if self.dtree.is_data_value('link', int, node_def):
+                    self.link_value[node_def['link']] = self.find_value(node_def)
+                return True
+
+            return False
+
+        elif self.dtree.is_data_value('keys', dict, node_def):
+            # Does it contain the requested key/value pairs
+            for item, v in node_def["keys"].items():
+                if not item in self.keys:
+                    return False
+
+                val = v
+                if self.dtree.is_data_value('link', int, v) and v["link"] in link_values.keys():
+                    # The requested value is in link_values
+                    val = link_values[v["link"]]
+
+                if self.get_child(item).value != val:
+                    return False
+
+            if self.dtree.is_data_value('link', int, node_def):
+                self.link_value[node_def['link']] = self.find_value(node_def)
+            return True
+
+        elif self.dtree.is_data_value('path', None, node_def):
+            return False
+
+        return None
+
+    def find_value(self, node_def = None):
+        if self.dtree.is_data_value('value', None, node_def):
+            sv = node_def['value']
+
+        elif self.dtree.is_data_value('select', None, node_def):
+            if node_def[ 'select'] == 'index':
+                sv = self.child_index
+
+            elif node_def[ 'select'] == 'tag':
+                sv = self.key
+
+            elif node_def[ 'select'] == 'value':
+                sv = self.value
+
+        else:
+            sv = self.value
+
+        return self.calc_value(sv, node_def)
+
+    def print_node(self):
+        value = self.find_value() if self.type == "value" else '"%s"' % self.type
+        return u'%s = %s' % (self.key, value)
+
+# end JSONnode
+
+class DATAtree():
+    def __init__(self, config):
+        self.tree_lock = Lock()
+        self.print_searchtree = False
+        self.show_result = False
+        self.fle = sys.stdout
+        self.extract_from_parent = False
+        self.config = config
+        self.result = []
+        self.datetimestring = ''
+        self.utc = pytz.utc
+        self.timezone = pytz.utc
+
+    def find_start_node(self, data_def={}):
+        self.data_def = data_def
+        if self.print_searchtree:
+            self.print_text('The root Tree:\n')
+            self.start_node.print_tree()
+        init_path = self.data_value(['data',"init-path"],list)
+        if self.show_result:
+            self.fle.write('parsing %s %s\n'.encode('utf-8') % (self.root.tag, self.root.attributes))
+
+        sn = self.root.get_children(data_def = init_path)
+        self.start_node = self.root if (sn == None or len(sn) == 0) else sn[0]
+
+    def extract_datalist(self, data_def={}):
+        self.data_def = data_def
+        if self.print_searchtree:
+            self.print_text('The %s Tree:\n' % self.start_node.print_node())
+            self.start_node.print_tree()
+        self.result = []
+        # Are there multiple data definitions
+        if self.is_data_value(['data',"iter"],list):
+            def_list = self.data_value(['data','iter'],list)
+
+        # Or just one
+        elif self.is_data_value('data',dict):
+            def_list = [self.data_value('data',dict)]
+
+        else:
+            return
+
+        for dset in def_list:
+            # Get all the key nodes
+            if self.is_data_value(["key-path"], list, dset):
+                kp = self.data_value(["key-path"], list, dset)
+                if len(kp) == 0:
+                    continue
+
+                if self.show_result:
+                    self.fle.write('parsing keypath %s\n'.encode('utf-8') % (kp[0]))
+
+                self.key_list = self.start_node.get_children(data_def = kp)
+                for k in self.key_list:
+                    if not isinstance(k, DATAnode):
+                        continue
+
+                    # And if it's a valid node, find the belonging values (the last dict in a path list contains the value definition)
+                    tlist = [k.find_value(kp[-1])]
+                    link_values = {}
+                    if self.is_data_value('link', int, kp[-1]):
+                        link_values = {kp[-1]["link"]: k.find_value(kp[-1])}
+
+                    for v in self.data_value(["values"], list, dset):
+                        if not isinstance(v, list):
+                            continue
+
+                        if self.is_data_value('value',None, v[0]):
+                            tlist.append(self.data_value('value',None, v[0]))
+                            continue
+
+                        if self.show_result:
+                            self.fle.write('parsing key %s %s\n'.encode('utf-8') % ( [k.find_value(kp[-1])], v[-1]))
+
+                        if self.extract_from_parent and isinstance(k.parent, DATAnode):
+                            nlist = k.parent.get_children(data_def = v, link_values = link_values)
+
+                        else:
+                            nlist = k.get_children(data_def = v, link_values = link_values)
+
+                        # Nothing found, so give the default or None
+                        if nlist in ([], None):
+                            if isinstance(v, list) and len(v)>0:
+                                if self.data_value('type', None, v[-1]) == 'list':
+                                    tlist.append([])
+
+                                else:
+                                    tlist.append(self.data_value('default', None, v[-1]))
+
+                            else:
+                                tlist.append(None)
+
+                        # We found multiple values
+                        elif len(nlist) > 1 or (isinstance(v, list) and len(v)>0 and self.data_value('type', None, v[-1]) == 'list'):
+                            vlist = []
+                            for node in nlist:
+                                vlist.append(node.find_value(v[-1]))
+
+                            tlist.append(vlist)
+
+                        # We found one value
+                        else:
+                            tlist.append(nlist[0].find_value(v[-1]))
+
+                    self.result.append(tlist)
+
+    def print_text(self, text):
+        self.fle.write(text.encode('utf-8', 'replace'))
+
+    def get_leveltabs(self, level, spaces=3):
+        stab = u''
+        for i in range(spaces):
+            stab += u' '
+
+        sstr = u''
+        for i in range(level):
+            sstr += stab
+
+        return sstr
+
+    def is_data_value(self, dpath, dtype = None, subpath = None):
+        if isinstance(dpath, (str, unicode)):
+            dpath = [dpath]
+
+        if not isinstance(dpath, (list, tuple)):
+            return False
+
+        if subpath == None:
+            subpath = self.data_def
+
+        for d in dpath:
+            if not isinstance(subpath, dict):
+                return False
+
+            if not d in subpath.keys():
+                return False
+
+            subpath = subpath[d]
+
+        #~ if subpath in (None, "", {}, []):
+            #~ return False
+
+        if dtype == None:
+            return True
+
+        if dtype in (str, unicode, 'string'):
+            return bool(isinstance(subpath, (str, unicode)))
+
+        if dtype in (list, tuple, 'list'):
+            return bool(isinstance(subpath, (list, tuple)))
+
+        return bool(isinstance(subpath, dtype))
+
+    def data_value(self, dpath, dtype = None, subpath = None, default = None):
+        if self.is_data_value(dpath, dtype, subpath):
+            if isinstance(dpath, (str, unicode)):
+                dpath = [dpath]
+
+            if subpath == None:
+                subpath = self.data_def
+
+            for d in dpath:
+                subpath = subpath[d]
+
+        else:
+            subpath = None
+
+        if subpath == None:
+            if default != None:
+                return default
+
+            elif dtype in (str, unicode, 'string'):
+                return ""
+
+            elif dtype == dict:
+                return {}
+
+            elif dtype in (list, tuple, 'list'):
+                return []
+
+        return subpath
+
+# end DATAtree
+
+class HTMLtree(HTMLParser, DATAtree):
+    def __init__(self, config, data='', autoclose_tags=[], print_tags = False):
+        HTMLParser.__init__(self)
+        DATAtree.__init__(self, config)
+
+        self.print_tags = print_tags
+        self.autoclose_tags = autoclose_tags
+        self.root = HTMLnode(self, 'root')
+        self.current_node = self.root
+        self.text = u''
+        self.open_tags = {}
+        self.count_tags(data)
+        # read the html page into the tree
+        self.feed(data)
+        self.reset()
+        # And find the dataset into self.result
+        self.start_node = self.root
+
+    def count_tags(self, data):
+        tag_list = re.compile("\<(.*?)\>", re.DOTALL)
+        self.tag_count = {}
+        for t in tag_list.findall(data):
+            if t[0] == '\\':
+                t = t[1:]
+
+            if t[0] == '/':
+                sub = 'close'
+                tag = t.split (' ')[0][1:].lower()
+
+            elif t[:3] == '!--':
+                continue
+                sub = 'comment'
+                tag = t[3:].lower()
+
+            elif t[0] == '?':
+                continue
+                sub = 'pi'
+                tag = t[1:].lower()
+
+            elif t[0] == '!':
+                continue
+                sub = 'html'
+                tag = t[1:].lower()
+
+            elif t[-1] == '/':
+                sub = 'auto'
+                tag = t.split(' ')[0].lower()
+
+            else:
+                sub = 'start'
+                tag = t.split (' ')[0].lower()
+
+            if not tag in self.tag_count.keys():
+                self.tag_count[tag] ={}
+                self.tag_count[tag]['close'] = 0
+                self.tag_count[tag]['comment'] = 0
+                self.tag_count[tag]['pi'] = 0
+                self.tag_count[tag]['html'] = 0
+                self.tag_count[tag]['auto'] = 0
+                self.tag_count[tag]['start'] = 0
+
+            self.tag_count[tag][sub] += 1
+
+        for t, c in self.tag_count.items():
+            if c['close'] == 0 and (c['start'] >0 or c['auto'] > 0):
+                self.autoclose_tags.append(t)
+
+            if self.print_tags:
+                self.print_text(u'%5.0f %5.0f %5.0f %s\n' % (c['start'], c['close'], c['auto'], t))
+
+    def handle_starttag(self, tag, attrs):
+        if not tag in self.open_tags.keys():
+            self.open_tags[tag] = 0
+
+        self.open_tags[tag] += 1
+        if self.print_tags:
+            if len(attrs) > 0:
+                self.print_text(u'%sstarting %s %s %s\n' % (self.get_leveltabs(self.current_node.level,2), self.current_node.level+1, tag, attrs[0]))
+                for a in range(1, len(attrs)):
+                    self.print_text(u'%s        %s\n' % (self.get_leveltabs(self.current_node.level,2), attrs[a]))
+
+            else:
+                self.print_text(u'%sstarting %s %s\n' % (self.get_leveltabs(self.current_node.level,2), self.current_node.level,tag))
+
+        node = HTMLnode(self, [tag.lower(), attrs], self.current_node)
+        self.add_text()
+        self.current_node = node
+        if tag.lower() in self.autoclose_tags:
+            self.handle_endtag(tag)
+            return False
+
+        return True
+
+    def handle_endtag(self, tag):
+        if not tag in self.open_tags.keys() or self.open_tags[tag] == 0:
+            return
+
+        self.open_tags[tag] -= 1
+        if self.current_node.tag != tag.lower():
+            # To catch missing close tags
+            self.remove_text()
+            self.handle_endtag(self.current_node.tag)
+
+        self.add_text()
+        if self.print_tags:
+            if self.current_node.text.strip() != '':
+                self.print_text(u'%s        %s\n' % (self.get_leveltabs(self.current_node.level-1,2), self.current_node.text.strip()))
+            self.print_text(u'%sclosing %s %s %s\n' % (self.get_leveltabs(self.current_node.level-1,2), self.current_node.level,tag, self.current_node.tag))
+
+        self.current_node = self.current_node.parent
+        if self.current_node.is_root:
+            self.reset()
+
+    def handle_startendtag(self, tag, attrs):
+        if self.handle_starttag(tag, attrs):
+            self.handle_endtag(tag)
+
+    def handle_data(self, data):
+        self.text += data
+
+    def handle_entityref(self, name):
+        try:
+            c = unichr(name2codepoint[name])
+            self.text += c
+
+        except:
+            pass
+
+    def handle_charref(self, name):
+        if name.startswith('x'):
+            c = unichr(int(name[1:], 16))
+
+        else:
+            c = unichr(int(name))
+
+        self.text += c
+
+    def handle_comment(self, data):
+        # <!--comment-->
+        pass
+
+    def handle_decl(self, decl):
+        # <!DOCTYPE html>
+        pass
+
+    def handle_pi(self, data):
+        # <?proc color='red'>
+        pass
+
+    def add_text(self):
+        self.current_node.text += unicode(re.sub('\n','', re.sub('\r','', self.text)))
+        self.text = u''
+
+    def remove_text(self):
+        self.text += self.current_node.text
+        self.current_node.text = u''
+
+# end HTMLtree
+
+class JSONtree(DATAtree):
+    def __init__(self, config, data):
+        DATAtree.__init__(self, config)
+        self.extract_from_parent = True
+        self.data = data
+        # Read the json data into the tree
+        self.root = JSONnode(self, data, key = 'ROOT')
+        self.start_node = self.root
+
+    def unescape(self, text):
+        # Removes HTML or XML character references and entities from a text string.
+        # source: http://effbot.org/zone/re-sub.htm#unescape-html
+        #
+        # @param text The HTML (or XML) source text.
+        # @return The plain text, as a Unicode string
+
+        def fixup(m):
+            text = m.group(0)
+            if text[:2] == "&#":
+                # character reference
+                try:
+                    if text[:3] == "&#x":
+                        return unichr(int(text[3:-1], 16))
+
+                    else:
+                        return unichr(int(text[2:-1]))
+
+                except ValueError:
+                    pass
+
+            else:
+                # named entity
+                try:
+                    text = unichr(name2codepoint[text[1:-1]])
+
+                except KeyError:
+                    pass
+
+            return text # leave as is
+
+        if not isinstance(text,(str, unicode)):
+            return text
+
+        return unicode(re.sub("&#?\w+;", fixup, text))
+
+# end JSONtree
 
 class theTVDB(Thread):
     def __init__(self, config):
@@ -1080,811 +2025,6 @@ class theTVDB(Thread):
 
 # end theTVDB
 
-class DATAnode():
-    def __init__(self, dtree, parent = None):
-        self.show_result = False
-        self.children = []
-        self.dtree = dtree
-        self.parent = parent
-        self.value = None
-        self.level = 0
-        self.is_root = bool(self.parent == None)
-        n = self
-        while not n.is_root:
-            n = n.parent
-
-        self.root = n
-        if isinstance(parent, DATAnode):
-            self.parent.append_child(self)
-            self.level = parent.level + 1
-
-    def append_child(self, node):
-        self.children.append(node)
-
-    def get_children(self, data_def = None, link_values={}):
-        childs = []
-        d_def = data_def if isinstance(data_def, list) else [data_def]
-        if len(d_def) == 0 or d_def[0] == None:
-            # It's not a child definition
-            if self.root.show_result:
-                self.dtree.print_text(u'    adding node %s\n'.encode('utf-8', 'replace') % (self.print_node()))
-            return [self]
-
-        elif len(d_def) == 1 and self.match_node(node_def = d_def[0], link_values=link_values) == None:
-            # It's not a child definition
-            if self.root.show_result:
-                self.dtree.print_text(u'    adding node %s; %s\n'.encode('utf-8', 'replace') % (self.print_node(), d_def[0]))
-            return [self]
-
-        elif isinstance(d_def[0], dict):
-            for item in self.children:
-                # We look for matching children
-                if item.match_node(node_def = d_def[0], link_values=link_values):
-                    # We found a matching child
-                    if self.root.show_result:
-                        self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (item.print_node(), d_def[0]))
-                    jl = item.get_children(data_def = d_def[1:], link_values=link_values)
-                    if isinstance(jl, list):
-                        childs.extend(jl)
-
-                    elif jl != None:
-                        childs.append(jl)
-
-            return childs
-
-        elif d_def[0] == 'parent' and not self.is_root:
-            if self.root.show_result:
-                self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (self.parent.print_node(), d_def[0]))
-            return self.parent.get_children(data_def = d_def[1:], link_values=link_values)
-
-        elif d_def[0] == 'root':
-            if self.root.show_result:
-                self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (self.root.print_node(), d_def[0]))
-            return self.root.get_children(data_def = d_def[1:], link_values=link_values)
-
-        elif d_def[0] == 'all':
-            for item in self.children:
-                if self.root.show_result:
-                    self.dtree.print_text(u'  found node %s; %s\n'.encode('utf-8', 'replace') % (item.print_node(), d_def[0]))
-                jl = item.get_children(data_def = d_def[1:], link_values=link_values)
-                if isinstance(jl, list):
-                    childs.extend(jl)
-
-                elif jl != None:
-                    childs.append(jl)
-
-            return childs
-
-        #~ else:
-            #~ if self.root.show_result:
-                #~ self.dtree.print_text(u'    adding node %s; %s\n'.encode('utf-8', 'replace') % (self.print_node(), d_def[0]))
-            #~ return [self]
-
-        return childs
-
-    def match_node(self, node_def = None, link_values ={}):
-        return False
-
-    def find_value(self, node_def = None):
-        return self.calc_value(self.value, node_def)
-
-    def calc_value(self, value, node_def = None):
-        if isinstance(value, (str, unicode)):
-            if node_def == 'lower-ascii':
-                value = value.lower()
-                value =re.sub('[ /]', '_', value)
-                value =re.sub('[!(),]', '', value)
-                value = re.sub('á','a', value)
-                value = re.sub('à','a', value)
-                value = re.sub('ä','a', value)
-                value = re.sub('â','a', value)
-                value = re.sub('ã','a', value)
-                value = re.sub('@','a', value)
-                value = re.sub('é','e', value)
-                value = re.sub('è','e', value)
-                value = re.sub('ë','e', value)
-                value = re.sub('ê','e', value)
-                value = re.sub('í','i', value)
-                value = re.sub('ì','i', value)
-                value = re.sub('ï','i', value)
-                value = re.sub('î','i', value)
-                value = re.sub('ó','o', value)
-                value = re.sub('ò','o', value)
-                value = re.sub('ö','o', value)
-                value = re.sub('ô','o', value)
-                value = re.sub('õ','o', value)
-                value = re.sub('ú','u', value)
-                value = re.sub('ù','u', value)
-                value = re.sub('ü','u', value)
-                value = re.sub('û','u', value)
-                value = re.sub('ý','y', value)
-                value = re.sub('ÿ','y', value)
-                value = value.encode('ascii','replace')
-
-            # Is there something to strip of
-            if self.dtree.is_data_value('ascii-replace', list, node_def) and len(node_def['ascii-replace']) > 0:
-                arep = node_def['ascii-replace']
-                value = value.lower()
-                if len(arep) > 2:
-                    value = re.sub(arep[2], arep[1], value)
-
-                value = value.encode('ascii','replace')
-                value = re.sub('\?', arep[0], value)
-
-            if self.dtree.is_data_value('lstrip', str, node_def):
-                if value.strip().lower()[:len(node_def['lstrip'])] == node_def['lstrip'].lower():
-                    value = unicode(value[len(node_def['lstrip']):]).strip()
-
-            if self.dtree.is_data_value('rstrip', str, node_def):
-                if value.strip().lower()[-len(node_def['rstrip']):] == node_def['rstrip'].lower():
-                    value = unicode(value[:-len(node_def['rstrip'])]).strip()
-
-            # Is there something to substitute
-            if self.dtree.is_data_value('sub', list, node_def) and len(node_def['sub']) > 1:
-                value = re.sub(node_def['sub'][0], node_def['sub'][1], value)
-
-            # Is there a split list
-            if self.dtree.is_data_value('split', list, node_def) and len(node_def['split']) > 0:
-                if not isinstance(node_def['split'][0],list):
-                    slist = [node_def['split']]
-
-                else:
-                    slist = node_def['split']
-
-                for sdef in slist:
-                    if len(sdef) < 2 or not isinstance(sdef[0],(str,unicode)) or not isinstance(sdef[1], int):
-                        continue
-
-                    try:
-                        dat = re.split(sdef[0],value)
-                        value = dat[sdef[1]]
-                        for i in range(2, len(sdef)):
-                            if isinstance(sdef[i], int) and (( 0<= sdef[i] < len(dat)) or (-len(dat) <= sdef[i] < 0)):
-                                value = value + sdef[0] +  dat[sdef[i]]
-
-                    except:
-                        pass
-
-        # Is there a replace dict
-        if self.dtree.is_data_value('replace', dict, node_def):
-            if value.strip().lower() in node_def['replace'].keys():
-                value = node_def['replace'][value.strip().lower()]
-
-            else:
-                value = None
-
-        # is there a default
-        if value == None and self.dtree.is_data_value('default', None, node_def):
-            value = node_def['default']
-
-        # Make sure a string is unicode and free of HTML entities
-        if isinstance(value, (str, unicode)):
-            value = re.sub('\n','', re.sub('\r','', self.dtree.unescape(unicode(value)))).strip()
-
-        # is there a type definition in node_def
-        if self.dtree.is_data_value('type', unicode, node_def):
-            try:
-                if node_def['type'] == 'timestamp':
-                    val = value
-                    if self.dtree.is_data_value('divider', int, node_def):
-                        val = value/node_def['divider']
-
-                    value = datetime.datetime.fromtimestamp(val, self.dtree.utc)
-
-                elif node_def['type'] == 'datetimestring':
-                    date = self.dtree.timezone.localize(datetime.datetime.strptime(value, self.dtree.datetimestring))
-                    value = self.dtree.utc.normalize(date.astimezone(self.dtree.utc))
-
-                elif node_def['type'] == 'timestring':
-                    pass
-
-                elif node_def['type'] == 'string':
-                    value = unicode(value)
-
-                elif node_def['type'] == 'int':
-                    if value == '':
-                        value = 0
-
-                    else:
-                        value = int(value)
-
-                elif node_def['type'] == 'boolean':
-                    if not isinstance(value, bool):
-                        if isinstance(value, int):
-                            value = bool(value>0)
-
-                        elif isinstance(value, (str, unicode)):
-                            value = bool(len(value) > 0 and value != '0')
-
-                        else:
-                            value = False
-
-                elif node_def['type'] == '':
-                    pass
-
-            except:
-                #~ traceback.print_exc()
-                pass
-
-        return value
-
-    def print_node(self):
-        return u'%s = %s' % (self.level, self.find_value())
-
-    def print_tree(self):
-        #~ if not self.root.show_result:
-            #~ return
-
-        sstr = u''
-        for i in range(self.level):
-            sstr += u'  '
-
-        sstr =u'%s%s\n' % (sstr, self.print_node())
-        self.dtree.print_text(sstr)
-        for n in self.children:
-            n.print_tree()
-
-# end DATAnode
-
-class HTMLnode(DATAnode):
-    def __init__(self, dtree, data = None, parent = None):
-        self.tag = u''
-        self.text = u''
-        self.attributes = {}
-        DATAnode.__init__(self, dtree, parent)
-        if isinstance(data, (str, unicode)):
-            self.tag = data
-
-        elif isinstance(data, list):
-            if len(data) > 0:
-                self.tag = data[0]
-
-            if len(data) > 1 and isinstance(data[1], (list, tuple)):
-                for a in data[1]:
-                    self.attributes[a[0].lower()] = a[1]
-
-    def get_attribute(self, name):
-        if name in self.attributes.keys():
-            return self.attributes[name]
-
-        return None
-
-    def is_attribute(self, name, value = None):
-        if name in self.attributes.keys():
-            if value in (None, self.attributes[name]):
-                return True
-
-        return False
-
-    def get_child(self, tag = None, attributes = {}):
-        childs = []
-        for c in self.children:
-            if c.match_node(tag, attributes):
-                childs.append(c)
-
-        return childs
-
-    def match_node(self, tag = None, attributes = {}, node_def = None, link_values={}):
-        if node_def == None:
-            if tag in (None, self.tag):
-                if attributes == None:
-                    return True
-
-                if not isinstance(attributes, dict):
-                    return False
-
-                for a, v in attributes.items():
-                    if not self.is_attribute(a, v):
-                        return False
-
-                return True
-
-            else:
-                return False
-
-        elif isinstance(node_def, dict) and 'tag' in node_def.keys():
-            if node_def['tag'] in (None, self.tag):
-                if not self.dtree.is_data_value('attrs', dict, node_def):
-                    return True
-
-                for a, v in node_def['attrs'].items():
-                    if self.dtree.is_data_value('not', list, v):
-                        for val in v['not']:
-                            if self.is_attribute(a) and self.attributes[a] == val:
-                                return False
-
-                     #~ and self.dtree.is_data_value(v['link'], str, link_values)
-                    elif self.dtree.is_data_value('link', int, v):
-                        if not self.is_attribute(a, link_values[v["link"]]):
-                            return False
-
-                    elif not self.is_attribute(a, v):
-                        return False
-
-                return True
-
-            else:
-                return False
-
-        return None
-
-    def find_value(self, node_def = None):
-        if isinstance(node_def, dict) and 'attr' in node_def.keys() :
-            sv = self.get_attribute(node_def[ 'attr'].lower())
-
-        else:
-            sv = self.text
-
-        return self.calc_value(sv, node_def)
-
-    def print_node(self):
-        return u'%s: %s = %s' % (self.level, self.tag, self.find_value())
-        #~ sstr =u'%s%s%s%s\n' % (sstr, self.tag, self.attributes, self.text.strip())
-
-# end HTMLnode
-
-class JSONnode(DATAnode):
-    def __init__(self, dtree, data = None, parent = None, key = None):
-        self.type = "value"
-        self.key = key
-        self.keys = []
-        self.key_pos = {}
-        self.value = None
-        DATAnode.__init__(self, dtree, parent)
-        if isinstance(data, list):
-            self.type = "list"
-            for k in range(len(data)):
-                JSONnode(self.dtree, data[k], self, k)
-
-        elif isinstance(data, dict):
-            self.type = "dict"
-            for k, item in data.items():
-                JSONnode(self.dtree, item, self, k)
-
-        else:
-            self.type = "value"
-            self.value = data
-
-    def append_child(self, node):
-        self.key_pos[node.key] = len(self.children)
-        self.children.append(node)
-        self.keys.append(node.key)
-
-    def get_child(self, key):
-        if key in self.keys:
-            return self.children[self.key_pos[key]]
-
-        return None
-
-    def match_node(self, node_def = None, link_values ={}):
-        if not isinstance(link_values, dict):
-            link_values ={}
-
-        if isinstance(node_def, dict):
-            if self.dtree.is_data_value('key', None, node_def):
-                if self.key == node_def["key"]:
-                    # The requested key matches
-                    return True
-                #~ if self.dtree.is_data_value('link', int, node_def):
-
-                return False
-
-            elif self.dtree.is_data_value('keys', list, node_def):
-                if self.key in node_def['keys']:
-                    # This key is in the list with requested keys
-                    return True
-
-                return False
-
-            elif self.dtree.is_data_value('keys', dict, node_def):
-                # Does it contain the requested key/value pairs
-                for item, v in node_def["keys"].items():
-                    if not item in self.keys:
-                        return False
-
-                    val = v
-                    if self.dtree.is_data_value('link', int, v) and v["link"] in link_values.keys():
-                        # The requested value is in link_values
-                        val = link_values[v["link"]]
-
-                    if self.get_child(item).value != val:
-                        return False
-
-                return True
-
-        return None
-
-    def find_value(self, node_def = None):
-        if node_def == 'key':
-            sv = self.key
-
-        else:
-            sv = self.value
-
-        return self.calc_value(sv, node_def)
-
-    def print_node(self):
-        return u'%s: %s = %s' % (self.level, self.key, self.find_value())
-
-# end JSONnode
-
-class DATAtree():
-    def __init__(self, config):
-        self.show_result = False
-        self.fle = sys.stdout
-        self.extract_from_parent = False
-        self.config = config
-        self.result = []
-        self.datetimestring = ''
-        self.utc = pytz.utc
-        self.timezone = pytz.utc
-
-    def find_start_node(self, data_def={}):
-        self.data_def = data_def
-        init_path = self.data_value(['data',"init-path"],list)
-        if self.show_result:
-            self.fle.write('parsing %s %s\n'.encode('utf-8') % (self.root.tag, self.root.attributes))
-
-        sn = self.root.get_children(data_def = init_path)
-        self.start_node = self.root if (sn == None or len(sn) == 0) else sn[0]
-
-    def extract_datalist(self, data_def={}):
-        self.data_def = data_def
-        #~ self.start_node.print_tree()
-        self.result = []
-        # Are there multiple data definitions
-        if self.is_data_value(['data',"iter"],list):
-            def_list = self.data_value(['data','iter'],list)
-
-        # Or just one
-        elif self.is_data_value('data',dict):
-            def_list = [self.data_value('data',dict)]
-
-        else:
-            return
-
-        for dset in def_list:
-            # Get all the key nodes
-            if self.is_data_value(["key-path"], list, dset):
-                kp = self.data_value(["key-path"], list, dset)
-                if self.show_result:
-                    self.fle.write('parsing keypath %s\n'.encode('utf-8') % (kp[0]))
-
-                self.key_list = self.start_node.get_children(data_def = kp)
-                for k in self.key_list:
-                    if not isinstance(k, DATAnode):
-                        continue
-
-                    # And if it's a valid node, find the belonging values (the last dict in a path list contains the value definition)
-                    tlist = [k.find_value(kp[-1])]
-                    link_values = {}
-                    if self.is_data_value('link', int, kp[-1]):
-                        link_values = {kp[-1]["link"]: k.find_value(kp[-1])}
-
-                    for v in self.data_value(["values"], list, dset):
-                        if not isinstance(v, list):
-                            continue
-
-                        if self.is_data_value('value',None, v[0]):
-                            tlist.append(self.data_value('value',None, v[0]))
-                            continue
-
-                        if self.show_result:
-                            self.fle.write('parsing key %s %s\n'.encode('utf-8') % ( [k.find_value(kp[-1])], v[-1]))
-
-                        if self.extract_from_parent and isinstance(k.parent, DATAnode):
-                            nlist = k.parent.get_children(data_def = v, link_values = link_values)
-
-                        else:
-                            nlist = k.get_children(data_def = v, link_values = link_values)
-
-                        # Nothing found, so give the default or None
-                        if nlist in ([], None):
-                            if isinstance(v, list) and len(v)>0:
-                                if self.data_value('type', None, v[-1]) == 'list':
-                                    tlist.append([])
-
-                                else:
-                                    tlist.append(self.data_value('default', None, v[-1]))
-
-                            else:
-                                tlist.append(None)
-
-                        # We found multiple values
-                        elif len(nlist) > 1 or (isinstance(v, list) and len(v)>0 and self.data_value('type', None, v[-1]) == 'list'):
-                            vlist = []
-                            for node in nlist:
-                                vlist.append(node.find_value(v[-1]))
-
-                            tlist.append(vlist)
-
-                        # We found one value
-                        else:
-                            tlist.append(nlist[0].find_value(v[-1]))
-
-                    self.result.append(tlist)
-
-    def print_text(self, text):
-        self.fle.write(text.encode('utf-8', 'replace'))
-
-    def is_data_value(self, dpath, dtype = None, subpath = None):
-        if isinstance(dpath, (str, unicode)):
-            dpath = [dpath]
-
-        if not isinstance(dpath, (list, tuple)):
-            return False
-
-        if subpath == None:
-            subpath = self.data_def
-
-        for d in dpath:
-            if not isinstance(subpath, dict):
-                return False
-
-            if not d in subpath.keys():
-                return False
-
-            subpath = subpath[d]
-
-        #~ if subpath in (None, "", {}, []):
-            #~ return False
-
-        if dtype == None:
-            return True
-
-        if dtype in (str, unicode, 'string'):
-            return bool(isinstance(subpath, (str, unicode)))
-
-        if dtype in (list, tuple, 'list'):
-            return bool(isinstance(subpath, (list, tuple)))
-
-        return bool(isinstance(subpath, dtype))
-
-    def data_value(self, dpath, dtype = None, subpath = None, default = None):
-        if self.is_data_value(dpath, dtype, subpath):
-            if isinstance(dpath, (str, unicode)):
-                dpath = [dpath]
-
-            if subpath == None:
-                subpath = self.data_def
-
-            for d in dpath:
-                subpath = subpath[d]
-
-        else:
-            subpath = None
-
-        if subpath == None:
-            if default != None:
-                return default
-
-            elif dtype in (str, unicode, 'string'):
-                return ""
-
-            elif dtype == dict:
-                return {}
-
-            elif dtype in (list, tuple, 'list'):
-                return []
-
-        return subpath
-
-# end DATAtree
-
-class HTMLtree(HTMLParser, DATAtree):
-    def __init__(self, config, data='', autoclose_tags=[]):
-        HTMLParser.__init__(self)
-        DATAtree.__init__(self, config)
-
-        self.print_tags = False
-        self.autoclose_tags = autoclose_tags
-        self.root = HTMLnode(self, 'root')
-        self.root.show_result = self.show_result
-        self.current_node = self.root
-        self.text = u''
-        self.open_tags = {}
-        self.count_tags(data)
-        # read the html page into the tree
-        self.feed(data)
-        self.reset()
-        # And find the dataset into self.result
-        self.start_node = self.root
-
-    def count_tags(self, data):
-        tag_list = re.compile("\<(.*?)\>", re.DOTALL)
-        self.tag_count = {}
-        for t in tag_list.findall(data):
-            if t[0] == '\\':
-                t = t[1:]
-
-            if t[0] == '/':
-                sub = 'close'
-                tag = t.split (' ')[0][1:].lower()
-
-            elif t[:3] == '!--':
-                continue
-                sub = 'comment'
-                tag = t[3:].lower()
-
-            elif t[0] == '?':
-                continue
-                sub = 'pi'
-                tag = t[1:].lower()
-
-            elif t[0] == '!':
-                continue
-                sub = 'html'
-                tag = t[1:].lower()
-
-            elif t[-1] == '/':
-                sub = 'auto'
-                tag = t.split(' ')[0].lower()
-
-            else:
-                sub = 'start'
-                tag = t.split (' ')[0].lower()
-
-            if not tag in self.tag_count.keys():
-                self.tag_count[tag] ={}
-                self.tag_count[tag]['close'] = 0
-                self.tag_count[tag]['comment'] = 0
-                self.tag_count[tag]['pi'] = 0
-                self.tag_count[tag]['html'] = 0
-                self.tag_count[tag]['auto'] = 0
-                self.tag_count[tag]['start'] = 0
-
-            self.tag_count[tag][sub] += 1
-
-        for t, c in self.tag_count.items():
-            if c['close'] == 0 and (c['start'] >0 or c['auto'] > 0):
-                self.autoclose_tags.append(t)
-
-            if self.print_tags:
-                self.fle.write('%s %s %s %s\n'.encode('utf-8') % (t.ljust(12), c['start'], c['close'], c['auto']))
-
-    def handle_starttag(self, tag, attrs):
-        if not tag in self.open_tags.keys():
-            self.open_tags[tag] = 0
-
-        self.open_tags[tag] += 1
-        if self.print_tags:
-            self.fle.write('starting %s %s\n'.encode('utf-8') % (self.current_node.level, tag))
-
-        node = HTMLnode(self, [tag.lower(), attrs], self.current_node)
-        self.add_text()
-        self.current_node = node
-        if tag.lower() in self.autoclose_tags:
-            self.handle_endtag(tag)
-            return False
-
-        return True
-
-    def handle_endtag(self, tag):
-        if not tag in self.open_tags.keys() or self.open_tags[tag] == 0:
-            return
-
-        self.open_tags[tag] -= 1
-        if self.print_tags:
-            self.fle.write('  closing %s %s %s\n'.encode('utf-8') % (tag, self.current_node.level, self.current_node.tag))
-
-        if self.current_node.tag != tag.lower():
-            # To catch missing close tags
-            self.remove_text()
-            self.handle_endtag(self.current_node.tag)
-
-        self.add_text()
-        self.current_node = self.current_node.parent
-        if self.current_node.is_root:
-            self.reset()
-
-    def handle_startendtag(self, tag, attrs):
-        if self.handle_starttag(tag, attrs):
-            self.handle_endtag(tag)
-
-    def handle_data(self, data):
-        self.text += data
-
-    def handle_entityref(self, name):
-        try:
-            c = unichr(name2codepoint[name])
-            self.text += c
-
-        except:
-            pass
-
-    def handle_charref(self, name):
-        if name.startswith('x'):
-            c = unichr(int(name[1:], 16))
-
-        else:
-            c = unichr(int(name))
-
-        self.text += c
-
-    def handle_comment(self, data):
-        # <!--comment-->
-        pass
-
-    def handle_decl(self, decl):
-        # <!DOCTYPE html>
-        pass
-
-    def handle_pi(self, data):
-        # <?proc color='red'>
-        pass
-
-    def add_text(self):
-        self.current_node.text += unicode(re.sub('\n','', re.sub('\r','', self.text)))
-        self.text = u''
-
-    def remove_text(self):
-        self.text += self.current_node.text
-        self.current_node.text = u''
-
-# end HTMLtree
-
-class JSONtree(DATAtree):
-    def __init__(self, config, data):
-        DATAtree.__init__(self, config)
-        self.extract_from_parent = True
-        self.data = data
-        # Read the json data into the tree
-        self.root = JSONnode(self, data)
-        self.root.show_result = self.show_result
-        self.start_node = self.root
-
-    def unescape(self, text):
-        # Removes HTML or XML character references and entities from a text string.
-        # source: http://effbot.org/zone/re-sub.htm#unescape-html
-        #
-        # @param text The HTML (or XML) source text.
-        # @return The plain text, as a Unicode string
-
-        def fixup(m):
-            text = m.group(0)
-            if text[:2] == "&#":
-                # character reference
-                try:
-                    if text[:3] == "&#x":
-                        return unichr(int(text[3:-1], 16))
-
-                    else:
-                        return unichr(int(text[2:-1]))
-
-                except ValueError:
-                    pass
-
-            else:
-                # named entity
-                try:
-                    text = unichr(name2codepoint[text[1:-1]])
-
-                except KeyError:
-                    pass
-
-            return text # leave as is
-
-        if not isinstance(text,(str, unicode)):
-            return text
-
-        return unicode(re.sub("&#?\w+;", fixup, text))
-
-# end JSONtree
-
-class ProgramNode():
-    def __init__(self, config, data):
-        self.program_lock = Lock()
-        with self.program_lock:
-            self.config = config
-            self.data = data
-
-class ChannelNode():
-    def __init__(self, config, chanid):
-        self.channel_lock = Lock()
-        with self.channel_lock:
-            self.config = config
-            self.chanid = chanid
-
 class FetchData(Thread):
     """
     Generic Class to fetch the data
@@ -1905,7 +2045,6 @@ class FetchData(Thread):
         self.isjson = isjson
         # The ID of the source
         self.proc_id = proc_id
-        # The Name of the source
         self.detail_request = Queue()
         self.cache_return = Queue()
         self.source_lock = Lock()
@@ -1927,6 +2066,9 @@ class FetchData(Thread):
         self.site_tz = self.config.utc_tz
         self.item_count = 0
         self.current_item_count = 0
+        self.print_tags = False
+        self.print_searchtree = False
+        self.show_result = False
 
         self.source_data = {}
         try:
@@ -1934,6 +2076,7 @@ class FetchData(Thread):
             fle = self.config.IO_func.open_file('%s/sources/%s.json' % (sys.path[0], data), 'r', 'utf-8')
             self.source_data = json.load(fle)
             self.source = self.source_data['name']
+            self.config.sourceid_by_name[self.source] = self.proc_id
             self.detail_id = self.source_data['detail_id']
             self.detail_url = self.source_data['detail_url']
             self.detail_processor = self.source_data['detail_processor']
@@ -2243,6 +2386,7 @@ class FetchData(Thread):
         data['item-count'] = self.data_value([ptype, 'item-count'], int, default=0)
         data['url-date-type'] = self.data_value([ptype, "url-date-type"], int, default=0)
         data['url-date-format'] = self.data_value([ptype, "url-date-format"], unicode)
+        data['weekdays'] = self.data_value([ptype, "weekdays"], list)
         if not self.is_data_value([ptype, "url"]):
             self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
             return None
@@ -2299,36 +2443,52 @@ class FetchData(Thread):
                 return
 
             is_json = url[5]
+            if self.print_searchtree:
+                print url
             page = self.functions.get_page(url)
-            if is_json and page != None:
+            if page == None:
+                self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
+                if self.print_searchtree:
+                    print 'No Data'
+                return None
+
+            if is_json:
                 if ptype in ('detail', 'detail2'):
                     return page
 
                 self.current_item_count = self.data_value(self.data_value([ptype, "item-count-path"],list), int, page, 0)
                 jt = JSONtree(self.config, page)
+                jt.print_searchtree = self.print_searchtree
+                jt.show_result = self.show_result
                 jt.datetimestring = self.data_value([ptype, "datetimestring"], str)
                 jt.timezone = self.site_tz
                 jt.extract_datalist(self.data_value(ptype, dict))
-                #~ print jt.result
-                #~ print
+                if self.show_result:
+                    print
+                    print jt.result
+
                 return jt.result
 
-            elif page != None:
-                if ptype == 'base' and self.proc_id in (1, 4, 7, 8, 9, 12):
-                    return page
-
+            else:
                 if ptype in ('detail', 'detail2') and self.proc_id in (1, 4, 7, 8, 9, 12):
                     return page
+
+                #~ if ptype == 'base' and self.proc_id in (1, 4, 7, 9, 12):
+                    #~ return page
 
                 autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
                 if self.data_value([ptype, "enclose-with-html-tag"], bool, default=False):
                     page = u'<html>%s</html>' % page
 
-                ht = HTMLtree(self.config, page, autoclose_tags)
+                ht = HTMLtree(self.config, page, autoclose_tags, self.print_tags)
+                ht.print_searchtree = self.print_searchtree
+                ht.show_result = self.show_result
                 ht.find_start_node(self.data_value(ptype, dict))
                 ht.extract_datalist(self.data_value(ptype, dict))
-                #~ print ht.result
-                #~ print
+                if self.show_result:
+                    print
+                    print ht.result
+
                 return ht.result
 
         except:

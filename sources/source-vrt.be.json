@@ -16,12 +16,17 @@
         "url-type": 0,
         "url-data":{},
 		"data":{
-			"key-path":[{"key":"channels"},"all",{"key":"code"}],
+			"key-path":[
+				{"key":"channels"},
+				{"path":"all"},
+				{"key":"code"}
+				],
 			"values":[
 				[{"key":"displayName"}],
 				[{"key":"logoUrl","default":""}],
 				[{"key":"type", "replace":{"tv":2, "radio":12},"default":9}],
-				[{"key":"state", "replace":{"active":false, "inactive":true},"default":false}]]},
+				[{"key":"state", "replace":{"active":false, "inactive":true},"default":false}]
+				]},
 		"values":{
 			"channelid":{"varid": 0},
 			"name":{"funcid":0, "data":[{"varid":1}, " HD"]},
@@ -46,9 +51,14 @@
 		"max days":14,
         "datetimestring":"%Y-%m-%dT%H:%M:%S.%fZ",
         "data":{
-			"key-path":[{"key":"events"},"all",{"key":"code"}],
+			"key-path":[
+				{"key":"events"},
+				{"path":"all"},
+				{"key":"code"}
+				],
 			"values":[
-				[{"key":"channel"},{"key":"code","default":""}],
+				[{"key":"channel"},
+					{"key":"code","default":""}],
 				[{"key":"startTime","default":"", "type":"datetimestring"}],
 				[{"key":"endTime","default":"", "type":"datetimestring"}],
 				[{"key":"title","default":""}],
@@ -57,8 +67,11 @@
 				[{"key":"episodeNumber","type":"int","default":0}],
 				[{"key":"shortDescription","default":""}],
 				[{"key":"description","default":""}],
-				[{"key":"group"},{"key":"title"}],
-				[{"key":"presenters"},"all",{"key":"name", "type": "list"}],
+				[{"key":"group"},
+					{"key":"title"}],
+				[{"key":"presenters"},
+					{"path":"all"},
+					{"key":"name", "type": "list"}],
 				[{"key":"cast","default":""}],
 				[{"key":"type","default":"","--remark--":["Volatiel","Aflevering","MER","Film","Weerbericht","Kansspelen","","","","",""]}],
 				[{"key":"categories","default":"","--remark--":["12+",""]}],
@@ -66,9 +79,16 @@
 				[{"key":"videoFormat","default":"","--remark--":["SD","HD"]}],
 				[{"key":"hasTTSubTitles","type":"boolean","default":false}],
 				[{"key":"isRepeat","type":"boolean","default":false}],
-				[{"key":"standardGenres"},"all",{"key":"type", "type": "list"}],
-				[{"key":"standardGenres"},"all",{"key":"eid", "type": "list"}],
-				[{"key":"standardGenres"},"all",{"key":"name", "type": "list"}]]},
+				[{"key":"standardGenres"},
+					{"path":"all"},
+					{"key":"type", "type": "list"}],
+				[{"key":"standardGenres"},
+					{"path":"all"},
+					{"key":"eid", "type": "list"}],
+				[{"key":"standardGenres"},
+					{"path":"all"},
+					{"key":"name", "type": "list"}]
+					]},
 		"values":{
 			"channelid":{"varid": 1},
 			"prog_ID":{"funcid":2, "data":["vrt-",{"varid":0}]},

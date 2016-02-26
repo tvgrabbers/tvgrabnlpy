@@ -20,27 +20,39 @@
 		"datetimestring":"%Y-%m-%d %H:%M:%S",
 		"page-item-count":[],
         "data":{
-			"key-path":[
+			"init-path":[
 				{"tag":"html"},
 				{"tag":"body"},
 				{"tag":"div", "attrs":{"id":"page"}},
 				{"tag":"div", "attrs":{"id":"main"}},
-				{"tag":"div", "attrs":{"id":"content"}},
-				{"tag":"div", "attrs":{"id":"tvprograms-main"}},
-				{"tag":"div", "attrs":{"id":"tvprograms"}},
-				{"tag":"div", "attrs":{"id":"program-header-top"}},
-				{"tag":"div", "attrs":{"id":"program-headers"}},
-				{"tag":"div", "attrs":{"id":"channels-select"}},
-				{"tag":"select"},
-				{"tag":"option", "attrs":{"value":{"not":["all"]}}},
-				{ "attr":"value", "ascii-replace":["ss","s", "[-!?(), ]"], "link":1}],
-			"values":[
-				["text"],
-				["parent","parent","parent","parent","parent",
-				{"tag":"div", "attrs":{"id":"program-channels-list-main"}},
-				{"tag":"div", "attrs":{"id":"program-channels-list"}},
-				{"tag":"ul"},{"tag":"li"},{"tag":"div"},{"tag":"a"},
-				{"tag":"img", "attrs":{"class": {"link":1}},"attr":"src"}]]},
+				{"tag":"div", "attrs":{"id":"content"}}
+				],
+			"iter":[
+				{"key-path":[
+					{"tag":"div", "attrs":{"id":"tvprograms-main"}},
+					{"tag":"div", "attrs":{"id":"tvprograms"}},
+					{"tag":"div", "attrs":{"id":"program-header-top"}},
+					{"tag":"div", "attrs":{"id":"program-headers"}},
+					{"tag":"div", "attrs":{"id":"channels-select"}},
+					{"tag":"select"},
+					{"tag":"option", "attrs":{"value":{"not":["all"]}}},
+					{ "attr":"value", "ascii-replace":["ss","s", "[-!?(), ]"], "link":1}
+					],
+				"values":[
+					[{"select":"text"}],
+					[{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"tag":"div", "attrs":{"id":"program-channels-list-main"}},
+						{"tag":"div", "attrs":{"id":"program-channels-list"}},
+						{"tag":"ul"},
+						{"tag":"li"},
+						{"tag":"div"},
+						{"tag":"a"},
+						{"tag":"img", "attrs":{"class": {"link":1}},"attr":"src"}]
+						]}]},
 		"values":{
 			"channelid":{"varid": 0},
 			"name":{"funcid":0, "data":[{"varid": 1}]},
@@ -48,6 +60,44 @@
 			"icongrp":null,
 			"group":null,
 			"HD":null}},
+    "base":{
+        "url":["http://www.primo.eu/tv-programs-full-view/",12, "/all/all"],
+        "data-format":"text/html",
+        "encoding":"utf-8",
+        "accept-header":null,
+        "url-type": 2,
+        "url-date-type": 2,
+        "url-data":{},
+		"max days":7,
+        "datetime-type":5,
+        "datetime-format":".",
+		"autoclose-tags":["meta", "link"],
+        "data":{
+			"init-path":[
+				],
+			"iter":[
+				{"key-path":[
+					],
+				"values":[
+					]}]},
+		"values":{}},
+    "detail":{
+        "url":["http://www.primo.eu/tvprograms/ajaxcallback/",0],
+        "data-format":"text/html",
+        "encoding":"utf-8",
+        "accept-header":null,
+        "url-type":0,
+        "url-data":{},
+		"autoclose-tags":["meta", "link"],
+        "data":{
+			"init-path":[
+				],
+			"iter":[
+				{"key-path":[
+					],
+				"values":[
+					]}]},
+		"values":{}},
 	"no_genric_matching":["disneyxd", "npo1", "npo2", "npo3", "sbss6", "net5", "veronica"],
 	"empty_channels":[],
     "cattrans":{},

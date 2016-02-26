@@ -678,6 +678,7 @@ class Configure:
         self.detail_sources = (0, 9, 1)
         self.prime_source_order = (2, 4, 7, 0, 5, 1, 9, 6, 8, 10, 11, 12)
         self.channelsource = {}
+        self.sourceid_by_name = {}
         self.ttvdb = None
 
         self.queues['log'] = self.logging.log_queue
@@ -820,9 +821,6 @@ class Configure:
     def validate_commandline(self):
         """Read the commandline and validate the values"""
         self.init_sources()
-        self.sourceid_by_name = {}
-        for k, v in self.channelsource.items():
-            self.sourceid_by_name[v.source] = k
         if self.read_commandline() == 0:
              return(0)
 

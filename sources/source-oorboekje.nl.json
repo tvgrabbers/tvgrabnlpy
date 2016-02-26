@@ -17,19 +17,27 @@
         "url-data":{},
 		"autoclose-tags":["meta", "link", "img"],
         "data":{
-			"key-path":[
+			"init-path":[
 				{"tag":"html"},
 				{"tag":"body"},
 				{"tag":"div", "attrs":{"style":null}},
-				{"tag":"table"},
-				{"tag":"tr"},
-				{"tag":"td", "attrs":{"class":"pgMenuInhoud"}},
-				{"tag":"a"},
-				{"tag":"img", "attrs":{"src":"img/info.png"}}],
-			"values":[
-				["parent",{"attr":"href","split":[["=",-1]]}],
-				["parent","parent",{"tag":"p"}],
-				[{"value":11}]]},
+				{"tag":"table"}
+				],
+			"iter":[
+				{"key-path":[
+					{"tag":"tr"},
+					{"tag":"td", "attrs":{"class":"pgMenuInhoud"}},
+					{"tag":"a"},
+					{"tag":"img", "attrs":{"src":"img/info.png"}}
+					],
+				"values":[
+					[{"path":"parent"},
+						{"attr":"href","split":[["=",-1]]}],
+					[{"path":"parent"},
+						{"path":"parent"},
+						{"tag":"p"}],
+					[{"value":11}]
+					]}]},
 		"values":{
 			"channelid":{"varid": 1},
 			"name":{"funcid":0, "data":[{"varid": 2}]},
@@ -37,6 +45,27 @@
 			"icon":null,
 			"icongrp":null,
 			"HD":null}},
+    "base":{
+        "url":["http://www.oorboekje.nl/",16, "program.php"],
+        "data-format":"text/html",
+        "encoding":null,
+        "accept-header":null,
+        "url-type": 2,
+        "url-data":{},
+		"max days":7,
+        "datetime-type":5,
+		"weekdays":[7, 1, 2, 3, 4, 5, 6],
+        "datetime-format":":",
+		"autoclose-tags":["meta", "link"],
+        "data":{
+			"init-path":[
+				],
+			"iter":[
+				{"key-path":[
+					],
+				"values":[
+					]}]},
+		"values":{}},
 	"no_genric_matching":[],
 	"empty_channels":[],
     "cattrans":{},

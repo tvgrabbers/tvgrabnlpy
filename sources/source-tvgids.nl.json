@@ -16,9 +16,13 @@
         "url-type":0,
         "url-data":{},
         "data":{
-			"key-path":["all",{"key":"id", "type":"string"}],
+			"key-path":[
+				{"path":"all"},
+				{"key":"id", "type":"string"}
+				],
 			"values":[
-				[{"key":"name","default":""}]]}, 
+				[{"key":"name","default":""}]
+				]}, 
 		"values":{
 			"channelid":{"varid": 0},
 			"name":{"funcid":0, "data":[{"varid": 1}]},
@@ -38,16 +42,21 @@
 		"max days":4,
 		"datetimestring":"%Y-%m-%d %H:%M:%S",
         "data":{
-			"key-path":["all","all",{"key":"db_id"}],
+			"key-path":[
+				{"path":"all"},
+				{"path":"all"},
+				{"key":"db_id"}
+				],
 			"values":[
-				["parent","key"],
+				[{"path":"parent"},"key"],
 				[{"key":"datum_start","default":"", "type":"datetimestring"}],
 				[{"key":"datum_end","default":"", "type":"datetimestring"}],
 				[{"key":"titel","default":""}],
 				[{"key":"genre","default":""}],
 				[{"key":"soort","default":""}],
 				[{"key":"kijkwijzer","default":""}],
-				[{"key":"artikel_tekst","default":""}]]},
+				[{"key":"artikel_tekst","default":""}]
+				]},
 		"values":{
 			"channelid":{"varid": 1},
 			"prog_ID":{"funcid":2, "data":["nl-",{"varid":0}]},

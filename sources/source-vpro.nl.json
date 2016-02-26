@@ -15,25 +15,30 @@
         "accept-header":null,
         "url-type": 0,
         "url-data":{},
-        "url-date-format": "%d-%m-%Y",
+        "url-date-format": "%Y-%m-%d",
 		"autoclose-tags":["meta", "link"],
 		"datetimestring":"%Y-%m-%d %H:%M:%S",
 		"page-item-count":[],
         "data":{
-			"key-path":[
+			"init-path":[
 				{"tag":"html"},
 				{"tag":"body"},
 				{"tag":"div", "attrs":{"class":"embeddable-content-container"}},
-				{"tag":"section"},
-				{"tag":"div", "attrs":{"class":"grid"}},
-				{"tag":"div"},
-				{"tag":"div"},
-				{"tag":"div", "attrs":{"class":"epg-viewport-wrapper"}},
-				{"tag":"ul", "attrs":{"class":"epg-channel-names"}},
-				{"tag":"li"}],
-			"values":[
-				["lower-ascii"],
-				[{"attr":"class","default":99, "replace":{"epg-source-radio epg-channel-name":11}}]]},
+				{"tag":"section"}
+				],
+			"iter":[
+				{"key-path":[
+					{"tag":"div", "attrs":{"class":"grid"}},
+					{"tag":"div"},
+					{"tag":"div"},
+					{"tag":"div", "attrs":{"class":"epg-viewport-wrapper"}},
+					{"tag":"ul", "attrs":{"class":"epg-channel-names"}},
+					{"tag":"li"}
+					],
+				"values":[
+					[{"type":"lower-ascii"}],
+					[{"attr":"class","default":99, "replace":{"epg-source-radio epg-channel-name":11}}]
+					]}]},
 		"values":{
 			"channelid":{"varid": 1},
 			"name":{"funcid":0, "data":[{"varid": 0}]},
@@ -41,6 +46,66 @@
 			"icon":null,
 			"icongrp":null,
 			"HD":null}},
+    "base":{
+        "url":["http://www.vpro.nl/epg-embeddable/content/0.html"],
+        "data-format":"text/html",
+        "encoding":"utf-8",
+        "accept-header":null,
+        "url-type": 2,
+        "url-data":{"day":12},
+        "url-date-format": "%Y-%m-%d",
+		"max days":5,
+        "datetime-type":5,
+        "datetime-format":":",
+		"autoclose-tags":["meta", "link"],
+		"enclose-with-html-tag":true,
+        "data":{
+			"init-path":[
+				{"tag":"html"},
+				{"tag":"section"},
+				{"tag":"div", "attrs":{"class":"grid"}},
+				{"tag":"div"},
+				{"tag":"div"},
+				{"tag":"div", "attrs":{"class":"epg-viewport-wrapper"}},
+				{"tag":"div", "attrs":{"class":"epg-viewport"}},
+				{"tag":"div", "attrs":{"class":"epg-scrollable"}},
+				{"tag":"div", "attrs":{"class":"epg-channels-container"}}
+				],
+			"iter":[{
+				"key-path":[
+					{"tag":"ol"},{"tag":"li"},
+					{"tag":"div", "attrs":{"class":"content"}},
+					{"tag":"div", "attrs":{"class":"meta"}},
+					{"tag":"span", "attrs":{"class":"epg-start-time"}}
+					],
+				"values":[
+					[{"path":"parent"},
+						{"path":"parent"},
+						{"tag":"h6", "attrs":{"class":"title"}}],
+					[{"path":"parent"},
+						{"path":"parent"},
+						{"tag":"h6", "attrs":{"class":"title"}},
+						{"tag":"span", "attrs":{"class":"broadcaster"}}],
+					[{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"attr":"class"}],
+					[{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent","select":"index", "link":1},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"tag":"ul", "attrs":{"class":"epg-channel-names"}},
+						{"tag":"li", "index":{"link":1},"type":"lower-ascii"}],
+					[{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"attr":"data-description"}]
+						]}]},
+		"values":{}},
 	"no_genric_matching":["npo_1", "npo_2", "npo_3", "radio_1", "radio_2", "3fm", "radio_4", "radio_5", "radio_6",
 			"rtl_4", "rtl_5", "rtl_7", "rtl_8", "tlc"],
 	"empty_channels":[],
