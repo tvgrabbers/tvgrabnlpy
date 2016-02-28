@@ -91,36 +91,36 @@ def main():
         #~ source = tv_grab_fetch.FetchData(config, 6, 'source-humo.be', True)
         #~ channel ='672816167173'
         #~ source = tv_grab_fetch.FetchData(config, 5, 'source-horizon.tv', True)
-        #~ channel ='een'
+        #~ channel ='O8'
         #~ source = tv_grab_fetch.FetchData(config, 10, 'source-vrt.be', True)
         #~ channel ='een'
         #~ source = tv_grab_fetch.FetchData(config, 8, 'source-nieuwsblad.be')
         #~ channel ='nederland-1'
         #~ source = tv_grab_fetch.FetchData(config, 1, 'source-tvgids.tv')
         #~ source = tv_grab_fetch.FetchData(config, 4, 'source-npo.nl')
-
-        source = tv_grab_fetch.FetchData(config, 7, 'source-vpro.nl')
+        #~ source = tv_grab_fetch.FetchData(config, 7, 'source-vpro.nl')
         #~ source= tv_grab_fetch.FetchData(config, 9, 'source-primo.eu')
+
         #~ source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
         #~ source = tv_grab_fetch.FetchData(config, 11, 'source-virtual.nl')
 
         #~ source= tv_grab_fetch.FetchData(config, 9, 'source-primo.eu')
 
         config.validate_option('config_file')
-        tz = source.site_tz
-        start = int(time.mktime(datetime.datetime.now(tz).timetuple()))*1000
-        end = start + (86400000 * 2)
 
+        source.test_output = sys.stdout
         #~ source.print_tags = True
-        #~ source.print_searchtree = True
+        #~ source.print_roottree = True
+        source.print_searchtree = True
         source.show_result = True
+
         sid = source.proc_id
         config.channelsource[sid] = source
         config.channelsource[sid].init_channel_source_ids()
-        #~ config.channelsource[sid].get_channels()
+        config.channelsource[sid].get_channels()
 
-        config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'main', 'start':start, 'end':end})
-        #~ # tvgids.tv, 1
+        #~ config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'main', 'cnt-offset': 0, 'start':1, 'days':1})
+        # tvgids.tv, 1
         # nieuwsblad.be, 5
         # vrt.be, 9
         # horizon, 13

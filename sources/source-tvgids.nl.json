@@ -37,7 +37,7 @@
         "accept-header":null,
         "url-type": 2,
         "url-data":{
-            "channels":1,
+            "channels":2,
             "day":11},
 		"max days":4,
 		"datetimestring":"%Y-%m-%d %H:%M:%S",
@@ -48,7 +48,7 @@
 				{"key":"db_id"}
 				],
 			"values":[
-				[{"path":"parent"},"key"],
+				[{"path":"parent","select":"key"}],
 				[{"key":"datum_start","default":"", "type":"datetimestring"}],
 				[{"key":"datum_end","default":"", "type":"datetimestring"}],
 				[{"key":"titel","default":""}],
@@ -66,7 +66,6 @@
 			"name":{"varid":4},
 			"genre":{"varid": 5},
 			"subgenre":{"varid": 6},
-			"kijkwijzer":{"varid": 7},
 			"description":{"varid":8}}},
     "detail":{
         "url":["http://www.tvgids.nl/programma/",1, "/"],

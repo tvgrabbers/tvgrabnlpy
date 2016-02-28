@@ -167,21 +167,19 @@ class Configure(tv_grab_config.Configure):
 
     def init_sources(self):
         self.channelsource[0] = sources.tvgids_JSON(self, 0, 'source-tvgids.nl', True)
-        #~ self.channelsource[2] = sources.rtl_JSON(self, 2, 'source-rtl.nl', True)
-        self.channelsource[5] = sources.horizon_JSON(self, 5, 'source-horizon.tv', True)
-        #~ self.channelsource[6] = sources.humo_JSON(self, 6, 'source-humo.be', True)
-        #~ self.channelsource[10] = sources.vrt_JSON(self, 10, 'source-vrt.be', True)
-        self.channelsource[1] = sources.tvgidstv_HTML(self, 1, 'source-tvgids.tv')
-        self.channelsource[4] = sources.npo_HTML(self, 4, 'source-npo.nl')
-        self.channelsource[7] = sources.vpro_HTML(self, 7, 'source-vpro.nl')
-        self.channelsource[8] = sources.nieuwsblad_HTML(self, 8, 'source-nieuwsblad.be')
-        self.channelsource[9] = sources.primo_HTML(self, 9, 'source-primo.eu')
-        self.channelsource[12] = sources.oorboekje_HTML(self, 12, 'source-oorboekje.nl')
         self.channelsource[2] = tv_grab_fetch.FetchData(self, 2, 'source-rtl.nl', True)
+        self.channelsource[5] = tv_grab_fetch.FetchData(self, 5, 'source-horizon.tv', True)
         self.channelsource[6] = tv_grab_fetch.FetchData(self, 6, 'source-humo.be', True)
         self.channelsource[10] = tv_grab_fetch.FetchData(self, 10, 'source-vrt.be', True)
-        self.channelsource[11] = tv_grab_fetch.FetchData(self, 11, 'source-virtual.nl')
+
+        self.channelsource[1] = sources.tvgidstv_HTML(self, 1, 'source-tvgids.tv')
+        self.channelsource[4] = tv_grab_fetch.FetchData(self, 4, 'source-npo.nl')
+        self.channelsource[7] = tv_grab_fetch.FetchData(self, 7, 'source-vpro.nl')
         self.channelsource[8] = tv_grab_fetch.FetchData(self, 8, 'source-nieuwsblad.be')
+        self.channelsource[9] = sources.primo_HTML(self, 9, 'source-primo.eu')
+        self.channelsource[12] = tv_grab_fetch.FetchData(self, 12, 'source-oorboekje.nl')
+
+        self.channelsource[11] = tv_grab_fetch.FetchData(self, 11, 'source-virtual.nl')
 
 # end Configure()
 config = Configure()

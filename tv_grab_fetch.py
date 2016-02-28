@@ -441,7 +441,7 @@ class Functions():
             return None
     # end merge_date_time()
 
-    def link_functions(self, fid, data=[], source = '', tzinfo = None, default = None):
+    def link_functions(self, fid, data=[], source = '', tzinfo = None, fetch_date = None, default = None):
         try:
             # strip data[1] from the end of data[0] if present and make sure it's unicode
             if fid == 0:
@@ -493,80 +493,137 @@ class Functions():
                 #~ for index in range(1, len(data)):
                 return data[0].split('/')[data[1]]
 
+            # Combine a date and time value
+            if fid == 4:
+                if len(data)< 3 or not isinstance (data[1], datetime.time) or not isinstance(data[2], int):
+                    return default
+
+                if not isinstance (data[0], datetime.date):
+                    data[0] = datetime.date.fromordinal(fetch_date)
+
+                if not isinstance (data[0], datetime.date):
+                    return default
+
+                if data[1] < datetime.time(data[2]):
+                    data[0] += datetime.timedelta(days = 1)
+
+                dt = datetime.datetime.combine(data[0], data[1])
+                dt = tzinfo.localize(dt)
+                dt = self.config.utc_tz.normalize(dt.astimezone(self.config.utc_tz))
+                return dt
+
         except:
             self.config.log([self.config.text('fetch', 69, ('link', fid, source)), traceback.format_exc()], 1)
             return default
 
     # end link_functions()
 
-    def url_functions(self, urlid, data={}):
+    def url_functions(self, source, ptype, urlid, data={}):
+        def get_dtstring(dtordinal):
+            return datetime.date.fromordinal(dtordinal).strftime(udf)
+
+        def get_timestamp(dtordinal):
+            return int(time.mktime(datetime.date.fromordinal(dtordinal).timetuple())) * udm
+
+        def get_weekday(dtordinal):
+            wd = datetime.date.fromordinal(dtordinal).weekday()
+            if len(wds) == 7:
+                return unicode(wds[wd])
+
+            return unicode(wd)
+
         try:
-            if urlid == 0 and "detailid" in data:
-                return data["detailid"]
+            udt = source.data_value([ptype, "url-date-type"], int, default=0)
+            udm = source.data_value([ptype, "url-date-multiplier"], int, default=1)
+            udf = source.data_value([ptype, "url-date-format"], str, default=None)
+            wds = source.data_value([ptype, "weekdays"], list)
+            offset = source.data_value('offset', int, data, default=0)
+            start = source.data_value('start', int, data, default=self.config.opt_dict['offset'])
+            days = source.data_value('days', int, data, default=self.config.opt_dict['days'])
+            if urlid == 0:
+                return source.data_value('detailid', unicode, data)
 
             elif urlid == 1:
+                return source.data_value('channel', unicode, data)
+
+            elif urlid == 2:
                 cc = ''
-                for c in data['channels'].values():
+                for c in source.data_value('channels', dict, data).values():
                     cc = '%s,%s'% (cc, c)
 
                 return cc[1:]
 
-            elif urlid == 2 and "channel" in data:
-                return data["channel"]
+            elif urlid == 3:
+                return source.data_value('channelgrp', unicode, data)
 
-            elif urlid == 3 and "channelgrp" in data:
-                return data["channelgrp"]
-
-            elif urlid == 4 and "item-count" in data:
-                if not "offset" in data:
-                    data["offset"] = 0
-
-                return u'%s-%s' % (data["offset"] * data["item-count"] + 1, (data["offset"] + 1) * data["item-count"])
+            elif urlid == 4:
+                cnt = source.data_value([ptype, 'item-count'], int, default=0)
+                cnt_offset = source.data_value('cnt-offset', int, data, default=0)
+                splitter = source.data_value([ptype, "item-range-splitter"], str, default='-')
+                return u'%s%s%s' % (cnt_offset * cnt + 1, splitter, (cnt_offset + 1) * cnt)
 
             elif urlid == 11:
-                if not "offset" in data:
-                    data["offset"] = 0
+                if udt == 0:
+                    if udf not in (None, ''):
+                        return get_dtstring(source.current_date + offset)
 
-                if data['url-date-type'] == 0:
-                    return str(data["offset"])
+                    else:
+                        return unicode(offset)
 
-                if data['url-date-type'] == 1:
-                    return str(data["offset"])
+                elif udt == 1:
+                    return get_timestamp(source.current_date + offset)
 
-                if data['url-date-type'] == 2:
-                    return str(data["offset"])
+                elif udt == 2:
+                    return get_weekday(source.current_date + offset)
 
-            elif urlid == 12 and data["url-date-format"] not in (None, ''):
-                if not "offset" in data:
-                    data["offset"] = 0
+            elif urlid == 12:
+                if udt == 0:
+                    if udf not in (None, ''):
+                        return get_dtstring(source.current_date + start + days)
 
-                return datetime.date.fromordinal(data['current_date'] + data["offset"]).strftime(data["url-date-format"])
+                    else:
+                        return unicode(start + days - 1)
+
+                elif udt == 1:
+                    return get_timestamp(source.current_date + start + days)
+
+                elif udt == 2:
+                    return get_weekday(source.current_date + start + days)
 
             elif urlid == 13:
-                start = data["start"] if "start" in data else self.config.opt_dict['offset']
-                days = data["days"] if "days" in data else self.config.opt_dict['days']
-                if data['url-date-type'] == 0:
-                    return str(start + days - 1)
+                if udt == 0:
+                    if udf not in (None, ''):
+                        return get_dtstring(source.current_date + start)
+
+                    else:
+                        return unicode(-start)
+
+                elif udt == 1:
+                    return get_timestamp(source.current_date + start)
+
+                elif udt == 2:
+                    return get_weekday(source.current_date + start)
 
             elif urlid == 14:
-                start = data["start"] if "start" in data else self.config.opt_dict['offset']
-                if data['url-date-type'] == 0:
-                    return str(-start)
+                if udt == 0:
+                    if udf not in (None, ''):
+                        st = get_dtstring(source.current_date + start)
+                        end = get_dtstring(source.current_date + start + days)
 
-            elif urlid == 15 and "start" in data and "end" in data:
-                return '%s~%s' % (data["start"], data["end"] )
+                    else:
+                        st = unicode(start)
+                        end = unicode(start + days - 1)
 
-            elif urlid == 16:
-                if not "offset" in data:
-                    data["offset"] = 0
+                elif udt == 1:
+                    st = get_timestamp(source.current_date + start)
+                    end = get_timestamp(source.current_date + start + days)
 
-                wd = datetime.date.fromordinal(data['current_date'] + data["offset"]).weekday()
-                if "weekdays" in data and isinstance(data["weekdays"], list) and len(data["weekdays"]) == 7:
-                    return unicode(data["weekdays"][wd])
+                elif udt == 2:
+                    st = get_weekday(source.current_date + start)
+                    end = get_weekday(source.current_date + start + days)
 
-                #~ if "url-date-week-start" in data and isinstance(data["url-date-week-start"], int):
-
-                return wd
+                splitter = source.data_value([ptype, "date-range-splitter"], str, default='~')
+                return '%s%s%s' % (st, splitter, end )
 
             else:
                 return None
@@ -706,11 +763,20 @@ class DATAnode():
                 self.dtree.print_text(u'    adding node %s\n'.encode('utf-8', 'replace') % (self.print_node()))
             return [self]
 
-        elif len(d_def) == 1 and self.match_node(node_def = d_def[0], link_values=link_values) == None:
+        elif self.match_node(node_def = d_def[0], link_values=link_values) == None:
             # It's not a child definition
-            if self.dtree.show_result:
-                self.dtree.print_text(u'    adding node %s; %s\n'.encode('utf-8', 'replace') % (self.print_node(), d_def[0]))
-            return [self]
+            if len(d_def) == 1:
+                if self.dtree.show_result:
+                    self.dtree.print_text(u'    adding node %s; %s\n'.encode('utf-8', 'replace') % (self.print_node(), d_def[0]))
+                return [self]
+
+            else:
+                if len(self.link_value) > 0:
+                    for k, v in self.link_value.items():
+                        link_values[k] = v
+
+                self.link_value = {}
+                return self.get_children(data_def = d_def[1:], link_values=link_values)
 
         elif self.dtree.is_data_value('path', None, d_def[0]):
             sel_val = d_def[0]['path']
@@ -783,152 +849,18 @@ class DATAnode():
 
         return childs
 
+    def check_for_linkrequest(self, node_def):
+        if self.dtree.is_data_value('link', int, node_def):
+            self.link_value[node_def['link']] = self.find_value(node_def)
+            if self.dtree.show_result:
+                self.dtree.print_text(u'    saving link to node %s: %s\n'.encode('utf-8', 'replace') % (self.find_value(node_def), self.print_node()))
+
     def match_node(self, node_def = None, link_values ={}):
         self.link_value = {}
         return False
 
     def find_value(self, node_def = None):
-        return self.calc_value(self.value, node_def)
-
-    def calc_value(self, value, node_def = None):
-        if isinstance(value, (str, unicode)):
-            # Is there something to strip of
-            if self.dtree.is_data_value('ascii-replace', list, node_def) and len(node_def['ascii-replace']) > 0:
-                arep = node_def['ascii-replace']
-                value = value.lower()
-                if len(arep) > 2:
-                    value = re.sub(arep[2], arep[1], value)
-
-                value = value.encode('ascii','replace')
-                value = re.sub('\?', arep[0], value)
-
-            if self.dtree.is_data_value('lstrip', str, node_def):
-                if value.strip().lower()[:len(node_def['lstrip'])] == node_def['lstrip'].lower():
-                    value = unicode(value[len(node_def['lstrip']):]).strip()
-
-            if self.dtree.is_data_value('rstrip', str, node_def):
-                if value.strip().lower()[-len(node_def['rstrip']):] == node_def['rstrip'].lower():
-                    value = unicode(value[:-len(node_def['rstrip'])]).strip()
-
-            # Is there something to substitute
-            if self.dtree.is_data_value('sub', list, node_def) and len(node_def['sub']) > 1:
-                value = re.sub(node_def['sub'][0], node_def['sub'][1], value)
-
-            # Is there a split list
-            if self.dtree.is_data_value('split', list, node_def) and len(node_def['split']) > 0:
-                if not isinstance(node_def['split'][0],list):
-                    slist = [node_def['split']]
-
-                else:
-                    slist = node_def['split']
-
-                for sdef in slist:
-                    if len(sdef) < 2 or not isinstance(sdef[0],(str,unicode)) or not isinstance(sdef[1], int):
-                        continue
-
-                    try:
-                        dat = re.split(sdef[0],value)
-                        value = dat[sdef[1]]
-                        for i in range(2, len(sdef)):
-                            if isinstance(sdef[i], int) and (( 0<= sdef[i] < len(dat)) or (-len(dat) <= sdef[i] < 0)):
-                                value = value + sdef[0] +  dat[sdef[i]]
-
-                    except:
-                        pass
-
-        # Is there a replace dict
-        if self.dtree.is_data_value('replace', dict, node_def):
-            if value.strip().lower() in node_def['replace'].keys():
-                value = node_def['replace'][value.strip().lower()]
-
-            else:
-                value = None
-
-        # is there a default
-        if value == None and self.dtree.is_data_value('default', None, node_def):
-            value = node_def['default']
-
-        # Make sure a string is unicode and free of HTML entities
-        if isinstance(value, (str, unicode)):
-            value = re.sub('\n','', re.sub('\r','', self.dtree.unescape(unicode(value)))).strip()
-
-        # is there a type definition in node_def
-        if self.dtree.is_data_value('type', unicode, node_def):
-            try:
-                if node_def['type'] == 'timestamp':
-                    val = value
-                    if self.dtree.is_data_value('divider', int, node_def):
-                        val = value/node_def['divider']
-
-                    value = datetime.datetime.fromtimestamp(val, self.dtree.utc)
-
-                elif node_def['type'] == 'datetimestring':
-                    date = self.dtree.timezone.localize(datetime.datetime.strptime(value, self.dtree.datetimestring))
-                    value = self.dtree.utc.normalize(date.astimezone(self.dtree.utc))
-
-                elif node_def['type'] == 'timestring':
-                    pass
-
-                elif node_def['type'] == 'string':
-                    value = unicode(value)
-
-                elif node_def['type'] == 'int':
-                    if value == '':
-                        value = 0
-
-                    else:
-                        value = int(value)
-
-                elif node_def['type'] == 'boolean':
-                    if not isinstance(value, bool):
-                        if isinstance(value, int):
-                            value = bool(value>0)
-
-                        elif isinstance(value, (str, unicode)):
-                            value = bool(len(value) > 0 and value != '0')
-
-                        else:
-                            value = False
-
-                elif node_def['type'] == 'lower-ascii' and isinstance(value, (str, unicode)):
-                    value = value.lower()
-                    value =re.sub('[ /]', '_', value)
-                    value =re.sub('[!(),]', '', value)
-                    value = re.sub('á','a', value)
-                    value = re.sub('à','a', value)
-                    value = re.sub('ä','a', value)
-                    value = re.sub('â','a', value)
-                    value = re.sub('ã','a', value)
-                    value = re.sub('@','a', value)
-                    value = re.sub('é','e', value)
-                    value = re.sub('è','e', value)
-                    value = re.sub('ë','e', value)
-                    value = re.sub('ê','e', value)
-                    value = re.sub('í','i', value)
-                    value = re.sub('ì','i', value)
-                    value = re.sub('ï','i', value)
-                    value = re.sub('î','i', value)
-                    value = re.sub('ó','o', value)
-                    value = re.sub('ò','o', value)
-                    value = re.sub('ö','o', value)
-                    value = re.sub('ô','o', value)
-                    value = re.sub('õ','o', value)
-                    value = re.sub('ú','u', value)
-                    value = re.sub('ù','u', value)
-                    value = re.sub('ü','u', value)
-                    value = re.sub('û','u', value)
-                    value = re.sub('ý','y', value)
-                    value = re.sub('ÿ','y', value)
-                    value = value.encode('ascii','replace')
-
-                elif node_def['type'] == '':
-                    pass
-
-            except:
-                #~ traceback.print_exc()
-                pass
-
-        return value
+        return self.dtree.calc_value(self.value, node_def)
 
     def print_node(self):
         return u'%s = %s' % (self.level, self.find_value())
@@ -981,8 +913,8 @@ class HTMLnode(DATAnode):
 
     def match_node(self, tag = None, attributes = {}, node_def = None, link_values={}):
         self.link_value = {}
-        if self.dtree.is_data_value('link', int, node_def):
-            self.link_value[node_def['link']] = self.find_value(node_def)
+        if not isinstance(link_values, dict):
+            link_values ={}
 
         if node_def == None:
             if tag in (None, self.tag):
@@ -1002,16 +934,30 @@ class HTMLnode(DATAnode):
                 return False
 
         elif self.dtree.is_data_value('tag', None, node_def):
-        #~ elif isinstance(node_def, dict) and ('select' in node_def.keys() or 'tag' in node_def.keys()):
             if node_def['tag'] in (None, self.tag):
                 # The tag matches
                 if self.dtree.is_data_value(['index','link'], int, node_def):
                     # There is an index request to an earlier linked index
-                    if self.child_index != link_values[self.dtree.data_value(['index','link'], int, node_def)]:
+                    il = link_values[self.dtree.data_value(['index','link'], int, node_def)]
+                    clist = self.dtree.data_value(['index','calc'], list, node_def)
+                    if len(clist) == 2 and isinstance(clist[1], int):
+                        if clist[0] == 'min':
+                            il -= clist[1]
+
+                        elif clist[0] == 'plus':
+                            il += clist[1]
+
+                    if self.child_index != il:
+                        return False
+
+                elif self.dtree.is_data_value(['index'], int, node_def):
+                    # There is an index request to a set value
+                    if self.child_index != self.dtree.data_value(['index'], int, node_def):
                         return False
 
                 if not self.dtree.is_data_value('attrs', dict, node_def):
                     # And there are no attrib matches requested
+                    self.check_for_linkrequest(node_def)
                     return True
 
                 for a, v in node_def['attrs'].items():
@@ -1029,15 +975,65 @@ class HTMLnode(DATAnode):
                     elif not self.is_attribute(a, v):
                         return False
 
+                self.check_for_linkrequest(node_def)
                 return True
 
             else:
                 return False
 
+        elif self.dtree.is_data_value(['index'], None, node_def):
+            if self.dtree.is_data_value(['index','link'], int, node_def):
+                # There is an index request to an earlier linked index
+                il = link_values[self.dtree.data_value(['index','link'], int, node_def)]
+                clist = self.dtree.data_value(['index','calc'], list, node_def)
+                if len(clist) == 2 and isinstance(clist[1], int):
+                    if clist[0] == 'min':
+                        il -= clist[1]
+
+                    elif clist[0] == 'plus':
+                        il += clist[1]
+
+                if self.child_index != il:
+                    return False
+
+            elif self.dtree.is_data_value(['index'], int, node_def):
+                # There is an index request to a set value
+                if self.child_index != self.dtree.data_value(['index'], int, node_def):
+                    return False
+
+            else:
+                return False
+
+            if not self.dtree.is_data_value('attrs', dict, node_def):
+                # And there are no attrib matches requested
+                self.check_for_linkrequest(node_def)
+                return True
+
+            for a, v in node_def['attrs'].items():
+                if self.dtree.is_data_value('not', list, v):
+                    # There is a negative attrib match requested
+                    for val in v['not']:
+                        if self.is_attribute(a) and self.attributes[a] == val:
+                            return False
+
+                elif self.dtree.is_data_value('link', int, v):
+                    # The requested value is in link_values
+                    if not self.is_attribute(a, link_values[v["link"]]):
+                        return False
+
+                elif not self.is_attribute(a, v):
+                    return False
+
+            self.check_for_linkrequest(node_def)
+            return True
+
         elif self.dtree.is_data_value('path', None, node_def):
+            self.check_for_linkrequest(node_def)
             return False
 
-        return None
+        else:
+            self.check_for_linkrequest(node_def)
+            return None
 
     def find_value(self, node_def = None):
         if self.dtree.is_data_value('value', None, node_def):
@@ -1056,10 +1052,13 @@ class HTMLnode(DATAnode):
             elif node_def[ 'select'] == 'text':
                 sv = self.text
 
+            else:
+                sv = self.text
+
         else:
             sv = self.text
 
-        return self.calc_value(sv, node_def)
+        return self.dtree.calc_value(sv, node_def)
 
     def print_node(self):
         attributes = u''
@@ -1128,8 +1127,7 @@ class JSONnode(DATAnode):
         if self.dtree.is_data_value('key', None, node_def):
             if self.key == node_def["key"]:
                 # The requested key matches
-                if self.dtree.is_data_value('link', int, node_def):
-                    self.link_value[node_def['link']] = self.find_value(node_def)
+                self.check_for_linkrequest(node_def)
                 return True
 
             return False
@@ -1137,8 +1135,7 @@ class JSONnode(DATAnode):
         elif self.dtree.is_data_value('keys', list, node_def):
             if self.key in node_def['keys']:
                 # This key is in the list with requested keys
-                if self.dtree.is_data_value('link', int, node_def):
-                    self.link_value[node_def['link']] = self.find_value(node_def)
+                self.check_for_linkrequest(node_def)
                 return True
 
             return False
@@ -1157,14 +1154,42 @@ class JSONnode(DATAnode):
                 if self.get_child(item).value != val:
                     return False
 
-            if self.dtree.is_data_value('link', int, node_def):
-                self.link_value[node_def['link']] = self.find_value(node_def)
+            self.check_for_linkrequest(node_def)
             return True
 
+        elif self.dtree.is_data_value(['index','link'], int, node_def):
+            # There is an index request to an earlier linked index
+            il = link_values[self.dtree.data_value(['index','link'], int, node_def)]
+            clist = self.dtree.data_value(['index','calc'], list, node_def)
+            if len(clist) == 2 and isinstance(clist[1], int):
+                if clist[0] == 'min':
+                    il -= clist[1]
+
+                elif clist[0] == 'plus':
+                    il += clist[1]
+
+            if self.child_index == il:
+                return True
+
+            else:
+                return False
+
+        elif self.dtree.is_data_value(['index'], int, node_def):
+            # There is an index request to a set value
+            if self.child_index == self.dtree.data_value(['index'], int, node_def):
+                self.check_for_linkrequest(node_def)
+                return True
+
+            else:
+                return False
+
         elif self.dtree.is_data_value('path', None, node_def):
+            self.check_for_linkrequest(node_def)
             return False
 
-        return None
+        else:
+            self.check_for_linkrequest(node_def)
+            return None
 
     def find_value(self, node_def = None):
         if self.dtree.is_data_value('value', None, node_def):
@@ -1174,16 +1199,19 @@ class JSONnode(DATAnode):
             if node_def[ 'select'] == 'index':
                 sv = self.child_index
 
-            elif node_def[ 'select'] == 'tag':
+            elif node_def[ 'select'] == 'key':
                 sv = self.key
 
             elif node_def[ 'select'] == 'value':
                 sv = self.value
 
+            else:
+                sv = self.value
+
         else:
             sv = self.value
 
-        return self.calc_value(sv, node_def)
+        return self.dtree.calc_value(sv, node_def)
 
     def print_node(self):
         value = self.find_value() if self.type == "value" else '"%s"' % self.type
@@ -1192,15 +1220,20 @@ class JSONnode(DATAnode):
 # end JSONnode
 
 class DATAtree():
-    def __init__(self, config):
+    def __init__(self, output = sys.stdout):
         self.tree_lock = Lock()
         self.print_searchtree = False
         self.show_result = False
-        self.fle = sys.stdout
+        self.fle = output
         self.extract_from_parent = False
-        self.config = config
         self.result = []
-        self.datetimestring = ''
+        self.month_names = []
+        self.weekdays = []
+        self.relative_weekdays = {}
+        self.datetimestring = u"%Y-%m-%d %H:%M:%S"
+        self.time_splitter = u':'
+        self.date_sequence = ["y","m","d"]
+        self.date_splitter = u'-'
         self.utc = pytz.utc
         self.timezone = pytz.utc
 
@@ -1211,7 +1244,7 @@ class DATAtree():
             self.start_node.print_tree()
         init_path = self.data_value(['data',"init-path"],list)
         if self.show_result:
-            self.fle.write('parsing %s %s\n'.encode('utf-8') % (self.root.tag, self.root.attributes))
+            self.print_text(self.root.print_node())
 
         sn = self.root.get_children(data_def = init_path)
         self.start_node = self.root if (sn == None or len(sn) == 0) else sn[0]
@@ -1297,6 +1330,264 @@ class DATAtree():
 
                     self.result.append(tlist)
 
+    def calc_value(self, value, node_def = None):
+        if isinstance(value, (str, unicode)):
+            # Is there something to strip of
+            if self.is_data_value('ascii-replace', list, node_def) and len(node_def['ascii-replace']) > 0:
+                arep = node_def['ascii-replace']
+                value = value.lower()
+                if len(arep) > 2:
+                    value = re.sub(arep[2], arep[1], value)
+
+                value = value.encode('ascii','replace')
+                value = re.sub('\?', arep[0], value)
+
+            if self.is_data_value('lstrip', str, node_def):
+                if value.strip().lower()[:len(node_def['lstrip'])] == node_def['lstrip'].lower():
+                    value = unicode(value[len(node_def['lstrip']):]).strip()
+
+            if self.is_data_value('rstrip', str, node_def):
+                if value.strip().lower()[-len(node_def['rstrip']):] == node_def['rstrip'].lower():
+                    value = unicode(value[:-len(node_def['rstrip'])]).strip()
+
+            # Is there something to substitute
+            if self.is_data_value('sub', list, node_def) and len(node_def['sub']) > 1:
+                value = re.sub(node_def['sub'][0], node_def['sub'][1], value)
+
+            # Is there a split list
+            if self.is_data_value('split', list, node_def) and len(node_def['split']) > 0:
+                if not isinstance(node_def['split'][0],list):
+                    slist = [node_def['split']]
+
+                else:
+                    slist = node_def['split']
+
+                for sdef in slist:
+                    if len(sdef) < 2 or not isinstance(sdef[0],(str,unicode)) or not isinstance(sdef[1], int):
+                        continue
+
+                    try:
+                        fill_char = sdef[0]
+                        if fill_char in ('\\s', '\\t', '\\n', '\\r', '\\f', '\\v', ' '):
+                            fill_char = ' '
+                            value = value.strip()
+
+                        dat = re.split(sdef[0],value)
+                        value = dat[sdef[1]]
+                        for i in range(2, len(sdef)):
+                            if isinstance(sdef[i], int) and (( 0<= sdef[i] < len(dat)) or (-len(dat) <= sdef[i] < 0)):
+                                value = value + fill_char +  dat[sdef[i]]
+
+                    except:
+                        #~ traceback.print_exc()
+                        pass
+
+        # Is there a replace dict
+        if self.is_data_value('replace', dict, node_def):
+            if value == None:
+                pass
+
+            elif value.strip().lower() in node_def['replace'].keys():
+                value = node_def['replace'][value.strip().lower()]
+
+            else:
+                value = None
+
+        # is there a default
+        if value == None and self.is_data_value('default', None, node_def):
+            value = node_def['default']
+
+        # Make sure a string is unicode and free of HTML entities
+        if isinstance(value, (str, unicode)):
+            value = re.sub('\n','', re.sub('\r','', self.un_escape(unicode(value)))).strip()
+
+        # is there a type definition in node_def
+        if self.is_data_value('type', unicode, node_def):
+            try:
+                if node_def['type'] == 'timestamp':
+                    val = value
+                    if self.is_data_value('multiplier', int, node_def):
+                        val = value/node_def['multiplier']
+
+                    value = datetime.datetime.fromtimestamp(float(val), self.utc)
+
+                elif node_def['type'] == 'datetimestring':
+                    dts = self.datetimestring
+                    if self.is_data_value('datetimestring', str, node_def):
+                        dts = self.data_value('datetimestring', str, node_def)
+
+                    date = self.timezone.localize(datetime.datetime.strptime(value, dts))
+                    value = self.utc.normalize(date.astimezone(self.utc))
+
+                elif node_def['type'] == 'time':
+                    try:
+                        ts = self.time_splitter
+                        if self.is_data_value('time-splitter', str, node_def):
+                            ts = self.data_value('time-splitter', str, node_def)
+
+                        t = re.split(ts, value)
+                        if len(t) == 2:
+                            value = datetime.time(int(t[0]), int(t[1]))
+
+                        elif len(t) > 2:
+                            value = datetime.time(int(t[0]), int(t[1]), int(t[2][:2]))
+
+                    except:
+                        #~ traceback.print_exc()
+                        pass
+
+                elif node_def['type'] == 'date':
+                    try:
+                        current_date = datetime.datetime.now(self.timezone)
+                        day = current_date.day
+                        month = current_date.month
+                        year = current_date.year
+                        ds = self.date_splitter
+                        if self.is_data_value('date-splitter', str, node_def):
+                            ds = self.data_value('date-splitter', str, node_def)
+
+                        dseq = self.date_sequence
+                        if self.is_data_value('date-sequence', list, node_def):
+                            dseq = self.data_value('date-sequence', list, node_def)
+
+                        d = re.split(ds, value)
+                        for index in range(len(d)):
+                            if index > len(dseq)-1:
+                                break
+
+                            try:
+                                d[index] = int(d[index])
+
+                            except ValueError:
+                                if d[index].lower() in self.month_names:
+                                    d[index] = self.month_names.index(d[index].lower())
+
+                                else:
+                                    continue
+
+                            if dseq[index].lower() == 'd':
+                                day = d[index]
+
+                            if dseq[index].lower() == 'm':
+                                month = d[index]
+
+                            if dseq[index].lower() == 'y':
+                                year = d[index]
+
+                        value = datetime.date(year, month, day)
+
+                    except:
+                        #~ traceback.print_exc()
+                        pass
+
+
+                elif node_def['type'] == 'datestamp':
+                    val = value
+                    if self.is_data_value('multiplier', int, node_def):
+                        val = value/node_def['multiplier']
+
+                    value = datetime.date.fromtimestamp(float(val))
+
+                elif node_def['type'] == 'relative-weekday':
+                    if value.strip().lower() in self.relative_weekdays.keys():
+                        value = self.relative_weekdays[value.strip().lower()]
+
+                elif node_def['type'] == 'string':
+                    value = unicode(value)
+
+                elif node_def['type'] == 'int':
+                    try:
+                        value = int(value)
+
+                    except:
+                        value = 0
+
+                elif node_def['type'] == 'boolean':
+                    if not isinstance(value, bool):
+                        if isinstance(value, int):
+                            value = bool(value>0)
+
+                        elif isinstance(value, (str, unicode)):
+                            value = bool(len(value) > 0 and value != '0')
+
+                        else:
+                            value = False
+
+                elif node_def['type'] == 'lower-ascii' and isinstance(value, (str, unicode)):
+                    value = value.lower()
+                    value =re.sub('[ /]', '_', value)
+                    value =re.sub('[!(),]', '', value)
+                    value = re.sub('á','a', value)
+                    value = re.sub('à','a', value)
+                    value = re.sub('ä','a', value)
+                    value = re.sub('â','a', value)
+                    value = re.sub('ã','a', value)
+                    value = re.sub('@','a', value)
+                    value = re.sub('é','e', value)
+                    value = re.sub('è','e', value)
+                    value = re.sub('ë','e', value)
+                    value = re.sub('ê','e', value)
+                    value = re.sub('í','i', value)
+                    value = re.sub('ì','i', value)
+                    value = re.sub('ï','i', value)
+                    value = re.sub('î','i', value)
+                    value = re.sub('ó','o', value)
+                    value = re.sub('ò','o', value)
+                    value = re.sub('ö','o', value)
+                    value = re.sub('ô','o', value)
+                    value = re.sub('õ','o', value)
+                    value = re.sub('ú','u', value)
+                    value = re.sub('ù','u', value)
+                    value = re.sub('ü','u', value)
+                    value = re.sub('û','u', value)
+                    value = re.sub('ý','y', value)
+                    value = re.sub('ÿ','y', value)
+                    value = value.encode('ascii','replace')
+
+                elif node_def['type'] == '':
+                    pass
+
+            except:
+                #~ traceback.print_exc()
+                pass
+
+        return value
+
+    def un_escape(self, text):
+        # Removes HTML or XML character references and entities from a text string.
+        # source: http://effbot.org/zone/re-sub.htm#unescape-html
+        #
+        # @param text The HTML (or XML) source text.
+        # @return The plain text, as a Unicode string
+
+        def fixup(m):
+            text = m.group(0)
+            if text[:2] == "&#":
+                # character reference
+                try:
+                    if text[:3] == "&#x":
+                        return unichr(int(text[3:-1], 16))
+
+                    else:
+                        return unichr(int(text[2:-1]))
+
+                except ValueError:
+                    pass
+
+            else:
+                # named entity
+                try:
+                    text = unichr(name2codepoint[text[1:-1]])
+
+                except KeyError:
+                    pass
+
+            return text # leave as is
+
+        if not isinstance(text,(str, unicode)):
+            return text
+
+        return unicode(re.sub("&#?\w+;", fixup, text))
     def print_text(self, text):
         self.fle.write(text.encode('utf-8', 'replace'))
 
@@ -1376,9 +1667,9 @@ class DATAtree():
 # end DATAtree
 
 class HTMLtree(HTMLParser, DATAtree):
-    def __init__(self, config, data='', autoclose_tags=[], print_tags = False):
+    def __init__(self, data='', autoclose_tags=[], print_tags = False, output = sys.stdout):
         HTMLParser.__init__(self)
-        DATAtree.__init__(self, config)
+        DATAtree.__init__(self, output)
 
         self.print_tags = print_tags
         self.autoclose_tags = autoclose_tags
@@ -1535,49 +1826,14 @@ class HTMLtree(HTMLParser, DATAtree):
 # end HTMLtree
 
 class JSONtree(DATAtree):
-    def __init__(self, config, data):
-        DATAtree.__init__(self, config)
+    def __init__(self, data, output = sys.stdout):
+        DATAtree.__init__(self, output)
         self.extract_from_parent = True
         self.data = data
         # Read the json data into the tree
         self.root = JSONnode(self, data, key = 'ROOT')
         self.start_node = self.root
 
-    def unescape(self, text):
-        # Removes HTML or XML character references and entities from a text string.
-        # source: http://effbot.org/zone/re-sub.htm#unescape-html
-        #
-        # @param text The HTML (or XML) source text.
-        # @return The plain text, as a Unicode string
-
-        def fixup(m):
-            text = m.group(0)
-            if text[:2] == "&#":
-                # character reference
-                try:
-                    if text[:3] == "&#x":
-                        return unichr(int(text[3:-1], 16))
-
-                    else:
-                        return unichr(int(text[2:-1]))
-
-                except ValueError:
-                    pass
-
-            else:
-                # named entity
-                try:
-                    text = unichr(name2codepoint[text[1:-1]])
-
-                except KeyError:
-                    pass
-
-            return text # leave as is
-
-        if not isinstance(text,(str, unicode)):
-            return text
-
-        return unicode(re.sub("&#?\w+;", fixup, text))
 
 # end JSONtree
 
@@ -2063,10 +2319,14 @@ class FetchData(Thread):
         self.fetch_string_parts = re.compile("(.*?[.?!:]+ |.*?\Z)")
         self.config.queues['source'][self.proc_id] = self.detail_request
         self.config.threads.append(self)
+        self.fetch_date = None
         self.site_tz = self.config.utc_tz
         self.item_count = 0
         self.current_item_count = 0
+
+        self.test_output = sys.stdout
         self.print_tags = False
+        self.print_roottree = False
         self.print_searchtree = False
         self.show_result = False
 
@@ -2382,11 +2642,6 @@ class FetchData(Thread):
         """return the several url's for ordinairy, detail and channel info"""
         data['source'] = self.source
         data['channels'] = self.channels
-        data['current_date'] = self.current_date
-        data['item-count'] = self.data_value([ptype, 'item-count'], int, default=0)
-        data['url-date-type'] = self.data_value([ptype, "url-date-type"], int, default=0)
-        data['url-date-format'] = self.data_value([ptype, "url-date-format"], unicode)
-        data['weekdays'] = self.data_value([ptype, "weekdays"], list)
         if not self.is_data_value([ptype, "url"]):
             self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
             return None
@@ -2399,13 +2654,13 @@ class FetchData(Thread):
 
                 elif isinstance(u_part, int):
                     # get a variable
-                    uval = self.functions.url_functions(u_part, data)
+                    uval = self.functions.url_functions(self, ptype, u_part, data)
                     if uval == None:
                         self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
                         return None
 
                     else:
-                        url += uval
+                        url += unicode(uval)
 
         else:
             url = self.data_value([ptype, "url"])
@@ -2420,7 +2675,7 @@ class FetchData(Thread):
 
             elif isinstance(v, int):
                 # get a variable
-                uval = self.functions.url_functions(v, data)
+                uval = self.functions.url_functions(self, ptype, v, data)
                 if uval == None:
                     self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
                     return None
@@ -2444,7 +2699,8 @@ class FetchData(Thread):
 
             is_json = url[5]
             if self.print_searchtree:
-                print url
+                self.test_output.write(url)
+                self.test_output.write('\n')
             page = self.functions.get_page(url)
             if page == None:
                 self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
@@ -2452,44 +2708,52 @@ class FetchData(Thread):
                     print 'No Data'
                 return None
 
+            if ptype in ('detail', 'detail2') and self.proc_id in (0, 1, 9):
+                return page
+
+            self.current_item_count = self.data_value(self.data_value([ptype, "item-count-path"],list), int, page, 0)
             if is_json:
-                if ptype in ('detail', 'detail2'):
-                    return page
-
-                self.current_item_count = self.data_value(self.data_value([ptype, "item-count-path"],list), int, page, 0)
-                jt = JSONtree(self.config, page)
-                jt.print_searchtree = self.print_searchtree
-                jt.show_result = self.show_result
-                jt.datetimestring = self.data_value([ptype, "datetimestring"], str)
-                jt.timezone = self.site_tz
-                jt.extract_datalist(self.data_value(ptype, dict))
-                if self.show_result:
-                    print
-                    print jt.result
-
-                return jt.result
+                searchtree = JSONtree(page, self.test_output)
 
             else:
-                if ptype in ('detail', 'detail2') and self.proc_id in (1, 4, 7, 8, 9, 12):
-                    return page
-
-                #~ if ptype == 'base' and self.proc_id in (1, 4, 7, 9, 12):
-                    #~ return page
-
                 autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
                 if self.data_value([ptype, "enclose-with-html-tag"], bool, default=False):
                     page = u'<html>%s</html>' % page
 
-                ht = HTMLtree(self.config, page, autoclose_tags, self.print_tags)
-                ht.print_searchtree = self.print_searchtree
-                ht.show_result = self.show_result
-                ht.find_start_node(self.data_value(ptype, dict))
-                ht.extract_datalist(self.data_value(ptype, dict))
-                if self.show_result:
-                    print
-                    print ht.result
+                searchtree = HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
 
-                return ht.result
+            searchtree.month_names = self.data_value([ptype, "month-names"], list)
+            searchtree.weekdays = self.data_value([ptype, "weekdays"], list)
+            rw = self.data_value([ptype, "relative-weekdays"], dict)
+            self.fetch_date = self.current_date + self.data_value('offset', int, data, default=0)
+            for name, index in rw.items():
+                searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.current_date + index)
+
+            current_weekday = datetime.date.fromordinal(self.fetch_date).weekday()
+            for index in range(len(searchtree.weekdays)):
+                name = searchtree.weekdays[index]
+                if index < current_weekday:
+                    searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index + 7 - current_weekday)
+
+                else:
+                    searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index - current_weekday)
+
+            searchtree.show_result = self.show_result
+            searchtree.print_searchtree = self.print_roottree
+            searchtree.find_start_node(self.data_value(ptype, dict))
+
+            searchtree.datetimestring = self.data_value([ptype, "datetimestring"], str)
+            searchtree.time_splitter = self.data_value([ptype, "time-splitter"], str, default = ':')
+            searchtree.date_sequence = self.data_value([ptype, "date-sequence"], list, default = ["y","m","d"])
+            searchtree.date_splitter = self.data_value([ptype, "date-splitter"], str, default = '-')
+            searchtree.timezone = self.site_tz
+            searchtree.print_searchtree = self.print_searchtree
+            searchtree.extract_datalist(self.data_value(ptype, dict))
+            if self.show_result:
+                self.test_output.write(searchtree.result)
+                self.test_output.write('\n')
+
+            return searchtree.result
 
         except:
             self.config.log([self.config.text('fetch', 68, (ptype, self.source)), traceback.format_exc()], 1)
@@ -2526,7 +2790,7 @@ class FetchData(Thread):
                         else:
                             data.append(d)
 
-                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, default)
+                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, self.fetch_date, default)
                     if cval != None:
                         values[k] = cval
                         if funcid == 1 and self.functions.icongrp != -1:
@@ -2567,7 +2831,7 @@ class FetchData(Thread):
                         else:
                             data.append(d)
 
-                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, default)
+                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, self.fetch_date, default)
                     if cval != None:
                         values[k] = cval
                         if funcid == 1 and self.functions.icongrp != -1:
@@ -2605,6 +2869,7 @@ class FetchData(Thread):
             self.config.log(self.config.text('sources', 1, (self.source, )))
             return 69
 
+        alt_channels = self.data_value("alt-channels", dict)
         if isinstance(channel_list, list):
             for channel in channel_list:
                 # link the data to the right variable, doing any defined adjustments
@@ -2614,6 +2879,10 @@ class FetchData(Thread):
 
                 if "channelid" in values.keys():
                     channelid = unicode(values["channelid"])
+                    if channelid in alt_channels.keys():
+                        values['channelid'] = alt_channels[channelid][0]
+                        values['name'] = alt_channels[channelid][1]
+                        channelid = unicode(values['channelid'])
                     #~ if channelid in self.empty_channels:
                         #~ continue
 
@@ -2685,36 +2954,10 @@ class FetchData(Thread):
 
             elif (url_type & 12) == 12:
                 self.item_count = self.data_value(['base', 'item-count'], int, default=0)
-                udt = self.data_value([ptype, "url-date-type"], int, default=0)
-                udd = self.data_value(['base', 'url-date-divider'], int, default=0)
+                udt = self.data_value(["base", "url-date-type"], int, default=0)
+                udd = self.data_value(['base', 'url-date-multiplier'], int, default=0)
                 fs = self.config.opt_dict['offset']
                 fe = min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days)
-                if udt == 0:
-                    fetch_start = fs
-                    fetch_end = fe
-
-                if udt == 1:
-                    fetch_start = int(time.mktime(datetime.date.fromordinal(self.current_date + fs).timetuple()))
-                    fetch_end = int(time.mktime(datetime.date.fromordinal(self.current_date + fe).timetuple()))
-                    if udd != 0:
-                        fetch_start = fetch_start * udd
-                        fetch_end = fetch_end * udd
-
-                if udt == 2:
-                    pass
-
-                if udt == 4:
-                    pass
-
-                if udt == 5:
-                    pass
-
-                if udt == 6:
-                    pass
-
-                if udt == 7:
-                    pass
-
 
             self.dl = {}
             self.dd = {}
@@ -2723,8 +2966,8 @@ class FetchData(Thread):
                 self.dd[chanid] =[]
 
             for retry in (0, 1):
+                # We fetch every channel separate
                 if (url_type & 3) == 1:
-                    # We fetch every channel separate
                     channel_cnt = 0
                     for chanid in self.channels.keys():
                         channel_cnt += 1
@@ -2789,7 +3032,6 @@ class FetchData(Thread):
 
                                 self.parse_basepage(strdata, {'offset': offset, 'channelid': channel})
 
-                        # nieuwsblad.be
                         # We fetch all days in one
                         elif (url_type & 12) == 4:
                             if self.day_loaded[chanid][self.config.opt_dict['offset']]:
@@ -2818,7 +3060,7 @@ class FetchData(Thread):
 
                         # We fetch a set number of  days in one
                         elif (url_type & 12) == 8:
-                            # vrt.be
+                            # vrt.be, nieuwsblad.be
                             for offset in range(len(fetch_range)):
                                 if self.quit:
                                     return
@@ -2877,14 +3119,16 @@ class FetchData(Thread):
                                     time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
 
                                 first_fetch = False
-                                strdata = self.get_page_data('base',{'channel': channel, 'offset': page_count, 'start': fetch_start, 'end': fetch_end})
+                                #~ strdata = self.get_page_data('base',{'channel': channel, 'cnt-offset': page_count, 'start': fetch_start, 'end': fetch_end})
+                                strdata = self.get_page_data('base',{'channel': channel, 'cnt-offset': page_count})
                                 if strdata == None:
                                     self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
                                     failure_count += 1
                                     self.fail_count += 1
                                     continue
 
-                                self.parse_basepage(strdata, {'offset': offset, 'channelid': channel})
+                                #~ self.parse_basepage(strdata, {'offset': offset, 'channelid': channel})
+                                self.parse_basepage(strdata, {'channelid': channel})
                                 self.page_loaded[chanid][page_count] = True
                                 page_count += 1
 
@@ -2908,8 +3152,8 @@ class FetchData(Thread):
                             except:
                                 pass
 
+                # We fetch all channels in one
                 if (url_type & 3) == 2:
-                    # We fetch all channels in one
                     failure_count = 0
                     if self.quit:
                         return
@@ -2991,8 +3235,8 @@ class FetchData(Thread):
 
                         break
 
+                # We fetch the channels in two or more groups
                 if (url_type & 3) == 3:
-                    # We fetch the channels in two or more groups
                     if not self.is_data_value(["base", "url-channel-groups"], list):
                         return
 
@@ -3078,14 +3322,18 @@ class FetchData(Thread):
         chanids = []
         #~ print data
         if isinstance(data, list):
+            alt_channels = self.data_value("alt-channels", dict)
             for program in data:
                 # link the data to the right variable, doing any defined adjustments
                 values = self.link_values("base", program)
-                if 'channelid' in subset.keys():
-                    channelid = subset['channelid']
-
-                elif 'channelid' in values.keys():
+                if 'channelid' in values.keys():
                     channelid = unicode(values['channelid'])
+                    if channelid in alt_channels.keys():
+                        values['channelid'] = alt_channels[channelid][0]
+                        channelid = unicode(values['channelid'])
+
+                elif 'channelid' in subset.keys():
+                    channelid = subset['channelid']
 
                 else:
                     continue
@@ -3102,7 +3350,7 @@ class FetchData(Thread):
                 tdict['channelid'] = chanid
                 tdict['channel']  = self.config.channels[chanid].chan_name
                 for k in tdict.keys():
-                    if k in ('channelid', 'video', 'genre', 'subgenre', 'kijkwijzer'):
+                    if k in ('channelid', 'video', 'genre', 'subgenre', 'kijkwijzer', "alt-start-time", "alt-stop-time"):
                         continue
 
                     if k in values.keys():
@@ -3118,8 +3366,20 @@ class FetchData(Thread):
                     continue
 
                 if not isinstance(tdict['start-time'], datetime.datetime):
-                    self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
-                    continue
+                    if "alt-start-time" in values and isinstance(values["alt-start-time"], datetime.datetime):
+                        tdict['start-time'] = values["alt-start-time"]
+                    else:
+                        print program
+                        self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
+                        continue
+
+                if not isinstance(tdict['stop-time'], datetime.datetime):
+                    if "alt-stop-time" in values and isinstance(values["alt-stop-time"], datetime.datetime):
+                        tdict['stop-time'] = values["alt-stop-time"]
+                    else:
+                        print program
+                        #~ self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
+                        continue
 
                 for k in tdict['video'].keys():
                     if k in values.keys():
@@ -3130,11 +3390,13 @@ class FetchData(Thread):
                         #~ tdict['credits'][k] =values[k]
 
                 tdict['offset'] = self.functions.get_offset(tdict['start-time'], self.current_date)
+                tdict = self.functions.checkout_program_dict(tdict)
                 self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
                 with self.source_lock:
                     self.program_data[chanid].append(tdict)
 
                 #~ self.config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
+
 
         return chanids
 

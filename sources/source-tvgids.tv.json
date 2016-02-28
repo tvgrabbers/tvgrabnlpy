@@ -23,11 +23,11 @@
 				{"tag":"div", "attrs":{"id":"wrap"}},
 				{"tag":"div", "attrs":{"class":"container"}},
 				{"tag":"div", "attrs":{"class":"row"}},
-				{"tag":"div", "attrs":{"class":"span47 offset1"}},
-				{"tag":"div", "attrs":{"class":"section"}}
+				{"tag":"div", "attrs":{"class":"span47 offset1"}}
 				],
 			"iter":[
 				{"key-path":[
+					{"tag":"div", "attrs":{"class":"section"}},
 					{"tag":"div", "attrs":{"class":"section-content"}},
 					{"tag":"div", "attrs":{"class":"section-item channels"}},
 					{"tag":"div", "attrs":{"class":"section-item-content"}},
@@ -59,15 +59,13 @@
 			"HD":null}},
     "base":{
 		"append_to_source": "tvgids.nl",
-        "url":["http://www.tvgids.tv/zenders/",2, "/",11, "/"],
+        "url":["http://www.tvgids.tv/zenders/",1, "/",11, "/"],
         "data-format":"text/html",
         "encoding":"utf-8",
         "accept-header":null,
         "url-type": 1,
         "url-data":{},
 		"max days":14,
-        "datetime-type":5,
-        "datetime-format":":",
 		"autoclose-tags":["meta", "link"],
         "data":{
 			"init-path":[
@@ -79,14 +77,41 @@
 				{"tag":"div", "attrs":{"class":"span47 offset1"}},
 				{"tag":"div", "attrs":{"class":"section"}}
 				],
-			"iter":[
-				{"key-path":[
+			"iter":[{
+				"key-path":[
 					{"tag":"div", "attrs":{"class":"section-content"}},
-					{"tag":"a", "attrs":{"class":null},"attr":"title"}
+					{"tag":"a", "attrs":{"class":null},"attr":"title"},
+					{"tag":"div", "attrs":{"class":"content"}},
+					{"tag":"span", "attrs":{"class":"section-item-title"},"split":[["\\s",0]],"type":"time"}
 					],
 				"values":[
-					]}],
-		"values":{}}},
+					[{"path":"parent"}, 
+						{"path":"parent","select":"index", "link":1},
+						{"path":"parent"}, 
+						{"tag":"a", "index":{"link":1,"calc":["plus",2]}},
+						{"tag":"div", "attrs":{"class":"content"}},
+						{"tag":"span", "attrs":{"class":"section-item-title"},"split":[["\\s",0]],"type":"time"}],
+					[{"path":"parent"}, 
+						{"path":"parent","attr":"href","split":[["/",-1]]}],
+					[{"path":"parent"}, 
+						{"path":"parent","attr":"href","split":[["/",-2,-1]]}],
+					[{"path":"parent"}, 
+						{"path":"parent"}, 
+						{"path":"parent"}, 
+						{"path":"parent"}, 
+						{"tag":"div", "attrs":{"class":"section-title select-scope"}},
+						{"tag":"div", "attrs":{"class":"section-title-content"}},
+						{"tag":"a", "index":0,"attr":"href","split":[["/",-1]]}],
+					[{"path":"parent"}, 
+						{"path":"parent","attr":"title"}]
+					]}]},
+		"values":{
+			"prog_ID":{"funcid":2, "data":["tv-",{"varid":2}]},
+			"detail_url":{"varid":3},
+			"channelid":{"varid": 4},
+			"start-time":{"funcid":4, "data":[null,{"varid": 0}, 7]},
+			"stop-time":{"funcid":4, "data":[null,{"varid": 1}, 7]},
+			"name":{"varid":5}}},
     "detail":{
         "url":["http://www.tvgids.tv/tv/",0, "/"],
         "data-format":"text/html",

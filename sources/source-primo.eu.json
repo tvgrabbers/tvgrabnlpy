@@ -25,11 +25,11 @@
 				{"tag":"body"},
 				{"tag":"div", "attrs":{"id":"page"}},
 				{"tag":"div", "attrs":{"id":"main"}},
-				{"tag":"div", "attrs":{"id":"content"}}
+				{"tag":"div", "attrs":{"id":"content"}},
+				{"tag":"div", "attrs":{"id":"tvprograms-main"}}
 				],
 			"iter":[
 				{"key-path":[
-					{"tag":"div", "attrs":{"id":"tvprograms-main"}},
 					{"tag":"div", "attrs":{"id":"tvprograms"}},
 					{"tag":"div", "attrs":{"id":"program-header-top"}},
 					{"tag":"div", "attrs":{"id":"program-headers"}},
@@ -61,26 +61,75 @@
 			"group":null,
 			"HD":null}},
     "base":{
-        "url":["http://www.primo.eu/tv-programs-full-view/",12, "/all/all"],
+        "url":["http://www.primo.eu/tv-programs-full-view/",11, "/all/all"],
         "data-format":"text/html",
         "encoding":"utf-8",
         "accept-header":null,
         "url-type": 2,
-        "url-date-type": 2,
+        "url-date-type": 1,
         "url-data":{},
-		"max days":7,
-        "datetime-type":5,
-        "datetime-format":".",
+		"max days":8,
 		"autoclose-tags":["meta", "link"],
+        "calc-end-times":true,
+		"start-off-day": 7,
         "data":{
 			"init-path":[
+				{"tag":"html"},
+				{"tag":"body"},
+				{"tag":"div", "attrs":{"id":"page"}},
+				{"tag":"div", "attrs":{"id":"main"}},
+				{"tag":"div", "attrs":{"id":"content"}},
+				{"tag":"div", "attrs":{"id":"tvprograms-main"}}
 				],
-			"iter":[
-				{"key-path":[
+			"iter":[{
+				"key-path":[
+					{"tag":"div", "attrs":{"id":"tvprograms"}},
+					{"tag":"div", "attrs":{"id":"program-channel-programs"}},
+					{"tag":"div", "attrs":{"id":"programs-content"}},
+					{"tag":"div", "attrs":{"class":"slider"}},
+					{"tag":"div", "attrs":{"class":{"not":["time-elapsed"]}}},
+					{"tag":"div"},
+					{"tag":"div"},
+					{"tag":"h3", "attr":"id"}
 					],
 				"values":[
+					[{"path":"parent"},
+						{"tag":"span","split":[["-",0]],"type":"time", "time-splitter":"\\."}],
+					[{"path":"parent"},
+						{"tag":"span","split":[["-",1]],"type":"time", "time-splitter":"\\."}],
+					[{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"tag":"div", "attrs":{"id":"program-header-top"}},
+						{"tag":"div", "attrs":{"id":"program-headers"}},
+						{"tag":"div", "attrs":{"id":"dates"}},
+						{"tag":"input", "attr":"value","type":"datestamp"}],
+					[{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent","attr":"class","split":[["\\s",0]]}],
+					[{"select":"text"}],
+					[{"path":"parent","select":"index", "link":1},
+						{"path":"parent"},
+						{"tag":"div", "index":{"link":1,"calc":["plus",1]}},
+						{"tag":"span","split":[["-",0]],"type":"time", "time-splitter":"\\."}],
+					[{"path":"parent","select":"index", "link":1},
+						{"path":"parent"},
+						{"tag":"div", "index":{"link":1,"calc":["min",1]}},
+						{"tag":"span","split":[["-",1]],"type":"time", "time-splitter":"\\."}]
 					]}]},
-		"values":{}},
+		"values":{
+			"prog_ID":{"funcid":2, "data":["primo-",{"varid":0}]},
+			"detail_url":{"varid":0},
+			"channelid":{"varid": 4},
+			"start-time":{"funcid":4, "data":[{"varid": 3},{"varid": 1}, 7]},
+			"stop-time":{"funcid":4, "data":[{"varid": 3},{"varid": 2}, 7]},
+			"alt-start-time":{"funcid":4, "data":[{"varid": 3},{"varid": 6}, 7]},
+			"alt-stop-time":{"funcid":4, "data":[{"varid": 3},{"varid": 7}, 7]},
+			"name":{"varid":5}}},
     "detail":{
         "url":["http://www.primo.eu/tvprograms/ajaxcallback/",0],
         "data-format":"text/html",
