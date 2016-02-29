@@ -8,6 +8,7 @@
     "detail_url":"ob-url",
     "detail_processor":false,
     "detail_check":"",
+	"without-full-timings":true,
     "channels":{
         "url":["http://www.oorboekje.nl/"],
         "data-format":"text/html",
@@ -55,8 +56,6 @@
 		"max days":7,
 		"weekdays":[7, 1, 2, 3, 4, 5, 6],
 		"autoclose-tags":["meta", "link"],
-        "calc-end-times":true,
-		"start-off-day": 7,
         "data":{
 			"init-path":[
 				{"tag":"html"},
@@ -74,6 +73,7 @@
 					[{"path":"parent", "select":"index", "link":1},
 						{"path":"parent"}, 
 						{"tag":"div", "attrs":{"class":"pgProgOmschr"}, "index":{"link":1,"calc":["plus",1]},"split":[["\\s",0]],"type":"time"}],
+					[{"path":"parent", "split":[["-",1],["\\s",0]],"type":"time"}],
 					[{"path":"parent"},
 						{"path":"parent"},
 						{"path":"parent"},
@@ -82,10 +82,12 @@
 					[{"path":"parent"}]
 					]}]},
 		"values":{
-			"channelid":{"varid": 3},
+			"channelid":{"varid": 4},
 			"start-time":{"funcid":4, "data":[null,{"varid": 1}, 6]},
 			"stop-time":{"funcid":4, "data":[null,{"varid": 2}, 6]},
-			"name":{"varid":4}}},
+			"alt-stop-time":{"funcid":4, "data":[null,{"varid": 3}, 7]},
+			"name":{"varid":0},
+			"description":{"varid":5}}},
 	"no_genric_matching":[],
 	"empty_channels":[],
     "cattrans":{},

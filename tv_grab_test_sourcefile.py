@@ -91,8 +91,8 @@ def main():
         #~ source = tv_grab_fetch.FetchData(config, 6, 'source-humo.be', True)
         #~ channel ='672816167173'
         #~ source = tv_grab_fetch.FetchData(config, 5, 'source-horizon.tv', True)
-        #~ channel ='O8'
-        #~ source = tv_grab_fetch.FetchData(config, 10, 'source-vrt.be', True)
+        channel ='O8'
+        source = tv_grab_fetch.FetchData(config, 10, 'source-vrt.be', True)
         #~ channel ='een'
         #~ source = tv_grab_fetch.FetchData(config, 8, 'source-nieuwsblad.be')
         #~ channel ='nederland-1'
@@ -117,18 +117,10 @@ def main():
         sid = source.proc_id
         config.channelsource[sid] = source
         config.channelsource[sid].init_channel_source_ids()
-        config.channelsource[sid].get_channels()
+        #~ config.channelsource[sid].get_channels()
 
-        #~ config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'main', 'cnt-offset': 0, 'start':1, 'days':1})
-        # tvgids.tv, 1
-        # nieuwsblad.be, 5
-        # vrt.be, 9
-        # horizon, 13
-        # tvgids.nl, npo.nl, vpro.nl, primo.eu, oorboekje.nl, 2
-        # rtl.nl, 6
-        # humo, 3
-
-        #~ print datetime.datetime.strptime('Mon, 22 Jun 2015 05:59:59 +0200', '%a, %d %b %Y %H:%M:%S %z')
+        data = config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'main', 'cnt-offset': 0, 'start':1, 'days':1})
+        config.channelsource[sid].parse_basepage(data, {'offset': 0, 'channel': channel, 'channelgrp': 'main'})
 
     except:
         traceback.print_exc()

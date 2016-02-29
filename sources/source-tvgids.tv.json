@@ -8,6 +8,7 @@
     "detail_url":"tv-url",
     "detail_processor":true,
     "detail_check":"tvgidstv-fetched",
+	"without-full-timings":true,
     "channels":{
         "url":["http://www.tvgids.tv/zenders/"],
         "data-format":"text/html",
@@ -67,6 +68,8 @@
         "url-data":{},
 		"max days":14,
 		"autoclose-tags":["meta", "link"],
+        "calc-end-times":true,
+		"start-off-day": 7,
         "data":{
 			"init-path":[
 				{"tag":"html"},
@@ -103,7 +106,9 @@
 						{"tag":"div", "attrs":{"class":"section-title-content"}},
 						{"tag":"a", "index":0,"attr":"href","split":[["/",-1]]}],
 					[{"path":"parent"}, 
-						{"path":"parent","attr":"title"}]
+						{"path":"parent","attr":"title"}],
+					[{"path":"parent"}, 
+						{"tag":"p"}]
 					]}]},
 		"values":{
 			"prog_ID":{"funcid":2, "data":["tv-",{"varid":2}]},
@@ -111,7 +116,8 @@
 			"channelid":{"varid": 4},
 			"start-time":{"funcid":4, "data":[null,{"varid": 0}, 7]},
 			"stop-time":{"funcid":4, "data":[null,{"varid": 1}, 7]},
-			"name":{"varid":5}}},
+			"name":{"varid":5},
+			"description":{"varid":6}}},
     "detail":{
         "url":["http://www.tvgids.tv/tv/",0, "/"],
         "data-format":"text/html",

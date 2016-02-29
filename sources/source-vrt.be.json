@@ -1,7 +1,7 @@
 {"file-name":"source-vrt.be",
     "name":"vrt.be",
     "language":"nl",
-	"site-timezone":"Europe/Brussels",
+	"site-timezone":"UTC",
     "version":0,
     "api-version":[1,0,0],
     "detail_id":"vrt-ID",

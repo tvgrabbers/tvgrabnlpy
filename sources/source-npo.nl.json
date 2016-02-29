@@ -8,6 +8,7 @@
     "detail_url":"npo-url",
     "detail_processor":false,
     "detail_check":"",
+	"without-full-timings":true,
     "base-channels":{
         "url":["http://www.npo.nl/gids/horizontaal/", 12, "/content"],
         "data-format":"text/html",
@@ -105,8 +106,6 @@
 		"max days":7,
 		"autoclose-tags":["meta", "link"],
 		"enclose-with-html-tag":true,
-        "calc-end-times":true,
-		"start-off-day": 7,
 		"date-sequence":["y","m","d"],
         "data":{
 			"init-path":[{"tag":"html"}],
@@ -232,13 +231,14 @@
 						]}
 						]},
 		"values":{
-			"channelid":{"varid": 0},
+			"channelid":{"varid": 4},
 			"start-time":{"funcid":4, "data":[{"varid": 3},{"varid": 1}, 6]},
 			"stop-time":{"funcid":4, "data":[{"varid": 3},{"varid": 2}, 6]},
-			"name":{"varid":0}}},
+			"name":{"varid":0},
+			"omroep":{"varid":6}}},
 	"no_genric_matching":["270", "271", "275"],
-	"alt-channels":{"301":["265","NPO 3"]},
 	"empty_channels":[],
+	"alt-channels":{"301":["265","NPO 3"]},
     "cattrans":{},
     "kijkwijzer":{}}
         

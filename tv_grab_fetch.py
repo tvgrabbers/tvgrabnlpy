@@ -504,8 +504,8 @@ class Functions():
                 if not isinstance (data[0], datetime.date):
                     return default
 
-                if data[1] < datetime.time(data[2]):
-                    data[0] += datetime.timedelta(days = 1)
+                #~ if data[1] < datetime.time(data[2]):
+                    #~ data[0] += datetime.timedelta(days = 1)
 
                 dt = datetime.datetime.combine(data[0], data[1])
                 dt = tzinfo.localize(dt)
@@ -1382,6 +1382,22 @@ class DATAtree():
                         #~ traceback.print_exc()
                         pass
 
+            if self.is_data_value('multiplier', int, node_def):
+                try:
+                    value = int(value) * node_def['multiplier']
+
+                except:
+                    #~ traceback.print_exc()
+                    pass
+
+            if self.is_data_value('devider', int, node_def):
+                try:
+                    value = int(value) / node_def['devider']
+
+                except:
+                    #~ traceback.print_exc()
+                    pass
+
         # Is there a replace dict
         if self.is_data_value('replace', dict, node_def):
             if value == None:
@@ -1431,6 +1447,14 @@ class DATAtree():
 
                         elif len(t) > 2:
                             value = datetime.time(int(t[0]), int(t[1]), int(t[2][:2]))
+
+                    except:
+                        #~ traceback.print_exc()
+                        pass
+
+                elif node_def['type'] == 'timedelta':
+                    try:
+                            value = datetime.timedelta(seconds = int(value))
 
                     except:
                         #~ traceback.print_exc()
@@ -2328,25 +2352,26 @@ class FetchData(Thread):
         self.print_tags = False
         self.print_roottree = False
         self.print_searchtree = False
+        self.show_parsing = False
         self.show_result = False
 
         self.source_data = {}
         try:
-            #~ print data
             fle = self.config.IO_func.open_file('%s/sources/%s.json' % (sys.path[0], data), 'r', 'utf-8')
             self.source_data = json.load(fle)
-            self.source = self.source_data['name']
+            self.source = self.data_value('name', str)
             self.config.sourceid_by_name[self.source] = self.proc_id
-            self.detail_id = self.source_data['detail_id']
-            self.detail_url = self.source_data['detail_url']
-            self.detail_processor = self.source_data['detail_processor']
-            self.detail_check = self.source_data['detail_check']
-            self.no_genric_matching = self.source_data['no_genric_matching']
-            self.empty_channels = self.source_data['empty_channels']
-            self.cattrans = self.source_data['cattrans']
-            self.kijkwijzer = self.source_data['kijkwijzer']
-            if 'site-timezone' in self.source_data:
-                self.site_tz = pytz.timezone(self.source_data['site-timezone'])
+            self.detail_id = self.data_value('detail_id', str, default = '%s-ID' % self.source)
+            self.detail_url = self.data_value('detail_url', str, default = '%s-url' % self.source)
+            self.detail_processor = self.data_value('detail_processor', bool, default = False)
+            self.detail_check = self.data_value('detail_check', str)
+            self.without_full_timings = self.data_value('without-full-timings', bool, default = False)
+            self.no_genric_matching = self.data_value('no_genric_matching', list)
+            self.empty_channels = self.data_value('empty_channels', list)
+            self.alt_channels = self.data_value('alt-channels', dict)
+            self.cattrans = self.data_value('cattrans', dict)
+            self.kijkwijzer = self.data_value('kijkwijzer',dict)
+            self.site_tz = pytz.timezone(self.data_value('site-timezone', str, default = 'utc'))
 
         except:
             traceback.print_exc()
@@ -2691,160 +2716,6 @@ class FetchData(Thread):
 
         return (url, encoding, accept_header, url_data, counter, is_json)
 
-    def get_page_data(self, ptype, data={}):
-        try:
-            url = self. get_url2(ptype, data)
-            if url == None:
-                return
-
-            is_json = url[5]
-            if self.print_searchtree:
-                self.test_output.write(url)
-                self.test_output.write('\n')
-            page = self.functions.get_page(url)
-            if page == None:
-                self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
-                if self.print_searchtree:
-                    print 'No Data'
-                return None
-
-            if ptype in ('detail', 'detail2') and self.proc_id in (0, 1, 9):
-                return page
-
-            self.current_item_count = self.data_value(self.data_value([ptype, "item-count-path"],list), int, page, 0)
-            if is_json:
-                searchtree = JSONtree(page, self.test_output)
-
-            else:
-                autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
-                if self.data_value([ptype, "enclose-with-html-tag"], bool, default=False):
-                    page = u'<html>%s</html>' % page
-
-                searchtree = HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
-
-            searchtree.month_names = self.data_value([ptype, "month-names"], list)
-            searchtree.weekdays = self.data_value([ptype, "weekdays"], list)
-            rw = self.data_value([ptype, "relative-weekdays"], dict)
-            self.fetch_date = self.current_date + self.data_value('offset', int, data, default=0)
-            for name, index in rw.items():
-                searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.current_date + index)
-
-            current_weekday = datetime.date.fromordinal(self.fetch_date).weekday()
-            for index in range(len(searchtree.weekdays)):
-                name = searchtree.weekdays[index]
-                if index < current_weekday:
-                    searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index + 7 - current_weekday)
-
-                else:
-                    searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index - current_weekday)
-
-            searchtree.show_result = self.show_result
-            searchtree.print_searchtree = self.print_roottree
-            searchtree.find_start_node(self.data_value(ptype, dict))
-
-            searchtree.datetimestring = self.data_value([ptype, "datetimestring"], str)
-            searchtree.time_splitter = self.data_value([ptype, "time-splitter"], str, default = ':')
-            searchtree.date_sequence = self.data_value([ptype, "date-sequence"], list, default = ["y","m","d"])
-            searchtree.date_splitter = self.data_value([ptype, "date-splitter"], str, default = '-')
-            searchtree.timezone = self.site_tz
-            searchtree.print_searchtree = self.print_searchtree
-            searchtree.extract_datalist(self.data_value(ptype, dict))
-            if self.show_result:
-                self.test_output.write(searchtree.result)
-                self.test_output.write('\n')
-
-            return searchtree.result
-
-        except:
-            self.config.log([self.config.text('fetch', 68, (ptype, self.source)), traceback.format_exc()], 1)
-            return None
-
-    def link_values(self, ptype, linkdata):
-        values = {}
-        if isinstance(linkdata, list):
-            for k, v in self.data_value([ptype,"values"], dict).items():
-                varid = self.data_value("varid", int, v)
-                if varid != None:
-                    if not (0 <= varid < len(linkdata)):
-                        continue
-
-                    d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else linkdata[varid].strip()
-                    values[k] = d
-                    continue
-
-                funcid = self.data_value("funcid", int, v)
-                default = self.data_value("funcid", None, v)
-                if funcid != None:
-                    funcdata = self.data_value("data", list, v)
-                    data = []
-                    for d in funcdata:
-                        varid = self.data_value("varid", int, d)
-
-                        if varid != None:
-                            if 0 <= varid < len(linkdata):
-                                data.append(linkdata[varid])
-
-                            else:
-                                data.append('')
-
-                        else:
-                            data.append(d)
-
-                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, self.fetch_date, default)
-                    if cval != None:
-                        values[k] = cval
-                        if funcid == 1 and self.functions.icongrp != -1:
-                            values['icongrp'] = self.functions.icongrp
-
-                    continue
-
-                value = self.data_value("value", unicode, v)
-                if value != '':
-                    values[k] = value
-
-        if isinstance(linkdata, dict):
-            for k, v in self.data_value([ptype,"values"], dict).items():
-                varid = self.data_value("varid", int, v)
-                if varid != None:
-                    if not varid in linkdata.keys():
-                        continue
-
-                    d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else linkdata[varid].strip()
-                    values[k] = d
-                    continue
-
-                funcid = self.data_value("funcid", int, v)
-                default = self.data_value("funcid", None, v)
-                if funcid != None:
-                    funcdata = self.data_value("data", list, v)
-                    data = []
-                    for d in funcdata:
-                        varid = self.data_value("varid", int, d)
-
-                        if varid != None:
-                            if varid in linkdata.keys():
-                                data.append(linkdata[varid])
-
-                            else:
-                                data.append('')
-
-                        else:
-                            data.append(d)
-
-                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, self.fetch_date, default)
-                    if cval != None:
-                        values[k] = cval
-                        if funcid == 1 and self.functions.icongrp != -1:
-                            values['icongrp'] = self.functions.icongrp
-
-                    continue
-
-                value = self.data_value("value", unicode, v)
-                if value != '':
-                    values[k] = value
-
-        return values
-
     def get_channels(self):
         """The code for the retreiving a list of supported channels"""
         self.all_channels ={}
@@ -2869,7 +2740,6 @@ class FetchData(Thread):
             self.config.log(self.config.text('sources', 1, (self.source, )))
             return 69
 
-        alt_channels = self.data_value("alt-channels", dict)
         if isinstance(channel_list, list):
             for channel in channel_list:
                 # link the data to the right variable, doing any defined adjustments
@@ -2879,9 +2749,9 @@ class FetchData(Thread):
 
                 if "channelid" in values.keys():
                     channelid = unicode(values["channelid"])
-                    if channelid in alt_channels.keys():
-                        values['channelid'] = alt_channels[channelid][0]
-                        values['name'] = alt_channels[channelid][1]
+                    if channelid in self.alt_channels.keys():
+                        values['channelid'] = self.alt_channels[channelid][0]
+                        values['name'] = self.alt_channels[channelid][1]
                         channelid = unicode(values['channelid'])
                     #~ if channelid in self.empty_channels:
                         #~ continue
@@ -2979,8 +2849,8 @@ class FetchData(Thread):
                             continue
 
                         channel = self.channels[chanid]
-                        # tvgids.tv
                         # We fetch every day separate
+                        # tvgids.tv
                         if (url_type & 12) == 0:
                             ats = self.data_value(["base", "append_to_source"], unicode)
                             if ats in self.config.sourceid_by_name.keys() and self.config.channels[chanid].opt_dict['append_tvgidstv']:
@@ -3059,8 +2929,8 @@ class FetchData(Thread):
                             self.parse_basepage(strdata, {'channelid': channel})
 
                         # We fetch a set number of  days in one
+                        # vrt.be, nieuwsblad.be
                         elif (url_type & 12) == 8:
-                            # vrt.be, nieuwsblad.be
                             for offset in range(len(fetch_range)):
                                 if self.quit:
                                     return
@@ -3089,8 +2959,8 @@ class FetchData(Thread):
                                 self.parse_basepage(strdata, {'offset': offset, 'channelid': channel})
                                 self.page_loaded[chanid][offset] = True
 
-                        # horizon.nl
                         # We fetch a set number of  records in one
+                        # horizon.nl
                         elif (url_type & 12) == 12:
                             if self.item_count == 0:
                                 return
@@ -3134,12 +3004,6 @@ class FetchData(Thread):
 
 
                         if failure_count == 0 or retry == 1:
-                            with self.source_lock:
-                                self.program_data[chanid].sort(key=lambda program: (program['start-time']))
-                                if self.data_value(['base', "calc-end-times"], bool, default = False):
-                                    sod = self.data_value(['base', "start-off-day"], int, default = 6)
-                                    self.add_endtimes(chanid, sod)
-
                             self.parse_programs(chanid, 0, 'None')
                             self.config.channels[chanid].source_data[self.proc_id].set()
                             self.channel_loaded[chanid] = True
@@ -3161,10 +3025,9 @@ class FetchData(Thread):
                     if len(self.channels) == 0 :
                         return
 
-                    # npo.nl, vpro.nl, primo.eu, oorboekje.nl
                     # We fetch every day separate
+                    # tvgids.nl, npo.nl, vpro.nl, primo.eu, oorboekje.nl
                     if (url_type & 12) == 0:
-                        # tvgids.nl,
                         for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days)):
                             if self.quit:
                                 return
@@ -3191,8 +3054,8 @@ class FetchData(Thread):
                             self.parse_basepage(strdata, {'offset':offset})
 
                     # We fetch all days in one
+                    # rtl.nl
                     elif (url_type & 12) == 4:
-                        # rtl.nl
                         self.config.log(['\n', self.config.text('sources', 11,  (len(self.channels), self.source, self.config.opt_dict['days']))], 2)
                         # be nice to the source
                         time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
@@ -3215,12 +3078,6 @@ class FetchData(Thread):
 
                     if failure_count == 0 or retry == 1:
                         for chanid in self.channels.keys():
-                            with self.source_lock:
-                                self.program_data[chanid].sort(key=lambda program: (program['start-time']))
-                                if self.data_value(['base', "calc-end-times"], None, default = False):
-                                    sod = self.data_value(['base', "start-off-day"], int, default = 6)
-                                    self.add_endtimes(chanid, sod)
-
                             self.parse_programs(chanid, 0, 'None')
                             self.config.channels[chanid].source_data[self.proc_id].set()
                             self.channel_loaded[chanid] = True
@@ -3246,8 +3103,8 @@ class FetchData(Thread):
                             return
 
                         # We fetch every day separate
+                        #humo.be
                         if (url_type & 12) == 0:
-                            #humo.be
                             for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days)):
                                 if self.quit:
                                     return
@@ -3294,12 +3151,6 @@ class FetchData(Thread):
 
                     if failure_count == 0 or retry == 1:
                         for chanid in self.channels.keys():
-                            with self.source_lock:
-                                self.program_data[chanid].sort(key=lambda program: (program['start-time']))
-                                if self.data_value(['base', "calc-end-times"], None, default = False):
-                                    sod = self.data_value(['base', "start-off-day"], int, default = 6)
-                                    self.add_endtimes(chanid, sod)
-
                             self.parse_programs(chanid, 0, 'None')
                             self.config.channels[chanid].source_data[self.proc_id].set()
                             self.channel_loaded[chanid] = True
@@ -3318,18 +3169,99 @@ class FetchData(Thread):
             self.config.log([self.config.text('fetch', 13, (self.source, )), traceback.format_exc()], 1)
             return None
 
+    def get_page_data(self, ptype, data={}):
+        try:
+            url = self. get_url2(ptype, data)
+            if url == None:
+                return
+
+            is_json = url[5]
+            if self.print_searchtree:
+                #~ self.test_output.write(url)
+                #~ self.test_output.write('\n')
+                print url
+            page = self.functions.get_page(url)
+            if page == None:
+                self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
+                if self.print_searchtree:
+                    print 'No Data'
+                return None
+
+            if ptype in ('detail', 'detail2') and self.proc_id in (0, 1, 9):
+                return page
+
+            self.current_item_count = self.data_value(self.data_value([ptype, "item-count-path"],list), int, page, 0)
+            if is_json:
+                searchtree = JSONtree(page, self.test_output)
+
+            else:
+                autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
+                if self.data_value([ptype, "enclose-with-html-tag"], bool, default=False):
+                    page = u'<html>%s</html>' % page
+
+                searchtree = HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
+
+            searchtree.month_names = self.data_value([ptype, "month-names"], list)
+            searchtree.weekdays = self.data_value([ptype, "weekdays"], list)
+            rw = self.data_value([ptype, "relative-weekdays"], dict)
+            self.fetch_date = self.current_date + self.data_value('offset', int, data, default=0)
+            for name, index in rw.items():
+                searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.current_date + index)
+
+            current_weekday = datetime.date.fromordinal(self.fetch_date).weekday()
+            for index in range(len(searchtree.weekdays)):
+                name = searchtree.weekdays[index]
+                if index < current_weekday:
+                    searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index + 7 - current_weekday)
+
+                else:
+                    searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index - current_weekday)
+
+            searchtree.show_result = self.show_parsing
+            searchtree.print_searchtree = self.print_roottree
+            searchtree.find_start_node(self.data_value(ptype, dict))
+
+            searchtree.datetimestring = self.data_value([ptype, "datetimestring"], str)
+            searchtree.time_splitter = self.data_value([ptype, "time-splitter"], str, default = ':')
+            searchtree.date_sequence = self.data_value([ptype, "date-sequence"], list, default = ["y","m","d"])
+            searchtree.date_splitter = self.data_value([ptype, "date-splitter"], str, default = '-')
+            searchtree.timezone = self.site_tz
+            searchtree.print_searchtree = self.print_searchtree
+            searchtree.extract_datalist(self.data_value(ptype, dict))
+            if self.show_result:
+                #~ self.test_output.write(searchtree.result)
+                #~ self.test_output.write('\n')
+                for p in searchtree.result:
+                    if isinstance(p[0], (str, unicode)):
+                        print p[0].encode('utf-8', 'replace')
+                    else:
+                        print p[0]
+                    for v in range(1,len(p)):
+                        if isinstance(p[v], (str, unicode)):
+                            print '    ', p[v].encode('utf-8', 'replace')
+                        else:
+                            print '    ', p[v]
+
+            return searchtree.result
+
+        except:
+            self.config.log([self.config.text('fetch', 68, (ptype, self.source)), traceback.format_exc()], 1)
+            return None
+
     def parse_basepage(self, data, subset = {}):
         chanids = []
-        #~ print data
+        last_start = {}
+        tdd = datetime.timedelta(days=1)
+        tdh = datetime.timedelta(hours=1)
+        self.test_output.write('result\n'.encode('utf-8', 'replace'))
         if isinstance(data, list):
-            alt_channels = self.data_value("alt-channels", dict)
             for program in data:
                 # link the data to the right variable, doing any defined adjustments
                 values = self.link_values("base", program)
                 if 'channelid' in values.keys():
                     channelid = unicode(values['channelid'])
-                    if channelid in alt_channels.keys():
-                        values['channelid'] = alt_channels[channelid][0]
+                    if channelid in self.alt_channels.keys():
+                        values['channelid'] = self.alt_channels[channelid][0]
                         channelid = unicode(values['channelid'])
 
                 elif 'channelid' in subset.keys():
@@ -3340,6 +3272,9 @@ class FetchData(Thread):
 
                 if not channelid in self.chanids.keys():
                     continue
+
+                if not channelid in last_start.keys():
+                    last_start[channelid] = None
 
                 chanid = self.chanids[channelid]
                 if not self.chanids[channelid] in chanids:
@@ -3365,21 +3300,34 @@ class FetchData(Thread):
                     self.config.log(self.config.text('sources', 6, (tdict['prog_ID'][self.proc_id], tdict['channel'], self.source)))
                     continue
 
+                if not isinstance(tdict['stop-time'], datetime.datetime):
+                    if "alt-stop-time" in values and isinstance(values["alt-stop-time"], datetime.datetime):
+                        tdict['stop-time'] = values["alt-stop-time"]
+
                 if not isinstance(tdict['start-time'], datetime.datetime):
                     if "alt-start-time" in values and isinstance(values["alt-start-time"], datetime.datetime):
                         tdict['start-time'] = values["alt-start-time"]
+                    elif "length" in values and isinstance(values['length'], datetime.timedelta) and isinstance(tdict['stop-time'], datetime.datetime):
+                        tdict['start-time'] = tdict['stop-time'] - values['length']
                     else:
-                        print program
                         self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
                         continue
 
                 if not isinstance(tdict['stop-time'], datetime.datetime):
-                    if "alt-stop-time" in values and isinstance(values["alt-stop-time"], datetime.datetime):
-                        tdict['stop-time'] = values["alt-stop-time"]
-                    else:
-                        print program
-                        #~ self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
-                        continue
+                    if "length" in values and isinstance(values['length'], datetime.timedelta):
+                        tdict['stop-time'] = tdict['start-time'] + values['length']
+
+                if self.without_full_timings:
+                    if last_start[channelid] == None:
+                        last_start[channelid] = tdict['start-time']
+
+                    while tdict['start-time'] < last_start[channelid] - tdh:
+                        tdict['start-time'] += tdd
+
+                    last_start[channelid] = tdict['start-time']
+                    if isinstance(tdict['stop-time'], datetime.datetime):
+                        while tdict['stop-time'] < tdict['start-time']:
+                            tdict['stop-time'] += tdd
 
                 for k in tdict['video'].keys():
                     if k in values.keys():
@@ -3397,8 +3345,102 @@ class FetchData(Thread):
 
                 #~ self.config.genre_list.append((tdict['genre'].lower(), tdict['subgenre'].lower()))
 
+                if self.show_result:
+                    print '    ', channelid, tdict['start-time']
+                    for k, v in tdict.items():
+                        if isinstance(v, (str, unicode)):
+                            print '        ', k, v.encode('utf-8', 'replace')
+                        else:
+                            print '        ', k, v
+
 
         return chanids
+
+    def link_values(self, ptype, linkdata):
+        values = {}
+        if isinstance(linkdata, list):
+            for k, v in self.data_value([ptype,"values"], dict).items():
+                varid = self.data_value("varid", int, v)
+                if varid != None:
+                    if not (0 <= varid < len(linkdata)):
+                        continue
+
+                    d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else linkdata[varid].strip()
+                    values[k] = d
+                    continue
+
+                funcid = self.data_value("funcid", int, v)
+                default = self.data_value("funcid", None, v)
+                if funcid != None:
+                    funcdata = self.data_value("data", list, v)
+                    data = []
+                    for d in funcdata:
+                        varid = self.data_value("varid", int, d)
+
+                        if varid != None:
+                            if 0 <= varid < len(linkdata):
+                                data.append(linkdata[varid])
+
+                            else:
+                                data.append('')
+
+                        else:
+                            data.append(d)
+
+                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, self.fetch_date, default)
+                    if cval != None:
+                        values[k] = cval
+                        if funcid == 1 and self.functions.icongrp != -1:
+                            values['icongrp'] = self.functions.icongrp
+
+                    continue
+
+                value = self.data_value("value", unicode, v)
+                if value != '':
+                    values[k] = value
+
+        if isinstance(linkdata, dict):
+            for k, v in self.data_value([ptype,"values"], dict).items():
+                varid = self.data_value("varid", int, v)
+                if varid != None:
+                    if not varid in linkdata.keys():
+                        continue
+
+                    d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else linkdata[varid].strip()
+                    values[k] = d
+                    continue
+
+                funcid = self.data_value("funcid", int, v)
+                default = self.data_value("funcid", None, v)
+                if funcid != None:
+                    funcdata = self.data_value("data", list, v)
+                    data = []
+                    for d in funcdata:
+                        varid = self.data_value("varid", int, d)
+
+                        if varid != None:
+                            if varid in linkdata.keys():
+                                data.append(linkdata[varid])
+
+                            else:
+                                data.append('')
+
+                        else:
+                            data.append(d)
+
+                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, self.fetch_date, default)
+                    if cval != None:
+                        values[k] = cval
+                        if funcid == 1 and self.functions.icongrp != -1:
+                            values['icongrp'] = self.functions.icongrp
+
+                    continue
+
+                value = self.data_value("value", unicode, v)
+                if value != '':
+                    values[k] = value
+
+        return values
 
     def load_detailpage(self, tdict):
         """The code for retreiving and processing a detail page"""
@@ -3502,41 +3544,6 @@ class FetchData(Thread):
 
         for chanid, channelid in self.channels.items():
             self.chanids[channelid] = chanid
-
-    def add_endtimes(self, chanid, date_switch = 6, tzinfo = None):
-        """
-        For the sites that only give start times, add the next starttime as endtime
-        date_switch is the time we asume the last program will end if started before that time
-        else  we assume next midnight
-        """
-
-        if tzinfo == None:
-            tzinfo = self.config.utc_tz
-
-        date_switch = int(date_switch + tzinfo.utcoffset(datetime.datetime.now()).total_seconds()*3600)
-        if len(self.program_data[chanid]) > 0:
-            for i, tdict in enumerate(self.program_data[chanid]):
-                if i > 0 and isinstance(tdict['start-time'], datetime.datetime):
-                    try:
-                        if not isinstance(self.program_data[chanid][i-1]['stop-time'], datetime.datetime):
-                            self.program_data[chanid][i-1]['stop-time'] =  tdict['start-time']
-
-                    except:
-                        pass
-
-            # And one for the last program
-            prog_date = datetime.date.fromordinal(self.current_date + self.program_data[chanid][-1]['offset'])
-            if not isinstance(self.program_data[chanid][-1]['stop-time'], datetime.datetime):
-                if int(self.program_data[chanid][-1]['start-time'].strftime('%H')) < date_switch:
-                    self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(date_switch, 0, 0, 0, self.config.utc_tz))
-
-                else:
-                    self.program_data[chanid][-1]['stop-time'] = datetime.datetime.combine(prog_date, datetime.time(23, 59, 0, 0, self.config.utc_tz))
-
-            # remove programs that end when they start
-            for tdict in self.program_data[chanid][:]:
-                if tdict['start-time'] == tdict['stop-time']:
-                    self.program_data[chanid].remove(tdict)
 
     def check_title_name(self, program):
         """
@@ -3885,7 +3892,7 @@ class FetchData(Thread):
         fill_programs = []
 
         # sort all programs by startdate, enddate
-        programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
+        programs.sort(key=lambda program: (program['start-time']))
         if overlap_strategy == None:
             overlap_strategy = self.config.channels[chanid].opt_dict['overlap_strategy']
 
@@ -3894,14 +3901,14 @@ class FetchData(Thread):
         for i in range(len(programs)):
 
             # Try to correct missing end time by taking start time from next program on schedule
-            if (programs[i]['stop-time'] == None and i < len(programs)-1):
+            if (not isinstance(programs[i]['stop-time'], datetime.datetime) and i < len(programs)-1):
                 self.config.log(self.config.text('fetch', 22, (programs[i]['name'], )), 64)
                 programs[i]['stop-time'] = programs[i+1]['start-time']
 
             # The common case: start and end times are present and are not
             # equal to each other (yes, this can happen)
-            if programs[i]['start-time'] != None \
-                and programs[i]['stop-time']  != None \
+            if isinstance(programs[i]['start-time'], datetime.datetime) \
+                and isinstance(programs[i]['stop-time'], datetime.datetime) \
                 and programs[i]['start-time'] != programs[i]['stop-time']:
                     good_programs.append(programs[i])
 
