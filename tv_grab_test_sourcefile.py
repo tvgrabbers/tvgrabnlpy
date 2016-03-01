@@ -85,14 +85,15 @@ def main():
         #~ source = sources.nieuwsblad_HTML(config, 8, 'source-nieuwsblad.be')
         #~ source= sources.primo_HTML(config, 9, 'source-primo.eu')
         #~ source = sources.oorboekje_HTML(config, 12, 'source-oorboekje.nl')
+        #~ source = tv_grab_fetch.FetchData(config, 11, 'source-virtual.nl')
 
         #~ source = tv_grab_fetch.FetchData(config, 0, 'source-tvgids.nl', True)
         #~ source = tv_grab_fetch.FetchData(config, 2, 'source-rtl.nl', True)
         #~ source = tv_grab_fetch.FetchData(config, 6, 'source-humo.be', True)
         #~ channel ='672816167173'
         #~ source = tv_grab_fetch.FetchData(config, 5, 'source-horizon.tv', True)
-        channel ='O8'
-        source = tv_grab_fetch.FetchData(config, 10, 'source-vrt.be', True)
+        #~ channel ='O8'
+        #~ source = tv_grab_fetch.FetchData(config, 10, 'source-vrt.be', True)
         #~ channel ='een'
         #~ source = tv_grab_fetch.FetchData(config, 8, 'source-nieuwsblad.be')
         #~ channel ='nederland-1'
@@ -100,11 +101,8 @@ def main():
         #~ source = tv_grab_fetch.FetchData(config, 4, 'source-npo.nl')
         #~ source = tv_grab_fetch.FetchData(config, 7, 'source-vpro.nl')
         #~ source= tv_grab_fetch.FetchData(config, 9, 'source-primo.eu')
+        source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
 
-        #~ source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
-        #~ source = tv_grab_fetch.FetchData(config, 11, 'source-virtual.nl')
-
-        #~ source= tv_grab_fetch.FetchData(config, 9, 'source-primo.eu')
 
         config.validate_option('config_file')
 

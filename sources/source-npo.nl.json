@@ -118,11 +118,11 @@
 					{"tag":"div", "attrs":{"class":"guide-wrapper"}},
 					{"tag":"div", "attrs":{"class":"channels"}},
 					{"tag":"div"},
-					{"tag":"a"}
+					{"tag":"a","attr":"data-time","split":[["-",0]],"type":"time"}
 					],
 				"values":[
-					[{"attr":"data-time","split":[["-",0]],"type":"time"}],
 					[{"attr":"data-time","split":[["-",1]],"type":"time"}],
+					[{"tag":"i", "attrs":{"class":"np"},"select":"tail"}],
 					[{"path":"parent"},
 						{"path":"parent"},
 						{"path":"parent"},
@@ -149,11 +149,11 @@
 					{"tag":"div", "attrs":{"class":"guide-wrapper"}},
 					{"tag":"div", "attrs":{"class":"channels"}},
 					{"tag":"div"},
-					{"tag":"a"}
+					{"tag":"a","attr":"data-time","split":[["-",0]],"type":"time"}
 					],
 				"values":[
-					[{"attr":"data-time","split":[["-",0]],"type":"time"}],
 					[{"attr":"data-time","split":[["-",1]],"type":"time"}],
+					[{"tag":"i", "attrs":{"class":"np"},"select":"tail"}],
 					[{"path":"parent"},
 						{"path":"parent"},
 						{"path":"parent"},
@@ -179,11 +179,11 @@
 					{"tag":"div", "attrs":{"class":"guide-wrapper"}},
 					{"tag":"div", "attrs":{"class":"channels"}},
 					{"tag":"div"},
-					{"tag":"a"}
+					{"tag":"a","attr":"data-time","split":[["-",0]],"type":"time"}
 					],
 				"values":[
-					[{"attr":"data-time","split":[["-",0]],"type":"time"}],
 					[{"attr":"data-time","split":[["-",1]],"type":"time"}],
+					[{"tag":"i", "attrs":{"class":"np"},"select":"tail"}],
 					[{"path":"parent"},
 						{"path":"parent"},
 						{"path":"parent"},
@@ -208,11 +208,11 @@
 					{"tag":"div", "attrs":{"class":"guide-wrapper"}},
 					{"tag":"div", "attrs":{"class":"channels"}},
 					{"tag":"div"},
-					{"tag":"a"}
+					{"tag":"a","attr":"data-time","split":[["-",0]],"type":"time"}
 					],
 				"values":[
-					[{"attr":"data-time","split":[["-",0]],"type":"time"}],
 					[{"attr":"data-time","split":[["-",1]],"type":"time"}],
+					[{"tag":"i", "attrs":{"class":"np"},"select":"tail"}],
 					[{"path":"parent"},
 						{"path":"parent"},
 						{"path":"parent"},
@@ -232,9 +232,9 @@
 						]},
 		"values":{
 			"channelid":{"varid": 4},
-			"start-time":{"funcid":4, "data":[{"varid": 3},{"varid": 1}, 6]},
-			"stop-time":{"funcid":4, "data":[{"varid": 3},{"varid": 2}, 6]},
-			"name":{"varid":0},
+			"start-time":{"funcid":4, "data":[{"varid": 3},{"varid": 0}, 6]},
+			"stop-time":{"funcid":4, "data":[{"varid": 3},{"varid": 1}, 6]},
+			"name":{"varid":2},
 			"omroep":{"varid":6}}},
 	"no_genric_matching":["270", "271", "275"],
 	"empty_channels":[],

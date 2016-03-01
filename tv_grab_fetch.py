@@ -862,11 +862,11 @@ class DATAnode():
     def find_value(self, node_def = None):
         return self.dtree.calc_value(self.value, node_def)
 
-    def print_node(self):
+    def print_node(self, print_all = False):
         return u'%s = %s' % (self.level, self.find_value())
 
     def print_tree(self):
-        sstr =u'%s%s\n' % (self.dtree.get_leveltabs(self.level,4), self.print_node())
+        sstr =u'%s%s\n' % (self.dtree.get_leveltabs(self.level,4), self.print_node(True))
         self.dtree.print_text(sstr)
         for n in self.children:
             n.print_tree()
@@ -877,6 +877,7 @@ class HTMLnode(DATAnode):
     def __init__(self, dtree, data = None, parent = None):
         self.tag = u''
         self.text = u''
+        self.tail = u''
         self.attributes = {}
         DATAnode.__init__(self, dtree, parent)
         if isinstance(data, (str, unicode)):
@@ -1052,6 +1053,9 @@ class HTMLnode(DATAnode):
             elif node_def[ 'select'] == 'text':
                 sv = self.text
 
+            elif node_def[ 'select'] == 'tail':
+                sv = self.tail
+
             else:
                 sv = self.text
 
@@ -1060,7 +1064,7 @@ class HTMLnode(DATAnode):
 
         return self.dtree.calc_value(sv, node_def)
 
-    def print_node(self):
+    def print_node(self, print_all = False):
         attributes = u''
         spc = self.dtree.get_leveltabs(self.level,4)
         if len(self.attributes) > 0:
@@ -1072,16 +1076,20 @@ class HTMLnode(DATAnode):
                 attributes = u'%s%s = "%s",\n    %s' % (attributes, a, vv, spc)
             attributes = attributes[:-(len(spc)+6)]
 
-        tx = self.find_value()
-        if tx == "":
-            return u'%s: %s(%s)' % (self.level, self.tag, attributes)
+        rstr = u'%s: %s(%s)' % (self.level, self.tag, attributes)
+        if print_all:
+            if self.text != '':
+                rstr = u'%s\n    %stext: %s' % (rstr, spc, self.text)
+
+            if self.tail != '':
+                rstr = u'%s\n    %stail: %s' % (rstr, spc, self.tail)
 
         else:
-            #~ tx = re.sub('\r','', tx)
-            #~ retx = u'\n    %s' % spc
-            #~ tx = re.sub('\n', retx, tx)
-            return u'%s: %s(%s)\n    %s%s' % (self.level, self.tag, attributes, spc, tx)
+            tx = self.find_value()
+            if tx != "":
+                rstr = u'%s\n    %s%s' % (rstr, spc, tx)
 
+        return rstr
 # end HTMLnode
 
 class JSONnode(DATAnode):
@@ -1213,7 +1221,7 @@ class JSONnode(DATAnode):
 
         return self.dtree.calc_value(sv, node_def)
 
-    def print_node(self):
+    def print_node(self, print_all = False):
         value = self.find_value() if self.type == "value" else '"%s"' % self.type
         return u'%s = %s' % (self.key, value)
 
@@ -1697,8 +1705,10 @@ class HTMLtree(HTMLParser, DATAtree):
 
         self.print_tags = print_tags
         self.autoclose_tags = autoclose_tags
+        self.is_tail = False
         self.root = HTMLnode(self, 'root')
         self.current_node = self.root
+        self.last_node = None
         self.text = u''
         self.open_tags = {}
         self.count_tags(data)
@@ -1777,6 +1787,7 @@ class HTMLtree(HTMLParser, DATAtree):
         node = HTMLnode(self, [tag.lower(), attrs], self.current_node)
         self.add_text()
         self.current_node = node
+        self.is_tail = False
         if tag.lower() in self.autoclose_tags:
             self.handle_endtag(tag)
             return False
@@ -1790,7 +1801,7 @@ class HTMLtree(HTMLParser, DATAtree):
         self.open_tags[tag] -= 1
         if self.current_node.tag != tag.lower():
             # To catch missing close tags
-            self.remove_text()
+            #~ self.remove_text()
             self.handle_endtag(self.current_node.tag)
 
         self.add_text()
@@ -1799,6 +1810,8 @@ class HTMLtree(HTMLParser, DATAtree):
                 self.print_text(u'%s        %s\n' % (self.get_leveltabs(self.current_node.level-1,2), self.current_node.text.strip()))
             self.print_text(u'%sclosing %s %s %s\n' % (self.get_leveltabs(self.current_node.level-1,2), self.current_node.level,tag, self.current_node.tag))
 
+        self.last_node = self.current_node
+        self.is_tail = True
         self.current_node = self.current_node.parent
         if self.current_node.is_root:
             self.reset()
@@ -1840,12 +1853,22 @@ class HTMLtree(HTMLParser, DATAtree):
         pass
 
     def add_text(self):
-        self.current_node.text += unicode(re.sub('\n','', re.sub('\r','', self.text)))
+        if self.is_tail:
+            self.last_node.tail += unicode(re.sub('\n','', re.sub('\r','', self.text)).strip())
+
+        else:
+            self.current_node.text += unicode(re.sub('\n','', re.sub('\r','', self.text)).strip())
+
         self.text = u''
 
     def remove_text(self):
-        self.text += self.current_node.text
-        self.current_node.text = u''
+        if self.is_tail:
+            self.text += self.current_node.tail
+            self.current_node.tail = u''
+
+        else:
+            self.text += self.current_node.text
+            self.current_node.text = u''
 
 # end HTMLtree
 

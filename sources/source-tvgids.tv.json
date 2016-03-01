@@ -116,8 +116,7 @@
 			"channelid":{"varid": 4},
 			"start-time":{"funcid":4, "data":[null,{"varid": 0}, 7]},
 			"stop-time":{"funcid":4, "data":[null,{"varid": 1}, 7]},
-			"name":{"varid":5},
-			"description":{"varid":6}}},
+			"name":{"varid":5}}},
     "detail":{
         "url":["http://www.tvgids.tv/tv/",0, "/"],
         "data-format":"text/html",

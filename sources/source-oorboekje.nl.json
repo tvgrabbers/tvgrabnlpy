@@ -69,17 +69,18 @@
 					{"tag":"b"}
 						],
 				"values":[
-					[{"path":"parent", "split":[["\\s",0]],"type":"time"}],
+					[{"path":"parent", "split":[["-",0]],"type":"time"}],
 					[{"path":"parent", "select":"index", "link":1},
 						{"path":"parent"}, 
-						{"tag":"div", "attrs":{"class":"pgProgOmschr"}, "index":{"link":1,"calc":["plus",1]},"split":[["\\s",0]],"type":"time"}],
-					[{"path":"parent", "split":[["-",1],["\\s",0]],"type":"time"}],
+						{"tag":"div", "attrs":{"class":"pgProgOmschr"}, "index":{"link":1,"calc":["plus",1]},"type":"time"}],
+					[{"path":"parent", "split":[["-",1]],"type":"time"}],
 					[{"path":"parent"},
 						{"path":"parent"},
 						{"path":"parent"},
 						{"tag":"div", "attrs":{"class":"pgMenuKop"}},
 						{"tag":"a", "index":0, "attr":"href","split":[["=",-1]]}],
-					[{"path":"parent"}]
+					[{"path":"parent"},
+						{"tag":"br", "select":"tail"}]
 					]}]},
 		"values":{
 			"channelid":{"varid": 4},
