@@ -361,7 +361,7 @@ class Configure:
         self.patch = 11
         self.patchdate = u'20160304'
         self.alfa = False
-        self.beta = Beta
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
