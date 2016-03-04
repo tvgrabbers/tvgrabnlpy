@@ -12935,7 +12935,7 @@ class oorboekje_HTML(FetchData):
             strdata = self.clean_html(strdata)
             chgroup = 11
             for ch in self.gettablerow.findall(strdata):
-                if not '"stream.php?zender=' in ch:
+                if not '"/stream.php?zender=' in ch:
                     if self.getregional.search(ch) != None:
                         chgroup = 17
 
