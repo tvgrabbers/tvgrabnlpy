@@ -358,10 +358,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 10
-        self.patchdate = u'20160225'
+        self.patch = 11
+        self.patchdate = u'20160304'
         self.alfa = False
-        self.beta = False
+        self.beta = Beta
 
         self.cache_return = Queue()
         self.channels = {}
@@ -12378,15 +12378,15 @@ class primo_HTML(FetchData):
 
                     elif dlabel == "land":
                         #~ tdict['country']
-                        ddata = re.sub('.', '', ddata).upper()
+                        ddata = re.sub('\.', '', ddata).upper()
                         ddata = re.split(',', ddata)
                         for c in ddata:
                             if c in config.coutrytrans.values():
-                                tdict['country'] = cstr
+                                tdict['country'] = c
                                 break
 
                             elif c in config.coutrytrans.keys():
-                                tdict['country'] = config.coutrytrans[cstr]
+                                tdict['country'] = config.coutrytrans[c]
                                 break
 
                             elif config.write_info_files:
@@ -12883,12 +12883,12 @@ class oorboekje_HTML(FetchData):
         self.gettable = re.compile('<TABLE (.*?)</TABLE>',re.DOTALL)
         self.gettablerow = re.compile('<TD valign(.*?)</TD>',re.DOTALL)
         self.getregional = re.compile("Regionale .*? zenders:")
-        self.getchanid = re.compile('A href="stream.php\?zender=([0-9]+)"')
+        self.getchanid = re.compile('A href="/stream.php\?zender=([0-9]+)"')
         self.getchanname = re.compile('<P class="pnZender".*?>(.*?)</P>',re.DOTALL)
         self.getnameaddition = re.compile('<SPAN style=".*?">(.*?)</SPAN>')
         self.getdate = re.compile("this.document.title='oorboekje.nl - Programma-overzicht van .*? ([0-9]{2})-([0-9]{2})-([0-9]{4})';")
         self.getchanday = re.compile('<!-- programmablok begin -->(.*?)<!-- programmablok eind -->',re.DOTALL)
-        self.getchannel = re.compile('<A href="zenderInfo.php\?zender=([0-9]+).*?</A>(.*?)</DIV>',re.DOTALL)
+        self.getchannel = re.compile('<A href="/zenderInfo.php\?zender=([0-9]+).*?</A>(.*?)</DIV>',re.DOTALL)
         self.getprogram = re.compile('<DIV class="pgProgOmschr" style="text-indent: -16px; padding-left: 16px">\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
         self.gettime = re.compile('([0-9]{2}):([0-9]{2})')
         self.geticons = re.compile('<IMG src=".*?" alt="(.*?)".*?>',re.DOTALL)
@@ -12997,10 +12997,10 @@ class oorboekje_HTML(FetchData):
                             self.fail_count += 1
                             continue
 
-                        fetchdate = self.getdate.search(strdata)
-                        if fetchdate == None or datetime.date.fromordinal(self.current_date + offset) != \
-                          datetime.date(int(fetchdate.group(3)), int(fetchdate.group(2)), int(fetchdate.group(1))):
-                            log('Invalid date for oorboekje.nl for day %s.\n' % offset)
+                        #~ fetchdate = self.getdate.search(strdata)
+                        #~ if fetchdate == None or datetime.date.fromordinal(self.current_date + offset) != \
+                          #~ datetime.date(int(fetchdate.group(3)), int(fetchdate.group(2)), int(fetchdate.group(1))):
+                            #~ log('Invalid date for oorboekje.nl for day %s.\n' % offset)
 
                     except:
                         log('Error: "%s" reading the oorboekje.nl basepage for day %s.\n' % \
