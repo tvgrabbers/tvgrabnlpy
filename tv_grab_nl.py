@@ -11210,7 +11210,7 @@ class vpro_HTML(FetchData):
         self.fetch_channellist = re.compile('<ul class="epg-channel-names">(.*?)</ul>',re.DOTALL)
         self.fetch_titels = re.compile('<h6 class="title">(.*?)</h6>',re.DOTALL)
         self.fetch_data = re.compile('<section class="section-with-layout component-theme theme-white">(.*?)</section>',re.DOTALL)
-        self.fetch_genre_codes = re.compile("(g[0-9]+)")
+        self.fetch_genre_codes = re.compile("(g[0-9_]+)")
         self.fetch_descr_parts = re.compile("(.*?[\.:]+ |.*?[\.:]+\Z)")
 
         self.fetch_subgenre = re.compile('^(.*?) uit (\d{4}) van (.*?)(over .*?\.|waarin .*?\.|voor .*?\.|\.)')
@@ -11455,6 +11455,8 @@ class vpro_HTML(FetchData):
                     pgenre = p.get('class','')
                     pg = self.fetch_genre_codes.findall(pgenre)
                     if len(pg) > 0:
+                        for i in range(len(pg)):
+                            pg[i] = re.sub('_', '', pg[i])
                         pg = tuple(pg)
                         if len(pg) > 2:
                             pg = pg[0:2]
