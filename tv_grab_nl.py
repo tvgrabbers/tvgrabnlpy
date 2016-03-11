@@ -359,9 +359,9 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 11
-        self.patchdate = u'20160304'
+        self.patchdate = u'20160311'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
@@ -11457,6 +11457,7 @@ class vpro_HTML(FetchData):
                     if len(pg) > 0:
                         for i in range(len(pg)):
                             pg[i] = re.sub('_', '', pg[i])
+
                         pg = tuple(pg)
                         if len(pg) > 2:
                             pg = pg[0:2]
