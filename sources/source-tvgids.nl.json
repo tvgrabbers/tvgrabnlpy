@@ -1,21 +1,21 @@
 {"file-name":"source-tvgids.nl",
-    "name":"tvgids.nl",
-    "language":"nl",
+	"name":"tvgids.nl",
+	"language":"nl",
 	"site-timezone":"Europe/Amsterdam",
-    "version":0,
-    "api-version":[1,0,0],
-    "detail_id":"nl-ID",
-    "detail_url":"nl-url",
-    "detail_processor":true,
-    "detail_check":"tvgids-fetched",
-    "channels":{
-        "url":["http://www.tvgids.nl/json/lists/channels.php"],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type":0,
-        "url-data":{},
-        "data":{
+	"version":0,
+	"api-version":[1,0,0],
+	"detail_id":"nl-ID",
+	"detail_url":"nl-url",
+	"detail_processor":true,
+	"detail_check":"tvgids-fetched",
+	"channels":{
+		"url":["http://www.tvgids.nl/json/lists/channels.php"],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type":0,
+		"url-data":{},
+		"data":{
 			"key-path":[
 				{"path":"all"},
 				{"key":"id", "type":"string"}
@@ -30,18 +30,18 @@
 			"icon":null,
 			"icongrp":null,
 			"HD":null}},
-    "base":{
-        "url":["http://www.tvgids.nl/json/lists/programs.php"],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type": 2,
-        "url-data":{
-            "channels":2,
-            "day":11},
+	"base":{
+		"url":["http://www.tvgids.nl/json/lists/programs.php"],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type": 2,
+		"url-data":{
+			"channels":2,
+			"day":11},
 		"max days":4,
 		"datetimestring":"%Y-%m-%d %H:%M:%S",
-        "data":{
+		"data":{
 			"key-path":[
 				{"path":"all"},
 				{"path":"all"},
@@ -58,7 +58,7 @@
 				[{"key":"artikel_tekst","default":""}]
 				]},
 		"values":{
-			"channelid":{"varid": 1},
+			"channelid":{"funcid":2, "data":[{"varid": 1}]},
 			"prog_ID":{"funcid":2, "data":["nl-",{"varid":0}]},
 			"detail_url":{"varid": 0},
 			"start-time":{"varid":2},
@@ -66,53 +66,179 @@
 			"name":{"varid":4},
 			"genre":{"varid": 5},
 			"subgenre":{"varid": 6},
-			"description":{"varid":8}}},
-    "detail":{
-        "url":["http://www.tvgids.nl/programma/",1, "/"],
-        "data-format":"text/html",
-        "encoding":"windows-1252",
-        "accept-header":null,
-        "url-type":0,
-        "url-data":{
-            "cookieoptin":"true"},
-        "date-type":1,
-        "date-format":"%Y-%m-%d %H:%M:%S",
-        "data":[],
-		"values":{}},
-    "detail2":{
-        "url":["http://www.tvgids.nl/json/lists/program.php"],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type":0,
-        "url-data":{ "id":1},
-        "date-type":1,
-        "date-format":"%Y-%m-%d %H:%M:%S",
-        "data":[
-			{"path":[],
-			"type":"item",
-			"content":"dict",
-			"key-path":[],
-			"keys":{
-				"synop":"description",
-				"kijkwijzer":"kijkwijzer",
-				"genre":"genre",
-				"presentatie":"credits",
-				"acteursnamen_rolverdeling":"credits",
-				"regisseur":"credits",
-				"db_id":"",
-				"titel":"",
-				"datum":"",
-				"btijd":"",
-				"etijd":"",
-				"zender_id":""}}],
+			"description":{"varid":8},
+			"rating":{"funcid":9, "data":[{"varid":7},"as_list"]}}},
+	"detail":{
+		"url":["http://www.tvgids.nl/programma/",0, "/"],
+		"data-format":"text/html",
+		"encoding":"windows-1252",
+		"accept-header":null,
+		"url-type":0,
+		"url-data":{
+			"cookieoptin":"true"},
+		"date-type":1,
+		"date-format":"%Y-%m-%d %H:%M:%S",
+		"data":{
+			"init-path":[
+				{"tag":"html"},
+				{"tag":"body"},
+				{"tag":"div", "attrs":{"class":"container pagecontainer"}},
+				{"tag":"div", "attrs":{"class":"row"}},
+				{"tag":"div", "attrs":{"class":"col-md-8"}},
+				{"tag":"div", "attrs":{"id":"prog-content"}}
+				],
+			"key-path":[
+				{"tag":"div", "attrs":{"class":"programmering"}},
+				{"tag":"h1", "select":"text"}],
+			"values":[
+				[{"tag":"span"},
+					{"tag":"sup", "select":"text","lstrip":"(","rstrip":")"}],
+				[{"path": "parent"},
+					{"tag":"div", "attrs":{"class":"programmering_details"}},
+					{"tag":"ul"},
+					{"tag":"li", "attrs":{"class":"datum_tijd"}, "select":"text"}],
+				[{"path": "parent"},
+					{"path": "parent"},
+					{"tag":"div", "attrs":{"class":"programmering_info_detail"}},
+					{"tag":"ul"},
+					{"tag":"li"},
+					{"tag":"span", "attrs":{"class":"col-lg-3"},"select":"index", "link":1},
+					{"path": "parent", "name":{"select":"text", "rstrip":":", "lower":""}},
+					{"tag":"span", "index":{"link":1,"calc":["plus",1]}}],
+				[{"path": "parent"},
+					{"path": "parent"},
+					{"tag":"div", "attrs":{"class":"programmering_info_detail"}},
+					{"tag":"ul"},
+					{"tag":"li"},
+					{"tag":"span", "attrs":{"class":"col-lg-9 programma_detail_info kijkwijzer_img"}},
+					{"tag":"img", "attr":"alt"}],
+				[{"path": "parent"},
+					{"path": "parent"},
+					{"tag":"p", "attrs":{"class":"summary"}},
+					{"tag":"span", "select":"text"}],
+				[{"path": "parent"},
+					{"path": "parent"},
+					{"tag":"p", "attrs":{"class":"summary"}},
+					{"tag":"span", "select":"tail"}],
+				[{"path": "parent"},
+					{"path": "parent"},
+					{"tag":"p", "attrs":{"class":{"not":["summary"]}}, "select":"text"}]
+					]},
 		"values":{
-			"channelid":{"varid": 1},
-			"name":{"varid": 2}}},
+			"jaar van premiere":{"varid": 1},
+			"rating":{"funcid":9, "data":[{"varid":4}]},
+			"titel aflevering":{"funcid":14, "data":[{"varid": 3}, "aflevering",{"regex":"(\\d*)/.*"}]},
+			"episode":{"funcid":14, "data":[{"varid": 3}, "aflevering",{"regex":"\\d*/?\\d*(.*)"}], "type":"int", "default":0},
+			"season":{"funcid":14, "data":[{"varid": 3},"seizoen"], "type":"int", "default":0},
+			"credits":{"funcid":5, "data":[{"varid":3}]},
+			"blackwhite":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3}, "kleur"]},"zwart/wit"]},
+			"breedbeeld":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3},"bijzonderheden"]},"breedbeeld"]},
+			"HD":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3}, "bijzonderheden"]},"hd 1080i"]},
+			"teletekst":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3},"bijzonderheden"]},"teletekst"]},
+			"rerun":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3},"bijzonderheden"]},"herhaling"]},
+			"infourl":{"funcid":14, "data":[{"varid": 3}, "nl-url"]},
+			"genre":{"funcid":14, "data":[{"varid": 3},"genre"]},
+			"subgenre":{"varid": 5, "type":"capitalize"},
+			"description":{"funcid":13, "data":[{"varid": 6},{"varid": 7}]},
+			"new":{"funcid":16, "data":[{"varid": 3}, 
+				["zender","datum","uitzendtijd","titel","prijzen","kijkwijzer",
+					"regisseur","scenario schrijver","componist","acteurs",
+					"aflevering","seizoen","genre","kleur","bijzonderheden","nl-url"]]}
+			}},
+	"detail2":{
+		"url":["http://www.tvgids.nl/json/lists/program.php"],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type":0,
+		"url-data":{ "id":0},
+		"date-type":1,
+		"date-format":"%Y-%m-%d %H:%M:%S",
+		"data":{
+			"key-path":[{"key":"db_id"}],
+			"values":[
+				[{"key":"datum", "type":"date"}],
+				[{"key":"btijd", "type":"time"}],
+				[{"key":"etijd", "type":"time"}],
+				[{"key":"titel","default":""}],
+				[{"key":"kijkwijzer","default":""}],
+				[{"key":"genre","default":""}],
+				[{"key":"regisseur","default":""}],
+				[{"key":"presentatie","default":""}],
+				[{"key":"acteursnamen_rolverdeling","default":""}],
+				[{"key":"synop","default":""}]
+				]},
+		"values":{
+			"name":{"varid":4},
+			"description":{"varid":10},
+			"genre":{"varid":6},
+			"director":{"funcid":5, "data":[{"varid":7},"director"], "default":{}},
+			"presenter":{"funcid":5, "data":[{"varid":8}, "presenter"], "default":{}},
+			"actor":{"funcid":5, "data":[{"varid":9},"actor"], "default":{}},
+			"rating":{"funcid":9, "data":[{"varid":5},"as_list"]}}},
 	"no_genric_matching":[
-        "1", "2", "3", "4", "31", "40", "46", "91", "92", "103", "108", "109", "113", "114", "311", "420", "438"],
+		"1", "2", "3", "4", "31", "40", "46", "91", "92", "103", "108", "109", "113", "114", "311", "420", "438"],
 	"empty_channels":[
 		"65","83","308","309","310","401","403","412"],
-    "cattrans":{},
-    "kijkwijzer":{}}
-        
+	"cattrans":{
+        "nieuws/actualiteiten":{
+			"default":["nieuws/actualiteiten", ""]},
+        "sport":{
+			"default":["sport", ""]},
+        "documentaire":{
+			"default":["documentaire", ""]},
+        "informatief":{
+			"default":["informatief", ""],
+			"Documentaireserie":["documentaire", ""]},
+        "wetenschap":{
+			"default":["wetenschap", ""]},
+        "natuur":{
+			"default":["natuur", ""]},
+        "amusement":{
+			"default":["amusement", ""]},
+        "kunst/cultuur":{
+			"default":["kunst/cultuur", ""]},
+        "theater":{
+			"default":["kunst/cultuur", "theater"]},
+        "muziek":{
+			"default":["muziek", ""]},
+        "religieus":{
+			"default":["religieus", ""]},
+        "jeugd":{
+			"default":["jeugd", ""]},
+        "animatie":{
+			"default":["jeugd", "animatie"]},
+        "erotiek":{
+			"default":["amusement", "erotisch programma"]},
+        "film":{
+			"default":["film", ""]},
+        "serie/soap":{
+			"default":["serie/soap", ""]},
+        "overige":{
+			"default":["overige", ""],
+			"nieuwsbulletin":["nieuws/actualiteiten", "nieuwsbulletin"]}},
+	"rating":{
+		"1":"0",
+		"2":"1",
+		"9":"2",
+		"3":"3",
+		"4":"4",
+		"g":"g",
+		"a":"a",
+		"s":"s",
+		"t":"t",
+		"h":"h",
+		"d":"d",
+		"voor alle leeftijden":"0",
+		"afgeraden voor kinderen jonger dan 6 jaar":"1",
+		"afgeraden voor kinderen jonger dan 9 jaar":"2",
+		"afgeraden voor kinderen jonger dan 12 jaar":"3",
+		"niet voor personen tot 16 jaar":"4",
+		"geweld":"g",
+		"angst":"a",
+		"seks":"s",
+		"grof taalgebruik":"t",
+		"drugs- en/of alcoholmisbruik":"h",
+		"discriminatie":"d"
+		}}
+

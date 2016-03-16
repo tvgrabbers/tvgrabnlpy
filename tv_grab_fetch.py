@@ -40,7 +40,7 @@ class Functions():
         self.channel_counters = {}
         self.source_counters = {}
         self.source_counters['total'] = {}
-        self.icongrp = -1
+        self.fetch_string_parts = re.compile("(.*?[.?!:]+ |.*?\Z)")
 
     # end init()
 
@@ -180,14 +180,16 @@ class Functions():
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'infourl', 'audio', 'star-rating', \
               'country', 'omroep')
         self.datetime_values = ('start-time', 'stop-time')
+        self.timedelta_values = ('length',)
         self.date_values = ('airdate', )
         self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'primo-fetched', 'rerun', 'teletekst', \
               'new', 'last-chance', 'premiere')
         self.num_values = ('season', 'episode', 'offset')
         self.dict_values = ('credits', 'video')
         self.source_values = ('prog_ID', 'detail_url')
-        self.list_values = ('kijkwijzer', )
+        self.list_values = ('rating', )
         self.video_values = ('HD', 'breedbeeld', 'blackwhite')
+        self.credit_values = ('director', 'actor', 'guest', 'writer', 'composer', 'presenter', 'reporter', 'commentator', 'adapter', 'producer', 'editor')
 
         if tdict == None:
             tdict = {}
@@ -197,7 +199,7 @@ class Functions():
                 tdict[key] = u''
 
             try:
-                if not isinstance(tdict[key], unicode):
+                if isinstance(tdict[key], str):
                     tdict[key] = unicode(tdict[key])
 
             except UnicodeError:
@@ -210,6 +212,10 @@ class Functions():
         for key in self.datetime_values:
             if not key in tdict.keys() or tdict[key] == None:
                 tdict[key] = u''
+
+        for key in self.timedelta_values:
+            if not key in tdict.keys() or tdict[key] == None:
+                tdict[key] = datetime.timedelta(0)
 
         if not 'genre' in tdict.keys() or tdict['genre'] == None or tdict['genre'] == '':
             tdict['genre'] = u'overige'
@@ -241,20 +247,37 @@ class Functions():
                         tdict[key][s] = u''
 
         for key in self.list_values:
-            if not key in tdict.keys() or not isinstance(tdict[key], list):
+            if not key in tdict.keys() or tdict[key] in ('', None):
                 tdict[key] = []
 
-        for subkey in tdict['credits'].keys():
-            if  tdict['credits'][subkey] == None:
+            #~ elif not isinstance(tdict[key], list):
+                 #~ tdict[key] = [tdict[key]]
+
+        for subkey in self.credit_values:
+            if not subkey in tdict['credits'].keys() or  tdict['credits'][subkey] == None:
                 tdict['credits'][subkey] = []
 
-            for i, item in enumerate(tdict['credits'][subkey]):
-                try:
-                    if not isinstance(item, unicode):
-                        tdict['credits'][subkey][i] = unicode(item)
+            for i in range(len(tdict['credits'][subkey])):
+                item = tdict['credits'][subkey][i]
+                if subkey in ('actor', 'guest'):
+                    if not isinstance(item, dict):
+                        tdict['credits'][subkey][i] = {'name': item}
 
-                except UnicodeError:
-                    tdict['credits'][subkey][i] = u''
+                    for k, v in item.items():
+                        try:
+                            if not isinstance(v, unicode):
+                                tdict['credits'][subkey][i][k] = unicode(v)
+
+                        except UnicodeError:
+                            tdict['credits'][subkey][i][k] = u''
+
+                else:
+                    try:
+                        if not isinstance(item, unicode):
+                            tdict['credits'][subkey][i] = unicode(item)
+
+                    except UnicodeError:
+                        tdict['credits'][subkey][i] = u''
 
         for subkey in self.video_values:
             if not subkey in tdict['video'].keys() or  tdict['video'][subkey] != True:
@@ -363,12 +386,59 @@ class Functions():
         return data
     # end empersant()
 
-    def get_offset(self, date, current_date = None):
-        """Return the offset from today"""
-        if current_date == None:
-            current_date = datetime.datetime.now(self.config.utc_tz).toordinal()
+    def get_string_parts(self, sstring, header_items = None):
+        if not isinstance(header_items, (list, tuple)):
+            header_items = []
 
-        return int(date.toordinal() -  current_date)
+        test_items = []
+        for hi in header_items:
+            if isinstance(hi, (str, unicode)):
+                test_items.append((hi.lower(), hi))
+
+            elif isinstance(hi, (list, tuple)):
+                if len(hi) > 0 and isinstance(hi[0], (str, unicode)):
+                    hi0 = hi[0].lower()
+                    if len(hi) > 1 and isinstance(hi[1], (str, unicode)):
+                        hi1 = hi[1]
+
+                    else:
+                        hi1 = hi[0]
+
+                    test_items.append((hi0, hi1))
+
+        string_parts = self.fetch_string_parts.findall(sstring)
+        string_items = {}
+        act_item = 'start'
+        string_items[act_item] = []
+        for dp in string_parts:
+            if dp.strip() == '':
+                continue
+
+            if dp.strip()[-1] == ':':
+                act_item = dp.strip()[0:-1].lower()
+                string_items[act_item] = []
+
+            else:
+                for ti in test_items:
+                    if dp.strip().lower()[0:len(ti[0])] == ti[0]:
+                        act_item = ti[1]
+                        string_items[act_item] = []
+                        string_items[act_item].append(dp[len(ti[0]):].strip())
+                        break
+
+                else:
+                    string_items[act_item].append(dp.strip())
+
+        return string_items
+    # end get_string_parts()
+
+    def get_offset(self, date):
+        """Return the offset from today"""
+        tz = self.config.fetch_timezone
+        cd = tz.normalize(datetime.datetime.now(pytz.utc).astimezone(tz))
+        rd = tz.normalize(date.astimezone(tz))
+
+        return int(rd.toordinal() -  cd.toordinal())
     # end get_offset()
 
     def get_weekstart(self, current_date = None, offset = 0, sow = None):
@@ -441,7 +511,24 @@ class Functions():
             return None
     # end merge_date_time()
 
-    def link_functions(self, fid, data=[], source = '', tzinfo = None, fetch_date = None, default = None):
+    def link_functions(self, fid, data=[], source = None, default = None):
+        def split_kommastring(dstring):
+
+            return re.sub('\) ([A-Z])', '), \g<1>', \
+                re.sub(self.config.language_texts['and'], ', ', \
+                re.sub(self.config.language_texts['and others'], '', dstring))).split(',')
+
+        def add_person(prole, pname, palias = None):
+            if not prole in credits:
+                credits[prole] = []
+
+            if prole in ('actor', 'guest'):
+                p = {'name': pname, 'role': palias}
+                credits[prole].append(p)
+
+            else:
+                credits[prole].append(pname)
+
         try:
             # strip data[1] from the end of data[0] if present and make sure it's unicode
             if fid == 0:
@@ -462,15 +549,13 @@ class Functions():
 
             # split logo name and logo provider
             if fid == 1:
-                self.icongrp = -1
                 if len(data)< 1 or data[0] == None:
-                    return default
+                    return ('',-1)
 
                 d = data[0].split('?')[0]
                 for k, v in self.config.xml_output.logo_provider.items():
                     if d[0:len(v)] == v:
-                        self.icongrp = k
-                        return d[len(v):]
+                        return (d[len(v):], k)
 
             # concatenate stringparts and make sure it's unicode
             if fid == 2:
@@ -499,21 +584,455 @@ class Functions():
                     return default
 
                 if not isinstance (data[0], datetime.date):
-                    data[0] = datetime.date.fromordinal(fetch_date)
+                    data[0] = datetime.date.fromordinal(source.fetch_date)
 
                 if not isinstance (data[0], datetime.date):
                     return default
 
-                #~ if data[1] < datetime.time(data[2]):
-                    #~ data[0] += datetime.timedelta(days = 1)
-
                 dt = datetime.datetime.combine(data[0], data[1])
-                dt = tzinfo.localize(dt)
+                dt = source.site_tz.localize(dt)
                 dt = self.config.utc_tz.normalize(dt.astimezone(self.config.utc_tz))
                 return dt
 
+            # Return True (or data[2]) if data[1] is present in data[0], else False (or data[3])
+            if fid == 12:
+                if len(data) < 2 or not isinstance(data[0], (str,unicode)) or not isinstance(data[1], (str,unicode)):
+                    return False
+
+                if data[1].lower() in data[0].lower():
+                    if len(data) > 2:
+                        return data[2]
+
+                    else:
+                        return True
+
+                elif len(data) > 3:
+                    return data[3]
+
+                else:
+                    return False
+            # Return a string on value True
+            if fid == 7:
+                if len(data) < 2 or not isinstance(data[0], bool):
+                    return default
+
+                if data[0]:
+                    return data[1]
+
+                elif len(data) > 2:
+                    return data[2]
+
+                else:
+                    return default
+
+            # Return the longest not empty text value
+            if fid == 8:
+                if default == None:
+                    text = u''
+                else:
+                    text = default
+
+                if len(data) == 0:
+                    return text
+
+                for item in data:
+                    if isinstance(item, (str, unicode)) and item != '':
+                        if len(item) > len(text):
+                            text = unicode(item.strip())
+
+                    if isinstance(item, (list, tuple, dict)) and len(item) > 0:
+                        if len(item) > len(text):
+                            text = item
+
+                return text
+
+            # Return the first not empty value
+            if fid == 13:
+                if len(data) == 0:
+                    return default
+
+                for item in data:
+                    if (isinstance(item, (str, unicode, list, tuple, dict)) and len(item) > 0) or \
+                      (not isinstance(item, (str, unicode, list, tuple, dict)) and item != None):
+                        return item
+
+            # look for item 2 in list 0 and return the coresponding value in list1
+            if fid == 10:
+                if len(data) < 3 or not isinstance(data[0], (list,tuple)) or not isinstance(data[1], (list,tuple)):
+                    return default
+
+                for index in range(len(data[0])):
+                    data[0][index] = data[0][index].lower().strip()
+
+                if not isinstance(data[2], (list,tuple)):
+                    data[2] = [data[2]]
+
+                max_length = 0
+                min_length = 0
+                search_regex = None
+                dtype = None
+                if len(data) > 3 and isinstance(data[3], dict):
+                    max_length = source.data_value('max length', int, data[3], 0)
+                    min_length = source.data_value('min length', int, data[3], 0)
+                    search_regex = source.data_value('regex', str, data[3], None)
+
+                if not isinstance(data[2], (list,tuple)):
+                    data[2] = [data[2]]
+
+                for item in data[2]:
+                    if not item.lower() in data[0]:
+                        continue
+
+                    index = data[0].index(item.lower())
+                    if index >= len(data[1]):
+                        continue
+
+                    if data[1][index] not in ('', None):
+                        if min_length > 0 and len(data[1][index]) < min_length:
+                            continue
+
+                        if max_length > 0 and len(data[1][index]) > max_length:
+                            continue
+
+                        if search_regex != None:
+                            try:
+                                dd = re.search(search_regex, data[1][index], re.DOTALL)
+                                if dd.group(1) not in ('', None):
+                                    d = dd.group(1)
+
+                                else:
+                                    continue
+
+                            except:
+                                continue
+
+                        else:
+                            d = data[1][index]
+
+                        return d
+
+                return default
+
+            # look for item 1 in the keys from dict 0 and return the coresponding value
+            if fid == 14:
+                if len(data) < 2 or not isinstance(data[0], (list, tuple)):
+                    return default
+
+                if not isinstance(data[1], (list,tuple)):
+                    data[1] = [data[1]]
+
+                for item in data[1]:
+                    for sitem in data[0]:
+                        if item.lower() in sitem.keys():
+                            if isinstance(sitem[item.lower()], (list, tuple)) and len(sitem[item.lower()]) == 0:
+                                continue
+
+                            if isinstance(sitem[item.lower()], (list, tuple)) and len(sitem[item.lower()]) == 1:
+                                return sitem[item.lower()][0]
+
+                            return sitem[item.lower()]
+
+                return default
+
+            # Extract roles from a set of lists or named dicts
+            if fid == 5:
+                credits = {}
+                if len(data) == 0:
+                    return default
+
+                if len(data) == 1 and isinstance(data[0], (list,tuple)):
+                    for item in data[0]:
+                        if not isinstance(item, dict):
+                            continue
+
+                        for k, v in item.items():
+                            if k.lower() in self.config.roletrans.keys():
+                                role = self.config.roletrans[k.lower()]
+                                for pp in v:
+                                    pp = pp.split(',')
+                                    for p in pp:
+                                        cn = p.split('(')
+                                        if len(cn) > 1:
+                                            add_person(role, cn[0].strip(), cn[1].split(')')[0].strip())
+
+                                        else:
+                                            add_person(role, cn[0].strip())
+
+                    return credits
+
+                if len(data) < 2:
+                    return default
+
+                if isinstance(data[1], (list,tuple)):
+                    for item in range(len(data[0])):
+                        if item >= len(data[1]):
+                            continue
+
+                        if data[1][item].lower() in self.config.roletrans.keys():
+                            role = self.config.roletrans[data[1][item].lower()]
+                            if isinstance(data[0][item], (str, unicode)):
+                                cast = split_kommastring(data[0][item])
+
+                            else:
+                                cast = data[0][item]
+
+                            if isinstance(cast, (list, tuple)):
+                                for person in cast:
+                                    if len(data) > 2 and isinstance(data[2],(list, tuple)) and len(data[2]) > item:
+                                        add_person(role, person.strip(), data[2][item])
+
+                                    else:
+                                        add_person(role, person.strip())
+
+                elif isinstance(data[1], (str,unicode)) and data[1].lower() in self.config.roletrans.keys():
+                    role = self.config.roletrans[data[1].lower()]
+
+                    if isinstance(data[0], (str, unicode)):
+                        cast = split_kommastring(data[0])
+
+                    else:
+                        cast = data[0]
+
+                    if isinstance(cast, (list, tuple)):
+                        for item in range(len(cast)):
+                            if len(data) > 2 and isinstance(data[2],(list, tuple)) and len(data[2]) > item:
+                                add_person(role, cast[item].strip(), data[2][item])
+
+                            else:
+                                add_person(role, cast[item].strip())
+
+                return credits
+
+            # Extract roles from a string
+            if fid == 6:
+                if len(data) == 0 or data[0] == None:
+                    return {}
+
+                if isinstance(data[0], (str, unicode)) and len(data[0]) > 0:
+                    tstr = unicode(data[0])
+                elif isinstance(data[0], list) and len(data[0]) > 0:
+                    tstr = unicode(data[0][0])
+                    for index in range(1, len(data[0])):
+                        tstr = u'%s %s' % (tstr, unicode(data[0][index]))
+                else:
+                    return {}
+
+                if len(data) == 1:
+                    cast_items = self.get_string_parts(tstr)
+
+                else:
+                    cast_items = self.get_string_parts(tstr, data[1])
+
+                credits = {}
+                for crole, cast in cast_items.items():
+                    if len(cast) == 0:
+                        continue
+
+                    elif crole.lower() in self.config.roletrans.keys():
+                        role = self.config.roletrans[crole.lower()]
+                        cast = split_kommastring(cast[0])
+
+                        for cn in cast:
+                            cn = cn.split('(')
+                            if len(cn) > 1:
+                                add_person(role, cn[0].strip(), cn[1].split(')')[0].strip())
+
+                            else:
+                                add_person(role, cn[0].strip())
+
+                return credits
+
+            # Process a country list
+            if fid == 15:
+                rlist = []
+                if len(data) == 0:
+                    return rlist
+
+                if isinstance(data[0], (str,unicode)):
+                    cd = re.split('[,()/]', re.sub('\.', '', data[0]).upper())
+                    for cstr in cd:
+                        if cstr in self.config.coutrytrans.values():
+                            rlist.append(cstr)
+
+                        elif cstr in self.config.coutrytrans.keys():
+                            rlist.append(self.config.coutrytrans[cstr])
+
+                        elif self.config.write_info_files:
+                            self.config.infofiles.addto_detail_list(u'new country => %s' % (cstr))
+
+                elif isinstance(data[0], (list,tuple)):
+                    for item in data[0]:
+                        if not isinstance(item, (str,unicode)):
+                            continue
+
+                        cd = re.split('[,()/]', re.sub('\.', '', item).upper())
+                        for cstr in cd:
+                            if cstr == '':
+                                continue
+
+                            if cstr in self.config.coutrytrans.values():
+                                rlist.append(cstr)
+
+                            elif cstr in self.config.coutrytrans.keys():
+                                rlist.append(self.config.coutrytrans[cstr])
+
+                            elif self.config.write_info_files:
+                                self.config.infofiles.addto_detail_list(u'new country => %s' % (cstr))
+
+                return rlist
+
+            # Process a rating item
+            if fid == 9:
+                rlist = []
+                if len(data) == 0:
+                    return rlist
+
+                if isinstance(data[0], (str,unicode)):
+                    if len(data) > 1 and data[1] == 'as_list':
+                        item_length = source.data_value(2, int, data, 1)
+                        unique_added = False
+                        for index in range(len(data[0])):
+                            code = None
+                            for cl in range(item_length):
+                                if index + cl >= len(data[0]):
+                                    continue
+
+                                tval = data[0][index: index + cl + 1]
+                                if tval in source.rating.keys():
+                                    code = source.rating[tval]
+                                    break
+
+                            if code != None:
+                                if code in self.config.rating["unique_codes"].keys():
+                                    if unique_added:
+                                        continue
+
+                                    rlist.append(code)
+                                    unique_added = True
+
+                                elif source.rating[code] in self.config.rating["addon_codes"].keys():
+                                    rlist.append(code)
+
+                            elif self.config.write_info_files:
+                                self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (source.source, code))
+
+                    else:
+                        if data[0].lower() in source.rating.keys():
+                            v = source.rating[data[0].lower()]
+                            if v in self.config.rating["unique_codes"].keys():
+                                rlist.append(v)
+
+                            elif v in self.config.rating["addon_codes"].keys():
+                                rlist.append(v)
+
+                        elif self.config.write_info_files:
+                            self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (source.source, data[0]))
+
+                elif isinstance(data[0], (list,tuple)):
+                    unique_added = False
+                    for item in data[0]:
+                        if item.lower() in source.rating.keys():
+                            v = source.rating[item.lower()]
+                            if v in self.config.rating["unique_codes"].keys():
+                                if unique_added:
+                                    continue
+
+                                rlist.append(v)
+                                unique_added = True
+
+                            elif v in self.config.rating["addon_codes"].keys():
+                                rlist.append(v)
+
+                        elif self.config.write_info_files:
+                            self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (source.source, data[0]))
+
+                return rlist
+
+            # Check the text in data[1] for the presence of keywords to determine genre
+            if fid == 17:
+                if len(data) < 2 or not isinstance(data[0], dict):
+                    return default
+
+                for k, v in data[0].items():
+                    for i in range(1, len(data)):
+                        if isinstance(data[i], (str, unicode)) and k in data[i]:
+                            return v
+
+            # split a genre code in a geniric part of known length and a specific part
+            if fid == 18:
+                if len(data) == 0 or not isinstance(data[0],(str, unicode, list)):
+                    return []
+
+                if len(data) == 1:
+                    if isinstance(data[0], list):
+                        return data[0]
+
+                    else:
+                        return [data[0]]
+
+
+                if isinstance(data[0], list):
+                    if len(data[0]) == 0:
+                        return []
+
+                    data[0] = data[0][0]
+
+                if not isinstance(data[1], int) or len(data[0]) <= data[1]:
+                    return [data[0]]
+
+                return [data[0][:data[1]], data[0][data[1]:]]
+
+            # Return unlisted values to infofiles in a fid 14 dict
+            if fid == 16:
+                if len(data) < 2 or not isinstance(data[0], (list, tuple)):
+                    return default
+
+                if not isinstance(data[1], (list,tuple)):
+                    data[1] = [data[1]]
+
+                for index in range(len(data[1])):
+                    data[1][index] = data[1][index].lower().strip()
+
+                for sitem in data[0]:
+                    for k, v in sitem.items():
+                        if k.lower().strip() in data[1]:
+                            continue
+
+                        if k.lower().strip() in self.config.roletrans.keys():
+                            continue
+
+                        self.config.infofiles.addto_detail_list(u'new %s dataitem %s => %s' % (source.source, k, v))
+
+            # Return unlisted values to infofiles in a fid 10 list set
+            if fid == 11:
+                if not self.config.write_info_files:
+                    return
+
+                if len(data) < 3 or not isinstance(data[0], (list,tuple)) or not isinstance(data[1], (list,tuple)) or not isinstance(data[2], (list,tuple)):
+                    return
+
+                for index in range(len(data[2])):
+                    data[2][index] = data[2][index].lower().strip()
+
+                for index in range(len(data[0])):
+                    data[0][index] = data[0][index].lower().strip()
+
+                for index in range(len(data[0])):
+                    if data[0][index].lower() in data[2]:
+                        continue
+
+                    if data[0][index].lower() in self.config.roletrans.keys():
+                        continue
+
+                    if index >= len(data[1]):
+                        self.config.infofiles.addto_detail_list(u'new %s dataitem %s' % (source.source, data[0][index]))
+
+                    else:
+                        self.config.infofiles.addto_detail_list(u'new %s dataitem %s => %s' % (source.source, data[0][index], data[1][index]))
+
         except:
-            self.config.log([self.config.text('fetch', 69, ('link', fid, source)), traceback.format_exc()], 1)
+            self.config.log([self.config.text('fetch', 69, ('link', fid, source.source)), traceback.format_exc()], 1)
+            #~ self.config.log([self.config.text('fetch', 69, ('link', fid, source.source)), self.config.text('fetch', 70, (data,)), traceback.format_exc()], 1)
             return default
 
     # end link_functions()
@@ -557,10 +1076,11 @@ class Functions():
                 return source.data_value('channelgrp', unicode, data)
 
             elif urlid == 4:
-                cnt = source.data_value([ptype, 'item-count'], int, default=0)
+                cnt = source.data_value('count', int, data, default=source.item_count)
                 cnt_offset = source.data_value('cnt-offset', int, data, default=0)
+                cstep = cnt_offset * source.item_count
                 splitter = source.data_value([ptype, "item-range-splitter"], str, default='-')
-                return u'%s%s%s' % (cnt_offset * cnt + 1, splitter, (cnt_offset + 1) * cnt)
+                return u'%s%s%s' % (cstep + 1, splitter, cstep  + cnt)
 
             elif urlid == 11:
                 if udt == 0:
@@ -763,12 +1283,18 @@ class DATAnode():
                 self.dtree.print_text(u'    adding node %s\n'.encode('utf-8', 'replace') % (self.print_node()))
             return [self]
 
-        elif self.match_node(node_def = d_def[0], link_values=link_values) == None:
+        nm = self.find_name(d_def[0])
+        if self.match_node(node_def = d_def[0], link_values=link_values) == None:
             # It's not a child definition
             if len(d_def) == 1:
                 if self.dtree.show_result:
                     self.dtree.print_text(u'    adding node %s; %s\n'.encode('utf-8', 'replace') % (self.print_node(), d_def[0]))
-                return [self]
+
+                if nm == None:
+                    return [self]
+
+                else:
+                    return [{nm:self}]
 
             else:
                 if len(self.link_value) > 0:
@@ -776,7 +1302,12 @@ class DATAnode():
                         link_values[k] = v
 
                 self.link_value = {}
-                return self.get_children(data_def = d_def[1:], link_values=link_values)
+                childs = self.get_children(data_def = d_def[1:], link_values=link_values)
+                if nm == None:
+                    return childs
+
+                else:
+                    return self.tag,{nm:childs}
 
         elif self.dtree.is_data_value('path', None, d_def[0]):
             sel_val = d_def[0]['path']
@@ -789,7 +1320,12 @@ class DATAnode():
                         link_values[k] = v
 
                 self.parent.link_value = {}
-                return self.parent.get_children(data_def = d_def[1:], link_values=link_values)
+                childs = self.parent.get_children(data_def = d_def[1:], link_values=link_values)
+                if nm == None:
+                    return childs
+
+                else:
+                    return {nm:childs}
 
             elif sel_val == 'root':
                 if self.dtree.show_result:
@@ -800,7 +1336,12 @@ class DATAnode():
                         link_values[k] = v
 
                 self.root.link_value = {}
-                return self.root.get_children(data_def = d_def[1:], link_values=link_values)
+                childs = self.root.get_children(data_def = d_def[1:], link_values=link_values)
+                if nm == None:
+                    return childs
+
+                else:
+                    return {nm:childs}
 
             elif sel_val == 'all':
                 for item in self.children:
@@ -819,7 +1360,11 @@ class DATAnode():
                     elif jl != None:
                         childs.append(jl)
 
-                return childs
+                if nm == None:
+                    return childs
+
+                else:
+                    return {nm:childs}
 
         else:
             for item in self.children:
@@ -840,14 +1385,22 @@ class DATAnode():
                     elif jl != None:
                         childs.append(jl)
 
-            return childs
+            if nm == None:
+                return childs
+
+            else:
+                return {nm:childs}
 
         #~ else:
             #~ if self.dtree.show_result:
                 #~ self.dtree.print_text(u'    adding node %s; %s\n'.encode('utf-8', 'replace') % (self.print_node(), d_def[0]))
             #~ return [self]
 
-        return childs
+        if nm == None:
+            return childs
+
+        else:
+            return {nm:childs}
 
     def check_for_linkrequest(self, node_def):
         if self.dtree.is_data_value('link', int, node_def):
@@ -858,6 +1411,9 @@ class DATAnode():
     def match_node(self, node_def = None, link_values ={}):
         self.link_value = {}
         return False
+
+    def find_name(self, node_def):
+        return None
 
     def find_value(self, node_def = None):
         return self.dtree.calc_value(self.value, node_def)
@@ -881,25 +1437,25 @@ class HTMLnode(DATAnode):
         self.attributes = {}
         DATAnode.__init__(self, dtree, parent)
         if isinstance(data, (str, unicode)):
-            self.tag = data
+            self.tag = data.lower()
 
         elif isinstance(data, list):
             if len(data) > 0:
-                self.tag = data[0]
+                self.tag = data[0].lower()
 
             if len(data) > 1 and isinstance(data[1], (list, tuple)):
                 for a in data[1]:
                     self.attributes[a[0].lower()] = a[1]
 
     def get_attribute(self, name):
-        if name in self.attributes.keys():
-            return self.attributes[name]
+        if name.lower() in self.attributes.keys():
+            return self.attributes[name.lower()]
 
         return None
 
     def is_attribute(self, name, value = None):
-        if name in self.attributes.keys():
-            if value in (None, self.attributes[name]):
+        if name.lower() in self.attributes.keys():
+            if value == None or value.lower() == self.attributes[name.lower()].lower():
                 return True
 
         return False
@@ -918,7 +1474,7 @@ class HTMLnode(DATAnode):
             link_values ={}
 
         if node_def == None:
-            if tag in (None, self.tag):
+            if tag.lower() in (None, self.tag.lower()):
                 if attributes == None:
                     return True
 
@@ -935,7 +1491,7 @@ class HTMLnode(DATAnode):
                 return False
 
         elif self.dtree.is_data_value('tag', None, node_def):
-            if node_def['tag'] in (None, self.tag):
+            if node_def['tag'].lower() in (None, self.tag.lower()):
                 # The tag matches
                 if self.dtree.is_data_value(['index','link'], int, node_def):
                     # There is an index request to an earlier linked index
@@ -955,29 +1511,6 @@ class HTMLnode(DATAnode):
                     # There is an index request to a set value
                     if self.child_index != self.dtree.data_value(['index'], int, node_def):
                         return False
-
-                if not self.dtree.is_data_value('attrs', dict, node_def):
-                    # And there are no attrib matches requested
-                    self.check_for_linkrequest(node_def)
-                    return True
-
-                for a, v in node_def['attrs'].items():
-                    if self.dtree.is_data_value('not', list, v):
-                        # There is a negative attrib match requested
-                        for val in v['not']:
-                            if self.is_attribute(a) and self.attributes[a] == val:
-                                return False
-
-                    elif self.dtree.is_data_value('link', int, v):
-                        # The requested value is in link_values
-                        if not self.is_attribute(a, link_values[v["link"]]):
-                            return False
-
-                    elif not self.is_attribute(a, v):
-                        return False
-
-                self.check_for_linkrequest(node_def)
-                return True
 
             else:
                 return False
@@ -1005,29 +1538,6 @@ class HTMLnode(DATAnode):
             else:
                 return False
 
-            if not self.dtree.is_data_value('attrs', dict, node_def):
-                # And there are no attrib matches requested
-                self.check_for_linkrequest(node_def)
-                return True
-
-            for a, v in node_def['attrs'].items():
-                if self.dtree.is_data_value('not', list, v):
-                    # There is a negative attrib match requested
-                    for val in v['not']:
-                        if self.is_attribute(a) and self.attributes[a] == val:
-                            return False
-
-                elif self.dtree.is_data_value('link', int, v):
-                    # The requested value is in link_values
-                    if not self.is_attribute(a, link_values[v["link"]]):
-                        return False
-
-                elif not self.is_attribute(a, v):
-                    return False
-
-            self.check_for_linkrequest(node_def)
-            return True
-
         elif self.dtree.is_data_value('path', None, node_def):
             self.check_for_linkrequest(node_def)
             return False
@@ -1036,14 +1546,64 @@ class HTMLnode(DATAnode):
             self.check_for_linkrequest(node_def)
             return None
 
+        if self.dtree.is_data_value('text', str, node_def):
+            if node_def['text'].lower() != self.text.lower():
+                return False
+
+        if self.dtree.is_data_value('tail', str, node_def):
+            if node_def['tail'].lower() != self.tail.lower():
+                return False
+
+        if not self.dtree.is_data_value('attrs', dict, node_def):
+            # And there are no attrib matches requested
+            self.check_for_linkrequest(node_def)
+            return True
+
+        for a, v in node_def['attrs'].items():
+            if self.dtree.is_data_value('not', list, v):
+                # There is a negative attrib match requested
+                for val in v['not']:
+                    if self.is_attribute(a) and self.attributes[a] == val:
+                        return False
+
+            elif self.dtree.is_data_value('link', int, v):
+                # The requested value is in link_values
+                if not self.is_attribute(a, link_values[v["link"]]):
+                    return False
+
+            elif not self.is_attribute(a, v):
+                return False
+
+        self.check_for_linkrequest(node_def)
+        return True
+
+    def find_name(self, node_def):
+        sv = None
+        if self.dtree.is_data_value('name', dict, node_def):
+            if self.dtree.is_data_value(['name','select'], str, node_def):
+                if node_def[ 'name']['select'] == 'tag':
+                    sv = self.tag
+
+                elif node_def[ 'name']['select'] == 'text':
+                    sv = self.text
+
+                elif node_def[ 'name']['select'] == 'tail':
+                    sv = self.tail
+
+            elif self.dtree.is_data_value(['name','attr'], str, node_def):
+                sv = self.get_attribute(node_def['name'][ 'attr'].lower())
+
+        if sv != None:
+            return self.dtree.calc_value(sv, node_def['name'])
+
     def find_value(self, node_def = None):
         if self.dtree.is_data_value('value', None, node_def):
             sv = node_def['value']
 
-        elif self.dtree.is_data_value('attr', None, node_def):
+        elif self.dtree.is_data_value('attr', str, node_def):
             sv = self.get_attribute(node_def[ 'attr'].lower())
 
-        elif self.dtree.is_data_value('select', None, node_def):
+        elif self.dtree.is_data_value('select', str, node_def):
             if node_def[ 'select'] == 'index':
                 sv = self.child_index
 
@@ -1055,6 +1615,9 @@ class HTMLnode(DATAnode):
 
             elif node_def[ 'select'] == 'tail':
                 sv = self.tail
+
+            elif node_def[ 'select'] == 'presence':
+                return True
 
             else:
                 sv = self.text
@@ -1199,6 +1762,19 @@ class JSONnode(DATAnode):
             self.check_for_linkrequest(node_def)
             return None
 
+    def find_name(self, node_def):
+        sv = None
+        if self.dtree.is_data_value('name', dict, node_def):
+            if self.dtree.is_data_value(['name','select'], str, node_def):
+                if node_def[ 'name']['select'] == 'key':
+                    sv = self.key
+
+                elif node_def[ 'name']['select'] == 'value':
+                    sv = self.value
+
+        if sv != None:
+            return self.dtree.calc_value(sv, node_def[ 'name'])
+
     def find_value(self, node_def = None):
         if self.dtree.is_data_value('value', None, node_def):
             sv = node_def['value']
@@ -1212,6 +1788,9 @@ class JSONnode(DATAnode):
 
             elif node_def[ 'select'] == 'value':
                 sv = self.value
+
+            elif node_def[ 'select'] == 'presence':
+                return True
 
             else:
                 sv = self.value
@@ -1257,6 +1836,57 @@ class DATAtree():
         sn = self.root.get_children(data_def = init_path)
         self.start_node = self.root if (sn == None or len(sn) == 0) else sn[0]
 
+    def find_data_value(self, path_def= [], start_node = None, link_values = None):
+        if not isinstance(path_def, (list, tuple)) or len(path_def) == 0:
+            return
+
+        if start_node == None or not isinstance(start_node, DATAnode):
+            start_node = self.start_node
+
+        nlist = start_node.get_children(data_def = path_def, link_values = link_values)
+        if self.data_value('select', str, path_def[-1]) == 'presence':
+            # We return True if exactly one node is found, else False
+            return bool(isinstance(nlist, DATAnode) or (isinstance(nlist, list) and len(nlist) == 1 and  isinstance(nlist[0], DATAnode)))
+
+        # Nothing found, so give the default or None
+        if nlist in ([], None):
+            if self.data_value('type', None, path_def[-1]) == 'list':
+                return []
+
+            else:
+                return self.data_value('default', None, path_def[-1])
+
+        # We found multiple values
+        elif len(nlist) > 1 or (isinstance(path_def, list) and len(path_def)>0 and self.data_value('type', None, path_def[-1]) == 'list'):
+            vlist = []
+            for node in nlist:
+                if isinstance(node, DATAnode):
+                    vlist.append(node.find_value(path_def[-1]))
+
+                # There is a named subset of the found nodes
+                elif isinstance(node, dict):
+                    for k, v in node.items():
+                        slist = []
+                        for item in v:
+                            if isinstance(item, DATAnode):
+                                slist.append(item.find_value(path_def[-1]))
+
+                        vlist.append({k: slist})
+
+            return vlist
+
+        # We found one value
+        if not isinstance(nlist[0], DATAnode):
+            if isinstance(path_def, list) and len(path_def)>0:
+                if self.data_value('type', None, path_def[-1]) == 'list':
+                    return []
+
+                else:
+                    return self.data_value('default', None, path_def[-1])
+
+        else:
+            return nlist[0].find_value(path_def[-1])
+
     def extract_datalist(self, data_def={}):
         self.data_def = data_def
         if self.print_searchtree:
@@ -1296,7 +1926,8 @@ class DATAtree():
                         link_values = {kp[-1]["link"]: k.find_value(kp[-1])}
 
                     for v in self.data_value(["values"], list, dset):
-                        if not isinstance(v, list):
+                        if not isinstance(v, list) or len(v) == 0:
+                            tlist.append(None)
                             continue
 
                         if self.is_data_value('value',None, v[0]):
@@ -1307,40 +1938,25 @@ class DATAtree():
                             self.fle.write('parsing key %s %s\n'.encode('utf-8') % ( [k.find_value(kp[-1])], v[-1]))
 
                         if self.extract_from_parent and isinstance(k.parent, DATAnode):
-                            nlist = k.parent.get_children(data_def = v, link_values = link_values)
+                            tlist.append(self.find_data_value(v, k.parent, link_values))
 
                         else:
-                            nlist = k.get_children(data_def = v, link_values = link_values)
-
-                        # Nothing found, so give the default or None
-                        if nlist in ([], None):
-                            if isinstance(v, list) and len(v)>0:
-                                if self.data_value('type', None, v[-1]) == 'list':
-                                    tlist.append([])
-
-                                else:
-                                    tlist.append(self.data_value('default', None, v[-1]))
-
-                            else:
-                                tlist.append(None)
-
-                        # We found multiple values
-                        elif len(nlist) > 1 or (isinstance(v, list) and len(v)>0 and self.data_value('type', None, v[-1]) == 'list'):
-                            vlist = []
-                            for node in nlist:
-                                vlist.append(node.find_value(v[-1]))
-
-                            tlist.append(vlist)
-
-                        # We found one value
-                        else:
-                            tlist.append(nlist[0].find_value(v[-1]))
+                            tlist.append(self.find_data_value(v, k, link_values))
 
                     self.result.append(tlist)
 
     def calc_value(self, value, node_def = None):
         if isinstance(value, (str, unicode)):
             # Is there something to strip of
+            if self.is_data_value('lower', None, node_def):
+                value = unicode(value).lower().strip()
+
+            if self.is_data_value('upper', None, node_def):
+                value = unicode(value).upper().strip()
+
+            if self.is_data_value('capitalize', None, node_def):
+                value = unicode(value).capitalize().strip()
+
             if self.is_data_value('ascii-replace', list, node_def) and len(node_def['ascii-replace']) > 0:
                 arep = node_def['ascii-replace']
                 value = value.lower()
@@ -1360,7 +1976,15 @@ class DATAtree():
 
             # Is there something to substitute
             if self.is_data_value('sub', list, node_def) and len(node_def['sub']) > 1:
-                value = re.sub(node_def['sub'][0], node_def['sub'][1], value)
+                for i in range(int(len(node_def['sub'])/2)):
+                    value = re.sub(node_def['sub'][i*2], node_def['sub'][i*2+1], value).strip()
+
+            #~ # Is there a search regex
+            #~ if self.is_data_value('regex', str, node_def):
+                #~ try:
+                    #~ dd = re.search(node_def['regex'],  value, re.DOTALL)
+                        #~ if dd.group(1) not in ('', None):
+                            #~ value = dd.group(1)
 
             # Is there a split list
             if self.is_data_value('split', list, node_def) and len(node_def['split']) > 0:
@@ -1371,7 +1995,7 @@ class DATAtree():
                     slist = node_def['split']
 
                 for sdef in slist:
-                    if len(sdef) < 2 or not isinstance(sdef[0],(str,unicode)) or not isinstance(sdef[1], int):
+                    if len(sdef) < 2 or not isinstance(sdef[0],(str,unicode)):
                         continue
 
                     try:
@@ -1381,10 +2005,13 @@ class DATAtree():
                             value = value.strip()
 
                         dat = re.split(sdef[0],value)
-                        value = dat[sdef[1]]
-                        for i in range(2, len(sdef)):
-                            if isinstance(sdef[i], int) and (( 0<= sdef[i] < len(dat)) or (-len(dat) <= sdef[i] < 0)):
-                                value = value + fill_char +  dat[sdef[i]]
+                        if sdef[1] == 'list-all':
+                            value = dat
+                        elif isinstance(sdef[1], int):
+                            value = dat[sdef[1]]
+                            for i in range(2, len(sdef)):
+                                if isinstance(sdef[i], int) and (( 0<= sdef[i] < len(dat)) or (-len(dat) <= sdef[i] < 0)):
+                                    value = value + fill_char +  dat[sdef[i]]
 
                     except:
                         #~ traceback.print_exc()
@@ -1470,7 +2097,7 @@ class DATAtree():
 
                 elif node_def['type'] == 'date':
                     try:
-                        current_date = datetime.datetime.now(self.timezone)
+                        current_date = self.timezone.normalize(datetime.datetime.now(pytz.utc).astimezone(self.timezone))
                         day = current_date.day
                         month = current_date.month
                         year = current_date.year
@@ -1530,6 +2157,13 @@ class DATAtree():
                 elif node_def['type'] == 'int':
                     try:
                         value = int(value)
+
+                    except:
+                        value = 0
+
+                elif node_def['type'] == 'float':
+                    try:
+                        value = float(value)
 
                     except:
                         value = 0
@@ -1658,6 +2292,9 @@ class DATAtree():
 
         if dtype == None:
             return True
+
+        if dtype == float:
+            return bool(isinstance(subpath, (float, int)))
 
         if dtype in (str, unicode, 'string'):
             return bool(isinstance(subpath, (str, unicode)))
@@ -2336,7 +2973,7 @@ class FetchData(Thread):
     contains a dictionary with program information.
     It runs as a separate thread for every source
     """
-    def __init__(self, config, proc_id, data, isjson = False):
+    def __init__(self, config, proc_id, data_file, cattrans_type = None):
         Thread.__init__(self)
         # Flag to stop the thread
         self.config = config
@@ -2345,7 +2982,6 @@ class FetchData(Thread):
         self.quit = False
         self.ready = False
         self.active = True
-        self.isjson = isjson
         # The ID of the source
         self.proc_id = proc_id
         self.detail_request = Queue()
@@ -2358,18 +2994,18 @@ class FetchData(Thread):
         self.channel_loaded = {}
         self.day_loaded = {}
         self.program_data = {}
-        self.program_by_id = {}
         self.chan_count = 0
         self.base_count = 0
         self.detail_count = 0
         self.fail_count = 0
-        self.fetch_string_parts = re.compile("(.*?[.?!:]+ |.*?\Z)")
         self.config.queues['source'][self.proc_id] = self.detail_request
         self.config.threads.append(self)
         self.fetch_date = None
         self.site_tz = self.config.utc_tz
         self.item_count = 0
         self.current_item_count = 0
+        self.total_item_count = 0
+        self.groupitems = {}
 
         self.test_output = sys.stdout
         self.print_tags = False
@@ -2377,10 +3013,13 @@ class FetchData(Thread):
         self.print_searchtree = False
         self.show_parsing = False
         self.show_result = False
+        self.cattrans = {}
+        self.new_cattrans = None
+        self.cattrans_type = cattrans_type
 
         self.source_data = {}
         try:
-            fle = self.config.IO_func.open_file('%s/sources/%s.json' % (sys.path[0], data), 'r', 'utf-8')
+            fle = self.config.IO_func.open_file('%s/sources/%s.json' % (sys.path[0], data_file), 'r', 'utf-8')
             self.source_data = json.load(fle)
             self.source = self.data_value('name', str)
             self.config.sourceid_by_name[self.source] = self.proc_id
@@ -2392,9 +3031,21 @@ class FetchData(Thread):
             self.no_genric_matching = self.data_value('no_genric_matching', list)
             self.empty_channels = self.data_value('empty_channels', list)
             self.alt_channels = self.data_value('alt-channels', dict)
-            self.cattrans = self.data_value('cattrans', dict)
-            self.kijkwijzer = self.data_value('kijkwijzer',dict)
+            cattrans = self.data_value('cattrans', dict)
+            for k, v in cattrans.items():
+                if isinstance(v, dict):
+                    self.cattrans[k.lower().strip()] ={}
+                    for k2, gg in v.items():
+                        self.cattrans[k.lower().strip()][k2.lower().strip()] = gg
+
+                else:
+                    self.cattrans[k.lower().strip()] = v
+
+            self.cattrans_keywords = self.data_value('cattrans_keywords', dict)
+            self.rating = self.data_value('rating',dict)
             self.site_tz = pytz.timezone(self.data_value('site-timezone', str, default = 'utc'))
+            self.night_date_switch = self.data_value('night-date-switch', int, default = 0)
+            self.item_count = self.data_value(['base', 'default-item-count'], int, default=0)
 
         except:
             traceback.print_exc()
@@ -2426,6 +3077,7 @@ class FetchData(Thread):
                     if self.proc_id == 1:
                         for chanid, channel in self.config.channels.items():
                             if channel.is_alive() and not channel.detail_data.is_set():
+                                print channel.statetext
                                 d = 0
                                 for s in self.config.detail_sources:
                                     d += self.functions.get_counter('queue', s, chanid)
@@ -2499,7 +3151,7 @@ class FetchData(Thread):
             if self.proc_id in self.config.opt_dict['disable_source']:
                 for chanid in self.channels.keys():
                     self.channel_loaded[chanid] = True
-                    self.config.channels[chanid].source_data[self.proc_id] = True
+                    self.config.channels[chanid].source_ready(self.proc_id).set()
 
                 self.ready = True
 
@@ -2516,18 +3168,9 @@ class FetchData(Thread):
 
                     self.program_data[chanid] = []
 
-                self.init_channels()
-                self.init_json()
+                self.init_channel_source_ids()
                 # Load and proccess al the program pages
-                try:
-                    self.load_pages()
-
-                except:
-                    self.fail_count += 1
-                    self.config.log([self.config.text('fetch', 13, (self.source,)), self.config.text('fetch', 14), traceback.format_exc()], 0)
-                    for chanid in self.channels.keys():
-                        self.channel_loaded[chanid] = True
-                        self.config.channels[chanid].source_data[self.proc_id].set()
+                self.load_pages()
 
                 # if this is the prefered description source set the value
                 with self.source_lock:
@@ -2669,24 +3312,46 @@ class FetchData(Thread):
             self.ready = True
             return(98)
 
-    # Dummys to be filled in by the sub-Classes
-    def init_channels(self):
-        """The specific initiation code before starting with grabbing"""
-        self.init_channel_source_ids()
+    # The fetching functions
+    def init_channel_source_ids(self):
+        self.current_date = self.site_tz.normalize(datetime.datetime.now(pytz.utc).astimezone(self.site_tz)).toordinal()
+        self.current_hour = self.site_tz.normalize(datetime.datetime.now(pytz.utc).astimezone(self.site_tz)).hour
+        for chanid, channel in self.config.channels.iteritems():
+            self.groupitems[chanid] = 0
+            self.program_data[chanid] = []
+            # Is the channel active and this source for the channel not disabled
+            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
+                # Is there a sourceid for this channel
+                if channel.get_source_id(self.proc_id) != '':
+                    # Unless it is in empty channels we add it else set it ready
+                    #~ if channel.get_source_id(self.proc_id) in self.config.empty_channels[self.proc_id]:
+                    if channel.get_source_id(self.proc_id) in self.config.channelsource[self.proc_id].empty_channels:
+                        self.channel_loaded[chanid] = True
+                        self.config.channels[chanid].source_ready(self.proc_id).set()
 
-    def init_json(self):
-        """The specific initiation code if the source is json before starting with grabbing"""
-        if not self.isjson:
-            return
+                    else:
+                        self.channels[chanid] = channel.get_source_id(self.proc_id)
 
-        # Define here the json structure if it's not a flat list of program dicts
-        # self.jsondata = {<name>: ['listname':<list>,'keyname':<key>,'valuename':<vname>}
-        # self.jsondict[<list>][<key-in-json_by_id[id][tdict['keyname']] >][<vname>] = value
-        self.json_by_id = {}
-        self.jsondata = {}
-        self.jsondict = {}
+                # Does the channel have child channels
+                if chanid in self.config.combined_channels.keys():
+                    # Then see if any of the childs has a sourceid for this source and does not have this source disabled
+                    for c in self.config.combined_channels[chanid]:
+                        if c['chanid'] in self.config.channels.keys() and self.config.channels[c['chanid']].get_source_id(self.proc_id) != '' \
+                          and not self.proc_id in self.config.channels[c['chanid']].opt_dict['disable_source']:
+                            # Unless it is in empty channels we add and mark it as a child else set it ready
+                            #~ if self.config.channels[c['chanid']].get_source_id(self.proc_id) in self.config.empty_channels[self.proc_id]:
+                            if self.config.channels[c['chanid']].get_source_id(self.proc_id) in self.config.channelsource[self.proc_id].empty_channels:
+                                self.channel_loaded[c['chanid']] = True
+                                self.config.channels[c['chanid']].source_ready(self.proc_id).set()
 
-    def get_url2(self, ptype, data):
+                            else:
+                                self.channels[c['chanid']] = self.config.channels[c['chanid']].get_source_id(self.proc_id)
+                                self.config.channels[c['chanid']].is_child = True
+
+        for chanid, channelid in self.channels.items():
+            self.chanids[channelid] = chanid
+
+    def get_url(self, ptype, data):
         """return the several url's for ordinairy, detail and channel info"""
         data['source'] = self.source
         data['channels'] = self.channels
@@ -2732,7 +3397,7 @@ class FetchData(Thread):
                     url_data[k] = uval
 
         if ptype in ('detail', 'detail2'):
-            counter = ['detail', self.proc_id, data['channelid']]
+            counter = ['detail', self.proc_id, data['channel']]
 
         else:
             counter = ['base', self.proc_id]
@@ -2754,7 +3419,6 @@ class FetchData(Thread):
         if not self.is_data_value([ptype, "url"]):
             # The channels are defined in the datafile
             self.all_channels = self.data_value([ptype, "data"], dict)
-            #~ print self.all_channels
             return
 
         #extract the data
@@ -2781,15 +3445,72 @@ class FetchData(Thread):
 
                     self.all_channels[channelid] = values
 
-            #~ if self.proc_id == 8:
-            #~ print self.all_channels
         else:
             self.config.log(self.config.text('sources', 1, (self.source, )))
             return 69
 
     def load_pages(self):
         """The code for the actual Grabbing and dataprocessing"""
-        #~ print self.source
+        def do_final_processing(chanid):
+            self.program_data[chanid].sort(key=lambda program: (program['start-time']))
+            print chanid, self.groupitems[chanid]
+            if self.groupitems[chanid] > 0:
+                group_start = False
+                for p in self.program_data[chanid][:]:
+                    if 'group' in p.keys():
+                        # Collecting the group
+                        if not group_start:
+                            group = []
+                            start = p['start-time']
+                            group_start = True
+
+                        group.append(p.copy())
+                        group_duur = p['stop-time'] - start
+
+                    elif group_start:
+                        # Repeating the group
+                        group_start = False
+                        group_eind = p['start-time']
+                        group_length = group_eind - start
+                        if group_length > datetime.timedelta(days = 1):
+                            # Probably a week was not grabbed
+                            group_eind -= datetime.timedelta(days = int(group_length.days))
+
+                        repeat = 0
+                        while True:
+                            repeat+= 1
+                            for g in group[:]:
+                                gdict = g.copy()
+                                gdict['prog_ID'][self.proc_id] = ''
+                                gdict['rerun'] = True
+                                gdict['start-time'] += repeat*group_duur
+                                gdict['stop-time'] += repeat*group_duur
+                                if gdict['start-time'] < group_eind:
+                                    if gdict['stop-time'] > group_eind:
+                                        gdict['stop-time'] = group_eind
+
+                                    self.program_data[chanid].append(gdict)
+
+                                else:
+                                    break
+
+                            else:
+                                continue
+
+                            break
+
+            self.parse_programs(chanid, 0, 'None')
+            self.config.channels[chanid].source_ready(self.proc_id).set()
+            self.channel_loaded[chanid] = True
+            for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
+                self.day_loaded[chanid][day] = True
+
+            try:
+                self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
+
+            except:
+                pass
+
         if len(self.channels) == 0  or not self.is_data_value(["base", "url"]):
             return
 
@@ -2819,7 +3540,7 @@ class FetchData(Thread):
             if self.config.opt_dict['offset'] > max_days:
                 for chanid in self.channels.keys():
                     self.channel_loaded[chanid] = True
-                    self.config.channels[chanid].source_data[self.proc_id].set()
+                    self.config.channels[chanid].source_ready(self.proc_id).set()
 
                 return
 
@@ -2846,17 +3567,10 @@ class FetchData(Thread):
                         self.page_loaded[chanid][r] = False
 
             elif (url_type & 12) == 12:
-                self.item_count = self.data_value(['base', 'item-count'], int, default=0)
                 udt = self.data_value(["base", "url-date-type"], int, default=0)
                 udd = self.data_value(['base', 'url-date-multiplier'], int, default=0)
                 fs = self.config.opt_dict['offset']
                 fe = min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days)
-
-            self.dl = {}
-            self.dd = {}
-            for chanid in self.channels.values():
-                self.dl[chanid] =[]
-                self.dd[chanid] =[]
 
             for retry in (0, 1):
                 # We fetch every channel separate
@@ -2868,7 +3582,7 @@ class FetchData(Thread):
                         if self.quit:
                             return
 
-                        if self.config.channels[chanid].source_data[self.proc_id].is_set():
+                        if self.config.channels[chanid].source_ready(self.proc_id).is_set():
                             continue
 
                         channel = self.channels[chanid]
@@ -2887,11 +3601,11 @@ class FetchData(Thread):
                                         fetch_range.append(i)
 
                             else:
-                                range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days))
+                                fetch_range = range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days))
 
                             if len(fetch_range) == 0:
                                 self.channel_loaded[chanid] = True
-                                self.config.channels[chanid].source_data[self.proc_id].set()
+                                self.config.channels[chanid].source_ready(self.proc_id).set()
                                 continue
 
                             for offset in fetch_range:
@@ -2904,6 +3618,7 @@ class FetchData(Thread):
                                   append_source != None and \
                                   chanid in self.config.channelsource[append_source].day_loaded and \
                                   self.config.channelsource[append_source].day_loaded[chanid][offset]):
+                                    self.day_loaded[chanid][offset] = True
                                     continue
 
                                 self.config.log(['\n', self.config.text('sources', 13, \
@@ -2918,7 +3633,8 @@ class FetchData(Thread):
                                 first_fetch = False
                                 strdata = self.get_page_data('base',{'channel': channel, 'offset': offset})
                                 if strdata == None:
-                                    self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
+                                    if retry == 1:
+                                        self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
                                     failure_count += 1
                                     self.fail_count += 1
                                     continue
@@ -2944,7 +3660,8 @@ class FetchData(Thread):
                                                                                     'start': self.config.opt_dict['offset'],
                                                                                     'days': self.config.opt_dict['days']})
                             if strdata == None:
-                                self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
+                                if retry == 1:
+                                    self.config.log(self.config.text('sources', 40, (self.config.channels[chanid].chan_name, self.source)))
                                 failure_count += 1
                                 self.fail_count += 1
                                 continue
@@ -2974,7 +3691,8 @@ class FetchData(Thread):
                                 first_fetch = False
                                 strdata = self.get_page_data('base',{'channel': channel, 'offset': fetch_range[offset]})
                                 if strdata == None:
-                                    self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
+                                    if retry == 1:
+                                        self.config.log(self.config.text('sources', 41, (self.config.channels[chanid].chan_name, self.source, offset)))
                                     failure_count += 1
                                     self.fail_count += 1
                                     continue
@@ -2999,6 +3717,7 @@ class FetchData(Thread):
 
                                 # Check if it is already loaded
                                 if self.page_loaded[chanid][page_count]:
+                                    page_count += 1
                                     continue
 
                                 self.config.log(['\n', self.config.text('sources', 13, \
@@ -3012,32 +3731,21 @@ class FetchData(Thread):
                                     time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
 
                                 first_fetch = False
-                                #~ strdata = self.get_page_data('base',{'channel': channel, 'cnt-offset': page_count, 'start': fetch_start, 'end': fetch_end})
                                 strdata = self.get_page_data('base',{'channel': channel, 'cnt-offset': page_count})
                                 if strdata == None:
-                                    self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
+                                    if retry == 1:
+                                        self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, page_count)))
                                     failure_count += 1
                                     self.fail_count += 1
+                                    page_count += 1
                                     continue
 
-                                #~ self.parse_basepage(strdata, {'offset': offset, 'channelid': channel})
                                 self.parse_basepage(strdata, {'channelid': channel})
                                 self.page_loaded[chanid][page_count] = True
                                 page_count += 1
 
-
                         if failure_count == 0 or retry == 1:
-                            self.parse_programs(chanid, 0, 'None')
-                            self.config.channels[chanid].source_data[self.proc_id].set()
-                            self.channel_loaded[chanid] = True
-                            for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
-                                self.day_loaded[chanid][day] = True
-
-                            try:
-                                self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
-
-                            except:
-                                pass
+                            do_final_processing(chanid)
 
                 # We fetch all channels in one
                 if (url_type & 3) == 2:
@@ -3069,7 +3777,8 @@ class FetchData(Thread):
                             first_fetch = False
                             strdata = self.get_page_data('base',{'offset': offset})
                             if strdata == None:
-                                self.config.log(self.config.text('sources', 4, (self.source, offset)))
+                                if retry == 1:
+                                    self.config.log(self.config.text('sources', 4, (offset, self.source)))
                                 failure_count += 1
                                 self.fail_count += 1
                                 continue
@@ -3079,12 +3788,14 @@ class FetchData(Thread):
                     # We fetch all days in one
                     # rtl.nl
                     elif (url_type & 12) == 4:
-                        self.config.log(['\n', self.config.text('sources', 11,  (len(self.channels), self.source, self.config.opt_dict['days']))], 2)
+                        self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
+                            self.config.text('sources', 11, (self.config.opt_dict['days']))], 2)
                         # be nice to the source
                         time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
                         strdata = self.get_page_data('base')
                         if strdata == None:
-                            self.config.log(self.config.text('sources', 12, (self.source, )))
+                            if retry == 1:
+                                self.config.log(self.config.text('sources', 12, (self.source, )))
                             failure_count += 1
                             self.fail_count += 1
                             continue
@@ -3101,19 +3812,8 @@ class FetchData(Thread):
 
                     if failure_count == 0 or retry == 1:
                         for chanid in self.channels.keys():
-                            self.parse_programs(chanid, 0, 'None')
-                            self.config.channels[chanid].source_data[self.proc_id].set()
-                            self.channel_loaded[chanid] = True
-                            for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
-                                self.day_loaded[chanid][day] = True
+                            do_final_processing(chanid)
 
-                            try:
-                                self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
-
-                            except:
-                                pass
-
-                        break
 
                 # We fetch the channels in two or more groups
                 if (url_type & 3) == 3:
@@ -3136,7 +3836,7 @@ class FetchData(Thread):
                                 if len(day_channels[offset]) == len(self.channels):
                                     continue
 
-                                self.config.log(['\n', self.config.text('sources', 2, (channelgrp, self.source)), \
+                                self.config.log(['\n', self.config.text('sources', 47, (channelgrp, self.source)), \
                                     self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
 
                                 if not first_fetch:
@@ -3146,7 +3846,8 @@ class FetchData(Thread):
                                 first_fetch = False
                                 strdata = self.get_page_data('base',{'channelgrp': channelgrp, 'offset': offset})
                                 if strdata == None:
-                                    self.config.log(self.config.text('sources', 4, (self.source, offset)))
+                                    if retry == 1:
+                                        self.config.log(self.config.text('sources', 4, (self.source, offset)))
                                     failure_count += 1
                                     self.fail_count += 1
                                     continue
@@ -3174,101 +3875,15 @@ class FetchData(Thread):
 
                     if failure_count == 0 or retry == 1:
                         for chanid in self.channels.keys():
-                            self.parse_programs(chanid, 0, 'None')
-                            self.config.channels[chanid].source_data[self.proc_id].set()
-                            self.channel_loaded[chanid] = True
-                            for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
-                                self.day_loaded[chanid][day] = True
+                            do_final_processing(chanid)
 
-                            try:
-                                self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
-
-                            except:
-                                pass
-
-                        break
 
         except:
-            self.config.log([self.config.text('fetch', 13, (self.source, )), traceback.format_exc()], 1)
-            return None
+            self.config.log([self.config.text('fetch', 13, (self.source,)), self.config.text('fetch', 14), traceback.format_exc()], 0)
+            for chanid in self.channels.keys():
+                self.channel_loaded[chanid] = True
+                self.config.channels[chanid].source_ready(self.proc_id).set()
 
-    def get_page_data(self, ptype, data={}):
-        try:
-            url = self. get_url2(ptype, data)
-            if url == None:
-                return
-
-            is_json = url[5]
-            if self.print_searchtree:
-                #~ self.test_output.write(url)
-                #~ self.test_output.write('\n')
-                print url
-            page = self.functions.get_page(url)
-            if page == None:
-                self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
-                if self.print_searchtree:
-                    print 'No Data'
-                return None
-
-            if ptype in ('detail', 'detail2') and self.proc_id in (0, 1, 9):
-                return page
-
-            self.current_item_count = self.data_value(self.data_value([ptype, "item-count-path"],list), int, page, 0)
-            if is_json:
-                searchtree = JSONtree(page, self.test_output)
-
-            else:
-                autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
-                if self.data_value([ptype, "enclose-with-html-tag"], bool, default=False):
-                    page = u'<html>%s</html>' % page
-
-                searchtree = HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
-
-            searchtree.month_names = self.data_value([ptype, "month-names"], list)
-            searchtree.weekdays = self.data_value([ptype, "weekdays"], list)
-            rw = self.data_value([ptype, "relative-weekdays"], dict)
-            self.fetch_date = self.current_date + self.data_value('offset', int, data, default=0)
-            for name, index in rw.items():
-                searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.current_date + index)
-
-            current_weekday = datetime.date.fromordinal(self.fetch_date).weekday()
-            for index in range(len(searchtree.weekdays)):
-                name = searchtree.weekdays[index]
-                if index < current_weekday:
-                    searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index + 7 - current_weekday)
-
-                else:
-                    searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index - current_weekday)
-
-            searchtree.show_result = self.show_parsing
-            searchtree.print_searchtree = self.print_roottree
-            searchtree.find_start_node(self.data_value(ptype, dict))
-
-            searchtree.datetimestring = self.data_value([ptype, "datetimestring"], str)
-            searchtree.time_splitter = self.data_value([ptype, "time-splitter"], str, default = ':')
-            searchtree.date_sequence = self.data_value([ptype, "date-sequence"], list, default = ["y","m","d"])
-            searchtree.date_splitter = self.data_value([ptype, "date-splitter"], str, default = '-')
-            searchtree.timezone = self.site_tz
-            searchtree.print_searchtree = self.print_searchtree
-            searchtree.extract_datalist(self.data_value(ptype, dict))
-            if self.show_result:
-                #~ self.test_output.write(searchtree.result)
-                #~ self.test_output.write('\n')
-                for p in searchtree.result:
-                    if isinstance(p[0], (str, unicode)):
-                        print p[0].encode('utf-8', 'replace')
-                    else:
-                        print p[0]
-                    for v in range(1,len(p)):
-                        if isinstance(p[v], (str, unicode)):
-                            print '    ', p[v].encode('utf-8', 'replace')
-                        else:
-                            print '    ', p[v]
-
-            return searchtree.result
-
-        except:
-            self.config.log([self.config.text('fetch', 68, (ptype, self.source)), traceback.format_exc()], 1)
             return None
 
     def parse_basepage(self, data, subset = {}):
@@ -3276,7 +3891,6 @@ class FetchData(Thread):
         last_start = {}
         tdd = datetime.timedelta(days=1)
         tdh = datetime.timedelta(hours=1)
-        self.test_output.write('result\n'.encode('utf-8', 'replace'))
         if isinstance(data, list):
             for program in data:
                 # link the data to the right variable, doing any defined adjustments
@@ -3293,30 +3907,39 @@ class FetchData(Thread):
                 else:
                     continue
 
+                # it's not requested
                 if not channelid in self.chanids.keys():
                     continue
+
+                # A list of processed channels to send back
+                if not self.chanids[channelid] in chanids:
+                    chanids.append(self.chanids[channelid])
 
                 if not channelid in last_start.keys():
                     last_start[channelid] = None
 
                 chanid = self.chanids[channelid]
-                if not self.chanids[channelid] in chanids:
-                    chanids.append(self.chanids[channelid])
-
                 tdict = self.functions.checkout_program_dict()
                 tdict['source'] = self.source
                 tdict['channelid'] = chanid
                 tdict['channel']  = self.config.channels[chanid].chan_name
-                for k in tdict.keys():
-                    if k in ('channelid', 'video', 'genre', 'subgenre', 'kijkwijzer', "alt-start-time", "alt-stop-time"):
+                # Add any known value that does not need further processing
+                for k, v in values.items():
+                    if k in ('channelid', 'video', 'genre', 'subgenre'):
                         continue
 
-                    if k in values.keys():
+                    elif k in tdict.keys():
                         if k in ('prog_ID', 'detail_url'):
-                            tdict[k][self.proc_id] =values[k]
+                            tdict[k][self.proc_id] =v
+
+                        elif k == 'episode' and v > 1000:
+                            continue
 
                         else:
-                            tdict[k] =values[k]
+                            tdict[k] = v
+
+                    elif k in tdict['video'].keys():
+                        tdict['video'][k] =v
 
                 tdict = self.check_title_name(tdict)
                 if  tdict['name'] == None or tdict['name'] == '':
@@ -3341,6 +3964,8 @@ class FetchData(Thread):
                         tdict['stop-time'] = tdict['start-time'] + values['length']
 
                 if self.without_full_timings:
+                    # This is to catch the midnight date change for HTML pages with just start(stop) times without date
+                    # don't enable it on json pages where the programs are in a dict as they will not be in chronological order!!!
                     if last_start[channelid] == None:
                         last_start[channelid] = tdict['start-time']
 
@@ -3352,17 +3977,34 @@ class FetchData(Thread):
                         while tdict['stop-time'] < tdict['start-time']:
                             tdict['stop-time'] += tdd
 
-                for k in tdict['video'].keys():
-                    if k in values.keys():
-                        tdict['video'][k] =values[k]
+                tdict['offset'] = self.functions.get_offset(tdict['start-time'])
+                # check if it is inside the request range
+                if not (self.config.opt_dict["offset"] <= tdict['offset'] < (self.config.opt_dict["offset"] + self.config.opt_dict["days"])):
+                    if self.show_result:
+                        print  'outside timerange', tdict['offset'], tdict['start-time'], tdict['stop-time']
+                    continue
 
-                #~ for k in tdict['credits'].keys():
-                    #~ if k in values.keys():
-                        #~ tdict['credits'][k] =values[k]
+                for k in self.config.roletrans.keys():
+                    if k in values.keys() and isinstance(values[k], (list, tuple)):
+                        if not self.config.roletrans[k] in tdict['credits'] or len(tdict['credits'][self.config.roletrans[k]]) == 0:
+                            tdict['credits'][self.config.roletrans[k]] = values[k]
 
-                tdict['offset'] = self.functions.get_offset(tdict['start-time'], self.current_date)
+                        for item in values[k]:
+                            if not item in tdict['credits'][self.config.roletrans[k]]:
+                                tdict['credits'][self.config.roletrans[k]].append(item)
+
+                gg = self.get_genre(values)
+                tdict['genre'] = gg[0]
+                tdict['subgenre'] = gg[1]
+                if 'group' in values.keys() and not values['group'] in (None, ''):
+                    self.groupitems[chanid] += 1
+                    tdict['group'] = values['group']
+                    #~ if not values['group'] in self.groupitems[chanid].keys():
+                        #~ self.groupitems[chanid][values['group']] = []
+
+                    #~ self.groupitems[chanid][values['group']].append({'channel': channelid, 'start-time': tdict['start-time'], 'stop-time': tdict['stop-time'], 'program': dict})
+
                 tdict = self.functions.checkout_program_dict(tdict)
-                self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
                 with self.source_lock:
                     self.program_data[chanid].append(tdict)
 
@@ -3372,106 +4014,401 @@ class FetchData(Thread):
                     print '    ', channelid, tdict['start-time']
                     for k, v in tdict.items():
                         if isinstance(v, (str, unicode)):
-                            print '        ', k, v.encode('utf-8', 'replace')
+                            vv = ': "%s"' % v
+                            print '        ', k, vv.encode('utf-8', 'replace')
                         else:
                             print '        ', k, v
 
+        #~ if self.show_result:
+            #~ for name, item in self.groupitems[chanid].items():
+                #~ print name
+                #~ for p in item:
+                    #~ print '  ',p['channel'] , p['start-time'], p['stop-time']
 
         return chanids
 
+    def load_detailpage(self, ptype, tdict):
+        """The code for retreiving and processing a detail page"""
+        data = {'channel': tdict['channelid'], 'detailid': tdict['detail_url'][self.proc_id]}
+        strdata = self.get_page_data(ptype, data)
+        if not isinstance(strdata, (list,tuple)) or len(strdata) == 0:
+            self.config.log(self.config.text('sources', 8, (tdict['detail_url'][self.proc_id], )), 1)
+            return
+
+        values = self.link_values(ptype, strdata[0])
+        if self.show_result:
+            print
+            print 'Resulting values'
+            for k, v in values.items():
+                if isinstance(v, (str, unicode)):
+                    vv = ': "%s"' % v
+                    print '        ', k, vv.encode('utf-8', 'replace')
+                else:
+                    print '        ', k, ': ', v
+
+        return tdict
+
+    def get_page_data(self, ptype, data={}):
+        try:
+            if ptype in ('channels', 'base-channels'):
+                data['start'] = 0
+                data['days'] = 0
+                data[ 'offset'] = 0
+
+            url = self. get_url(ptype, data)
+            if url == None:
+                return
+
+            is_json = url[5]
+            if self.print_searchtree:
+                #~ self.test_output.write(url)
+                #~ self.test_output.write('\n')
+                print url
+            page = self.functions.get_page(url)
+            if page == None:
+                self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
+                if self.print_searchtree:
+                    print 'No Data'
+                return None
+
+            #~ if ptype in ('detail', 'detail2') and self.proc_id in (0, 1, 9):
+                #~ return page
+
+            if is_json:
+                searchtree = JSONtree(page, self.test_output)
+
+            else:
+                autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
+                if self.data_value([ptype, "enclose-with-html-tag"], bool, default=False):
+                    page = u'<html>%s</html>' % page
+
+                searchtree = HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
+
+            if ptype in ('base', 'detail', 'detail2'):
+                # We load some values from the definition file into the tree
+                searchtree.month_names = self.data_value([ptype, "month-names"], list)
+                searchtree.weekdays = self.data_value([ptype, "weekdays"], list)
+                rw = self.data_value([ptype, "relative-weekdays"], dict)
+                self.fetch_date = self.current_date + self.data_value('offset', int, data, default=0)
+                for name, index in rw.items():
+                    searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.current_date + index)
+
+                current_weekday = datetime.date.fromordinal(self.fetch_date).weekday()
+                for index in range(len(searchtree.weekdays)):
+                    name = searchtree.weekdays[index]
+                    if index < current_weekday:
+                        searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index + 7 - current_weekday)
+
+                    else:
+                        searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index - current_weekday)
+
+                searchtree.datetimestring = self.data_value([ptype, "datetimestring"], str)
+                searchtree.time_splitter = self.data_value([ptype, "time-splitter"], str, default = ':')
+                searchtree.date_sequence = self.data_value([ptype, "date-sequence"], list, default = ["y","m","d"])
+                searchtree.date_splitter = self.data_value([ptype, "date-splitter"], str, default = '-')
+                searchtree.timezone = self.site_tz
+
+            if self.is_data_value([ptype, "total-item-count"],list):
+                self.total_item_count = searchtree.find_data_value(self.data_value([ptype, "total-item-count"],list))
+
+            if self.is_data_value([ptype, "page-item-count"],list):
+                self.current_item_count = searchtree.find_data_value(self.data_value([ptype, "page-item-count"],list))
+
+            searchtree.show_result = self.show_parsing
+            searchtree.print_searchtree = self.print_roottree
+            searchtree.find_start_node(self.data_value(ptype, dict))
+            if ptype == 'base' and self.is_data_value([ptype,'data',"today"],list):
+                # We check on the right offset
+                url_type = self.data_value([ptype, "url-type"], int, default = 2)
+                cd = searchtree.find_data_value(self.data_value([ptype,'data',"today"],list))
+                if not isinstance(cd, datetime.date):
+                    self.config.log(self.config.text('sources', 22))
+                    return None
+
+                elif self.night_date_switch > 0 and self.current_hour < self.night_date_switch and (self.current_date - cd.toordinal()) == 1:
+                    # This page switches date at a later time so we allow
+                    pass
+
+                elif cd.toordinal() != self.current_date:
+                    url_type = self.data_value(["base", "url-type"], int, default = 2)
+                    if url_type == 1:
+                        self.config.log(self.config.text('sources', 21, (data['channel'], self.source, data['offset'])))
+                    elif (url_type & 3) == 1:
+                        # chanid
+                        pass
+                    elif (url_type & 12) in (0, 8):
+                        # offset
+                        pass
+                    return None
+
+            searchtree.print_searchtree = self.print_searchtree
+            searchtree.extract_datalist(self.data_value(ptype, dict))
+            if self.show_result:
+                #~ self.test_output.write(searchtree.result)
+                #~ self.test_output.write('\n')
+                for p in searchtree.result:
+                    if isinstance(p[0], (str, unicode)):
+                        print p[0].encode('utf-8', 'replace')
+                    else:
+                        print p[0]
+                    for v in range(1,len(p)):
+                        if isinstance(p[v], (str, unicode)):
+                            print '    ', p[v].encode('utf-8', 'replace')
+                        else:
+                            print '    ', p[v]
+
+            return searchtree.result
+
+        except:
+            self.config.log([self.config.text('fetch', 68, (ptype, self.source)), traceback.format_exc()], 1)
+            return None
+
     def link_values(self, ptype, linkdata):
+        def get_variable(vdef):
+            max_length = self.data_value('max length', int, vdef, 0)
+            min_length = self.data_value('min length', int, vdef, 0)
+            varid = self.data_value("varid", int, vdef)
+            if not ((isinstance(linkdata, list) and (0 <= varid < len(linkdata))) \
+              or (isinstance(linkdata, dict) and varid in linkdata.keys())):
+                return
+
+            d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else unicode(linkdata[varid]).strip()
+            if min_length > 0 and len(d) < min_length:
+                return
+
+            if max_length > 0 and len(d) > max_length:
+                return
+
+            if self.is_data_value('regex', str, vdef):
+                search_regex = self.data_value('regex', str, vdef, None)
+                try:
+                    dd = re.search(search_regex, d, re.DOTALL)
+                    if dd.group(1) not in ('', None):
+                        d = dd.group(1)
+
+                    else:
+                        return
+
+                except:
+                    return
+
+            if self.is_data_value('type', str, vdef):
+                d = check_type(v, d)
+
+            return d
+
+        def process_link_function(vdef):
+            funcid = self.data_value("funcid", int, vdef)
+            default = self.data_value("default", None, vdef)
+            if funcid != None:
+                funcdata = self.data_value("data", list, vdef)
+                data = []
+                for fd in funcdata:
+                    if self.is_data_value("varid", int, fd):
+                        dvar = get_variable(fd)
+                        if dvar == None:
+                            data.append('')
+
+                        else:
+                            data.append(dvar)
+
+                    elif self.is_data_value("funcid", int, fd):
+                        data.append(process_link_function(fd))
+
+                    else:
+                        data.append(fd)
+
+                return self.functions.link_functions(funcid, data, self, default)
+
+        def check_type(vdef, value):
+            dtype = self.data_value('type', str, vdef)
+            try:
+                if dtype == 'str':
+                    return unicode(value)
+
+                elif dtype == 'lower':
+                    return unicode(value).lower()
+
+                elif dtype == 'upper':
+                    return unicode(value).upper()
+
+                elif dtype == 'capitalize':
+                    return unicode(value).capitalize()
+
+                elif dtype == 'int':
+                    return int(value)
+
+                elif dtype == 'float':
+                    return float(value)
+
+                elif dtype == 'bool':
+                    return bool(value)
+
+                else:
+                    return value
+
+            except:
+                return None
+
+        def calc_value(vdef, value):
+            if self.is_data_value('multiplier', float, vdef):
+                try:
+                    if not isinstance(value, (int, float)):
+                        value = float(value)
+                    value = value * vdef['multiplier']
+
+                except:
+                    #~ traceback.print_exc()
+                    pass
+
+            if self.is_data_value('devider', float, vdef):
+                try:
+                    if not isinstance(value, (int, float)):
+                        value = float(value)
+                    value = value / vdef['devider']
+
+                except:
+                    #~ traceback.print_exc()
+                    pass
+
+            return value
+
         values = {}
-        if isinstance(linkdata, list):
+        if isinstance(linkdata, (list, tuple, dict)):
             for k, v in self.data_value([ptype,"values"], dict).items():
-                varid = self.data_value("varid", int, v)
-                if varid != None:
-                    if not (0 <= varid < len(linkdata)):
+                if self.is_data_value("varid", int, v):
+                    vv = get_variable(v)
+                    if vv not in (None, '', '-'):
+                        values[k] = vv
                         continue
 
-                    d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else linkdata[varid].strip()
-                    values[k] = d
-                    continue
+                elif self.is_data_value("funcid", int, v):
+                    cval = process_link_function(v)
+                    if cval not in (None, '', '-'):
+                        if self.is_data_value('type', str, v):
+                            cval = check_type(v, cval)
 
-                funcid = self.data_value("funcid", int, v)
-                default = self.data_value("funcid", None, v)
-                if funcid != None:
-                    funcdata = self.data_value("data", list, v)
-                    data = []
-                    for d in funcdata:
-                        varid = self.data_value("varid", int, d)
+                        if self.is_data_value('calc', dict, v):
+                            cval = calc_value(v['calc'], cval)
 
-                        if varid != None:
-                            if 0 <= varid < len(linkdata):
-                                data.append(linkdata[varid])
-
-                            else:
-                                data.append('')
+                        if v["funcid"] == 1:
+                            if len(cval) > 1:
+                                values[k] = cval[0]
+                                values['icongrp'] = cval[1]
 
                         else:
-                            data.append(d)
+                            values[k] = cval
 
-                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, self.fetch_date, default)
-                    if cval != None:
-                        values[k] = cval
-                        if funcid == 1 and self.functions.icongrp != -1:
-                            values['icongrp'] = self.functions.icongrp
-
-                    continue
-
-                value = self.data_value("value", unicode, v)
-                if value != '':
-                    values[k] = value
-
-        if isinstance(linkdata, dict):
-            for k, v in self.data_value([ptype,"values"], dict).items():
-                varid = self.data_value("varid", int, v)
-                if varid != None:
-                    if not varid in linkdata.keys():
                         continue
 
-                    d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else linkdata[varid].strip()
-                    values[k] = d
+                elif self.is_data_value("value", None, v):
+                    values[k] = self.data_value("value", None, v)
                     continue
 
-                funcid = self.data_value("funcid", int, v)
-                default = self.data_value("funcid", None, v)
-                if funcid != None:
-                    funcdata = self.data_value("data", list, v)
-                    data = []
-                    for d in funcdata:
-                        varid = self.data_value("varid", int, d)
-
-                        if varid != None:
-                            if varid in linkdata.keys():
-                                data.append(linkdata[varid])
-
-                            else:
-                                data.append('')
-
-                        else:
-                            data.append(d)
-
-                    cval = self.functions.link_functions(funcid, data, self.source, self.site_tz, self.fetch_date, default)
-                    if cval != None:
-                        values[k] = cval
-                        if funcid == 1 and self.functions.icongrp != -1:
-                            values['icongrp'] = self.functions.icongrp
-
-                    continue
-
-                value = self.data_value("value", unicode, v)
-                if value != '':
-                    values[k] = value
+                if self.is_data_value('default', None, v):
+                    values[k] = v['default']
 
         return values
 
-    def load_detailpage(self, tdict):
-        """The code for retreiving and processing a detail page"""
-        return tdict
+    def get_genre(self, values):
+        genre = ''
+        subgenre = ''
+        if 'genres'in values:
+            # It is return as a set of genre/subgenre so we split them
+            if isinstance(values['genres'], (str,unicode)):
+                values['genre'] = values['genres']
+
+            if isinstance(values['genres'], (list,tuple)):
+                if len(values['genres'])> 0:
+                    values['genre'] = values['genres'][0]
+
+                if len(values['genres'])> 1:
+                    values['subgenre'] = values['genres'][1]
+
+        if self.cattrans_type == 1:
+            if 'genre' in values:
+                # Just in case it is a comma seperated list
+                if isinstance(values['genre'], (str, unicode)):
+                    gg = values['genre'].split(',')
+
+                elif isinstance(values['genre'], list):
+                    gg = values['genre']
+
+                gg0 = gg[0].lower().strip()
+                gg1 = u''
+                if gg0 in self.cattrans.keys():
+                    if len(gg) > 1:
+                        gg1 = gg[1].lower().strip()
+                        if gg1 in self.cattrans[gg0].keys():
+                            genre = self.cattrans[gg0][gg1][0]
+                            subgenre = self.cattrans[gg0][gg1][1]
+
+                    elif 'subgenre' in values and values['subgenre'] not in (None, ''):
+                        if values['subgenre'].lower().strip() in self.cattrans[gg0].keys():
+                            genre = self.cattrans[gg0][values['subgenre'].lower().strip()][0]
+                            subgenre = self.cattrans[gg0][values['subgenre'].lower().strip()][1]
+
+                        else:
+                            genre = self.cattrans[gg0]['default'][0]
+                            subgenre = values['subgenre']
+                            self.new_cattrans[(gg0, values['subgenre'].strip().lower())] = (self.cattrans[gg0]['default'][0].strip().lower(), values['subgenre'].strip().lower())
+
+                    else:
+                        genre = self.cattrans[gg0]['default'][0]
+                        subgenre = self.cattrans[gg0]['default'][1]
+                        if len(gg) > 1:
+                            self.new_cattrans[(gg0,gg1)] = (self.cattrans[gg0]['default'][0].strip().lower(), self.cattrans[gg0]['default'][1].strip().lower())
+
+                elif gg0 not in (None, ''):
+                    if len(gg) > 1 and gg1 not in (None, ''):
+                        self.new_cattrans[(gg0,gg1)] = [self.config.cattrans_unknown.lower().strip(),'']
+
+                    elif 'subgenre' in values and values['subgenre'] not in (None, ''):
+                        self.new_cattrans[(gg0,values['subgenre'].strip().lower())] = [self.config.cattrans_unknown.lower().strip(),'']
+
+                    else:
+                        self.new_cattrans[(gg0,'')] = [self.config.cattrans_unknown.lower().strip(),'']
+
+                    if self.config.write_info_files:
+                        if 'subgenre' in values and values['subgenre'] not in (None, ''):
+                            self.config.infofiles.addto_detail_list(u'unknown %s genre/subgenre => ["%s", "%s"]' % (self.source, values['genre'], values['subgenre']))
+
+                        else:
+                            self.config.infofiles.addto_detail_list(u'unknown %s genre => %s' % (self.source, values['genre']))
+
+        elif self.cattrans_type == 2:
+            if 'subgenre' in values and values['subgenre'] not in (None, ''):
+                if values['subgenre'].lower().strip() in self.cattrans.keys():
+                    genre = self.cattrans[values['subgenre'].lower().strip()]
+                    subgenre = values['subgenre'].strip()
+
+                else:
+                    for k, v in self.cattrans_keywords.items():
+                        if k.lower() in values['subgenre'].lower():
+                            genre = v
+                            subgenre = values['subgenre'].strip()
+                            self.new_cattrans.append((values['subgenre'].lower().strip(), tdict['genre'].strip().lower()))
+                            break
+
+                    else:
+                        self.new_cattrans.append((values['subgenre'].lower().strip(), self.config.cattrans_unknown.lower().strip()))
+
+                    if self.config.write_info_files:
+                        self.config.infofiles.addto_detail_list(u'unknown %s subgenre => "%s"' % (self.source, values['subgenre']))
+
+        else:
+            if 'genre' in values.keys():
+                genre = values['genre']
+
+            if 'subgenre' in values.keys():
+                subgenre = values['subgenre']
+
+        return (genre.strip(), subgenre.strip())
 
     # Helper functions
     def is_data_value(self, dpath, dtype = None, subpath = None):
-        if isinstance(dpath, (str, unicode)):
+        pval = (dpath, dtype, subpath)
+        if isinstance(dpath, (str, unicode, int)):
             dpath = [dpath]
 
         if not isinstance(dpath, (list, tuple)):
@@ -3481,10 +4418,21 @@ class FetchData(Thread):
             subpath = self.source_data
 
         for d in dpath:
-            if not isinstance(subpath, dict):
-                return False
+            #~ if not isinstance(subpath, dict):
+                #~ return False
 
-            if not d in subpath.keys():
+            #~ if not d in subpath.keys():
+                #~ return False
+
+            if isinstance(subpath, dict):
+                if not d in subpath.keys():
+                    return False
+
+            elif isinstance(subpath, list):
+                if (not isinstance(d, int) or d >= len(subpath)):
+                    return False
+
+            else:
                 return False
 
             subpath = subpath[d]
@@ -3494,6 +4442,9 @@ class FetchData(Thread):
 
         if dtype == None:
             return True
+
+        if dtype == float:
+            return bool(isinstance(subpath, (float, int)))
 
         if dtype in (str, unicode):
             return bool(isinstance(subpath, (str, unicode)))
@@ -3505,7 +4456,7 @@ class FetchData(Thread):
 
     def data_value(self, dpath, dtype = None, subpath = None, default = None):
         if self.is_data_value(dpath, dtype, subpath):
-            if isinstance(dpath, (str, unicode)):
+            if isinstance(dpath, (str, unicode, int)):
                 dpath = [dpath]
 
             if subpath == None:
@@ -3531,42 +4482,6 @@ class FetchData(Thread):
                 return []
 
         return subpath
-
-    def init_channel_source_ids(self):
-        self.current_date = datetime.datetime.now(self.site_tz).toordinal()
-        for chanid, channel in self.config.channels.iteritems():
-            self.program_data[chanid] = []
-            # Is the channel active and this source for the channel not disabled
-            if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
-                # Is there a sourceid for this channel
-                if channel.get_source_id(self.proc_id) != '':
-                    # Unless it is in empty channels we add it else set it ready
-                    #~ if channel.get_source_id(self.proc_id) in self.config.empty_channels[self.proc_id]:
-                    if channel.get_source_id(self.proc_id) in self.config.channelsource[self.proc_id].empty_channels:
-                        self.channel_loaded[chanid] = True
-                        self.config.channels[chanid].source_data[self.proc_id].set()
-
-                    else:
-                        self.channels[chanid] = channel.get_source_id(self.proc_id)
-
-                # Does the channel have child channels
-                if chanid in self.config.combined_channels.keys():
-                    # Then see if any of the childs has a sourceid for this source and does not have this source disabled
-                    for c in self.config.combined_channels[chanid]:
-                        if c['chanid'] in self.config.channels.keys() and self.config.channels[c['chanid']].get_source_id(self.proc_id) != '' \
-                          and not self.proc_id in self.config.channels[c['chanid']].opt_dict['disable_source']:
-                            # Unless it is in empty channels we add and mark it as a child else set it ready
-                            #~ if self.config.channels[c['chanid']].get_source_id(self.proc_id) in self.config.empty_channels[self.proc_id]:
-                            if self.config.channels[c['chanid']].get_source_id(self.proc_id) in self.config.channelsource[self.proc_id].empty_channels:
-                                self.channel_loaded[c['chanid']] = True
-                                self.config.channels[c['chanid']].source_data[self.proc_id].set()
-
-                            else:
-                                self.channels[c['chanid']] = self.config.channels[c['chanid']].get_source_id(self.proc_id)
-                                self.config.channels[c['chanid']].is_child = True
-
-        for chanid, channelid in self.channels.items():
-            self.chanids[channelid] = chanid
 
     def check_title_name(self, program):
         """
@@ -3622,51 +4537,6 @@ class FetchData(Thread):
         program['name'] = ptitle
         program['titel aflevering'] = psubtitle
         return program
-
-    def get_string_parts(self, sstring, header_items = None):
-        if not isinstance(header_items, (list, tuple)):
-            header_items = []
-
-        test_items = []
-        for hi in header_items:
-            if isinstance(hi, (str, unicode)):
-                test_items.append((hi.lower(), hi))
-
-            elif isinstance(hi, (list, tuple)):
-                if len(hi) > 0 and isinstance(hi[0], (str, unicode)):
-                    hi0 = hi[0].lower()
-                    if len(hi) > 1 and isinstance(hi[1], (str, unicode)):
-                        hi1 = hi[1]
-
-                    else:
-                        hi1 = hi[0]
-
-                    test_items.append((hi0, hi1))
-
-        string_parts = self.fetch_string_parts.findall(sstring)
-        string_items = {}
-        act_item = 'start'
-        string_items[act_item] = []
-        for dp in string_parts:
-            if dp.strip() == '':
-                continue
-
-            if dp.strip()[-1] == ':':
-                act_item = dp.strip()[0:-1].lower()
-                string_items[act_item] = []
-
-            else:
-                for ti in test_items:
-                    if dp.strip().lower()[0:len(ti[0])] == ti[0]:
-                        act_item = ti[1]
-                        string_items[act_item] = []
-                        string_items[act_item].append(dp[len(ti[0]):].strip())
-                        break
-
-                else:
-                    string_items[act_item].append(dp.strip())
-
-        return string_items
 
     def filter_description(self,ETitem, ETfind, tdict):
         """
@@ -3758,7 +4628,7 @@ class FetchData(Thread):
 
         # Now we decide what to return
         if len(alinea) > 0:
-            for i, v in enumerate(atype):
+            for i, v in atype.items():
                 if v == 'summary' and alinea[i] != '':
                     # We just go for the summary
                     description = alinea[i]
@@ -3810,25 +4680,6 @@ class FetchData(Thread):
         return tdict
 
     # Selectie functions
-    def get_json_data(self, id, item):
-        """Return the requested json item or None if not found"""
-        if not self.isjson:
-            return None
-
-        if not id in self.json_by_id.keys():
-            return None
-
-        if item in self.json_by_id[id].keys():
-            return self.functions.unescape(self.json_by_id[id][item])
-
-        if item in self.jsondata.keys():
-            tdict = self.jsondata[item]
-            if  tdict['keyname'] in self.json_by_id[id]:
-                key =self.json_by_id[id][tdict['keyname']]
-                if key in self.jsondict[tdict['listname']] and \
-                  tdict['valuename'] in self.jsondict[tdict['listname']][key]:
-                    return self.functions.unescape(self.jsondict[tdict['listname']][key][tdict['valuename']])
-
     def get_programcount(self, chanid = 0, offset = None):
         """Return the programcount for given channel id and Offset"""
         if not chanid in self.channels.keys():
@@ -3863,13 +4714,6 @@ class FetchData(Thread):
             return []
 
         return self.program_data[chanid]
-
-    def get_program(self, id):
-        """Return program data for given program id"""
-        if not id in self.program_by_id.keys():
-            return self.functions.checkout_program_dict()
-
-        return self.program_by_id[id]
 
     def get_program_data(self, id, item):
         """Return value of given program id and dict key"""
@@ -3959,6 +4803,8 @@ class FetchData(Thread):
         # Fix overlaps/gaps
         if overlap_strategy in ['average', 'stop', 'start', 'fill']:
             for i in range(len(good_programs)-1):
+                if i > len(good_programs)-2:
+                    break
 
                 # PdB: Fix tvgids start-before-end x minute interval overlap.  An overlap (positive or
                 # negative) is halved and each half is assigned to the adjacent programmes. The maximum
@@ -4023,20 +4869,23 @@ class FetchData(Thread):
                     else:
                        pass
 
-                # For NPO we fill the night gap
-                elif good_programs[i]['source'] == u'npo' and overlap_strategy == 'fill' and (0 < good_programs[i]['stop-time'].hour < 6):
-                    if good_programs[i]['name'] == 'Tekst-TV':
-                        good_programs[i]['stop-time'] = good_programs[i+1]['start-time']
+                programs[i]['length'] = programs[i]['stop-time'] -  programs[i]['start-time']
 
-                    elif good_programs[i+1]['name'] == 'Tekst-TV':
-                        good_programs[i+1]['start-time'] = good_programs[i]['stop-time']
+                if mode != 0:
+                    continue
+
+                # We fill a night gap if start and end program are the same
+                elif (0 < good_programs[i]['stop-time'].hour < 6) and (1 < programs[i]['length'].hours < 7):
+                    if good_programs[i]['name'] == good_programs[i+1]['name']:
+                        good_programs[i]['stop-time'] = good_programs[i+1]['stop-time']
+                        good_programs.pop(i+1)
 
                     else:
                         tdict = self.functions.checkout_program_dict()
                         tdict['source'] = good_programs[i]['source']
                         tdict['channelid'] = good_programs[i]['channelid']
                         tdict['channel'] = good_programs[i]['channel']
-                        tdict['name'] = 'Tekst-TV'
+                        tdict['name'] = 'Night gap/programs'
                         tdict['start-time'] = good_programs[i]['stop-time']
                         tdict['stop-time'] = good_programs[i+1]['start-time']
                         tdict['offset'] = good_programs[i+1]['offset']
@@ -4130,10 +4979,18 @@ class FetchData(Thread):
                     pstart = tdict['start-time']
                     pstop = tdict['stop-time']
                     tstart = datetime.datetime.combine(pstart.date(), merge_channel['start'])
+                    tstart = self.config.combined_channels_tz.localize(tstart)
+                    tstart = self.config.utc_tz.normalize(tstart.astimezone(self.config.utc_tz))
                     tstop = datetime.datetime.combine(pstop.date(), merge_channel['end'])
+                    tstop = self.config.combined_channels_tz.localize(tstop)
+                    tstop = self.config.utc_tz.normalize(tstop.astimezone(self.config.utc_tz))
                     if pstart.date() != pstop.date() and tstop - tstart > datetime.timedelta(days=1):
                         tstart = datetime.datetime.combine(pstop.date(), merge_channel['start'])
+                        tstart = self.config.combined_channels_tz.localize(tstart)
+                        tstart = self.config.utc_tz.normalize(tstart.astimezone(self.config.utc_tz))
                         tstop = datetime.datetime.combine(pstart.date(), merge_channel['end'])
+                        tstop = self.config.combined_channels_tz.localize(tstop)
+                        tstop = self.config.utc_tz.normalize(tstop.astimezone(self.config.utc_tz))
 
                     if (tstart > tstop and tstop <= pstart <= tstart and tstop <= pstop <= tstart) or \
                         (tstart < tstop and ((pstart <= tstart and pstop <= tstart) or (pstart >= tstop and pstop >= tstop))):
@@ -4455,9 +5312,9 @@ class FetchData(Thread):
             if tdict['star-rating'] == '':
                 tdict['star-rating'] = tvdict['star-rating']
 
-            if len(tvdict['kijkwijzer']) > 0:
-                for item in tvdict['kijkwijzer']:
-                    tdict['kijkwijzer'].append(item)
+            if len(tvdict['rating']) > 0:
+                for item in tvdict['rating']:
+                    tdict['rating'].append(item)
 
             if tvdict['video']['HD']:
                 tdict['video']['HD']  = True
@@ -4614,11 +5471,11 @@ class FetchData(Thread):
             info[i]['name'] = general_renames(info[i]['name'])
 
         # Sort both lists on starttime and get their ranges
-        info.sort(key=lambda program: (program['start-time'],program['stop-time']))
+        info.sort(key=lambda program: (program['start-time']))
         infostarttime = info[0]['start-time'] + datetime.timedelta(seconds = 5)
         infoendtime = info[-1]['stop-time'] - datetime.timedelta(seconds = 5)
 
-        programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
+        programs.sort(key=lambda program: (program['start-time']))
         progstarttime = programs[0]['start-time'] + datetime.timedelta(seconds = 5)
         progendtime = programs[-1]['stop-time'] - datetime.timedelta(seconds = 5)
 
@@ -5029,6 +5886,8 @@ class Channel_Config(Thread):
         self.config = config
         self.functions = self.config.fetch_func
         self.quit = False
+        self.state = None
+        self.statetext = ''
         self.thread_type = 'channel'
 
         # Flags to indicate the data is in
@@ -5052,10 +5911,6 @@ class Channel_Config(Thread):
         self.source_id = {}
         self.icon_source = -1
         self.icon = ''
-
-        for index in range(self.config.source_count):
-            self.source_id[index] = ''
-            self.source_data[index] = Event()
 
         # This will contain the final fetcheddata
         self.all_programs = []
@@ -5115,17 +5970,21 @@ class Channel_Config(Thread):
 
         if not self.active and not self.is_child:
             self.ready = True
+            self.state = None
             for index in self.config.source_order:
-                self.source_data[index].set()
+                self.source_ready(index).set()
 
             self.detail_data.set()
             return
 
         if not self.is_child:
+            self.state = None
             self.child_data.set()
 
         try:
             # Create the merge order
+            self.statetext = 'preparing'
+            self.state = 1
             self.merge_order = []
             last_merge = []
             if (self.get_source_id(self.opt_dict['prime_source']) != '') \
@@ -5151,25 +6010,27 @@ class Channel_Config(Thread):
                         self.merge_order.append(index)
 
                 elif index != self.opt_dict['prime_source']:
-                    self.source_data[index].set()
+                    self.source_ready(index).set()
 
             self.merge_order.extend(last_merge)
             xml_data = False
             # Retrieve and merge the data from the available sources.
+            self.statetext = 'waiting for basepages'
+            self.state = 2
             for index in self.merge_order:
-                while not self.source_data[index].is_set():
+                while not self.source_ready(index).is_set():
                     # Wait till the event is set by the source, but check every 5 seconds for an unexpected break or wether the source is still alive
-                    self.source_data[index].wait(5)
+                    self.source_ready(index).wait(5)
                     if self.quit:
                         self.ready = True
                         return
 
                     # Check if the source is still alive
                     if not self.config.channelsource[index].is_alive():
-                        self.source_data[index].set()
+                        self.source_ready(index).set()
                         break
 
-                if self.source_data[index].is_set():
+                if self.source_ready(index).is_set():
                     if len(self.config.channelsource[index].program_data[self.chanid]) == 0:
                         if not (index == 1 and 0 in self.merge_order):
                             self.config.log(self.config.text('fetch', 51, (self.config.channelsource[index].source, self.chan_name)))
@@ -5190,6 +6051,8 @@ class Channel_Config(Thread):
                             self.all_programs[i] = self.config.fetch_func.checkout_program_dict(self.all_programs[i])
 
             if self.chanid in self.config.combined_channels.keys():
+                self.statetext = 'waiting for children'
+                self.state = 3
                 for c in self.config.combined_channels[self.chanid]:
                     if c['chanid'] in self.config.channels:
                         while not self.config.channels[c['chanid']].child_data.is_set():
@@ -5218,15 +6081,23 @@ class Channel_Config(Thread):
                 self.child_programs = deepcopy(self.all_programs) if self.active else self.all_programs
                 self.child_data.set()
                 if not self.active:
+                    self.statetext = ''
+                    self.state = None
                     self.ready = True
                     return
 
             # And get the detailpages
             if len(self.all_programs) == 0:
+                self.statetext = ''
+                self.state = None
                 self.detail_data.set()
 
             else:
+                self.statetext = 'processing details'
+                self.state = 4
                 self.get_details()
+                self.statetext = 'waiting for details'
+                self.state = 5
                 while not self.detail_data.is_set():
                     self.detail_data.wait(5)
                     if self.quit:
@@ -5323,6 +6194,8 @@ class Channel_Config(Thread):
             if self.config.write_info_files:
                 self.config.infofiles.write_raw_list()
 
+            self.statetext = ''
+            self.state = None
             self.ready = True
 
         except:
@@ -5370,10 +6243,10 @@ class Channel_Config(Thread):
         if tdict['rerun'] == True:
             cached['rerun'] = True
 
-        if len(tdict['kijkwijzer']) > 0:
-            for item in tdict['kijkwijzer']:
-                if not item in cached['kijkwijzer']:
-                    cached['kijkwijzer'].append(item)
+        if len(tdict['rating']) > 0:
+            for item in tdict['rating']:
+                if not item in cached['rating']:
+                    cached['rating'].append(item)
 
         return cached
 
@@ -5387,6 +6260,12 @@ class Channel_Config(Thread):
             return self.source_id[source]
 
         return ''
+
+    def source_ready(self, source):
+        if not source in self.source_data.keys():
+            self.source_data[source] = Event()
+
+        return self.source_data[source]
 
     def get_details(self, ):
         """
@@ -5439,6 +6318,7 @@ class Channel_Config(Thread):
 
             # We only fetch when we are in slow mode and slowdays is not set to tight
             no_fetch = (self.opt_dict['fast'] or p['offset'] >= (self.config.opt_dict['offset'] + self.opt_dict['slowdays']))
+            no_fetch = True
 
             # check the cache for this program's ID
             # If not found, check the various ID's and (if found) make it the prime one

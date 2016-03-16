@@ -427,7 +427,7 @@ class ProgramCache(Thread):
             self.url_list[s.detail_url] = key
 
         self.config.fetch_func.checkout_program_dict()
-        self.field_list = ['genre', 'kijkwijzer']
+        self.field_list = ['genre', 'rating']
         self.field_list.extend(self.config.fetch_func.text_values)
         self.field_list.extend(self.config.fetch_func.date_values)
         self.field_list.extend(self.config.fetch_func.datetime_values)
@@ -435,7 +435,7 @@ class ProgramCache(Thread):
         self.field_list.extend(self.config.fetch_func.num_values)
         self.field_list.extend(self.config.fetch_func.video_values)
         sqlite3.register_adapter(list, self.adapt_kw)
-        sqlite3.register_converter(str('kijkwijzer'), self.convert_kw)
+        sqlite3.register_converter(str('rating'), self.convert_kw)
         sqlite3.register_adapter(list, self.adapt_list)
         sqlite3.register_converter(str('listing'), self.convert_list)
         sqlite3.register_adapter(bool, self.adapt_bool)
@@ -798,7 +798,7 @@ class ProgramCache(Thread):
             for key in self.config.fetch_func.video_values:
                 create_string = u"%s, '%s' boolean DEFAULT 'False'" % (create_string, key)
 
-            create_string = u"%s, 'kijkwijzer' kijkwijzer DEFAULT '')" % create_string
+            create_string = u"%s, 'rating' rating DEFAULT '')" % create_string
 
         elif table == 'credits':
             create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
@@ -901,8 +901,8 @@ class ProgramCache(Thread):
             if 'genre' not in clist.keys():
                 add_collumn(table, u"'genre' TEXT DEFAULT 'overige'")
 
-            if 'kijkwijzer' not in clist.keys():
-                add_collumn(table, u"'kijkwijzer' kijkwijzer DEFAULT ''")
+            if 'rating' not in clist.keys():
+                add_collumn(table, u"'rating' rating DEFAULT ''")
 
             for c in self.config.fetch_func.text_values:
                 if c.lower() not in clist.keys():
@@ -1937,10 +1937,13 @@ class XMLoutput:
             # This will generate director/actor/presenter info.
             if program['credits'] != {}:
                 xml.append(self.add_starttag('credits', 4))
-                for role in ('director', 'actor', 'writer', 'adapter', 'producer', 'composer', 'editor', 'presenter', 'commentator', 'guest'):
+                for role in ('director', 'actor', 'guest', 'writer', 'composer', 'presenter', 'reporter', 'commentator', 'adapter', 'producer', 'editor'):
                     if role in program['credits']:
                         for name in program['credits'][role]:
-                            if name != '':
+                            if isinstance(name, dict) and 'name'in name:
+                                xml.append(self.add_starttag((role), 6, '', self.xmlescape(name['name']),True))
+
+                            elif name != '':
                                 xml.append(self.add_starttag((role), 6, '', self.xmlescape(name),True))
 
                 xml.append(self.add_endtag('credits', 4))
@@ -1975,7 +1978,7 @@ class XMLoutput:
             else:
                 cat = program['genre']
                 if program['genre'] != '':
-                    xml.append(self.add_starttag('category', 4, 'lang="nl', program['genre'], True))
+                    xml.append(self.add_starttag('category', 4, 'lang="nl"', program['genre'].capitalize(), True))
 
                 else:
                     xml.append(self.add_starttag('category', 4 , '', 'Overige', True))
@@ -1984,7 +1987,10 @@ class XMLoutput:
             if program['infourl'] != '':
                 xml.append(self.add_starttag('url', 4, '', program['infourl'],True))
 
-            if program['country'] != '':
+            if isinstance(program['country'], list) and len(program['country']) > 0 and program['country'][0] not in ('', None):
+                xml.append(self.add_starttag('country', 4, '', program['country'][0],True))
+
+            elif isinstance(program['country'], (str, unicode)) and program['country'] != '':
                 xml.append(self.add_starttag('country', 4, '', program['country'],True))
 
             # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
@@ -2042,46 +2048,46 @@ class XMLoutput:
             if program['teletekst']:
                 xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
 
-            # Add any Kijkwijzer items
+            # Add any rating items
             if self.config.opt_dict['kijkwijzerstijl'] in ('long', 'short', 'single'):
                 kstring = ''
                 # First only one age limit from high to low
-                for k in ('4', '3', '9', '2', '1'):
-                    if k in program['kijkwijzer']:
+                for k in self.config.rating['unique_codes'].keys():
+                    if k in program['rating']:
                         if self.config.opt_dict['kijkwijzerstijl'] == 'single':
-                            kstring += (self.config.kijkwijzer[k]['code'] + ': ')
+                            kstring += (self.config.rating['unique_codes'][k]['code'] + ': ')
 
                         else:
-                            xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
+                            xml.append(self.add_starttag('rating', 4, 'system="%s"' % (self.config.rating['name'])))
                             if self.config.opt_dict['kijkwijzerstijl'] == 'long':
-                                xml.append(self.add_starttag('value', 6, '', self.config.kijkwijzer[k]['text'], True))
+                                xml.append(self.add_starttag('value', 6, '', self.config.rating['unique_codes'][k]['text'], True))
 
                             else:
-                                xml.append(self.add_starttag('value', 6, '', self.config.kijkwijzer[k]['code'], True))
+                                xml.append(self.add_starttag('value', 6, '', self.config.rating['unique_codes'][k]['code'], True))
 
-                            xml.append(self.add_starttag('icon', 6, 'src="%s"' % self.config.kijkwijzer[k]['icon'], '', True))
+                            xml.append(self.add_starttag('icon', 6, 'src="%s"' % self.config.rating['unique_codes'][k]['icon'], '', True))
                             xml.append(self.add_endtag('rating', 4))
                         break
 
                 # And only one of any of the others
-                for k in ('g', 'a', 's', 't', 'h', 'd'):
-                    if k in program['kijkwijzer']:
+                for k in self.config.rating['addon_codes'].keys():
+                    if k in program['rating']:
                         if self.config.opt_dict['kijkwijzerstijl'] == 'single':
                             kstring += k.upper()
 
                         else:
-                            xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
+                            xml.append(self.add_starttag('rating', 4, 'system="%s"' % (self.config.rating['name'])))
                             if self.config.opt_dict['kijkwijzerstijl'] == 'long':
-                                xml.append(self.add_starttag('value', 6, '', self.config.kijkwijzer[k]['text'], True))
+                                xml.append(self.add_starttag('value', 6, '', self.config.rating['addon_codes'][k]['text'], True))
 
                             else:
-                                xml.append(self.add_starttag('value', 6, '', self.config.kijkwijzer[k]['code'], True))
+                                xml.append(self.add_starttag('value', 6, '', self.config.rating['addon_codes'][k]['code'], True))
 
-                            xml.append(self.add_starttag('icon', 6, 'src="%s"' % self.config.kijkwijzer[k]['icon'], '', True))
+                            xml.append(self.add_starttag('icon', 6, 'src="%s"' % self.config.rating['addon_codes'][k]['icon'], '', True))
                             xml.append(self.add_endtag('rating', 4))
 
                 if self.config.opt_dict['kijkwijzerstijl'] == 'single' and kstring != '':
-                    xml.append(self.add_starttag('rating', 4, 'system="kijkwijzer"'))
+                    xml.append(self.add_starttag('rating', 4, 'system="%s"' % (self.config.rating['name'])))
                     xml.append(self.add_starttag('value', 6, '', kstring, True))
                     xml.append(self.add_endtag('rating', 4))
 

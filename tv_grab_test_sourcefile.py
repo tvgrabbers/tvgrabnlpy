@@ -76,7 +76,7 @@ def main():
             #~ print weekday, first_day, datetime.date.fromordinal(current_date + first_day).strftime('%Y%m%d')
 
 
-        channel =''
+        channel ='een'
         #~ source = sources.tvgids_JSON(config, 0, 'source-tvgids.nl', True)
         #~ source = sources.horizon_JSON(config, 5, 'source-horizon.tv', True)
         #~ source = sources.tvgidstv_HTML(config, 1, 'source-tvgids.tv')
@@ -87,38 +87,62 @@ def main():
         #~ source = sources.oorboekje_HTML(config, 12, 'source-oorboekje.nl')
         #~ source = tv_grab_fetch.FetchData(config, 11, 'source-virtual.nl')
 
-        #~ source = tv_grab_fetch.FetchData(config, 0, 'source-tvgids.nl', True)
-        #~ source = tv_grab_fetch.FetchData(config, 2, 'source-rtl.nl', True)
-        #~ source = tv_grab_fetch.FetchData(config, 6, 'source-humo.be', True)
-        #~ channel ='672816167173'
-        #~ source = tv_grab_fetch.FetchData(config, 5, 'source-horizon.tv', True)
-        #~ channel ='O8'
-        #~ source = tv_grab_fetch.FetchData(config, 10, 'source-vrt.be', True)
+        #~ source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
+        #~ source = tv_grab_fetch.FetchData(config, 2, 'source-rtl.nl')
         #~ channel ='een'
         #~ source = tv_grab_fetch.FetchData(config, 8, 'source-nieuwsblad.be')
-        #~ channel ='nederland-1'
-        #~ source = tv_grab_fetch.FetchData(config, 1, 'source-tvgids.tv')
-        #~ source = tv_grab_fetch.FetchData(config, 4, 'source-npo.nl')
-        #~ source = tv_grab_fetch.FetchData(config, 7, 'source-vpro.nl')
-        #~ source= tv_grab_fetch.FetchData(config, 9, 'source-primo.eu')
-        source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
+        #~ source = tv_grab_fetch.FetchData(config, 7, 'source-vpro.nl', 2)
+        #~ source = tv_grab_fetch.FetchData(config, 4, 'source-npo.nl', 1)
+        channel ='24443943184'
+        source = tv_grab_fetch.FetchData(config, 5, 'source-horizon.tv', 1)
+        #~ source = tv_grab_fetch.FetchData(config, 6, 'source-humo.be', 1)
+        #~ channel ='O8'
+        #~ source = tv_grab_fetch.FetchData(config, 10, 'source-vrt.be', 1)
 
+        #~ channel = '5'
+        #~ source = tv_grab_fetch.FetchData(config, 0, 'source-tvgids.nl', 0)
+        #~ channel ='nederland-1'
+        #~ source = tv_grab_fetch.FetchData(config, 1, 'source-tvgids.tv', 3)
+        #~ channel = 'npo1'
+        #~ channel ='een'
+        #~ source= tv_grab_fetch.FetchData(config, 9, 'source-primo.eu', 1)
 
         config.validate_option('config_file')
+        config.get_sourcematching_file()
 
         source.test_output = sys.stdout
         #~ source.print_tags = True
         #~ source.print_roottree = True
+        #~ source.show_parsing = True
         source.print_searchtree = True
         source.show_result = True
 
         sid = source.proc_id
         config.channelsource[sid] = source
         config.channelsource[sid].init_channel_source_ids()
+        tdict = config.fetch_func.checkout_program_dict()
+        #~ tdict['channelid'] = config.channelsource[sid].chanids[channel]
+
         #~ config.channelsource[sid].get_channels()
 
-        data = config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'main', 'cnt-offset': 0, 'start':1, 'days':1})
-        config.channelsource[sid].parse_basepage(data, {'offset': 0, 'channel': channel, 'channelgrp': 'main'})
+        data = config.channelsource[sid].get_page_data('base',{'offset': 1, 'channel': channel, 'channelgrp': 'rest', 'cnt-offset': 3, 'start':0, 'days':4})
+        config.channelsource[sid].parse_basepage(data, {'offset': 1, 'channel': channel, 'channelgrp': 'main'})
+
+        #~ tdict['detail_url'][sid] = 'midsomer-murders/15170844'
+        #~ config.channelsource[sid].load_detailpage('detail', tdict)
+
+        #20091598
+        #20091569
+        #20054611
+        #20091568
+
+        #tussen-kunst-en-kitsch/15170469
+        #nos-sportjournaal/15170466
+        #midsomer-murders/15170844
+
+        #6526944
+        #6526945
+        #6526950
 
     except:
         traceback.print_exc()

@@ -1,20 +1,20 @@
 {"file-name":"source-vrt.be",
-    "name":"vrt.be",
-    "language":"nl",
+	"name":"vrt.be",
+	"language":"nl",
 	"site-timezone":"UTC",
-    "version":0,
-    "api-version":[1,0,0],
-    "detail_id":"vrt-ID",
-    "detail_url":"vrt-url",
-    "detail_processor":false,
-    "detail_check":"",
-    "channels":{
-        "url":["http://services.vrt.be/channel/s"],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":"application/vnd.channel.vrt.be.channels_1.1+json",
-        "url-type": 0,
-        "url-data":{},
+	"version":0,
+	"api-version":[1,0,0],
+	"detail_id":"vrt-ID",
+	"detail_url":"vrt-url",
+	"detail_processor":false,
+	"detail_check":"",
+	"channels":{
+		"url":["http://services.vrt.be/channel/s"],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":"application/vnd.channel.vrt.be.channels_1.1+json",
+		"url-type": 0,
+		"url-data":{},
 		"data":{
 			"key-path":[
 				{"key":"channels"},
@@ -35,22 +35,22 @@
 			"icongrp":null,
 			"inactive_channel":{"varid":4},
 			"HD":null}},
-    "base":{
-        "url":["http://services.vrt.be/epg/schedules/", 11],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":"application/vnd.epg.vrt.be.schedule_3.1+json",
-        "url-type": 9,
-        "url-data":{
-            "channel_code":1,
-            "type":"week"},
-        "url-date-format":"%Y%m%d",
+	"base":{
+		"url":["http://services.vrt.be/epg/schedules/", 11],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":"application/vnd.epg.vrt.be.schedule_3.1+json",
+		"url-type": 9,
+		"url-data":{
+			"channel_code":1,
+			"type":"week"},
+		"url-date-format":"%Y%m%d",
 		"url-date-range":"week",
 		"url-date-week-start":1,
 		"--remark--":"0 is sunday, null is current day",
 		"max days":14,
-        "datetimestring":"%Y-%m-%dT%H:%M:%S.%fZ",
-        "data":{
+		"datetimestring":"%Y-%m-%dT%H:%M:%S.%fZ",
+		"data":{
 			"key-path":[
 				{"key":"events"},
 				{"path":"all"},
@@ -73,21 +73,18 @@
 					{"path":"all"},
 					{"key":"name", "type": "list"}],
 				[{"key":"cast","default":""}],
-				[{"key":"type","default":"","--remark--":["Volatiel","Aflevering","MER","Film","Weerbericht","Kansspelen","","","","",""]}],
-				[{"key":"categories","default":"","--remark--":["12+",""]}],
+				[{"key":"categories","default":""}],
 				[{"key":"aspectRatio", "replace":{"4:3":false, "16:9":true},"default":false}],
 				[{"key":"videoFormat", "replace":{"SD":false, "HD":true},"default":false}],
 				[{"key":"hasTTSubTitles","type":"boolean","default":false}],
 				[{"key":"isRepeat","type":"boolean","default":false}],
 				[{"key":"standardGenres"},
-					{"path":"all"},
-					{"key":"type", "type": "list"}],
+					{"key":0, "keys":{"type": "DVB"}},
+					{"key":"eid", "split": ["\\.",0]}],
 				[{"key":"standardGenres"},
-					{"path":"all"},
-					{"key":"eid", "type": "list"}],
-				[{"key":"standardGenres"},
-					{"path":"all"},
-					{"key":"name", "type": "list"}]
+					{"key":0, "keys":{"type": "DVB"}},
+					{"key":"name", "split": [">",1]}],
+				[{"key":"type","default":"","--remark--":["Volatiel","Aflevering","Program","Film","Weerbericht","Kansspelen","","","","",""]}]
 					]},
 		"values":{
 			"channelid":{"varid": 1},
@@ -98,17 +95,59 @@
 			"titel aflevering":{"varid":5},
 			"season":{"varid":6},
 			"episode":{"varid":7},
-			"description":{"varid":8},
-			"presenters":{"varid":11},
-			"cast":{"varid":12},
-			"kijkwijzer":{"varid":14},
-			"breedbeeld":{"varid":15},
-			"HD":{"varid":16},
-			"teletekst":{"varid":17},
-			"rerun":{"varid":18}
+			"description":{"funcid":8, "data":[{"varid":9},{"varid":8}], "default":""},
+			"group":{"varid":10},
+			"presenter":{"funcid":5, "data":[{"varid":11}, "presenter"], "default":{}},
+			"credits":{"funcid":6, "data":[{"varid":12}], "default":{}},
+			"rating":{"funcid":9, "data":[{"varid":13}]},
+			"breedbeeld":{"varid":14},
+			"HD":{"varid":15},
+			"teletekst":{"varid":16},
+			"rerun":{"varid":17},
+			"genre":{"varid":18},
+			"subgenre":{"varid":19}
 			}},
 	"no_genric_matching":[],
 	"empty_channels":[],
-    "cattrans":{},
-    "kijkwijzer":{}}
-        
+	"cattrans":{
+        "1":{
+			"default":["film", ""]},
+        "2":{
+			"default":["nieuws/actualiteiten", ""]},
+        "3":{
+			"default":["amusement", ""],
+			"spel/kwis":["amusement", "spelshow"]},
+        "4":{
+			"default":["sport", ""]},
+        "5":{
+			"default":["jeugd", ""]},
+        "6":{
+			"default":["muziek", ""]},
+        "7":{
+			"default":["kunst en cultuur", ""],
+			"religie":["religieus", ""]},
+        "8":{
+			"default":["documentaire", ""],
+			"economie":["informatief", "economie"]},
+        "9":{
+			"default":["informatief", ""]},
+        "10":{
+			"default":["informatief", ""]},
+        "13":{
+			"default":["serie/soap", ""],
+			"algemeen":["serie/soap", ""],
+			"actie/detect./thriller":["serie/soap", "detectiveserie"],
+			"avontuur/oorlog/western":["serie/soap", "actieserie"],
+			"sf/fantasy/horror":["serie/soap", "sciencefictionserie"],
+			"komedie":["serie/soap", "komedieserie"],
+			"soap/melodrama":["serie/soap", "soap"],
+			"animatie":["serie/soap", "animatieserie"]},
+        "14":{
+			"default":["informatief", ""],
+			"reality":["informatief", "realityprogramma"]}},
+	"rating":{
+		"6+":"2",
+		"9+":"9",
+		"12+":"3",
+		"16+":"4"}}
+		

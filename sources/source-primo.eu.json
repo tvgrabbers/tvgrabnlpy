@@ -1,26 +1,26 @@
 {"file-name":"source-primo.eu",
-    "name":"primo.eu",
-    "language":"nl",
+	"name":"primo.eu",
+	"language":"nl",
 	"site-timezone":"Europe/Brussels",
-    "version":0,
-    "api-version":[1,0,0],
-    "detail_id":"primo-ID",
-    "detail_url":"primo-url",
-    "detail_processor":true,
-    "detail_check":"primo-fetched",
+	"version":0,
+	"api-version":[1,0,0],
+	"detail_id":"primo-ID",
+	"detail_url":"primo-url",
+	"detail_processor":true,
+	"detail_check":"primo-fetched",
 	"without-full-timings":true,
-    "base-channels":{
-        "url":["http://www.primo.eu/Tv%20programma's%20in%20volledig%20scherm%20bekijken"],
-        "data-format":"text/html",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type": 0,
-        "url-data":{},
-        "url-date-format": "%d-%m-%Y",
+	"base-channels":{
+		"url":["http://www.primo.eu/Tv%20programma's%20in%20volledig%20scherm%20bekijken"],
+		"data-format":"text/html",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type": 0,
+		"url-data":{},
+		"url-date-format": "%d-%m-%Y",
 		"autoclose-tags":["meta", "link"],
 		"datetimestring":"%Y-%m-%d %H:%M:%S",
 		"page-item-count":[],
-        "data":{
+		"data":{
 			"init-path":[
 				{"tag":"html"},
 				{"tag":"body"},
@@ -61,17 +61,17 @@
 			"icongrp":null,
 			"group":null,
 			"HD":null}},
-    "base":{
-        "url":["http://www.primo.eu/tv-programs-full-view/",11, "/all/all"],
-        "data-format":"text/html",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type": 2,
-        "url-date-type": 1,
-        "url-data":{},
+	"base":{
+		"url":["http://www.primo.eu/tv-programs-full-view/",11, "/all/all"],
+		"data-format":"text/html",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type": 2,
+		"url-date-type": 1,
+		"url-data":{},
 		"max days":8,
 		"autoclose-tags":["meta", "link"],
-        "data":{
+		"data":{
 			"init-path":[
 				{"tag":"html"},
 				{"tag":"body"},
@@ -131,25 +131,100 @@
 			"alt-stop-time":{"funcid":4, "data":[{"varid": 3},{"varid": 7}, 7]},
 			"length":{"varid": 8},
 			"name":{"varid":5}}},
-    "detail":{
-        "url":["http://www.primo.eu/tvprograms/ajaxcallback/",0],
-        "data-format":"text/html",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type":0,
-        "url-data":{},
+	"detail":{
+		"url":["http://www.primo.eu/tvprograms/ajaxcallback/",0],
+		"data-format":"text/html",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type":0,
+		"url-data":{},
+		"enclose-with-html-tag":true,
 		"autoclose-tags":["meta", "link"],
-        "data":{
-			"init-path":[
-				],
-			"iter":[
-				{"key-path":[
-					],
-				"values":[
-					]}]},
-		"values":{}},
+		"data":{
+			"init-path":[{"tag":"html"},
+				{"tag":"div", "attrs":{"class":"program-details"}}],
+			"key-path":[{"tag":"div", "attrs":{"class":"details"}}],
+			"values":[
+				[{"tag":"div", "attrs":{"class":null}},
+					{"tag":"label"},
+					{"path":"parent", "name":{"select":"text", "rstrip":":", "lower":""}},
+					{"tag":"span", "select":"text"}]
+				]},
+		"values":{
+			"description":{"funcid":14, "data":[{"varid":1},"synopsis"]},
+			"titel aflevering":{"funcid":14, "data":[{"varid":1},"titel aflevering"]},
+			"episode":{"funcid":14, "data":[{"varid":1},"nr. aflevering"]},
+			"season":{"funcid":14, "data":[{"varid":1},"seizoen"]},
+			"jaar van premiere":{"funcid":14, "data":[{"varid":1},"jaar"]},
+			"country":{"funcid":15, "data":[{"funcid":14, "data":[{"varid":1},"land"]}]},
+			"rating":{"funcid":14, "data":[{"varid":1},"minimumleeftijd"]},
+			"star-rating":{"funcid":14, "data":[{"varid":1},"rating"], "calc":{"multiplier":2.5}},
+			"genre":{"funcid":14, "data":[{"varid":1},"genre"]},
+			"subgenre":{"funcid":14, "data":[{"varid":1},"samenvatting"], "max length":25},
+			"credits":{"funcid":5, "data":[{"varid":1}]},
+			
+			"new":{"funcid":11, "data":[{"varid": 12},{"varid": 13}, 
+				["programmanaam","datum en tijd","zender","genre","synopsis","titel aflevering",
+					"nr. aflevering","seizoen","jaar","land","samenvatting","minimumleeftijd","rating"]]}
+			}},
 	"no_genric_matching":["disneyxd", "npo1", "npo2", "npo3", "sbss6", "net5", "veronica"],
 	"empty_channels":[],
-    "cattrans":{},
-    "kijkwijzer":{}}
-        
+	"cattrans":{
+        "nieuws":{
+			"default":["nieuws/actualiteiten", "nieuws"]},
+        "actua":{
+			"default":["nieuws/actualiteiten", "actualiteiten"]},
+        "reportage":{
+			"default":["nieuws/actualiteiten", "reportage"]},
+        "sport":{
+			"default":["sport", ""]},
+        "documentaire":{
+			"default":["documentaire", ""]},
+        "magazine":{
+			"default":["magazine", ""]},
+        "varia":{
+			"default":["informatief", ""]},
+        "amusement":{
+			"default":["amusement", ""]},
+        "spel":{
+			"default":["amusement", "spelshow"]},
+        "reality-tv":{
+			"default":["amusement", "realityprogramma"]},
+        "talkshow":{
+			"default":["amusement", "talkshow"]},
+        "muziek":{
+			"default":["muziek", ""]},
+        "religie":{
+			"default":["religieus", ""]},
+        "jeugd":{
+			"default":["jeugd", ""]},
+        "film":{
+			"default":["film", ""]},
+        "kortfilm":{
+			"default":["film", "korte film"]},
+        "zwart/wit film":{
+			"default":["film", "zwart/wit film"]},
+        "serie":{
+			"default":["serie/soap", ""],
+			"actiereeks": ["serie/soap", "actieserie"],
+			"advocatenreeks": ["serie/soap", "advocatenserie"],
+			"avonturenreeks": ["serie/soap", "avonturenserie"],
+			"detectivereeks": ["serie/soap", "detectiveserie"],
+			"dramareeks": ["serie/soap", "dramaserie"],
+			"fictiereeks": ["serie/soap", "fictieserie"],
+			"jeugdreeks": ["jeugd", "serie"],
+			"komische reeks": ["serie/soap", "comedyserie"],
+			"minireeks": ["serie/soap", "miniserie"],
+			"misdaadreeks": ["serie/soap", "misdaadserie"],
+			"romantische reeks": ["serie/soap", "romantische serie"],
+			"soapreeks": ["serie/soap", "soap"],
+			"thrillerreeks": ["serie/soap", "thrillerserie"],
+			"tragikomische reeks": ["serie/soap", "tragikomische serie"],
+			"ziekenhuisreeks": ["serie/soap", "ziekenhuisserie"]}},
+	"rating":{
+		"(6+)":"1",
+		"(9+)":"2",
+		"(12+)":"3",
+		"(16+)":"4",
+		"(18+)":"4"}}
+

@@ -1,22 +1,22 @@
 {"file-name":"source-npo.nl",
-    "name":"npo.nl",
-    "language":"nl",
+	"name":"npo.nl",
+	"language":"nl",
 	"site-timezone":"Europe/Amsterdam",
-    "version":0,
-    "api-version":[1,0,0],
-    "detail_id":"npo-ID",
-    "detail_url":"npo-url",
-    "detail_processor":false,
-    "detail_check":"",
+	"version":0,
+	"api-version":[1,0,0],
+	"detail_id":"npo-ID",
+	"detail_url":"npo-url",
+	"detail_processor":false,
+	"detail_check":"",
 	"without-full-timings":true,
-    "base-channels":{
-        "url":["http://www.npo.nl/gids/horizontaal/", 12, "/content"],
-        "data-format":"text/html",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type": 0,
-        "url-data":{},
-        "url-date-format": "%d-%m-%Y",
+	"base-channels":{
+		"url":["http://www.npo.nl/gids/horizontaal/", 12, "/content"],
+		"data-format":"text/html",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type": 0,
+		"url-data":{},
+		"url-date-format": "%d-%m-%Y",
 		"autoclose-tags":["meta", "link"],
 		"enclose-with-html-tag":true,
 		"datetimestring":"%Y-%m-%d %H:%M:%S",
@@ -31,7 +31,7 @@
 				{"tag":"div", "attrs":{"class":"span12"}},
 				{"tag":"div", "attrs":{"class":"guide horizontal-guide","data-counter":null},
 					"attr":"data-end", "type":"datetimestring"}],
-        "data":{
+		"data":{
 			"init-path":[{"tag":"html"}],
 			"iter":[
 				{"key-path":[
@@ -88,26 +88,26 @@
 					[{"attr":"style", "sub":["background-image: url\\('","http:"], "rstrip":"')"}]
 					]}]},
 		"values":{
-			"channelid":{"varid": 2},
+			"channelid":{"varid": 2, "type":"str"},
 			"name":{"funcid":0, "data":[{"varid": 0}]},
 			"group":{"varid": 1},
 			"icon":{"funcid":1, "data":[{"varid": 3}]},
 			"icongrp":null,
 			"HD":null}},
-    "base":{
-        "url":["http://www.npo.nl/gids/horizontaal/", 11, "/content"],
-        "data-format":"text/html",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type": 2,
-        "url-data":{},
-        "url-date-format": "%d-%m-%Y",
+	"base":{
+		"url":["http://www.npo.nl/gids/horizontaal/", 11, "/content"],
+		"data-format":"text/html",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type": 2,
+		"url-data":{},
+		"url-date-format": "%d-%m-%Y",
 		"month-names": ["dummy", "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"],
 		"max days":7,
 		"autoclose-tags":["meta", "link"],
 		"enclose-with-html-tag":true,
 		"date-sequence":["y","m","d"],
-        "data":{
+		"data":{
 			"init-path":[{"tag":"html"}],
 			"iter":[
 				{"key-path":[
@@ -138,8 +138,8 @@
 						{"tag":"div", "attrs":{"class":"channel-icon"}, "index":{"link":1}},
 						{"tag":"a"},
 						{"tag":"div", "attrs":{"class":"larger-image channel-icon-wrapper"},"attr":"style", "split":[["/",-3]]}],
-					[{"attr":"data-genre"}],
-					[{"tag":"span"}]
+					[{"tag":"span","lstrip":"(","rstrip":")"}],
+					[{"attr":"data-genre","split":[",", "list-all"]}]
 						]},
 				{"key-path":[
 					{"tag":"div", "attrs":{"id":"themed-guide"}},
@@ -168,8 +168,8 @@
 						{"tag":"div", "attrs":{"class":"channel-icon"}, "index":{"link":1}},
 						{"tag":"a"},
 						{"tag":"div", "attrs":{"class":"larger-image channel-icon-wrapper"},"attr":"style", "split":[["/",-3]]}],
-					[{"attr":"data-genre"}],
-					[{"tag":"span"}]
+					[{"tag":"span","lstrip":"(","rstrip":")"}],
+					[{"attr":"data-genre","split":[",", "list-all"]}]
 						]},
 				{"key-path":[
 					{"tag":"div", "attrs":{"id":"regional-guide"}},
@@ -197,8 +197,8 @@
 						{"tag":"div", "attrs":{"class":"guide-channel-icons"}},
 						{"tag":"div", "attrs":{"class":"channel-icon"}, "index":{"link":1}},
 						{"tag":"div", "attrs":{"class":"larger-image channel-icon-wrapper no-shadow"},"attr":"style", "split":[["/",-3]]}],
-					[{"attr":"data-genre"}],
-					[{"tag":"span"}]
+					[],
+					[{"attr":"data-genre","split":[",", "list-all"]}]
 						]},
 				{"key-path":[
 					{"tag":"div", "attrs":{"id":"radio-guide"}},
@@ -226,8 +226,8 @@
 						{"tag":"div", "attrs":{"class":"guide-channel-icons"}},
 						{"tag":"div", "attrs":{"class":"channel-icon"}, "index":{"link":1}},
 						{"tag":"div", "attrs":{"class":"larger-image channel-icon-wrapper no-shadow"}, "attr":"style", "split":[["/",-3]]}],
-					[{"attr":"data-genre"}],
-					[{"tag":"span"}]
+					[{"tag":"span","lstrip":"(","rstrip":")"}],
+					[{"attr":"data-genre","split":[",", "list-all"]}]
 						]}
 						]},
 		"values":{
@@ -235,10 +235,60 @@
 			"start-time":{"funcid":4, "data":[{"varid": 3},{"varid": 0}, 6]},
 			"stop-time":{"funcid":4, "data":[{"varid": 3},{"varid": 1}, 6]},
 			"name":{"varid":2},
-			"omroep":{"varid":6}}},
+			"genres":{"varid": 6},
+			"omroep":{"varid":5}}},
 	"no_genric_matching":["270", "271", "275"],
 	"empty_channels":[],
 	"alt-channels":{"301":["265","NPO 3"]},
-    "cattrans":{},
-    "kijkwijzer":{}}
-        
+	"cattrans":{
+		"nieuws-actualiteiten":{
+			"default":["nieuws/actualiteiten", ""]},
+		"amusement":{
+			"default":["amusement", ""],
+			"komisch":["amusement", "komedie"],
+			"spel-quiz":["amusement", "quiz"]},
+		"informatief":{
+			"default":["informatief", ""],
+			"nieuws-actualiteiten":["nieuws/actualiteiten", ""],
+			"kunst-cultuur":["informatief", "kunst/cultuur"],
+			"gezondheid-opvoeding":["informatief", "gezondheid"],
+			"consumenten-informatie":["informatief", "consument"],
+			"spel-quiz":["informatief", "quiz"],
+			"koken-eten":["informatief", "kookprogramma"],
+			"natuur":["natuur", ""],
+			"religieus":["religieus", ""]},
+		"religieus":{
+			"default":["religieus", ""]},
+		"jeugd":{
+			"default":["jeugd", ""],
+			"animatie":["jeugd", "animatieserie"],
+			"spel-quiz":["jeugd", "quiz"]},
+		"documentaire":{
+			"default":["documentaire", ""],
+			"kunst-cultuur":["documentaire", "kunst/cultuur"]},
+		"sport":{
+			"default":["sport", ""],
+			"sport-informatie":["sport", "journaal"]},
+		"animatie":{
+			"default":["serie/soap", "animatieserie"]},
+		"natuur":{
+			"default":["natuur", ""]},
+		"muziek":{
+			"default":["muziek", ""],
+			"muziek-populair":["muziek", "populair"],
+			"muziek-klassiek":["muziek", "klassiek"]},
+		"film":{
+			"default":["film", ""],
+			"animatie":["film", "animatieserie"],
+			"spanning":["film", "thriller"]},
+		"wetenschap":{
+			"default":["wetenschap", ""]},
+		"drama":{
+			"default":["serie/soap", "drama"]},
+		"reizen":{
+			"default":["reizen", ""]},
+		"serie":{
+			"default":["serie/soap", ""],
+			"soap-serie":["serie/soap", "soap"]}},
+	"rating":{}}
+

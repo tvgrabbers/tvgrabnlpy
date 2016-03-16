@@ -1,20 +1,20 @@
 {"file-name":"source-humo.be",
-    "name":"humo.be",
-    "language":"nl",
+	"name":"humo.be",
+	"language":"nl",
 	"site-timezone":"Europe/Brussels",
-    "version":0,
-    "api-version":[1,0,0],
-    "detail_id":"humo-ID",
-    "detail_url":"humo-url",
-    "detail_processor":false,
-    "detail_check":"",
-    "channels":{
-        "url":["http://www.humo.be/api/epg/humosite/channels"],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type":0,
-        "url-data":{},
+	"version":0,
+	"api-version":[1,0,0],
+	"detail_id":"humo-ID",
+	"detail_url":"humo-url",
+	"detail_processor":false,
+	"detail_check":"",
+	"channels":{
+		"url":["http://www.humo.be/api/epg/humosite/channels"],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type":0,
+		"url-data":{},
 		"data":{
 			"key-path":[
 				{"key":"groups"},
@@ -45,17 +45,17 @@
 			"icongrp":null,
 			"fetch_grp":{"varid":2},
 			"HD":null}},
-    "base":{
-        "url":["http://www.humo.be/api/epg/humosite/schedule/", 3, "/", 11, "/full"],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":"",
-        "url-type": 3,
-        "url-data":{},
-        "url-date-format":"%Y%m%d",
+	"base":{
+		"url":["http://www.humo.be/api/epg/humosite/schedule/", 3, "/", 11, "/full"],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":"",
+		"url-type": 3,
+		"url-data":{},
+		"url-date-format":"%Y%m%d",
 		"url-channel-groups": ["main","rest"],
 		"max days":7,
-        "data":{
+		"data":{
 			"key-path":[
 				{"key":"broadcasters"},
 				{"path":"all"},
@@ -100,14 +100,6 @@
 					{"key":"credits"},
 					{"path":"all"},
 					{"key":"character","type":"list"}],
-				[{"key":"program"},
-					{"key":"labels"},
-					{"path":"all"},
-					{"type":"list"}],
-				[{"key":"program"},
-					{"key":"genres"},
-					{"path":"all"},
-					{"type":"list"}],
 				[{"key":"properties"},
 					{"key":"teletext","default":false, "type":"boolean"}],
 				[{"key":"properties"},
@@ -121,10 +113,13 @@
 				[{"key":"properties"},
 					{"key":"final","default":false, "type":"boolean"}],
 				[{"key":"properties"},
-					{"key":"new","default":false, "type":"boolean"}]
+					{"key":"new","default":false, "type":"boolean"}],
+				[{"key":"program"},
+					{"key":"genres"},
+					{"key":0,"split":["-", "list-all"]}]
 					]},
 		"values":{
-			"channelid":{"varid": 1},
+			"channelid":{"funcid":2, "data":[{"varid": 1}]},
 			"prog_ID":{"funcid":2, "data":["humo-",{"varid":0}]},
 			"start-time":{"varid":2},
 			"stop-time":{"varid":3},
@@ -133,16 +128,84 @@
 			"season":{"varid":6},
 			"episode":{"varid":7},
 			"jaar van premiere":{"varid":8},
-			"country":{"varid":9},
-			"description":{"varid":10},
-			"teletekst":{"varid":18},
-			"audio":{"varid":19},
-			"breedbeeld":{"varid":20},
-			"HD":{"varid":21},
-			"rerun":{"varid":22}
+			"country":{"funcid":15, "data":[{"varid":9}]},
+			"description":{"funcid":8, "data":[{"varid":12},{"varid":11},{"varid":10}], "default":""},
+			"credits":{"funcid":5, "data":[{"varid":14},{"varid":13},{"varid":15}], "default":{}},
+			"teletekst":{"varid":16},
+			"audio":{"funcid":7, "data":[{"varid":17}, "dolby", ""]},
+			"breedbeeld":{"varid":18},
+			"HD":{"varid":19},
+			"rerun":{"varid":20},
+			"last-chance":{"varid":21},
+			"new":{"varid":22},
+			"genres":{"varid":23}
 			}},
 	"no_genric_matching":["30", "32", "34"],
 	"empty_channels":[],
-    "cattrans":{},
-    "kijkwijzer":{}}
-        
+	"cattrans":{
+		"nieuws":{
+			"default":["Nieuws/Actualiteiten", ""]},
+		"current-affairs":{
+			"default":["Nieuws/Actualiteiten", "Actualiteiten"]},
+		"reportage":{
+			"default":["Nieuws/Actualiteiten", "Reportage"],
+			"reality":["Amusement", "Reality"]},
+		"info":{
+			"default":["Nieuws/Actualiteiten", ""]},
+		"sports":{
+			"default":["Sport", ""]},
+		"sport":{
+			"default":["Sport", ""]},
+		"documentaire":{
+			"default":["Documentaire", ""]},
+		"magazine":{
+			"default":["Magazine", ""]},
+        "amusement":{
+			"default":["Amusement", ""]},
+        "show":{
+			"default":["Amusement", ""]},
+        "talk":{
+			"default":["Amusement", ""]},
+        "talkshow":{
+			"default":["Amusement", "Talkshow"]},
+        "spel":{
+			"default":["Amusement", "spelshow"]},
+        "quiz":{
+			"default":["Amusement", "Quiz"]},
+        "reality":{
+			"default":["Amusement", "Realityserie"]},
+        "kunst-cultuur":{
+			"default":["kunst en cultuur", ""]},
+        "muziek":{
+			"default":["Muziek", ""]},
+        "radio":{
+			"default":["Muziek", ""]},
+        "religion":{
+			"default":["Religieus", ""]},
+        "kinderen":{
+			"default":["jeugd", ""]},
+        "jeugd":{
+			"default":["jeugd", ""]},
+        "animated-cartoon":{
+			"default":["serie/soap", "animatieserie"]},
+        "film":{
+			"default":["Film", ""]},
+        "tv-film":{
+			"default":["Film", "TV Film"]},
+        "movie-short":{
+			"default":["Film", "Korte Film"]},
+        "serie":{
+			"default":["Serie/Soap", ""],
+			"komedie":["Serie/Soap", "comedyserie"],
+			"misdaad":["Serie/Soap", "misdaadserie"],
+			"detective":["Serie/Soap", "detectiveserie"],
+			"actie":["Serie/Soap", "actieserie"],
+			"scifi":["Serie/Soap", "sciencefictionserie"]},
+        "miniserie":{
+			"default":["Serie/Soap", ""]},
+        "soap":{
+			"default":["Serie/Soap", "Soap"]},
+        "rest":{
+			"default":["Overige", ""]}},
+	"rating":{}}
+

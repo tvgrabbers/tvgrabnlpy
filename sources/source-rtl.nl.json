@@ -1,16 +1,16 @@
 {"file-name":"source-rtl.nl",
-    "name":"rtl.nl",
-    "language":"nl",
+	"name":"rtl.nl",
+	"language":"nl",
 	"site-timezone":"Europe/Amsterdam",
-    "version":0,
-    "api-version":[1,0,0],
-    "detail_id":"rtl-ID",
-    "detail_url":"rtl-url",
-    "detail_processor":false,
-    "detail_check":"",
-    "channels":{
-        "url":null,
-        "data":{
+	"version":0,
+	"api-version":[1,0,0],
+	"detail_id":"rtl-ID",
+	"detail_url":"rtl-url",
+	"detail_processor":false,
+	"detail_check":"",
+	"channels":{
+		"url":null,
+		"data":{
 			"RTL4": {"name": "RTL 4", "group": 1, "icon": "logo_rtl4_med_dark.png", "icongrp": 3},
 			"RTL5": {"name": "RTL 5", "group": 1, "icon": "logo_rtl5.png", "icongrp": 3},
 			"RTL7": {"name": "RTL 7", "group": 1, "icon": "logo_rtl7_trans.png", "icongrp": 3},
@@ -19,20 +19,20 @@
 			"RTLL": {"name": "RTL Lounge", "group": 7, "icon": "logo_rtllounge.png", "icongrp": 3},
 			"RTCR": {"name": "RTL Crime", "group": 7, "icon": "logo_rtlcrime.png", "icongrp": 3},
 			"RTLT": {"name": "RTL Telekids", "group": 7, "icon": "logo_telekids.png", "icongrp": 3}}},
-    "base":{
-        "url":["http://www.rtl.nl/system/s4m/tvguide/guide_for_one_day.xml"],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type":6,
-        "url-data":{
+	"base":{
+		"url":["http://www.rtl.nl/system/s4m/tvguide/guide_for_one_day.xml"],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type":6,
+		"url-data":{
 			"output": "json",
 			"days_ahead":12,
 			"days_back": 13,
 			"station": 2},
-        "calc-end-times":true,
+		"calc-end-times":true,
 		"start-off-day": 7,
-        "data":{
+		"data":{
 			"key-path":[
 				{"key":"schedule"},
 				{"path":"all"},
@@ -99,21 +99,33 @@
 			"season":{"varid":7},
 			"episode":{"varid":8},
 			"titel aflevering":{"varid":9},
-			"description":{"varid":11}}},
-    "detail":{
-        "url":["http://www.rtl.nl/system/s4m/tvguide/guide_for_one_abstract.xml"],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":"",
-        "url-data":{
+			"description":{"varid":11},
+			"rating":{"funcid":9, "data":[{"varid":10},"as_list", 2]}}},
+	"detail":{
+		"url":["http://www.rtl.nl/system/s4m/tvguide/guide_for_one_abstract.xml"],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":"",
+		"url-data":{
 			"output": "json",
 			"abstract_key": "abstract",
 			"days_ahead": "days"},
-        "url-type":0,
-        "data":[],
+		"url-type":0,
+		"data":[],
 		"vars":{}},
 	"no_genric_matching":[],
 	"empty_channels":[],
-    "cattrans":{},
-    "kijkwijzer":{"age":{"16":"4","12":"3","9":"9","6":"2","AL":"1"}, "rest":{"g":"g","a":"a","s":"s","t":"t","h":"h","d":"d"}}}
-        
+	"cattrans":{},
+	"rating":{
+		"AL":"0",
+		"6":"1",
+		"9":"2",
+		"12":"3",
+		"16":"4",
+		"g":"g",
+		"a":"a",
+		"s":"s",
+		"t":"t",
+		"h":"h",
+		"d":"d"}}
+

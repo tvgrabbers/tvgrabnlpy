@@ -1,23 +1,23 @@
 {"file-name":"source-nieuwsblad.be",
-    "name":"nieuwsblad.be",
-    "language":"nl",
+	"name":"nieuwsblad.be",
+	"language":"nl",
 	"site-timezone":"Europe/Brussels",
-    "version":0,
-    "api-version":[1,0,0],
-    "detail_id":"nb-ID",
-    "detail_url":"nb-url",
-    "detail_processor":false,
-    "detail_check":"",
+	"version":0,
+	"api-version":[1,0,0],
+	"detail_id":"nb-ID",
+	"detail_url":"nb-url",
+	"detail_processor":false,
+	"detail_check":"",
 	"without-full-timings":true,
-    "channels2":{
-        "url":["http://www.nieuwsblad.be/tv-gids/zenders"],
-        "data-format":"text/html",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type": 0,
-        "url-data":{},
+	"channels2":{
+		"url":["http://www.nieuwsblad.be/tv-gids/zenders"],
+		"data-format":"text/html",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type": 0,
+		"url-data":{},
 		"autoclose-tags":["meta", "link"],
-        "data":{
+		"data":{
 			"init-path":[
 				{"tag":"html"},
 				{"tag":"body"},
@@ -82,15 +82,15 @@
 			"icongrp":null,
 			"group":null,
 			"HD":null}},
-    "base-channels":{
-        "url":["http://www.nieuwsblad.be/tv-gids"],
-        "data-format":"text/html",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type": 0,
-        "url-data":{},
+	"base-channels":{
+		"url":["http://www.nieuwsblad.be/tv-gids"],
+		"data-format":"text/html",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type": 0,
+		"url-data":{},
 		"autoclose-tags":["meta", "link"],
-        "data":{
+		"data":{
 			"init-path":[
 				{"tag":"html"},
 				{"tag":"body"},
@@ -129,13 +129,13 @@
 			"icongrp":null,
 			"group":{"varid":3},
 			"HD":null}},
-    "base":{
-        "url":["http://www.nieuwsblad.be/tv-gids/",1, "/",11],
-        "data-format":"text/html",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type": 9,
-        "url-data":{},
+	"base":{
+		"url":["http://www.nieuwsblad.be/tv-gids/",1, "/",11],
+		"data-format":"text/html",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type": 9,
+		"url-data":{},
 		"url-date-type":2,
 		"url-date-range":6,
 		"weekdays":["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"],
@@ -146,9 +146,9 @@
 													"oktober", "november", "december"],
 		"max days":10,
 		"autoclose-tags":["meta", "link", "img", "input"],
-        "calc-end-times":true,
+		"calc-end-times":true,
 		"start-off-day": 7,
-        "data":{
+		"data":{
 			"init-path":[
 				{"tag":"html"},
 				{"tag":"body"},
@@ -204,6 +204,6 @@
 			"name":{"varid":4}}},
 	"no_genric_matching":["npo1", "npo2", "npo3", "sbs6", "net5", "veronica"],
 	"empty_channels":["tv5", "bbc1"],
-    "cattrans":{},
-    "kijkwijzer":{}}
-        
+	"cattrans":{},
+	"rating":{}}
+

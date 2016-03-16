@@ -1,20 +1,20 @@
 {"file-name":"source-horizon.tv",
-    "name":"horizon.tv",
-    "language":"nl",
+	"name":"horizon.tv",
+	"language":"nl",
 	"site-timezone":"Europe/Amsterdam",
-    "version":0,
-    "api-version":[1,0,0],
-    "detail_id":"horizon-ID",
-    "detail_url":"horizon-url",
-    "detail_processor":false,
-    "detail_check":"",
-    "channels":{
-        "url":["https://www.horizon.tv/oesp/api/NL/nld/web/channels/"],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type": 0,
-        "url-data":{},
+	"version":0,
+	"api-version":[1,0,0],
+	"detail_id":"horizon-ID",
+	"detail_url":"horizon-url",
+	"detail_processor":false,
+	"detail_check":"",
+	"channels":{
+		"url":["https://www.horizon.tv/oesp/api/NL/nld/web/channels/"],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type": 0,
+		"url-data":{},
 		"data":{
 			"key-path":[
 				{"key":"channels"},
@@ -39,29 +39,30 @@
 				"station-logo-tva-nonfocused":"w77xh52"}]
 				},
 		"values":{
-			"channelid":{"varid": 0, "type":"string"},
+			"channelid":{"varid": 0, "type":"str"},
 			"name":{"funcid":0, "data":[{"varid":1}, " HD"]},
 			"group":null,
 			"icon":{"funcid":1, "data":[{"varid":3}]},
 			"icongrp":null,
 			"HD":{"varid": 2}}},
-    "base":{
-        "url":["https://www.horizon.tv/oesp/api/NL/nld/web/listings/"],
-        "data-format":"application/json",
-        "encoding":"utf-8",
-        "accept-header":null,
-        "url-type":13,
-        "url-data":{
+	"base":{
+		"url":["https://www.horizon.tv/oesp/api/NL/nld/web/listings/"],
+		"data-format":"application/json",
+		"encoding":"utf-8",
+		"accept-header":null,
+		"url-type":13,
+		"url-data":{
 			"byStationId": 1,
-            "byStartTime": 14,
+			"byStartTime": 14,
 			"range":4,
-            "sort": "startTime"},
+			"sort": "startTime"},
 		"url-date-type":1,
 		"url-date-multiplier":1000,
-        "item-count":100,
 		"max days":14,
-		"page-item-count":["entryCount"],
-        "data":{
+		"default-item-count":100,
+		"total-item-count":[{"key":"totalResults", "default": 0}],
+		"page-item-count":[{"key":"entryCount", "default": 0}],
+		"data":{
 			"key-path":[
 				{"key":"listings"},
 				{"path":"all"},
@@ -86,8 +87,6 @@
 				[{"key":"program"},
 					{"key":"airdate", "type":"timestamp","multiplier":1000}],
 				[{"key":"program"},
-					{"key":"latestBroadcastStartTime", "type":"timestamp","multiplier":1000}],
-				[{"key":"program"},
 					{"key":"cast"},
 					{"path":"all"},
 					{"type": "list"}],
@@ -97,14 +96,16 @@
 					{"type": "list"}],
 				[{"key":"program"},
 					{"key":"categories"},
-					{"path":"all"},
-					{"key":"id", "type": "list"}],
+					{"key":0},
+					{"key":"id"}],
 				[{"key":"program"},
 					{"key":"categories"},
-					{"path":"all"},
-					{"key":"title", "type": "list"}],
+					{"key":1},
+					{"key":"title", "default":""}],
 				[{"key":"program"},
-					{"key":"mediaType","default":""}]
+					{"key":"mediaType","default":""}],
+				[{"key":"program"},
+					{"key":"latestBroadcastStartTime", "type":"timestamp","multiplier":1000}]
 					]},
 		"values":{
 			"channelid":{"varid": 1},
@@ -114,10 +115,13 @@
 			"name":{"varid":4},
 			"titel aflevering":{"varid":5},
 			"episode":{"varid":6},
-			"description":{"varid":7},
+			"description":{"funcid":8, "data":[{"varid":7},{"varid":8}], "default":""},
 			"jaar van premiere":{"varid":9},
-			"cast":{"varid":12},
-			"directors":{"varid":13}
+			"airdate":{"varid":10},
+			"cast":{"varid":11},
+			"directors":{"varid":12},
+			"genre":{"varid":13},
+			"subgenre":{"varid":14, "type":"capitalize"}
 			}},
 	"no_genric_matching":[
 		"24443942983", "24443942987", "24443943012", "24443943014", "24443943071", "24443943091",
@@ -125,6 +129,31 @@
 		"672816167173"],
 	"empty_channels":[
 		"614261799194", "615722023372", "24443943133", "624196647052"],
-    "cattrans":{},
-    "kijkwijzer":{}}
-        
+	"cattrans":{
+        "13946319":{
+			"default":["nieuws/actualiteiten",""],
+			"documentaire":["informatief", "Documentaire"],
+			"discussie":["informatief", "Discussie"]},
+        "13946336":{
+			"default":["amusement",""]},
+        "13946352":{
+			"default":["sport",""]},
+        "13946369":{
+			"default":["jeugd", ""]},
+        "13946386":{
+			"default":["muziek", ""]},
+        "13946404":{
+			"default":["kunst en cultuur", ""],
+			"religie":["religieus", ""]},
+        "13946455":{
+			"default":["Vrije tijd", ""]},
+        "13946420":{
+			"default":["informatief", ""]},
+        "13946438":{
+			"default":["Educatie", ""]},
+        "13946472":{
+			"default":["informatief", ""]},
+        "13948023":{
+			"default":["serie/soap", ""]}},
+	"rating":{}}
+

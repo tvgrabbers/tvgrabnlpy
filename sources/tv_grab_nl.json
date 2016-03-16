@@ -2,11 +2,74 @@
 	"Dit is het data bestand voor tv_grab_nl_py en wordt bij elke run gedownload",
 	"Vanaf versie 3.0.0."],
 	"data_version":"0",
-	"program_version":"2.2.9",
+	"program_version":"3.0.0",
 	"version_message":["\n",
 		"\n",
 		"\n"],
+	"fetch-timezone":"Europe/Amsterdam",
 	"active_sources":[7,0,1,5,9,6,8,2,4,10,11,12],
+	"source-url":"",
+	"sources":{
+		"0":{
+			"json file":"source-tvgids.nl",
+			"version":0,
+			"cattrans type":1,
+			"cattransid":0},
+		"4":{
+			"json file":"source-npo.nl",
+			"version":0,
+			"cattrans type":1,
+			"cattransid":1},
+		"5":{
+			"json file":"source-horizon.tv",
+			"version":0,
+			"cattrans type":1,
+			"cattransid":2},
+		"6":{
+			"json file":"source-humo.be",
+			"version":0,
+			"cattrans type":1,
+			"cattransid":3},
+		"7":{
+			"json file":"source-vpro.nl",
+			"version":0,
+			"cattrans type":1,
+			"cattransid":4},
+		"1":{
+			"json file":"source-tvgids.tv",
+			"version":0,
+			"cattrans type":2,
+			"cattransid":5},
+		"9":{
+			"json file":"source-primo.eu",
+			"version":0,
+			"cattrans type":1,
+			"cattransid":6},
+		"10":{
+			"json file":"source-vrt.be",
+			"version":0,
+			"cattrans type":1,
+			"cattransid":7},
+		"2":{
+			"json file":"source-rtl.nl",
+			"version":0,
+			"cattrans type":null,
+			"cattransid":null},
+		"8":{
+			"json file":"source-nieuwsblad.be",
+			"version":0,
+			"cattrans type":null,
+			"cattransid":null},
+		"12":{
+			"json file":"source-oorboekje.nl",
+			"version":0,
+			"cattrans type":null,
+			"cattransid":null},
+		"11":{
+			"json file":"source-virtual.nl",
+			"version":0,
+			"cattrans type":null,
+			"cattransid":null}},
 	"source_channels":{
 		"0":{"0-1": "1",
 			"0-2": "2",
@@ -916,6 +979,8 @@
 		"8-tv5-monde":"TV5 Monde FBS",
 		"12-22":"R Omrop Fryslân"},
 	"prime_source_order":[2,4,10,12,7,0,5,1,9,6,8,11],
+	"sourceid_order":[0, 9, 1, 2, 4, 7, 5, 6, 8, 10, 12, 11],
+	"detail_sources":[0, 9, 1],
 	"prime_source_groups":{
 		"2":6,
 		"6":5,
@@ -1211,7 +1276,17 @@
 		"12-69": ["4", "radio_nl"],
 		"12-70": ["4", "radio_ujala"],
 		"12-71": ["4", "radio_8fm"]},
+	"combined-channels-tz":"Europe/Amsterdam",
 	"combined_channels":{
+		"--description--":["This is a dict of channel combinations. If the combination exists on one of the sources,",
+			"that source suplies the chanid, else a virtual chanid is created",
+			"every definition is a list of channels to be merged into this chanid",
+			"It at least contains a chanid, but can also be a dict with next to the chanid a start and end time",
+			"For these times the above 'combined-channels-tz' timezone must be used!"],
+		"11-bbc3": [
+			{"chanid": "5-24443943013", "start": "20:00", "end": "6:30"}],
+		"11-cbbc": [
+			{"chanid": "5-24443943013", "start": "6:30", "end": "20:00"}],
 		"11-cartoonsat": [
 			{"chanid": "0-21", "start": "6:00", "end": "21:00"}],
 		"11-disneyxdsat": [
@@ -1230,18 +1305,18 @@
 		"11-veronicadxd": [
 			{"chanid": "0-34", "start": "18:00", "end": "4:00"},
 			{"chanid": "0-311", "start": "4:00", "end": "18:00"}],
-		"5-24443943013": ["0-300"],
 		"5-24443943080": ["0-301", "1-cbeebies"],
 		"1-veronica": ["0-34", "0-311"],
 		"1-ketnet-canvas-2": ["8-ketnet", "8-eenplus"],
 		"1-nickelodeon": ["0-89", "0-467"]},
 	"merge_into":{
-		"1-nickelodeon":{
-			"chanid":"0-89", 
-			"sources":{"0":"89"}, 
-			"date":"20160101",
-			"message": ["As Tvgids.nl now also contains the Spike listing for Nickelodeon\n", 
-				"we re-merge it back into the main listing with Tvgids.tv and Horizon.tv\n"]}},
+		"--description--":["This should be a dict with the new chanid as key (in stead of --description--)",
+			"inside you have the old chanid from which is merging into the new one, a set of sourceid/channel combinations",
+			"the date of implementation (yyyymmdd) and a message to the users as in the example below",
+				{"chanid":"the old chanid", 
+				"sources":{"sourceid":"channel"}, 
+				"date":"yyyymmdd",
+				"message": ["An example\n", "\n"]}]},
 	"generic_channel_genres":{
 		"muziek":["4-294", "4-295", "4-297", "7-arrow_classic_rock", "7-classic_fm", "7-q-music", 
 			"7-radio_538", "7-radio_veronica", "7-slam_fm", "7-sky_radio", "7-klara", "10-32", "10-41", 
@@ -1252,6 +1327,7 @@
 		"nieuws/actualiteiten":["4-292", "7-bnr_nieuwsradio", "10-13"],
 		"film":[]},
 	"groupslot_names":[
+		"night gap/programs",
 		"ochtend- en dagprogramma's",
 		"ochtend - en dagprogramma 's",
 		"nachtprogramma's",
@@ -1263,5 +1339,178 @@
 		"Geen info beschikbaar",
 		"programmabeschrijving niet beschikbaar",
 		"Geen programma informatie beschikbaar",
-		"TE CONTROLEREN"]}
+		"TE CONTROLEREN"],
+	"compat_text":".tvgids.nl",
+	"language_texts":{
+		"and others":"e\\.a\\.",
+		"and":"en",
+		"":""},
+	"roletrans":{
+		"director": "director",
+		"regisseur": "director",
+		"regie": "director",
+		"actor": "actor",
+		"acteurs": "actor",
+		"met": "actor",
+		"acteursnamen_rolverdeling": "actor",
+		"guest": "guest",
+		"gastacteur": "guest",
+		"writer": "writer",
+		"scenario": "writer",
+		"scenario schrijver": "writer",
+		"composer": "composer",
+		"componist": "composer",
+		"presenter": "presenter",
+		"presentatie": "presenter",
+		"presentator": "presenter",
+		"reporter": "reporter",
+		"verslaggever": "reporter",
+		"commentator": "commentator",
+		"commentaar": "commentator",
+		"adapter": "adapter",
+		"producer": "producer",
+		"editor": "editor"},
+	"rating":{
+		"name":"kijkwijzer",
+		"unique_codes":{
+			"4": {"code": "16+",
+				"text": "Niet voor personen tot 16 jaar",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/16_transp.png"},
+			"3": {"code": "12+",
+				"text": "Afgeraden voor kinderen jonger dan 12 jaar",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/12_transp.png"},
+			"2": {"code": "9+",
+				"text": "Afgeraden voor kinderen jonger dan 9 jaar",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/9_transp.png"},
+			"1": {"code": "6+",
+				"text": "Afgeraden voor kinderen jonger dan 6 jaar",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/6_transp.png"},
+			"0": {"code": "AL",
+				"text": "Voor alle leeftijden",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/al_transp.png"}},
+		"addon_codes":{
+			"g": {"code": "Geweld",
+				"text": "Geweld",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/geweld_transp.png"},
+			"a": {"code": "Angst",
+				"text": "Angst",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/angst_transp.png"},
+			"s": {"code": "Seks",
+				"text": "Seks",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/seks_transp.png"},
+			"t": {"code": "Grof",
+				"text": "Grof taalgebruik",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/grof_transp.png"},
+			"h": {"code": "Drugs",
+				"text": "drugs- en/of alcoholmisbruik",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/drugs_transp.png"},
+			"d": {"code": "Discriminatie",
+				"text": "Discriminatie",
+				"icon":"http://tvgidsassets.nl/img/kijkwijzer/discriminatie_transp.png"}}},
+	"cattrans_unknown":"Overige",
+	"cattrans": {
+		"News":[
+			["nieuws/actualiteiten", ""],
+			["news", ""],
+			["info", ""]],
+		"Sports":[
+			["sport", ""]],
+		"Documentary":[
+			["documentaire", ""],
+			["info", "documentary"],
+			["informatief", "documentaire"]],
+		"Art/Music":[
+			["muziek", ""],
+			["magazine", "muziek"],
+			["amusement", "muziekshow"],
+			["amusement", "muziekprogramma"],
+			["amusement", "dansprogramma"],
+			["amusement", "variete"]],
+		"Arts/Culture":[
+			["amusement", "cabaret"],
+			["amusement", "sketches"],
+			["amusement", "stand-up comedy"],
+			["amusement", "stand-up comedy, sketches"],
+			["informatief, kunst en cultuur", ""],
+			["kunst/cultuur", ""],
+			["kunst en cultuur", ""]],
+		"Talk":[
+			["amusement", ""],
+			["informatief, amusement", ""],
+			["informatief", "praatprogramma"],
+			["magazine", ""],
+			["talks", ""],
+			["talkshow", ""]],
+		"Game":[
+			["amusement", "quiz"],
+			["amusement", "spelshow"]],
+		"Children":[
+			["jeugd", ""],
+			["informatief", "jeugdprogramma"],
+			["serie/soap", "jeugdserie"],
+			["serie/soap", "animatieserie"],
+			["serie/soap", "tekenfilmserie"]],
+		"Educational":[
+			["educatief", ""],
+			["informatief", ""]],
+		"Home/How-to":[
+			["amusement", "klusprogramma"],
+			["amusement", "hobbyprogramma"],
+			["amusement", "lifestyleprogramma"],
+			["amusement", "modeprogramma"]],
+		"Cooking":[
+			["magazine", "culinair"],
+			["amusement", "kookprogramma"],
+			["informatief, amusement", "kookprogramma"]],
+		"Health":[
+			["magazine", "medisch"],
+			["informatief", "gezondheid"],
+			["informatief", "fitnessprogramma"],
+			["informatief", "gymnastiekprogramma"],
+			["informatief", "medisch programma"],
+			["informatief", "medisch praatprogramma"]],
+		"Science/Nature":[
+			["wetenschap", ""],
+			["natuur", ""],
+			["magazine", "natuur"],
+			["magazine", "weten"],
+			["info", "science"],
+			["informatief, wetenschap", ""],
+			["informatief", "wetenschappelijk programma"],
+			["informatief", "techniek"]],
+		"Bus./financial":[
+			["magazine", "zaken"],
+			["info", "business"]],
+		"Religion":[
+			["religieus", ""]],
+		"Adult":[
+			["amusement", "erotisch programma"]],
+		"Film":[
+			["film", ""],
+			["korte film", ""]],
+		"Reality":[
+			["amusement", "realityserie"],
+			["informatief", "docusoap"],
+			["informatief", "realityprogramma"],
+			["informatief", "realityserie"]],
+		"Drama":[
+			["serie/soap", ""],
+			["serie/soap", "dramaserie"]],
+		"Soap":[
+			["serie/soap", "soap"]],
+		"Comedy":[
+			["amusement", "komedie"],
+			["serie/soap", "comedyserie"],
+			["serie/soap", "komedieserie"]],
+		"Crime/Mystery":[
+			["serie/soap", "detectiveserie"],
+			["serie/soap", "misdaadserie"]],
+		"Sci-fi/Fantasy":[
+			["serie/soap", "sciencefictionserie"],
+			["serie/soap", "fantasyserie"]],
+		"Action":[
+			["serie/soap", "actieserie"]],
+		"Unknown":[
+			["overige", ""],
+			["", ""]]}}
 

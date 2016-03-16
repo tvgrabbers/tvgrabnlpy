@@ -127,7 +127,7 @@ description_text = """
 # Modules we need
 import sys, locale, traceback, json
 import time, datetime, pytz
-import tv_grab_config, tv_grab_fetch, sources
+import tv_grab_config
 try:
     unichr(42)
 except NameError:
@@ -149,9 +149,8 @@ if tv_grab_config.Configure().version()[1:4] < (1,0,0):
 
 class Configure(tv_grab_config.Configure):
     def __init__(self):
-        self.name ='tv_grab_nl_py'
+        self.name ='tv_grab_nl_py3'
         self.datafile = 'tv_grab_nl.json'
-        self.compat_text = '.tvgids.nl'
         tv_grab_config.Configure.__init__(self)
         # Version info as returned by the version function
         self.country = 'The Netherlands'
@@ -159,27 +158,16 @@ class Configure(tv_grab_config.Configure):
         self.major = 3
         self.minor = 0
         self.patch = 0
-        self.patchdate = u'20160208'
+        self.patchdate = u'20160316'
         self.alfa = True
         self.beta = True
         self.output_tz = pytz.timezone('Europe/Amsterdam')
-        self.combined_channels_tz = pytz.timezone('Europe/Amsterdam')
 
     def init_sources(self):
-        self.channelsource[0] = sources.tvgids_JSON(self, 0, 'source-tvgids.nl', True)
-        self.channelsource[2] = tv_grab_fetch.FetchData(self, 2, 'source-rtl.nl', True)
-        self.channelsource[5] = tv_grab_fetch.FetchData(self, 5, 'source-horizon.tv', True)
-        self.channelsource[6] = tv_grab_fetch.FetchData(self, 6, 'source-humo.be', True)
-        self.channelsource[10] = tv_grab_fetch.FetchData(self, 10, 'source-vrt.be', True)
-
-        self.channelsource[1] = sources.tvgidstv_HTML(self, 1, 'source-tvgids.tv')
-        self.channelsource[4] = tv_grab_fetch.FetchData(self, 4, 'source-npo.nl')
-        self.channelsource[7] = tv_grab_fetch.FetchData(self, 7, 'source-vpro.nl')
-        self.channelsource[8] = tv_grab_fetch.FetchData(self, 8, 'source-nieuwsblad.be')
-        self.channelsource[9] = sources.primo_HTML(self, 9, 'source-primo.eu')
-        self.channelsource[12] = tv_grab_fetch.FetchData(self, 12, 'source-oorboekje.nl')
-
-        self.channelsource[11] = tv_grab_fetch.FetchData(self, 11, 'source-virtual.nl')
+        tv_grab_config.Configure.init_sources(self)
+        #~ self.channelsource[0] = sources.tvgids_JSON(self, 0, 'source-tvgids.nl', 1)
+        #~ self.channelsource[1] = sources.tvgidstv_HTML(self, 1, 'source-tvgids.tv', 2)
+        #~ self.channelsource[9] = sources.primo_HTML(self, 9, 'source-primo.eu', 1)
 
 # end Configure()
 config = Configure()
