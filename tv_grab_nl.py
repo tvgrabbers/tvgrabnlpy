@@ -358,10 +358,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 11
-        self.patchdate = u'20160311'
+        self.patch = 12
+        self.patchdate = u'20160404'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
@@ -11209,7 +11209,7 @@ class vpro_HTML(FetchData):
         self.available_dates = re.compile('<div class="epg-available-days">(.*?)</div>',re.DOTALL)
         self.fetch_channellist = re.compile('<ul class="epg-channel-names">(.*?)</ul>',re.DOTALL)
         self.fetch_titels = re.compile('<h6 class="title">(.*?)</h6>',re.DOTALL)
-        self.fetch_data = re.compile('<section class="section-with-layout component-theme theme-white">(.*?)</section>',re.DOTALL)
+        self.fetch_data = re.compile('<section class="section-with-layout component-theme theme-white *?">(.*?)</section>',re.DOTALL)
         self.fetch_genre_codes = re.compile("(g[0-9_]+)")
         self.fetch_descr_parts = re.compile("(.*?[\.:]+ |.*?[\.:]+\Z)")
 
@@ -11531,6 +11531,7 @@ class vpro_HTML(FetchData):
                     continue
 
                 try:
+                    noquote = ""
                     strdata = self.clean_html(strdata)
                     if len(self.availabe_days) == 0:
                         self.get_available_days(strdata)
@@ -12891,7 +12892,8 @@ class oorboekje_HTML(FetchData):
         self.getnameaddition = re.compile('<SPAN style=".*?">(.*?)</SPAN>')
         self.getdate = re.compile("this.document.title='oorboekje.nl - Programma-overzicht van .*? ([0-9]{2})-([0-9]{2})-([0-9]{4})';")
         self.getchanday = re.compile('<!-- programmablok begin -->(.*?)<!-- programmablok eind -->',re.DOTALL)
-        self.getchannel = re.compile('<A href="/zenderInfo.php\?zender=([0-9]+).*?</A>(.*?)</DIV>',re.DOTALL)
+        #~ self.getchannel = re.compile('<A href="/zenderInfo.php\?zender=([0-9]+).*?</A>(.*?)</DIV>',re.DOTALL)
+        self.getchannel = re.compile('<A href="/stream.php\?zender=([0-9]+).*?<A name=".*?">(.*?)</A>',re.DOTALL)
         self.getprogram = re.compile('<DIV class="pgProgOmschr" style="text-indent: -16px; padding-left: 16px">\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
         self.gettime = re.compile('([0-9]{2}):([0-9]{2})')
         self.geticons = re.compile('<IMG src=".*?" alt="(.*?)".*?>',re.DOTALL)
@@ -13997,7 +13999,7 @@ class XMLoutput:
             else:
                 cat = program['genre']
                 if program['genre'] != '':
-                    xml.append(self.add_starttag('category', 4, 'lang="nl', program['genre'], True))
+                    xml.append(self.add_starttag('category', 4, 'lang="nl"', program['genre'], True))
 
                 else:
                     xml.append(self.add_starttag('category', 4 , '', 'Overige', True))
