@@ -8000,7 +8000,11 @@ class tvgids_JSON(FetchData):
                 # get the raw programming for the day
                 strdata = config.get_page(channel_url, 'utf-8')
                 if strdata == None or strdata.replace('\n','') == '{}':
-                    log("No data on tvgids.nl for day=%d\n" % (offset))
+                    if retry == 0:
+                        log("No data on tvgids.nl for day=%d. First attempt.\n" % (offset))
+                    else:
+                         log("No data on tvgids.nl for day=%d. Final attempt.\n" % (offset))
+
                     self.fail_count += 1
                     continue
 
@@ -8708,7 +8712,11 @@ class tvgidstv_HTML(FetchData):
                             strdata = config.get_page(channel_url)
 
                             if strdata == None:
-                                log("Skip channel=%s on tvgids.tv, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
+                                if retry == 0:
+                                    log("Skip channel=%s on tvgids.tv, day=%d. No data! First attempt.\n" % (config.channels[chanid].chan_name, offset))
+                                else:
+                                    log("Skip channel=%s on tvgids.tv, day=%d. No data! Final attempt.\n" % (config.channels[chanid].chan_name, offset))
+
                                 failure_count += 1
                                 self.fail_count += 1
                                 continue
@@ -11526,7 +11534,11 @@ class vpro_HTML(FetchData):
                 # get the raw programming for the day
                 strdata = config.get_page(channel_url)
                 if strdata == None or 'We hebben deze pagina niet gevonden...' in strdata:
-                    log("No data on vpro.nl for day=%d\n" % (offset))
+                    if retry == 0:
+                        log("No data on vpro.nl for day=%d. First attempt.\n" % (offset))
+                    else:
+                        log("No data on vpro.nl for day=%d. Final attempt.\n" % (offset))
+
                     self.fail_count += 1
                     continue
 
@@ -11963,7 +11975,11 @@ class nieuwsblad_HTML(FetchData):
                         strdata = config.get_page(channel_url)
 
                         if strdata == None:
-                            log("Skip channel=%s on nieuwsblad.be. No data!\n" % (config.channels[chanid].chan_name))
+                            if retry == 0:
+                                log("Skip channel=%s on nieuwsblad.be. No data! First attempt.\n" % (config.channels[chanid].chan_name))
+                            else:
+                                log("Skip channel=%s on nieuwsblad.be. No data! Final attempt.\n" % (config.channels[chanid].chan_name))
+
                             failure_count += 1
                             self.fail_count += 1
                             continue
@@ -12194,7 +12210,11 @@ class primo_HTML(FetchData):
                         strdata = config.get_page(channel_url)
 
                         if strdata == None:
-                            log("Skip day=%s on primo.eu. No data!\n" % (offset))
+                            if retry == 0:
+                                log("Skip day=%s on primo.eu. No data! First attempt.\n" % (offset))
+                            else:
+                                log("Skip day=%s on primo.eu. No data! Final attempt.\n" % (offset))
+
                             failure_count += 1
                             self.fail_count += 1
                             continue
@@ -12637,7 +12657,10 @@ class vrt_JSON(FetchData):
                             strdata = config.get_page(url[0], 'utf-8', url[1])
 
                             if strdata == None:
-                                log("No data on vrt.be for %s, week=%d!\n" % (config.channels[chanid].chan_name, offset))
+                                if retry == 0:
+                                    log("No data on vrt.be for %s, week=%d! First attempt.\n" % (config.channels[chanid].chan_name, offset))
+                                else:
+                                    log("No data on vrt.be for %s, week=%d! Final attempt.\n" % (config.channels[chanid].chan_name, offset))
                                 failure_count += 1
                                 self.fail_count += 1
                                 continue
@@ -12997,7 +13020,11 @@ class oorboekje_HTML(FetchData):
                         strdata = config.get_page(channel_url)
 
                         if strdata == None:
-                            log("Skip day=%s on oorboekje.nl. No data!\n" % (offset))
+                            if retry == 0:
+                                log("Skip day=%s on oorboekje.nl. No data! First attempt.\n" % (offset))
+                            else:
+                                log("Skip day=%s on oorboekje.nl. No data! Final attempt.\n" % (offset))
+
                             failure_count += 1
                             self.fail_count += 1
                             continue
