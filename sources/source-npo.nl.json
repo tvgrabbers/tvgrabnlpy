@@ -1,4 +1,8 @@
 {"file-name":"source-npo.nl",
+	"description":[
+		"This is the datafile on how to get the program-data of this site",
+		"Do not change this file as it will get overwritten on any update",
+		"If you thing it needs adjusting open an issue on https://github.com/tvgrabbers/tvgrabnlpy/"],
 	"name":"npo.nl",
 	"language":"nl",
 	"site-timezone":"Europe/Amsterdam",
@@ -88,8 +92,8 @@
 					[{"attr":"style", "sub":["background-image: url\\('","http:"], "rstrip":"')"}]
 					]}]},
 		"values":{
-			"channelid":{"varid": 2, "type":"str"},
-			"name":{"funcid":0, "data":[{"varid": 0}]},
+			"channelid":{"varid": 2},
+			"name":{"varid": 0},
 			"group":{"varid": 1},
 			"icon":{"funcid":1, "data":[{"varid": 3}]},
 			"icongrp":null,
@@ -236,7 +240,7 @@
 			"stop-time":{"funcid":4, "data":[{"varid": 3},{"varid": 1}, 6]},
 			"name":{"varid":2},
 			"genres":{"varid": 6},
-			"omroep":{"varid":5}}},
+			"broadcaster":{"varid":5}}},
 	"no_genric_matching":["270", "271", "275"],
 	"empty_channels":[],
 	"alt-channels":{"301":["265","NPO 3"]},

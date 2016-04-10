@@ -1,4 +1,8 @@
 {"file-name":"source-nieuwsblad.be",
+	"description":[
+		"This is the datafile on how to get the program-data of this site",
+		"Do not change this file as it will get overwritten on any update",
+		"If you thing it needs adjusting open an issue on https://github.com/tvgrabbers/tvgrabnlpy/"],
 	"name":"nieuwsblad.be",
 	"language":"nl",
 	"site-timezone":"Europe/Brussels",

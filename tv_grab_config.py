@@ -170,14 +170,6 @@ class Configure:
         self.httpencoding = 'iso-8859-15'
         self.file_encoding = 'utf-8'
         self.do_clump = False
-        self.ttvdb_disabled_groups = (6, 8, 11, 12, 13, 17)
-        self.weekdagen = ('zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag')
-        self.rating = {}
-        self.roletrans = {}
-        self.coutrytrans = {}
-        self.notitlesplit = []
-        self.groupnameremove = []
-        self.titlerename = {}
 
         # Create a category translation dictionary
         # Look in mythtv/themes/blue/ui.xml for all category names
@@ -189,7 +181,6 @@ class Configure:
         self.cattranstype[0] = {}
         self.cattranstype[1] = {}
         self.cattranstype[2] = {}
-        self.npo_fill = u'Programmainfo en Reclame'
 
         #Channel group names as used in tvgids.tv
         self.group_names = {}
@@ -1676,6 +1667,7 @@ class Configure:
                 return 2
 
         # Read in the tables needed for normal grabbing
+        self.key_values = get_githubdict("data_keys")
         self.xml_output.logo_provider = {}
         logo_provider = get_githubdict("logo_provider", 1)
         if isinstance(logo_provider, list):
@@ -1687,7 +1679,7 @@ class Configure:
             self.xml_output.logo_provider = logo_provider
         self.ttvdb_aliasses = get_githubdict("ttvdb_aliasses")
         self.coutrytrans = get_githubdict("coutrytrans")
-        self.notitlesplit = get_githubdata("notitlesplit", self.notitlesplit)
+        self.notitlesplit = get_githubdata("notitlesplit")
         self.user_agents = get_githubdata("user_agents", self.user_agents)
         self.xml_output.logo_source_preference = get_githubdata("logo_source_preference")
         for k in self.xml_output.logo_provider.keys():
@@ -1746,6 +1738,7 @@ class Configure:
             if g not in self.chan_groups.keys():
                 self.chan_groups[g] = 'Channel groep %s' % g
 
+        self.ttvdb_disabled_groups = get_githubdata("ttvdb disable groups")
         self.channel_grouping = get_githubdict("channel_grouping", 1)
         self.xml_output.logo_names = get_githubdict("logo_names")
         for icon in self.xml_output.logo_names.values():
@@ -1874,11 +1867,21 @@ class Configure:
 
         self.generic_channel_genres = get_githubdict("generic_channel_genres")
         self.groupslot_names = get_githubdata("groupslot_names")
+        for index in range(len(self.groupslot_names)):
+            self.groupslot_names[index] = self.groupslot_names[index].lower().strip()
+
         self.compat_text = get_githubdata("compat_text")
+        self.channelprogram_rename = get_githubdict("channelprogram_rename")
         self.language_texts = get_githubdict("language_texts")
         self.language_texts['and'] = ' %s ' % (self.language_texts['and'].strip().lower())
-        self.roletrans = get_githubdict("roletrans")
+        roletrans = get_githubdict("roletrans")
+        self.roletrans = {}
+        for k,v in roletrans.items():
+            for item in v:
+                self.roletrans[item] = k
         self.rating = get_githubdict("rating")
+        self.titlerename = get_githubdict("titlerename")
+        self.groupnameremove = get_githubdata("groupnameremove")
         self.cattrans_unknown = get_githubdict("cattrans_unknown")
         cattrans = get_githubdict("cattrans")
         for k, v in cattrans.items():

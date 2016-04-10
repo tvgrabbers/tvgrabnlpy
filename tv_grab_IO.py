@@ -5,10 +5,10 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-import codecs, locale, re, os, sys, io, shutil
+import codecs, locale, re, os, sys, io, shutil, difflib
 import traceback, smtplib, sqlite3
 import datetime, time, pytz
-from threading import Thread, Lock
+from threading import Thread, Lock, RLock
 from Queue import Queue, Empty
 from email.mime.text import MIMEText
 from copy import deepcopy
@@ -1563,7 +1563,791 @@ class ProgramCache(Thread):
 
 # end ProgramCache
 
-class InfoFiles:
+class ChannelNode():
+    def __init__(self, config, channel_config, programs, source):
+        self.node_lock = RLock()
+        with self.node_lock:
+            self.prime_source = None
+            self.config = config
+            self.channel_config = channel_config
+            self.chanid = channel_config.chanid
+            self.current = {}
+            if not self.chanid in self.config.channels.keys():
+                return False
+
+            if not self.chanid in self.config.channelprogram_rename.keys():
+                self.config.channelprogram_rename[self.chanid] = {}
+
+            self.key_list = []
+            for kt, kl in self.config.key_values.items():
+                self.key_list.extend(kl)
+
+            self.key_list.append('genre')
+            self.config.key_values['source'] = ['prog_ID', 'detail_url']
+            self.config.key_values['dict'] = ['credits', 'video']
+            self.programs = []
+            self.first_start = None
+            self.last_end = None
+            self.program_gaps = []
+            self.group_slots = []
+            self.programs_by_start = {}
+            self.programs_by_stop = {}
+            self.programs_by_name = {}
+            self.programs_by_matchname = {}
+            self.programs_with_no_genre = {}
+            self.start = None
+            self.stop = None
+            self.first_node = None
+            self.last_node = None
+            self.checkrange = [0]
+            for i in range(1, 30):
+                self.checkrange.extend([i, -i])
+
+            if source in self.config.channelsource.keys():
+                self.prime_source = source
+                self.add_prime_source_programs(programs, source)
+
+    def add_prime_source_programs(self, programs, source):
+        # Is programs empty?
+        if len(programs) == 0:
+            return
+
+        # Are there already programs from another source?
+        if len(self.programs_by_name) > 0:
+            self.add_source_programs(programs, source)
+            return
+
+        #Is it a valid source or does It look like a a channel merge
+        if not source in self.config.channelsource.keys():
+            self.add_other_channel()
+            return
+
+        with self.node_lock:
+            programs.sort(key=lambda program: (program['start-time']))
+            self.start = programs[0]['start-time']
+            last_stop = self.start
+            previous_node = None
+            for index in range(len(programs)):
+                # Check for renames
+                if programs[index]['name'].lower().strip() in self.config.channelprogram_rename[self.chanid].keys():
+                    programs[index]['name'] = self.config.channelprogram_rename[self.chanid][programs[index]['name'].lower().strip()]
+
+                # Create the program node
+                pn = ProgramNode(self, source, programs[index])
+                if not pn.is_valid:
+                    continue
+
+                if self.first_node == None:
+                    self.first_node = pn
+
+                pn.previous = previous_node
+                if isinstance(previous_node, ProgramNode):
+                    previous_node.next = pn
+
+                # Check if there was a gap
+                gap =self.check_for_gap(previous_node, pn)
+                if gap != None:
+                    self.program_gaps.append(gap)
+
+                last_stop = pn.stop
+                previous_node = pn
+                self.add_new_program(pn)
+
+            self.last_node = previous_node
+            self.stop = last_stop - datetime.timedelta(seconds = 5)
+            self.start += datetime.timedelta(seconds = 5)
+            self.check_on_missing_genres()
+            self.current['start'] = self.start
+            self.current['stop'] = self.stop
+            self.current['count'] = len(self.programs_by_start) + len(self.group_slots)
+            self.current['groups'] = len(self.group_slots)
+
+    def add_source_programs(self, programs, source):
+        # Is programs empty?
+        if len(programs) == 0:
+            return
+
+        # Is this the first source?
+        if len(self.programs_by_name) == 0:
+            self.add_prime_source_programs(programs, source)
+            return
+
+        #Is it a valid source or does It look like a a channel merge
+        if not source in self.config.channelsource.keys():
+            self.add_other_channel()
+            return
+
+        with self.node_lock:
+            group_slots = []
+            unmatched = []
+            new_start = self.start
+            new_stop = self.stop
+
+            # first we see if we can match any existing program without genre to give it a genre
+            # do some general renaming and filter out the groupslots
+            programs.sort(key=lambda program: (program['start-time']))
+            self.adding = {}
+            self.adding['start-count'] = len(programs)
+            self.adding['start'] = programs[0]['start-time']
+            self.adding['stop'] = programs[-1]['stop-time']
+            for p in programs[:]:
+                if p['name'].lower().strip() in self.config.channelprogram_rename[self.chanid].keys():
+                    p['name'] = self.config.channelprogram_rename[self.chanid][p['name'].lower().strip()]
+
+                p['mname'] = re.sub('[-,. ]', '', self.config.fetch_func.remove_accents(p['name']).lower())
+                #~ if 'genre' in p and p['genre'] != None and p['genre'].lower().strip() not in ('', self.config.cattrans_unknown.lower().strip()) \
+                    #~ and p['mname'] in self.programs_with_no_genre.keys():
+                        #~ for pg in self.programs_with_no_genre[p['mname']]:
+                            #~ pg.set_value('genre', p['genre'], source)
+                            #~ if 'subgenre'in p:
+                                #~ pg.set_value('subgenre', p['subgenre'], source)
+
+                        #~ del self.programs_with_no_genre[p['mname']]
+
+                # It's a groupslot
+                if p['name'].lower().strip() in self.config.groupslot_names:
+                    group_slots.append(p)
+                    programs.remove(p)
+                    continue
+
+            self.adding['groups'] = len(group_slots)
+            programs.sort(key=lambda program: (program['start-time']))
+            # Try matching on time and name
+            for index in range(len(programs)):
+                for check in self.checkrange:
+                    mstart = programs[index]['start-time'] + datetime.timedelta(0, 0, 0, 0, check)
+                    if mstart in self.programs_by_start.keys() and self.programs_by_start[mstart].match_title(programs[index], source):
+                        # ### Check on split episodes
+                        l_diff = programs[index]['length'].total_seconds()/ self.programs_by_start[mstart].length.total_seconds()
+                        if l_diff >1.2 or l_diff < 1.2:
+                            pass
+
+                        self.programs_by_start[mstart].add_source_data(programs[index], source)
+
+                        break
+
+                else:
+                    # Unmatched
+                    unmatched.append(programs[index])
+
+            self.adding['matched'] = self.adding['start-count'] - self.adding['groups'] - len(unmatched)
+            # Check if it falls into a groupslot
+            if len(self.group_slots) > 0:
+                programs = unmatched
+                unmatched = []
+                programs.sort(key=lambda program: (program['start-time']))
+                for index in range(len(programs)):
+                    for gs in self.group_slots:
+                        if gs.gs_start <= programs[index]['start-time'] <= gs.gs_stop or gs.gs_start <= programs[index]['stop-time'] <= gs.gs_stop:
+                            # It falls (partially) into a group slot
+                            pn = ProgramNode(self, source, programs[index])
+                            if pn.is_valid:
+                                gs.gs_detail.append(pn)
+                            break
+
+                    else:
+                        # Unmatched
+                        unmatched.append(programs[index])
+
+            # Add the programs found inside groupslots
+            for gs in self.group_slots[:]:
+                # Nothing was found there
+                if len(gs.gs_detail) == 0:
+                    continue
+
+                # First check if any of the new groupslots (if any) fall into this slot
+                if len(group_slots) > 0:
+                    for p in group_slots[:]:
+                        if gs.gs_start <= p['start-time'] <= gs.gs_stop or gs.gs_start <= p['stop-time'] <= gs.gs_stop:
+                            pn = ProgramNode(self, source, p)
+                            pn.is_groupslot = True
+                            group_slots.remove(p)
+                            if pn.is_valid:
+                                gs.gs_detail.append(pn)
+
+
+                # And replace the groupslot with the details
+                gs.gs_detail.sort(key=lambda program: (program.start))
+                start_gap = None
+                stop_gap = None
+                gs_gaps = []
+                if gs.previous != None:
+                    gs.gs_detail[0].previous = gs.previous
+                    gs.previous.next = gs.gs_detail[0]
+                    start_gap = self.check_for_gap(gs.previous, gs.gs_detail[0], 'start')
+
+                elif gs == self.first_node:
+                    self.first_node = gs.gs_detail[0]
+                    self.start = gs.gs_detail[0].start + datetime.timedelta(seconds = 5)
+
+                if gs.next != None:
+                    gs.gs_detail[-1].next = gs.next
+                    gs.next.previous = gs.gs_detail[-1]
+                    stop_gap = self.check_for_gap(gs.gs_detail[-1], gs.next, 'stop')
+
+                elif gs == self.last_node:
+                    self.last_node = gs.gs_detail[-1]
+                    self.stop = gs.gs_detail[-1].stop - datetime.timedelta(seconds = 5)
+
+                for index in range(1, len(gs.gs_detail)):
+                    gs.gs_detail[index - 1].next = gs.gs_detail[index]
+                    gs.gs_detail[index].previous = gs.gs_detail[index - 1]
+                    gap = self.check_for_gap(gs.gs_detail[index - 1], gs.gs_detail[index])
+                    if gap != None:
+                        gs_gaps.append(gap)
+
+                for pn in gs.gs_detail:
+                    self.add_new_program(pn)
+
+                if start_gap != None:
+                    self.program_gaps.append(start_gap)
+
+                if stop_gap != None:
+                    self.program_gaps.append(stop_gap)
+
+                if len(gs_gaps) > 0:
+                    self.program_gaps.extend(gs_gaps)
+
+                if gs.previous_gap != None and gs.previous_gap in self.program_gaps:
+                    self.program_gaps.remove(gs.previous_gap)
+
+                if gs.next_gap != None and gs.next_gap in self.program_gaps:
+                    self.program_gaps.remove(gs.next_gap)
+
+                self.group_slots.remove(gs)
+
+            # Check if it falls outside current range or in gaps, but we first readd the groupslots
+            programs = unmatched
+            programs.extend(group_slots)
+            unmatched = []
+            add_to_start = []
+            add_to_end = []
+            programs.sort(key=lambda program: (program['start-time']))
+            for index in range(len(programs)):
+                if programs[index]['start-time'] < self.start:
+                    pn = ProgramNode(self, source, programs[index])
+                    if pn.is_valid:
+                        add_to_start.append(pn)
+
+                    continue
+
+                if programs[index]['stop-time'] < self.stop:
+                    pn = ProgramNode(self, source, programs[index])
+                    if pn.is_valid:
+                        self.add_new_program(pn)
+                        add_to_end.append(pn)
+
+                    continue
+
+                for pgap in self.program_gaps:
+                    if pgap['start-time'] <= programs[index]['start-time'] <= pgap['stop-time'] \
+                      or pgap['start-time'] <= programs[index]['stop-time'] <= pgap['stop-time']:
+                        # It falls into a gap
+                        pn = ProgramNode(self, source, programs[index])
+                        if pn.is_valid:
+                            pgap['gap_detail'].append(pn)
+                        break
+
+                else:
+                    # Unmatched
+                    unmatched.append(programs[index])
+
+            # Add any program at the start or the end
+            if len(add_to_start) > 0:
+                add_to_start.sort(key=lambda program: (program.start))
+                self.first_node.previous = add_to_start[-1]
+                add_to_start[-1].next = self.first_node
+                gap = self.check_for_gap(add_to_start[-1], self.first_node, 'stop')
+                if gap != None:
+                    self.program_gaps.append(gap)
+
+                for index in range(1, len(add_to_start)):
+                    add_to_start[index - 1].next = add_to_start[index]
+                    add_to_start[index].previous = add_to_start[index - 1]
+                    gap = self.check_for_gap(add_to_start[index - 1], add_to_start[index])
+                    if gap != None:
+                        self.program_gaps.append(gap)
+
+                self.first_node == add_to_start[0]
+
+            if len(add_to_end) > 0:
+                add_to_end.sort(key=lambda program: (program.start))
+                self.last_node.next = add_to_end[0]
+                add_to_end[0].previous = self.last_node
+                gap = self.check_for_gap(self.last_node, add_to_end[0], 'start')
+                if gap != None:
+                    self.program_gaps.append(gap)
+
+                for index in range(1, len(add_to_end)):
+                    add_to_end[index - 1].next = add_to_end[index]
+                    add_to_end[index].previous = add_to_end[index - 1]
+                    gap = self.check_for_gap(add_to_end[index - 1], add_to_end[index])
+                    if gap != None:
+                        self.program_gaps.append(gap)
+
+                self.last_node == add_to_end[-1]
+
+            # Add the programs found in gaps
+            for pgap in self.program_gaps[:]:
+                # Nothing was found there
+                if len(pgap['gap_detail']) == 0:
+                    continue
+
+                pgap['gap_detail'].sort(key=lambda program: (program['start-time']))
+                start_gap = None
+                stop_gap = None
+                new_gaps = []
+                if pgap['previous'] != None:
+                    pgap['gap_detail'][0].previous = pgap['previous']
+                    pgap['previous'].next = pgap['gap_detail'][0]
+                    if pgap['gap_detail'][0].start < pgap['start-time']:
+                        pgap['gap_detail'][0].adjust_start(pgap['start-time'])
+
+                    elif pgap['gap_detail'][0].start > pgap['start-time']:
+                        start_gap = {'start-time': pgap['start-time'],
+                                    'stop-time': pgap['gap_detail'][0].start,
+                                    'length': pgap['gap_detail'][0].start - pgap['start-time'],
+                                    'gap_detail': [],
+                                    'next': gs_detail[0],
+                                    'previous': pgap['previous']}
+
+                        pgap['gap_detail'][0].previous_gap = start_gap
+                        pgap['previous'].next_gap = start_gap
+
+                if pgap['next'] != None:
+                    pgap['gap_detail'][-1].next = pgap['next']
+                    pgap['next'].previous = pgap['gap_detail'][-1]
+                    if pgap['gap_detail'][-1].stop > pgap['stop-time']:
+                        pgap['gap_detail'][-1].adjust_stop(pgap['stop-time'])
+
+                    elif pgap['gap_detail'][-1].stop < pgap['stop-time']:
+                        stop_gap = {'start-time': pgap['gap_detail'][-1].stop,
+                                    'stop-time': pgap['stop-time'],
+                                    'length': pgap['stop-time'] - pgap['gap_detail'][-1].stop,
+                                    'gap_detail': [],
+                                    'next': pgap['next'],
+                                    'previous': gs_detail[-1]}
+
+                        pgap['gap_detail'][-1].next_gap = stop_gap
+                        pgap['next'].previous_gap = stop_gap
+
+                for index in range(1, len(pgap['gap_detail'])):
+                    pgap['gap_detail'][index - 1].next = pgap['gap_detail'][index]
+                    pgap['gap_detail'][index].previous = pgap['gap_detail'][index - 1]
+                    if pgap['gap_detail'][index - 1].stop < pgap['gap_detail'][index].start:
+                        gap = {'start-time': pgap['gap_detail'][index - 1].stop,
+                                    'stop-time': pgap['gap_detail'][index].start,
+                                    'length': pgap['gap_detail'][index].start - pgap['gap_detail'][index - 1].stop,
+                                    'gap_detail': [],
+                                    'next': pgap['gap_detail'][index],
+                                    'previous': gs_detail[index - 1]}
+
+                        pgap['gap_detail'][index - 1].next_gap = gap
+                        pgap['gap_detail'][index].previous_gap = gap
+                        new_gaps.append(gap)
+
+                for pn in pgap['gap_detail']:
+                    self.add_new_program(pn)
+
+                if start_gap != None:
+                    self.program_gaps.append(start_gap)
+
+                if stop_gap != None:
+                    self.program_gaps.append(stop_gap)
+
+                for gap in new_gaps:
+                    self.program_gaps.append(gap)
+
+                self.program_gaps.remove(pgap)
+
+            # Finally we check if we can add any genres
+            self.check_on_missing_genres()
+
+    def add_other_channel(self):
+        with self.node_lock:
+            pass
+
+    def check_for_gap(self, node1, node2, adjust_overlap=None):
+        with self.node_lock:
+            if not isinstance(node1, ProgramNode) or not isinstance(node2, ProgramNode):
+                return None
+
+            if node2.start - node1.stop > datetime.timedelta(minutes = self.channel_config.opt_dict['max_overlap']):
+                gap = {'start-time': node1.stop,
+                            'stop-time': node2.start,
+                            'length': node2.start - node1.stop,
+                            'gap_detail': [],
+                            'next': node2,
+                            'previous': node1}
+
+                node1.next_gap = gap
+                node2.previous_gap = gap
+                return gap
+
+            node1.next_gap = None
+            node2.previous_gap = None
+            if node1.stop > node2.start:
+                if adjust_overlap == 'stop':
+                    node1.adjust_stop(node2.start)
+
+                elif adjust_overlap == 'start':
+                    node2.adjust_start(node1.stop)
+
+    def add_new_program(self,pn):
+        with self.node_lock:
+            # Check if it has a groupslot name
+            if pn.name.lower().strip() in self.config.groupslot_names:
+                self.group_slots.append(pn)
+                pn.is_groupslot = True
+                # Include a gap into the groupslot for testing
+                if pn.previous_gap == None:
+                    pn.gs_start = pn.start
+
+                else:
+                    pn.gs_start = pn.previous_gap['start-time']
+
+                if pn.next_gap == None:
+                    pn.gs_stop = pn.stop
+
+                else:
+                    pn.gs_stop = pn.next_gap['stop-time']
+
+                return
+
+            self.programs_by_start[pn.start] = pn
+            self.programs_by_stop[pn.stop] = pn
+            if pn.name in self.programs_by_name.keys():
+                self.programs_by_name[pn.name].append(pn)
+
+            else:
+                self.programs_by_name[pn.name] = [pn]
+
+            if pn.match_name in self.programs_by_matchname.keys():
+                self.programs_by_matchname[pn.match_name].append(pn)
+
+            else:
+                self.programs_by_matchname[pn.match_name] = [pn]
+
+            if not pn.is_set('genre') or pn.get_value('genre').lower().strip() in ('', self.config.cattrans_unknown.lower().strip()):
+                if pn.match_name in self.programs_with_no_genre.keys():
+                    self.programs_with_no_genre[pn.match_name].append(pn)
+
+                else:
+                    self.programs_with_no_genre[pn.match_name] = [pn]
+
+    def check_on_missing_genres(self):
+        # Check if we can match any program without genre to one similar named with genre
+        with self.node_lock:
+            name_remove = []
+            for k, pl in self.programs_with_no_genre.items():
+                if len(pl) >= self.programs_by_matchname[k]:
+                    continue
+
+                for pn in self.programs_by_matchname[k]:
+                    if pn.is_set('genre') and pn.get_value('genre').lower().strip() not in ('', self.config.cattrans_unknown.lower().strip()):
+                        for pg in pl:
+                            pg.set_value('genre', pn.get_value('genre'))
+                            pg.set_value('subgenre', pn.get_value('subgenre'))
+
+                        name_remove.append(k)
+                        break
+
+            for k in name_remove:
+                if k in self.programs_with_no_genre.keys():
+                    del self.programs_with_no_genre[k]
+
+# end ChannelNode
+
+class ProgramNode():
+    def __init__(self, channode, source, data):
+        self.node_lock = RLock()
+        with self.node_lock:
+            self.channode = channode
+            self.config = channode.config
+            self.start = None
+            self.stop = None
+            self.length = None
+            self.name = None
+            self.match_name = None
+            self.previous = None
+            self.next = None
+            self.previous_gap = None
+            self.next_gap = None
+            self.is_groupslot = False
+            self.gs_start = None
+            self.gs_stop = None
+            self.gs_detail = []
+            self.tdict = {}
+            self.matchobject = difflib.SequenceMatcher(isjunk=lambda x: x in " '\",.-/", autojunk=False)
+            if isinstance(data, dict):
+                if not ('start-time' in data and isinstance(data['start-time'], datetime.datetime)) or not 'name' in data:
+                    self.is_valid = False
+                    return
+
+                self.start = data['start-time'].replace(second = 0, microsecond = 0)
+                if 'stop-time' in data and isinstance(data['stop-time'], datetime.datetime):
+                    self.stop = data['stop-time'].replace(second = 0, microsecond = 0)
+                    self.length = self.stop - self.start
+
+                elif 'length'  in data and isinstance(data['length'], datetime.timedelta):
+                    self.length = data['length']
+                    self.stop = (self.start + self.length).replace(second = 0, microsecond = 0)
+
+                else:
+                    self.is_valid = False
+                    return
+
+                self.name = data['name']
+                self.match_name = re.sub('[-,. ]', '', self.config.fetch_func.remove_accents(data['name']).lower())
+                self.add_source_data(data, source)
+                self.is_valid = True
+
+            else:
+                self.is_valid = False
+
+    def is_set(self, key):
+        if key in self.tdict:
+            return True
+
+        return False
+
+    def adjust_start(self, pstart):
+        with self.node_lock:
+            self.start = pstart
+            self.tdict['start-time']['prime'] = pstart
+            self.length = self.stop - self.start
+            self.tdict['length']['prime'] = self.length
+
+    def adjust_stop(self, pstop):
+        with self.node_lock:
+            self.stop = pstop
+            self.tdict['stop-time']['prime'] = pstop
+            self.length = self.stop - self.start
+            self.tdict['length']['prime'] = self.length
+
+    def get_value(self, key):
+        if key in self.tdict:
+            return self.tdict[key]['prime']
+
+        if key == 'genre':
+            return self.config.cattrans_unknown.lower().strip()
+
+        elif key in self.config.key_values['text']:
+            return u''
+
+        elif key in self.config.key_values['timedelta']:
+            return datetime.timedelta(0)
+
+        elif key in self.config.key_values['bool'] or key in self.config.key_values['video']:
+            return False
+
+        elif key in self.config.key_values['int']:
+            return 0
+
+        else:
+            return u''
+
+    def match_title(self, data, source):
+        if self.match_name == data['mname']:
+            return True
+
+        if len(self.match_name) < len(data['mname']) and self.match_name in data['mname']:
+            return True
+
+        if len(data['mname']) < len(self.match_name) and data['mname'] in self.match_name:
+            return True
+
+        self.matchobject.set_seqs(self.match_name, data['mname'])
+        if self.matchobject.ratio() > .8:
+            return True
+
+        return False
+    def add_source_data(self, data, source):
+        if not source in self.config.channelsource.keys() or not isinstance(data, dict):
+            return
+
+        with self.node_lock:
+            # Check if the new source is longer
+            if data['start-time'] < self.start:
+                if self.previous_gap != None:
+                    if data['start-time'] <= self.previous_gap['start-time']:
+                        # We add the gap to the program
+                        self.start = self.previous_gap['start-time'].replace(second = 0, microsecond = 0)
+                        self.channode.program_gaps.remove(self.previous_gap)
+                        self.previous.next_gap = None
+                        self.previous_gap = None
+
+                    else:
+                        # We reduce the gap
+                        self.start = data['start-time'].replace(second = 0, microsecond = 0)
+                        self.previous_gap['stop-time'] = data['start-time']
+                        self.previous_gap['length'] = self.previous_gap['stop-time'] - self.previous_gap['start-time']
+
+                elif self.previous == None:
+                    # It's the first program
+                    self.start = data['start-time'].replace(second = 0, microsecond = 0)
+
+            if data['stop-time'] > self.stop:
+                if self.next_gap != None:
+                    if data['stop-time'] >= self.next_gap['stop-time']:
+                        # We add the gap to the program
+                        self.stop = self.next_gap['stop-time'].replace(second = 0, microsecond = 0)
+                        self.channode.program_gaps.remove(self.next_gap)
+                        self.next.previous_gap = None
+                        self.next_gap = None
+
+                    else:
+                        # We reduce the gap
+                        self.stop = data['stop-time'].replace(second = 0, microsecond = 0)
+                        self.next_gap['start-time'] = data['stop-time']
+                        self.next_gap['length'] = self.next_gap['stop-time'] - self.next_gap['start-time']
+
+                elif self.previous == None:
+                    # It's the last program
+                    self.stop = data['stop-time'].replace(second = 0, microsecond = 0)
+
+            self.length = self.stop - self.start
+            # Check for allowed key values
+            for k, v in data.items():
+                if k == 'credits':
+                    for k2, v2 in v.items():
+                        if k2 in self.config.key_values['credits']:
+                            self.set_value(k2, v2, source)
+
+                elif k == 'video':
+                    for k2, v2 in v.items():
+                        if k2 in self.config.key_values['video']:
+                            self.set_value(k2, v2, source)
+
+                elif k in  self.config.key_values['source']:
+                    if source in v:
+                        self.set_value(k, v[source], source)
+
+                elif k in self.channode.key_list:
+                    self.set_value(k, v, source)
+
+    def set_value(self, key, value, source=None):
+        with self.node_lock:
+            # validate the values
+            if key == 'genre' and value in (None, ''):
+                value = self.config.cattrans_unknown.lower().strip()
+
+            if key in self.config.key_values['text']:
+                if value in ('', None):
+                    return
+
+                if isinstance(value, list):
+                    if len(value) == 0:
+                        return
+
+                    elif len(value) == 1:
+                        value = value[0]
+
+                    else:
+                        for item in range(len(value)):
+                            if isinstance(value[item], str):
+                                value[item] = unicode(value[item])
+
+                if isinstance(value, str):
+                    value = unicode(value)
+
+                if key == 'country':
+                    rlist = []
+                    if isinstance(value, unicode):
+                        cd = re.split('[,()/]', re.sub('\.', '', value).upper())
+                        for cstr in cd:
+                            if cstr in self.config.coutrytrans.values():
+                                rlist.append(cstr)
+
+                            elif cstr in self.config.coutrytrans.keys():
+                                rlist.append(self.config.coutrytrans[cstr])
+
+                            elif self.config.write_info_files:
+                                self.config.infofiles.addto_detail_list(u'new country => %s' % (cstr))
+
+                    elif isinstance(value, (list,tuple)):
+                        for item in value:
+                            if not isinstance(item, unicode):
+                                continue
+
+                            cd = re.split('[,()/]', re.sub('\.', '', item).upper())
+                            for cstr in cd:
+                                if cstr == '':
+                                    continue
+
+                                if cstr in self.config.coutrytrans.values():
+                                    rlist.append(cstr)
+
+                                elif cstr in self.config.coutrytrans.keys():
+                                    rlist.append(self.config.coutrytrans[cstr])
+
+                                elif self.config.write_info_files:
+                                    self.config.infofiles.addto_detail_list(u'new country => %s' % (cstr))
+
+                    if len(rlist) == 0:
+                        return
+
+                    elif len(rlist) == 1:
+                        value = rlist[0]
+
+                    else:
+                        value = rlist
+
+                elif key == 'premiere year':
+                    value = re.sub('[()]', '', value).strip()
+                    if isinstance(value, unicode) and len(value) == 4:
+                        try:
+                            x = int(value)
+
+                        except:
+                            return
+
+                    else:
+                        return
+
+                elif key == 'broadcaster':
+                    value = re.sub('[()]', '', value).strip()
+
+                elif key == 'description':
+                    pass
+
+            elif key in self.config.key_values['datetime']:
+                if not isinstance(value, datetime.datetime):
+                    return
+
+            elif key in self.config.key_values['timedelta']:
+                if not isinstance(value, datetime.timedelta):
+                    return
+
+            elif key in self.config.key_values['date']:
+                if not isinstance(value, datetime.date):
+                    return
+
+            elif key in self.config.key_values['bool'] or key in self.config.key_values['video']:
+                if not isinstance(value, bool):
+                    return
+
+            elif key in self.config.key_values['int']:
+                if not isinstance(value, int):
+                    return
+
+
+            if not self.is_set(key):
+                self.tdict[key] = {}
+                self.tdict[key]['prime'] = value
+
+            if source != None:
+                self.tdict[key][source] = value
+            if key == 'description':
+                if source != None and self.channode.channel_config.opt_dict['prefered_description'] == source:
+                    self.tdict[key]['preferred'] = value
+
+                if len(value) > len(self.tdict[key]['prime']):
+                    self.tdict[key]['prime'] = value
+
+# end ProgramNode
+
+class InfoFiles():
     """used for gathering extra info to better the code"""
     def __init__(self, config, write_info_files = True):
 
@@ -1690,7 +2474,7 @@ class InfoFiles:
                                 self.config.output_tz.normalize(tdict['start-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
                                 self.config.output_tz.normalize(tdict['stop-time'].astimezone(self.config.output_tz)).strftime('%H:%M'), \
                                 sid.rjust(15), tdict['genre'][0:10].rjust(10), \
-                                tdict['name'], tdict['titel aflevering'], \
+                                tdict['name'], tdict['episode title'], \
                                 tdict['season'], tdict['episode'])
 
             if ismerge: self.fetch_strings[chanid][source] += u'#\n'
@@ -1761,7 +2545,7 @@ class InfoFiles:
 
 # end InfoFiles
 
-class XMLoutput:
+class XMLoutput():
     '''
     This class collects the data and creates the output
     '''
@@ -1905,8 +2689,8 @@ class XMLoutput:
                 xml.append(self.add_starttag('title', 4, 'lang="%s"' % (program['country'].lower()), program['originaltitle'], True))
 
             # Subtitle
-            if 'titel aflevering' in program and program['titel aflevering'] != '':
-                xml.append(self.add_starttag('sub-title', 4, 'lang="nl"', program['titel aflevering'] ,True))
+            if 'episode title' in program and program['episode title'] != '':
+                xml.append(self.add_starttag('sub-title', 4, 'lang="nl"', program['episode title'] ,True))
 
             # Add an available subgenre in front off the description or give it as description
 
@@ -1918,8 +2702,8 @@ class XMLoutput:
             if program['subgenre'] != '':
                  desc_line = u'%s: ' % (program['subgenre'])
 
-            if program['omroep'] != ''and re.search('(\([A-Za-z \-]*?\))', program['omroep']):
-                desc_line = u'%s%s ' % (desc_line, re.search('(\([A-Za-z \-]*?\))', program['omroep']).group(1))
+            if program['broadcaster'] != ''and re.search('(\([A-Za-z \-]*?\))', program['broadcaster']):
+                desc_line = u'%s%s ' % (desc_line, re.search('(\([A-Za-z \-]*?\))', program['broadcaster']).group(1))
 
             if program['description'] != '':
                 desc_line = u'%s%s ' % (desc_line, program['description'])
@@ -1953,8 +2737,8 @@ class XMLoutput:
                 xml.append(self.add_starttag('date', 4, '',  \
                     self.format_timezone(program['airdate'], self.config.opt_dict['use_utc'],True), True))
 
-            elif program['jaar van premiere'] != '':
-                xml.append(self.add_starttag('date', 4, '', program['jaar van premiere'],True))
+            elif program['premiere year'] != '':
+                xml.append(self.add_starttag('date', 4, '', program['premiere year'],True))
 
             # Genre
             if self.config.channels[chanid].opt_dict['cattrans']:
@@ -2006,12 +2790,12 @@ class XMLoutput:
                     xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
 
             # Process video/audio/teletext sections if present
-            if (program['video']['breedbeeld'] or program['video']['blackwhite'] \
+            if (program['video']['widescreen'] or program['video']['blackwhite'] \
               or (self.config.channels[chanid].opt_dict['mark_hd'] \
               or add_HD == True) and (program['video']['HD'])):
                 xml.append(self.add_starttag('video', 4))
 
-                if program['video']['breedbeeld']:
+                if program['video']['widescreen']:
                     xml.append(self.add_starttag('aspect', 6, '', '16:9',True))
 
                 if program['video']['blackwhite']:
@@ -2045,7 +2829,7 @@ class XMLoutput:
                 xml.append(self.add_starttag('new', 4, '', '',True))
 
             # There are teletext subtitles
-            if program['teletekst']:
+            if program['teletext']:
                 xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
 
             # Add any rating items

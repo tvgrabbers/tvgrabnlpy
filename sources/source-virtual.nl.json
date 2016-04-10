@@ -1,4 +1,8 @@
 {"file-name":"source-virtual.nl",
+	"description":[
+		"This is the datafile on how to get the program-data of this site",
+		"Do not change this file as it will get overwritten on any update",
+		"If you thing it needs adjusting open an issue on https://github.com/tvgrabbers/tvgrabnlpy/"],
     "name":"virtual.nl",
     "language":"nl",
     "version":0,
@@ -11,7 +15,9 @@
         "url":"",
         "data-format":"",
         "data":{
+			"bbc3": {"name": "BBC Three", "group": 3, "icon": "300b.png", "icongrp": 13},
 			"cartoonsat": {"name": "Cartoon Network (satelliet)", "group": 7, "icon": "cartoon_network.png", "icongrp": 4},
+			"cbbc": {"name": "CBBC", "group": 3, "icon": "cbbc.png", "icongrp": 4},
 			"disneyxdsat": {"name": "Disney XD (TV Vlaanderen)", "group": 9, "icon": "disney_xd_v2.png", "icongrp": 4},
 			"kzoomkanaalz": {"name": "vtmKzoom/KanaalZ", "group": 9},
 			"npopolitiekbest": {"name": "NPO Politiek/Best", "group": 1},

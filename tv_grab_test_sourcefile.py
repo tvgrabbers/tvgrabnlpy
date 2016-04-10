@@ -8,7 +8,7 @@ from __future__ import unicode_literals
 # Modules we need
 import sys, locale, traceback, json
 import time, datetime, pytz
-import tv_grab_config, tv_grab_fetch, sources
+import tv_grab_config, tv_grab_fetch
 try:
     unichr(42)
 except NameError:
@@ -77,24 +77,16 @@ def main():
 
 
         channel ='een'
-        #~ source = sources.tvgids_JSON(config, 0, 'source-tvgids.nl', True)
-        #~ source = sources.horizon_JSON(config, 5, 'source-horizon.tv', True)
-        #~ source = sources.tvgidstv_HTML(config, 1, 'source-tvgids.tv')
-        #~ source = sources.npo_HTML(config, 4, 'source-npo.nl')
-        #~ source = sources.vpro_HTML(config, 7, 'source-vpro.nl')
-        #~ source = sources.nieuwsblad_HTML(config, 8, 'source-nieuwsblad.be')
-        #~ source= sources.primo_HTML(config, 9, 'source-primo.eu')
-        #~ source = sources.oorboekje_HTML(config, 12, 'source-oorboekje.nl')
         #~ source = tv_grab_fetch.FetchData(config, 11, 'source-virtual.nl')
 
-        #~ source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
+        source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
         #~ source = tv_grab_fetch.FetchData(config, 2, 'source-rtl.nl')
         #~ channel ='een'
         #~ source = tv_grab_fetch.FetchData(config, 8, 'source-nieuwsblad.be')
         #~ source = tv_grab_fetch.FetchData(config, 7, 'source-vpro.nl', 2)
         #~ source = tv_grab_fetch.FetchData(config, 4, 'source-npo.nl', 1)
-        channel ='24443943184'
-        source = tv_grab_fetch.FetchData(config, 5, 'source-horizon.tv', 1)
+        #~ channel ='24443943184'
+        #~ source = tv_grab_fetch.FetchData(config, 5, 'source-horizon.tv', 1)
         #~ source = tv_grab_fetch.FetchData(config, 6, 'source-humo.be', 1)
         #~ channel ='O8'
         #~ source = tv_grab_fetch.FetchData(config, 10, 'source-vrt.be', 1)
@@ -125,7 +117,7 @@ def main():
 
         #~ config.channelsource[sid].get_channels()
 
-        data = config.channelsource[sid].get_page_data('base',{'offset': 1, 'channel': channel, 'channelgrp': 'rest', 'cnt-offset': 3, 'start':0, 'days':4})
+        data = config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'rest', 'cnt-offset': 0, 'start':0, 'days':4})
         config.channelsource[sid].parse_basepage(data, {'offset': 1, 'channel': channel, 'channelgrp': 'main'})
 
         #~ tdict['detail_url'][sid] = 'midsomer-murders/15170844'

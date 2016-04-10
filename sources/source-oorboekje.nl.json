@@ -1,4 +1,8 @@
 {"file-name":"source-oorboekje.nl",
+	"description":[
+		"This is the datafile on how to get the program-data of this site",
+		"Do not change this file as it will get overwritten on any update",
+		"If you thing it needs adjusting open an issue on https://github.com/tvgrabbers/tvgrabnlpy/"],
 	"name":"oorboekje.nl",
 	"language":"nl",
 	"site-timezone":"Europe/Amsterdam",
@@ -29,7 +33,7 @@
 					{"tag":"tr"},
 					{"tag":"td", "attrs":{"class":"pgMenuInhoud"}},
 					{"tag":"a"},
-					{"tag":"img", "attrs":{"src":"/img/info.png"}}
+					{"tag":"img", "attrs":{"src":"/img/WMP.gif"}}
 					],
 				"values":[
 					[{"path":"parent","attr":"href","split":[["=",-1]]}],

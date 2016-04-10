@@ -1,4 +1,8 @@
 {"file-name":"source-tvgids.tv",
+	"description":[
+		"This is the datafile on how to get the program-data of this site",
+		"Do not change this file as it will get overwritten on any update",
+		"If you thing it needs adjusting open an issue on https://github.com/tvgrabbers/tvgrabnlpy/"],
 	"name":"tvgids.tv",
 	"language":"nl",
 	"site-timezone":"Europe/Amsterdam",
@@ -171,16 +175,16 @@
 				]},
 		"values":{
 			"credits":{"funcid":5, "data":[{"varid":1}]},
-			"jaar van premiere":{"funcid":14, "data":[{"varid": 1}, "jaar"]},
+			"premiere year":{"funcid":14, "data":[{"varid": 1}, "jaar"]},
 			"subgenre":{"funcid":14, "data":[{"varid": 1}, "genre"], "max length":25},
 			"infourl":{"funcid":14, "data":[{"varid": 2},["imdb", "officiële website"]]},
 			"rating":{"funcid":9, "data":[{"varid":3}]},
 			"star-rating":{"varid":4},
 			"description":{"varid":5},
-			"new":{"funcid":16, "data":[{"varid": 1}, 
+			"--log-unknown--":{"funcid":16, "data":[{"varid": 1}, 
 				["datum","tijd","twitter hashtag","uitzending gemist","deel-url","officiële twitter",
 					"officiële website","genre","jaar","acteurs","imdb","kijkwijzer"]]},
-			"new2":{"funcid":16, "data":[{"varid": 2}, 
+			"--log-unknown2--":{"funcid":16, "data":[{"varid": 2}, 
 				["datum","tijd","twitter hashtag","uitzending gemist","deel-url","officiële twitter",
 					"officiële website","genre","jaar","acteurs","imdb","kijkwijzer"]]}
 				}},

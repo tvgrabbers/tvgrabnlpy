@@ -1,4 +1,8 @@
 {"file-name":"source-tvgids.nl",
+	"description":[
+		"This is the datafile on how to get the program-data of this site",
+		"Do not change this file as it will get overwritten on any update",
+		"If you thing it needs adjusting open an issue on https://github.com/tvgrabbers/tvgrabnlpy/"],
 	"name":"tvgids.nl",
 	"language":"nl",
 	"site-timezone":"Europe/Amsterdam",
@@ -48,7 +52,7 @@
 				{"key":"db_id"}
 				],
 			"values":[
-				[{"path":"parent","select":"key"}],
+				[{"path":"parent","select":"key", "type":"string"}],
 				[{"key":"datum_start","default":"", "type":"datetimestring"}],
 				[{"key":"datum_end","default":"", "type":"datetimestring"}],
 				[{"key":"titel","default":""}],
@@ -58,7 +62,7 @@
 				[{"key":"artikel_tekst","default":""}]
 				]},
 		"values":{
-			"channelid":{"funcid":2, "data":[{"varid": 1}]},
+			"channelid":{"varid": 1},
 			"prog_ID":{"funcid":2, "data":["nl-",{"varid":0}]},
 			"detail_url":{"varid": 0},
 			"start-time":{"varid":2},
@@ -125,22 +129,22 @@
 					{"tag":"p", "attrs":{"class":{"not":["summary"]}}, "select":"text"}]
 					]},
 		"values":{
-			"jaar van premiere":{"varid": 1},
+			"premiere year":{"varid": 1},
 			"rating":{"funcid":9, "data":[{"varid":4}]},
-			"titel aflevering":{"funcid":14, "data":[{"varid": 3}, "aflevering",{"regex":"(\\d*)/.*"}]},
+			"episode title":{"funcid":14, "data":[{"varid": 3}, "aflevering",{"regex":"(\\d*)/.*"}]},
 			"episode":{"funcid":14, "data":[{"varid": 3}, "aflevering",{"regex":"\\d*/?\\d*(.*)"}], "type":"int", "default":0},
 			"season":{"funcid":14, "data":[{"varid": 3},"seizoen"], "type":"int", "default":0},
 			"credits":{"funcid":5, "data":[{"varid":3}]},
 			"blackwhite":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3}, "kleur"]},"zwart/wit"]},
-			"breedbeeld":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3},"bijzonderheden"]},"breedbeeld"]},
+			"widescreen":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3},"bijzonderheden"]},"breedbeeld"]},
 			"HD":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3}, "bijzonderheden"]},"hd 1080i"]},
-			"teletekst":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3},"bijzonderheden"]},"teletekst"]},
+			"teletext":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3},"bijzonderheden"]},"teletekst"]},
 			"rerun":{"funcid":12, "data":[{"funcid":14, "data":[{"varid": 3},"bijzonderheden"]},"herhaling"]},
 			"infourl":{"funcid":14, "data":[{"varid": 3}, "nl-url"]},
 			"genre":{"funcid":14, "data":[{"varid": 3},"genre"]},
-			"subgenre":{"varid": 5, "type":"capitalize"},
+			"subgenre":{"varid": 5},
 			"description":{"funcid":13, "data":[{"varid": 6},{"varid": 7}]},
-			"new":{"funcid":16, "data":[{"varid": 3}, 
+			"--log-unknown--":{"funcid":16, "data":[{"varid": 3}, 
 				["zender","datum","uitzendtijd","titel","prijzen","kijkwijzer",
 					"regisseur","scenario schrijver","componist","acteurs",
 					"aflevering","seizoen","genre","kleur","bijzonderheden","nl-url"]]}

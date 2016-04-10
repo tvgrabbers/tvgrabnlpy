@@ -1,4 +1,8 @@
 {"file-name":"source-vpro.nl",
+	"description":[
+		"This is the datafile on how to get the program-data of this site",
+		"Do not change this file as it will get overwritten on any update",
+		"If you thing it needs adjusting open an issue on https://github.com/tvgrabbers/tvgrabnlpy/"],
 	"name":"vpro.nl",
 	"language":"nl",
 	"site-timezone":"Europe/Amsterdam",
@@ -42,7 +46,7 @@
 					]}]},
 		"values":{
 			"channelid":{"varid": 1},
-			"name":{"funcid":0, "data":[{"varid": 0}]},
+			"name":{"varid": 0},
 			"group":{"varid": 2},
 			"icon":null,
 			"icongrp":null,
@@ -137,7 +141,7 @@
 			"genres":{"funcid":18, "data":[{"varid":8}, 5]},
 			"credits":{"funcid":6, "data":[{"varid":6}, "met oa"], "default":{}},
 			"description":{"varid":6},
-			"omroep":{"varid":5}}},
+			"broadcaster":{"varid":5}}},
 	"no_genric_matching":["npo_1", "npo_2", "npo_3", "radio_1", "radio_2", "3fm", "radio_4", "radio_5", "radio_6",
 			"rtl_4", "rtl_5", "rtl_7", "rtl_8", "tlc"],
 	"empty_channels":[],

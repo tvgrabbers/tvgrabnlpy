@@ -8,7 +8,7 @@ from __future__ import unicode_literals
 import re, sys, traceback
 import time, datetime, random, difflib
 import httplib, socket, json
-import requests, pytz
+import requests, pytz, tv_grab_IO
 from threading import Thread, Lock, Semaphore, Event
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
@@ -176,19 +176,19 @@ class Functions():
         returnsa default empty dict for storing program info
         """
         self.text_values = ('channelid', 'source', 'channel', 'unixtime', 'prefered description', \
-              'clumpidx', 'name', 'titel aflevering', 'description', 'jaar van premiere', \
+              'clumpidx', 'name', 'episode title', 'description', 'premiere year', \
               'originaltitle', 'subgenre', 'ID', 'merge-source', 'infourl', 'audio', 'star-rating', \
-              'country', 'omroep')
+              'country', 'broadcaster')
         self.datetime_values = ('start-time', 'stop-time')
         self.timedelta_values = ('length',)
         self.date_values = ('airdate', )
-        self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'primo-fetched', 'rerun', 'teletekst', \
+        self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'primo-fetched', 'rerun', 'teletext', \
               'new', 'last-chance', 'premiere')
         self.num_values = ('season', 'episode', 'offset')
         self.dict_values = ('credits', 'video')
         self.source_values = ('prog_ID', 'detail_url')
         self.list_values = ('rating', )
-        self.video_values = ('HD', 'breedbeeld', 'blackwhite')
+        self.video_values = ('HD', 'widescreen', 'blackwhite')
         self.credit_values = ('director', 'actor', 'guest', 'writer', 'composer', 'presenter', 'reporter', 'commentator', 'adapter', 'producer', 'editor')
 
         if tdict == None:
@@ -592,7 +592,7 @@ class Functions():
                 dt = datetime.datetime.combine(data[0], data[1])
                 dt = source.site_tz.localize(dt)
                 dt = self.config.utc_tz.normalize(dt.astimezone(self.config.utc_tz))
-                return dt
+                return dt.replace(second = 0, microsecond = 0)
 
             # Return True (or data[2]) if data[1] is present in data[0], else False (or data[3])
             if fid == 12:
@@ -841,45 +841,6 @@ class Functions():
                                 add_person(role, cn[0].strip())
 
                 return credits
-
-            # Process a country list
-            if fid == 15:
-                rlist = []
-                if len(data) == 0:
-                    return rlist
-
-                if isinstance(data[0], (str,unicode)):
-                    cd = re.split('[,()/]', re.sub('\.', '', data[0]).upper())
-                    for cstr in cd:
-                        if cstr in self.config.coutrytrans.values():
-                            rlist.append(cstr)
-
-                        elif cstr in self.config.coutrytrans.keys():
-                            rlist.append(self.config.coutrytrans[cstr])
-
-                        elif self.config.write_info_files:
-                            self.config.infofiles.addto_detail_list(u'new country => %s' % (cstr))
-
-                elif isinstance(data[0], (list,tuple)):
-                    for item in data[0]:
-                        if not isinstance(item, (str,unicode)):
-                            continue
-
-                        cd = re.split('[,()/]', re.sub('\.', '', item).upper())
-                        for cstr in cd:
-                            if cstr == '':
-                                continue
-
-                            if cstr in self.config.coutrytrans.values():
-                                rlist.append(cstr)
-
-                            elif cstr in self.config.coutrytrans.keys():
-                                rlist.append(self.config.coutrytrans[cstr])
-
-                            elif self.config.write_info_files:
-                                self.config.infofiles.addto_detail_list(u'new country => %s' % (cstr))
-
-                return rlist
 
             # Process a rating item
             if fid == 9:
@@ -1232,20 +1193,6 @@ class FetchURL(Thread):
             return None
 
 # end FetchURL
-
-class ProgramNode():
-    def __init__(self, config, data):
-        self.node_lock = Lock()
-        with self.node_lock:
-            self.config = config
-            self.data = data
-
-class ChannelNode():
-    def __init__(self, config, chanid):
-        self.node_lock = Lock()
-        with self.node_lock:
-            self.config = config
-            self.chanid = chanid
 
 class DATAnode():
     def __init__(self, dtree, parent = None):
@@ -2768,7 +2715,7 @@ class theTVDB(Thread):
         if data == None:
             return
 
-        if data['titel aflevering'][0:27].lower() == 'geen informatie beschikbaar':
+        if data['episode title'][0:27].lower() == 'geen informatie beschikbaar':
             return data
 
         if parent != None and parent.group == 6:
@@ -2797,7 +2744,7 @@ class theTVDB(Thread):
         # First we just look for a matching subtitle
         tid = tid['tid']
         self.config.queues['cache'].put({'task':'query', 'parent': self, \
-                'ep_by_title': {'tid': tid, 'title': data['titel aflevering']}})
+                'ep_by_title': {'tid': tid, 'title': data['episode title']}})
         eid = self.cache_return.get(True)
         if eid == 'quit':
             self.ready = True
@@ -2812,7 +2759,7 @@ class theTVDB(Thread):
             if isinstance(eid['airdate'], (datetime.date)):
                 data['airdate'] = eid['airdate']
 
-            self.config.log(self.config.text('fetch', 9, (data['name'], data['titel aflevering'])), 24)
+            self.config.log(self.config.text('fetch', 9, (data['name'], data['episode title'])), 24)
             return data
 
         # Now we get a list of episodes matching what we already know and compare with confusing characters removed
@@ -2823,7 +2770,7 @@ class theTVDB(Thread):
             self.ready = True
             return -1
 
-        subt = re.sub('[-,. ]', '', self.functions.remove_accents(data['titel aflevering']).lower())
+        subt = re.sub('[-,. ]', '', self.functions.remove_accents(data['episode title']).lower())
         ep_dict = {}
         ep_list = []
         for ep in eps:
@@ -2834,13 +2781,13 @@ class theTVDB(Thread):
                 if parent != None:
                     self.functions.update_counter('lookup', -2, parent.chanid)
 
-                data['titel aflevering'] = ep['title']
+                data['episode title'] = ep['title']
                 data['season'] = ep['sid']
                 data['episode'] = ep['eid']
                 if isinstance(ep['airdate'], (datetime.date)):
                     data['airdate'] = ep['airdate']
 
-                self.config.log(self.config.text('fetch', 9, (data['name'], data['titel aflevering'])), 24)
+                self.config.log(self.config.text('fetch', 9, (data['name'], data['episode title'])), 24)
                 return data
 
         # And finally we try a difflib match
@@ -2850,19 +2797,19 @@ class theTVDB(Thread):
                 self.functions.update_counter('lookup', -2, parent.chanid)
 
             ep = ep_dict[match_list[0]]
-            data['titel aflevering'] = ep['title']
+            data['episode title'] = ep['title']
             data['season'] = ep['sid']
             data['episode'] = ep['eid']
             if isinstance(ep['airdate'], (datetime.date)):
                 data['airdate'] = ep['airdate']
 
-            self.config.log(self.config.text('fetch', 9, (data['name'], data['titel aflevering'])), 24)
+            self.config.log(self.config.text('fetch', 9, (data['name'], data['episode title'])), 24)
             return data
 
         if parent != None:
             self.functions.update_counter('lookup_fail', -2, parent.chanid)
 
-        self.config.log(self.config.text('fetch', 10, (data['name'], data['titel aflevering'], data['channel'])), 128)
+        self.config.log(self.config.text('fetch', 10, (data['name'], data['episode title'], data['channel'])), 128)
         return data
 
     def check_ttvdb_title(self, series_name, lang='nl'):
@@ -3100,7 +3047,7 @@ class FetchData(Thread):
 
         def check_ttvdb(tdict, parent):
             if not (self.config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']) and \
-              tdict['genre'].lower() == u'serie/soap' and tdict['titel aflevering'] != '' and tdict['season'] == 0:
+              tdict['genre'].lower() == u'serie/soap' and tdict['episode title'] != '' and tdict['season'] == 0:
                 # We do a ttvdb lookup
                 #~ parent.update_counter('fetch', -1)
                 self.functions.update_counter('queue', -2,  parent.chanid, False)
@@ -3955,6 +3902,9 @@ class FetchData(Thread):
                         tdict['start-time'] = values["alt-start-time"]
                     elif "length" in values and isinstance(values['length'], datetime.timedelta) and isinstance(tdict['stop-time'], datetime.datetime):
                         tdict['start-time'] = tdict['stop-time'] - values['length']
+                    elif "previous-start-time" in values and isinstance(values["previous-start-time"], datetime.datetime) \
+                      and "previous-length" in values and isinstance(values["previous-length"], datetime.timedelta):
+                        tdict['start-time'] = values['previous-start-time'] + values['previous-length']
                     else:
                         self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
                         continue
@@ -3962,6 +3912,10 @@ class FetchData(Thread):
                 if not isinstance(tdict['stop-time'], datetime.datetime):
                     if "length" in values and isinstance(values['length'], datetime.timedelta):
                         tdict['stop-time'] = tdict['start-time'] + values['length']
+
+                    #~ else:
+                        #~ self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
+                        #~ continue
 
                 if self.without_full_timings:
                     # This is to catch the midnight date change for HTML pages with just start(stop) times without date
@@ -4223,7 +4177,7 @@ class FetchData(Thread):
         def check_type(vdef, value):
             dtype = self.data_value('type', str, vdef)
             try:
-                if dtype == 'str':
+                if dtype == 'string':
                     return unicode(value)
 
                 elif dtype == 'lower':
@@ -4326,6 +4280,9 @@ class FetchData(Thread):
                     values['subgenre'] = values['genres'][1]
 
         if self.cattrans_type == 1:
+            if self.new_cattrans == None:
+                self.new_cattrans = {}
+
             if 'genre' in values:
                 # Just in case it is a comma seperated list
                 if isinstance(values['genre'], (str, unicode)):
@@ -4377,6 +4334,8 @@ class FetchData(Thread):
                             self.config.infofiles.addto_detail_list(u'unknown %s genre => %s' % (self.source, values['genre']))
 
         elif self.cattrans_type == 2:
+            if self.new_cattrans == None:
+                self.new_cattrans = []
             if 'subgenre' in values and values['subgenre'] not in (None, ''):
                 if values['subgenre'].lower().strip() in self.cattrans.keys():
                     genre = self.cattrans[values['subgenre'].lower().strip()]
@@ -4489,12 +4448,12 @@ class FetchData(Thread):
         Return the updated Progam dict
         """
         ptitle = program['name']
-        psubtitle = program['titel aflevering']
+        psubtitle = program['episode title']
         if  ptitle == None or ptitle == '':
             return program
 
         if re.sub('[-,. ]', '', ptitle) == re.sub('[-,. ]', '', psubtitle):
-            program['titel aflevering'] = ''
+            program['episode title'] = ''
             psubtitle = ''
 
         # Remove a groupname if in the list
@@ -4535,7 +4494,7 @@ class FetchData(Thread):
             ptitle = self.config.titlerename[ptitle.lower()]
 
         program['name'] = ptitle
-        program['titel aflevering'] = psubtitle
+        program['episode title'] = psubtitle
         return program
 
     def filter_description(self,ETitem, ETfind, tdict):
@@ -4777,6 +4736,9 @@ class FetchData(Thread):
             if isinstance(programs[i]['start-time'], datetime.datetime) \
                 and isinstance(programs[i]['stop-time'], datetime.datetime) \
                 and programs[i]['start-time'] != programs[i]['stop-time']:
+                    programs[i]['start-time'].replace(second = 0, microsecond = 0)
+                    programs[i]['stop-time'].replace(second = 0, microsecond = 0)
+                    programs[i]['length'] = programs[i]['stop-time'] - programs[i]['start-time']
                     good_programs.append(programs[i])
 
         # Han Holl: try to exclude programs that stop before they begin
@@ -4858,7 +4820,7 @@ class FetchData(Thread):
                         tdict['source'] = good_programs[i]['source']
                         tdict['channelid'] = good_programs[i]['channelid']
                         tdict['channel'] = good_programs[i]['channel']
-                        tdict['name'] = self.config.npo_fill
+                        tdict['name'] = self.config.language_texts['gap text']
                         tdict['start-time'] = good_programs[i]['stop-time']
                         tdict['stop-time'] = good_programs[i+1]['start-time']
                         tdict['offset'] = good_programs[i+1]['offset']
@@ -5285,8 +5247,8 @@ class FetchData(Thread):
             if use_other_title != 0:
                 tdict['name']  = tvdict['name']
 
-            if tdict['jaar van premiere'] == '':
-                tdict['jaar van premiere'] = tvdict['jaar van premiere']
+            if tdict['premiere year'] == '':
+                tdict['premiere year'] = tvdict['premiere year']
 
             if tdict['airdate'] == '':
                 tdict['airdate'] = tvdict['airdate']
@@ -5306,8 +5268,8 @@ class FetchData(Thread):
             if tdict['prefered description'] == '':
                 tdict['prefered description'] = tvdict['prefered description']
 
-            if tdict['omroep'] == '':
-                tdict['omroep'] = tvdict['omroep']
+            if tdict['broadcaster'] == '':
+                tdict['broadcaster'] = tvdict['broadcaster']
 
             if tdict['star-rating'] == '':
                 tdict['star-rating'] = tvdict['star-rating']
@@ -5319,14 +5281,14 @@ class FetchData(Thread):
             if tvdict['video']['HD']:
                 tdict['video']['HD']  = True
 
-            if tvdict['video']['breedbeeld']:
-                tdict['video']['breedbeeld']  = True
+            if tvdict['video']['widescreen']:
+                tdict['video']['widescreen']  = True
 
             if tvdict['video']['blackwhite']:
                 tdict['video']['blackwhite']  = True
 
-            if tvdict['teletekst']:
-                tdict['teletekst']  = True
+            if tvdict['teletext']:
+                tdict['teletext']  = True
 
             if tdict['audio'] == '':
                 tdict['audio'] = tvdict['audio']
@@ -5349,8 +5311,8 @@ class FetchData(Thread):
 
             tdict = set_main_id(tdict)
             if reverse_match:
-                if not self.proc_id in (2, 6, 5) and tdict['titel aflevering'] == '':
-                    tdict['titel aflevering'] = tvdict['titel aflevering']
+                if not self.proc_id in (2, 6, 5) and tdict['episode title'] == '':
+                    tdict['episode title'] = tvdict['episode title']
 
                 if self.proc_id != 1:
                     tdict['genre'] = tvdict['genre']
@@ -5377,8 +5339,8 @@ class FetchData(Thread):
                             tdict['start-time'] = tvdict['start-time']
                             break
 
-                if self.proc_id in (2, 6, 5) and (tvdict['titel aflevering'] != '' or tdict['titel aflevering'] == ''):
-                    tdict['titel aflevering'] = tvdict['titel aflevering']
+                if self.proc_id in (2, 6, 5) and (tvdict['episode title'] != '' or tdict['episode title'] == ''):
+                    tdict['episode title'] = tvdict['episode title']
 
                 if tdict['season'] == 0:
                     tdict['season'] = tvdict['season']
@@ -5408,7 +5370,7 @@ class FetchData(Thread):
             if no_genric_matching:
                 check_genre = False
 
-            x = match_name(pi['name'], tdict['name'], pi['titel aflevering'])
+            x = match_name(pi['name'], tdict['name'], pi['episode title'])
             if x != None:
                 matchlog(self.config.text('fetch', 29), pi, tdict, 4)
                 retval = 1
@@ -5885,6 +5847,7 @@ class Channel_Config(Thread):
         # Flag to stop the thread
         self.config = config
         self.functions = self.config.fetch_func
+        self.channel_node = None
         self.quit = False
         self.state = None
         self.statetext = ''
@@ -6032,23 +5995,26 @@ class Channel_Config(Thread):
 
                 if self.source_ready(index).is_set():
                     if len(self.config.channelsource[index].program_data[self.chanid]) == 0:
+                        # Nothing was returned
                         if not (index == 1 and 0 in self.merge_order):
                             self.config.log(self.config.text('fetch', 51, (self.config.channelsource[index].source, self.chan_name)))
 
-                    elif xml_data == False:
-                        # This is the first source with data, so we just take in the data
+                    elif self.channel_node == None:
+                        # This is the first source with data, so we just take in the data creating the channel Node
                         xml_data = True
-                        prime_source = self.config.channelsource[index].proc_id
+                        #~ prime_source = self.config.channelsource[index].proc_id
                         with self.config.channelsource[index].source_lock:
-                            self.all_programs = self.config.channelsource[index].program_data[self.chanid][:]
+                            self.channel_node = tv_grab_IO.ChannelNode(self.config, self, self.config.channelsource[index].program_data[self.chanid][:], index)
+                            #~ self.all_programs = self.config.channelsource[index].program_data[self.chanid][:]
 
                     else:
                         # There is already data, so we merge the incomming data into that
                         xml_data = True
-                        self.config.channelsource[index].merge_sources(self.chanid,  prime_source, self.counter)
-                        self.config.channelsource[index].parse_programs(self.chanid, 1, 'None')
-                        for i in range(0, len(self.all_programs)):
-                            self.all_programs[i] = self.config.fetch_func.checkout_program_dict(self.all_programs[i])
+                        self.channel_node.add_source_programs(self.config.channelsource[index].program_data[self.chanid][:], index)
+                        #~ self.config.channelsource[index].merge_sources(self.chanid,  prime_source, self.counter)
+                        #~ self.config.channelsource[index].parse_programs(self.chanid, 1, 'None')
+                        #~ for i in range(0, len(self.all_programs)):
+                            #~ self.all_programs[i] = self.config.fetch_func.checkout_program_dict(self.all_programs[i])
 
             if self.chanid in self.config.combined_channels.keys():
                 self.statetext = 'waiting for children'
@@ -6072,13 +6038,14 @@ class Channel_Config(Thread):
                         elif self.child_data.is_set():
                             # We always merge as there might be restrictions
                             xml_data = True
-                            self.config.channelsource[0].merge_sources(self.chanid,  None, self.counter, c)
-                            self.config.channelsource[0].parse_programs(self.chanid, 1, 'None')
-                            for i in range(0, len(self.all_programs)):
-                                self.all_programs[i] = self.config.fetch_func.checkout_program_dict(self.all_programs[i])
+                            self.channel_node.add_other_channel()
+                            #~ self.config.channelsource[0].merge_sources(self.chanid,  None, self.counter, c)
+                            #~ self.config.channelsource[0].parse_programs(self.chanid, 1, 'None')
+                            #~ for i in range(0, len(self.all_programs)):
+                                #~ self.all_programs[i] = self.config.fetch_func.checkout_program_dict(self.all_programs[i])
 
             if self.is_child:
-                self.child_programs = deepcopy(self.all_programs) if self.active else self.all_programs
+                #~ self.child_programs = deepcopy(self.all_programs) if self.active else self.all_programs
                 self.child_data.set()
                 if not self.active:
                     self.statetext = ''
@@ -6160,7 +6127,7 @@ class Channel_Config(Thread):
             self.config.log(log_array, 4, 3)
 
             # a final check on the sanity of the data
-            self.config.channelsource[0].parse_programs(self.chanid, 1)
+            #~ self.config.channelsource[0].parse_programs(self.chanid, 1)
 
             # Split titles with colon in it
             # Note: this only takes place if all days retrieved are also grabbed with details (slowdays=days)
@@ -6229,12 +6196,12 @@ class Channel_Config(Thread):
         elif tdict['prefered description'] > cached['prefered description']:
             cached['prefered description'] = tdict['prefered description']
 
-        for fld in ('name', 'titel aflevering', 'originaltitle', 'jaar van premiere', 'airdate', 'country', 'star-rating', 'omroep'):
+        for fld in ('name', 'episode title', 'originaltitle', 'premiere year', 'airdate', 'country', 'star-rating', 'broadcaster'):
             if tdict[fld] != '':
                 cached[fld] = tdict[fld]
 
-        if re.sub('[-,. ]', '', cached['name']) == re.sub('[-,. ]', '', cached['titel aflevering']):
-            cached['titel aflevering'] = ''
+        if re.sub('[-,. ]', '', cached['name']) == re.sub('[-,. ]', '', cached['episode title']):
+            cached['episode title'] = ''
 
         for fld in ('season', 'episode'):
             if tdict[fld] != 0:
@@ -6347,7 +6314,7 @@ class Channel_Config(Thread):
                         self.functions.update_counter('detail', -1, self.chanid)
                         p = self.use_cache(p, cached_program)
                         if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
-                            if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
+                            if p['genre'].lower() == u'serie/soap' and p['episode title'] != '' and p['season'] == 0:
                                 #~ self.update_counter('fetch', -1)
                                 self.functions.update_counter('queue', -2, self.chanid)
                                 self.config.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
@@ -6365,7 +6332,7 @@ class Channel_Config(Thread):
                 self.config.log(self.config.text('fetch', 66, (self.chan_name, self.get_counter(), logstring)), 8, 1)
                 self.functions.update_counter('fail', -1, self.chanid)
                 if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
-                    if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
+                    if p['genre'].lower() == u'serie/soap' and p['episode title'] != '' and p['season'] == 0:
                         #~ self.update_counter('fetch', -1)
                         self.functions.update_counter('queue', -2, self.chanid)
                         self.config.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
@@ -6407,12 +6374,12 @@ class Channel_Config(Thread):
             program['genre'] = 'overige';
 
         ptitle = program['name']
-        psubtitle = program['titel aflevering']
+        psubtitle = program['episode title']
         if  ptitle == None or ptitle == '':
             return program
 
         # exclude certain programs
-        if  ('titel aflevering' in program and psubtitle != '')  \
+        if  ('episode title' in program and psubtitle != '')  \
           or ('genre' in program and program['genre'].lower() in ['movies','film']) \
           or (ptitle.lower() in self.config.notitlesplit):
             return program
@@ -6422,9 +6389,9 @@ class Channel_Config(Thread):
         if len(p) >1:
             self.config.log(self.config.text('fetch', 67, (ptitle, )), 64)
             program['name'] = p[0].strip()
-            program['titel aflevering'] = "".join(p[1:]).strip()
+            program['episode title'] = "".join(p[1:]).strip()
             if self.config.write_info_files:
-                self.config.infofiles.addto_detail_list(unicode('Name split = %s + %s' % (program['name'] , program['titel aflevering'])))
+                self.config.infofiles.addto_detail_list(unicode('Name split = %s + %s' % (program['name'] , program['episode title'])))
 
         return program
 

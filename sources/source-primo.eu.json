@@ -1,4 +1,8 @@
 {"file-name":"source-primo.eu",
+	"description":[
+		"This is the datafile on how to get the program-data of this site",
+		"Do not change this file as it will get overwritten on any update",
+		"If you thing it needs adjusting open an issue on https://github.com/tvgrabbers/tvgrabnlpy/"],
 	"name":"primo.eu",
 	"language":"nl",
 	"site-timezone":"Europe/Brussels",
@@ -119,7 +123,15 @@
 						{"path":"parent"},
 						{"tag":"div", "index":{"link":1,"calc":["plus",1]}},
 						{"tag":"span","split":[["-",0]],"type":"time", "time-splitter":"\\."}],
-					[{"path":"parent","attr":"style","split":[[":",1]],"rstrip":"px;","multiplier":12, "type":"timedelta"}]
+					[{"path":"parent","attr":"style","split":[[":",1]],"rstrip":"px;","multiplier":12, "type":"timedelta"}],
+					[{"path":"parent","select":"index", "link":1},
+						{"path":"parent"},
+						{"tag":"div", "index":{"link":1,"calc":["min",2]}},
+						{"tag":"span","split":[["-",1]],"type":"time", "time-splitter":"\\."}],
+					[{"path":"parent","select":"index", "link":1},
+						{"path":"parent"},
+						{"tag":"div", "index":{"link":1,"calc":["min",1]}},
+						{"attr":"style","split":[[":",1]],"rstrip":"px;","multiplier":12, "type":"timedelta"}]
 					]}]},
 		"values":{
 			"prog_ID":{"funcid":2, "data":["primo-",{"varid":0}]},
@@ -130,6 +142,8 @@
 			"alt-start-time":{"funcid":4, "data":[{"varid": 3},{"varid": 6}, 7]},
 			"alt-stop-time":{"funcid":4, "data":[{"varid": 3},{"varid": 7}, 7]},
 			"length":{"varid": 8},
+			"previous-start-time":{"funcid":4, "data":[{"varid": 3},{"varid": 9}, 7]},
+			"previous-length":{"varid": 10},
 			"name":{"varid":5}}},
 	"detail":{
 		"url":["http://www.primo.eu/tvprograms/ajaxcallback/",0],
@@ -152,18 +166,18 @@
 				]},
 		"values":{
 			"description":{"funcid":14, "data":[{"varid":1},"synopsis"]},
-			"titel aflevering":{"funcid":14, "data":[{"varid":1},"titel aflevering"]},
+			"episode title":{"funcid":14, "data":[{"varid":1},"titel aflevering"]},
 			"episode":{"funcid":14, "data":[{"varid":1},"nr. aflevering"]},
 			"season":{"funcid":14, "data":[{"varid":1},"seizoen"]},
-			"jaar van premiere":{"funcid":14, "data":[{"varid":1},"jaar"]},
-			"country":{"funcid":15, "data":[{"funcid":14, "data":[{"varid":1},"land"]}]},
+			"premiere year":{"funcid":14, "data":[{"varid":1},"jaar"]},
+			"country":{"funcid":14, "data":[{"varid":1},"land"]},
 			"rating":{"funcid":14, "data":[{"varid":1},"minimumleeftijd"]},
 			"star-rating":{"funcid":14, "data":[{"varid":1},"rating"], "calc":{"multiplier":2.5}},
 			"genre":{"funcid":14, "data":[{"varid":1},"genre"]},
 			"subgenre":{"funcid":14, "data":[{"varid":1},"samenvatting"], "max length":25},
 			"credits":{"funcid":5, "data":[{"varid":1}]},
 			
-			"new":{"funcid":11, "data":[{"varid": 12},{"varid": 13}, 
+			"--log-unknown--":{"funcid":11, "data":[{"varid": 12},{"varid": 13}, 
 				["programmanaam","datum en tijd","zender","genre","synopsis","titel aflevering",
 					"nr. aflevering","seizoen","jaar","land","samenvatting","minimumleeftijd","rating"]]}
 			}},

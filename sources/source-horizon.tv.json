@@ -1,4 +1,8 @@
 {"file-name":"source-horizon.tv",
+	"description":[
+		"This is the datafile on how to get the program-data of this site",
+		"Do not change this file as it will get overwritten on any update",
+		"If you thing it needs adjusting open an issue on https://github.com/tvgrabbers/tvgrabnlpy/"],
 	"name":"horizon.tv",
 	"language":"nl",
 	"site-timezone":"Europe/Amsterdam",
@@ -22,7 +26,7 @@
 				{"key":"stationSchedules"},
 				{"path":"all"},
 				{"key":"station"},
-				{"key":"id"}
+				{"key":"id", "type":"string"}
 				],
 			"values":[
 				[{"key":"title"}],
@@ -39,7 +43,7 @@
 				"station-logo-tva-nonfocused":"w77xh52"}]
 				},
 		"values":{
-			"channelid":{"varid": 0, "type":"str"},
+			"channelid":{"varid": 0},
 			"name":{"funcid":0, "data":[{"varid":1}, " HD"]},
 			"group":null,
 			"icon":{"funcid":1, "data":[{"varid":3}]},
@@ -113,15 +117,15 @@
 			"start-time":{"varid":2},
 			"stop-time":{"varid":3},
 			"name":{"varid":4},
-			"titel aflevering":{"varid":5},
+			"episode title":{"varid":5},
 			"episode":{"varid":6},
 			"description":{"funcid":8, "data":[{"varid":7},{"varid":8}], "default":""},
-			"jaar van premiere":{"varid":9},
+			"premiere year":{"varid":9},
 			"airdate":{"varid":10},
 			"cast":{"varid":11},
 			"directors":{"varid":12},
 			"genre":{"varid":13},
-			"subgenre":{"varid":14, "type":"capitalize"}
+			"subgenre":{"varid":14}
 			}},
 	"no_genric_matching":[
 		"24443942983", "24443942987", "24443943012", "24443943014", "24443943071", "24443943091",
