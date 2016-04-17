@@ -358,10 +358,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 12
-        self.patchdate = u'20160410'
+        self.patch = 13
+        self.patchdate = u'20160418'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
@@ -12910,13 +12910,12 @@ class oorboekje_HTML(FetchData):
         self.gettable = re.compile('<TABLE (.*?)</TABLE>',re.DOTALL)
         self.gettablerow = re.compile('<TD valign(.*?)</TD>',re.DOTALL)
         self.getregional = re.compile("Regionale .*? zenders:")
-        self.getchanid = re.compile('A href="/stream.php\?zender=([0-9]+)"')
+        self.getchanid = re.compile('A href="/zenderinformatie/(.*?)"')
         self.getchanname = re.compile('<P class="pnZender".*?>(.*?)</P>',re.DOTALL)
         self.getnameaddition = re.compile('<SPAN style=".*?">(.*?)</SPAN>')
         self.getdate = re.compile("this.document.title='oorboekje.nl - Programma-overzicht van .*? ([0-9]{2})-([0-9]{2})-([0-9]{4})';")
         self.getchanday = re.compile('<!-- programmablok begin -->(.*?)<!-- programmablok eind -->',re.DOTALL)
-        #~ self.getchannel = re.compile('<A href="/zenderInfo.php\?zender=([0-9]+).*?</A>(.*?)</DIV>',re.DOTALL)
-        self.getchannel = re.compile('<A href="/stream.php\?zender=([0-9]+).*?<A name=".*?">(.*?)</A>',re.DOTALL)
+        self.getchannel = re.compile('<A name="(.*?)">(.*?)</A>',re.DOTALL)
         self.getprogram = re.compile('<DIV class="pgProgOmschr" style="text-indent: -16px; padding-left: 16px">\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
         self.gettime = re.compile('([0-9]{2}):([0-9]{2})')
         self.geticons = re.compile('<IMG src=".*?" alt="(.*?)".*?>',re.DOTALL)
@@ -12963,13 +12962,13 @@ class oorboekje_HTML(FetchData):
             strdata = self.clean_html(strdata)
             chgroup = 11
             for ch in self.gettablerow.findall(strdata):
-                if not '"/stream.php?zender=' in ch:
+                if not '"/zenderinformatie/' in ch:
                     if self.getregional.search(ch) != None:
                         chgroup = 17
 
                     continue
 
-                chanid = self.getchanid.search(ch).group(1)
+                chanid = self.getchanid.search(ch).group(1).lower()
                 channame = self.getchanname.search(ch).group(1)
                 regionname = self.getnameaddition.search(channame)
                 channame = self.empersant(re.sub('<SPAN.*?</SPAN>', '', channame).strip())
@@ -13047,7 +13046,10 @@ class oorboekje_HTML(FetchData):
                         if chan == None:
                             continue
 
-                        scid = chan.group(1)
+                        scid = chan.group(1).lower()
+                        if scid == 'r100procentnl':
+                            scid = '100procentnl'
+                        print scid
                         channame = self.empersant(re.sub('<SPAN.*?</SPAN>', '', chan.group(2)).strip())
                         if not scid in self.all_channels:
                              self.all_channels[scid] ={}
