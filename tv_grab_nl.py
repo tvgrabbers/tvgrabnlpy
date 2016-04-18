@@ -13049,7 +13049,6 @@ class oorboekje_HTML(FetchData):
                         scid = chan.group(1).lower()
                         if scid == 'r100procentnl':
                             scid = '100procentnl'
-                        print scid
                         channame = self.empersant(re.sub('<SPAN.*?</SPAN>', '', chan.group(2)).strip())
                         if not scid in self.all_channels:
                              self.all_channels[scid] ={}
