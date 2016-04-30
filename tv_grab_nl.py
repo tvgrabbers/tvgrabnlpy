@@ -358,10 +358,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 13
-        self.patchdate = u'20160420'
+        self.patch = 14
+        self.patchdate = u'20160430'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
@@ -10669,7 +10669,7 @@ class horizon_JSON(FetchData):
 
     def get_url(self, type = 'channels', channel = 0, start = 0, end = 0):
 
-        horizon = 'https://www.horizon.tv/oesp/api/NL/nld/web/'
+        horizon = 'https://web-api-salt.horizon.tv/oesp/api/NL/nld/web/'
 
         if type == 'channels':
             return  u'%schannels/' % (horizon)
