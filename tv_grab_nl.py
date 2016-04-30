@@ -6709,13 +6709,13 @@ class FetchData(Thread):
             # equal to each other (yes, this can happen)
             if programs[i]['start-time'] != None \
                 and programs[i]['stop-time']  != None \
-                and programs[i]['start-time'] != programs[i]['stop-time']:
+                and programs[i]['start-time'] < programs[i]['stop-time']:
                     good_programs.append(programs[i])
 
         # Han Holl: try to exclude programs that stop before they begin
-        for i in range(len(good_programs)-1,-1,-1):
-            if good_programs[i]['stop-time'] <= good_programs[i]['start-time']:
-                log('Deleting invalid stop/start time: %s\n' % good_programs[i]['name'], 64)
+        #~ for i in range(len(good_programs)-1,-1,-1):
+            #~ if good_programs[i]['stop-time'] <= good_programs[i]['start-time']:
+                #~ log('Deleting invalid stop/start time: %s\n' % good_programs[i]['name'], 64)
 
         # Try to exclude programs that only identify a group or broadcaster and have overlapping start/end times with
         # the actual programs
