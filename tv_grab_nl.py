@@ -2145,6 +2145,7 @@ class Configure:
                 xml_output.prime_source_order.remove(s)
 
         # Read in the tables needed for normal grabbing
+        self.source_base_url = get_githubdict("source_base_url", 1)
         xml_output.logo_provider = get_githubdata("logo_provider")
         combined_channels = get_githubdict("combined_channels_2")
         self.combined_channels = {}
@@ -7907,8 +7908,7 @@ class tvgids_JSON(FetchData):
 
     def get_url(self, type = 'channels', offset = 0, id = None):
 
-        tvgids = 'http://www.tvgids.nl/'
-        tvgids_json = tvgids + 'json/lists/'
+        tvgids_json = config.source_base_url[self.proc_id] + 'json/lists/'
 
         if type == 'channels':
             return  u'%schannels.php' % (tvgids_json)
@@ -7920,7 +7920,7 @@ class tvgids_JSON(FetchData):
             return ''
 
         elif type == 'detail':
-            return u'%sprogramma/%s/?cookieoptin=true' % (tvgids, id)
+            return u'%sprogramma/%s/?cookieoptin=true' % (config.source_base_url[self.proc_id], id)
 
         elif type == 'json_detail':
             return u'%sprogram.php?id=%s/' % (tvgids_json, id)
@@ -8468,19 +8468,17 @@ class tvgidstv_HTML(FetchData):
 
     def get_url(self, channel = None, offset = 0, href = None):
 
-        tvgidstv_url = 'http://www.tvgids.tv'
-
         if href == None and channel == None:
-            return u'%s/zenders/' % tvgidstv_url
+            return u'%s/zenders/' % config.source_base_url[self.proc_id]
 
         if href == None:
-            return u'%s/zenders/%s/%s' % (tvgidstv_url, channel, offset)
+            return u'%s/zenders/%s/%s' % (config.source_base_url[self.proc_id], channel, offset)
 
         if href == '':
             return ''
 
         else:
-            return u'%s%s' % (tvgidstv_url, self.unescape(href))
+            return u'%s%s' % (config.source_base_url[self.proc_id], self.unescape(href))
 
     def check_date(self, page_data, channel, offset):
 
@@ -9051,8 +9049,8 @@ class rtl_JSON(FetchData):
 
     def get_url(self, abstract = None, days = 0):
 
-        rtl_general = 'http://www.rtl.nl/system/s4m/tvguide/guide_for_one_day.xml?output=json'
-        rtl_abstract = 'http://www.rtl.nl/system/s4m/tvguide/guide_for_one_abstract.xml?output=json'
+        rtl_general = config.source_base_url[self.proc_id] + 'guide_for_one_day.xml?output=json'
+        rtl_abstract = config.source_base_url[self.proc_id] + 'guide_for_one_abstract.xml?output=json'
 
         if abstract == None:
             channels = ''
@@ -10107,20 +10105,19 @@ class npo_HTML(FetchData):
 
     def get_url(self, offset = 0, href = None, vertical = False):
 
-        npo_zoeken = 'http://www.npo.nl'
         if href == None and vertical:
             scan_date = datetime.date.fromordinal(self.current_date + offset)
-            return u'%s/gids/verticaal/%s/content' % (npo_zoeken,  scan_date.strftime('%d-%m-%Y'))
+            return u'%s/gids/verticaal/%s/content' % (config.source_base_url[self.proc_id],  scan_date.strftime('%d-%m-%Y'))
 
         if href == None and not vertical:
             scan_date = datetime.date.fromordinal(self.current_date + offset)
-            return u'%s/gids/horizontaal/%s/content' % (npo_zoeken,  scan_date.strftime('%d-%m-%Y'))
+            return u'%s/gids/horizontaal/%s/content' % (config.source_base_url[self.proc_id],  scan_date.strftime('%d-%m-%Y'))
 
         elif href == '':
             return ''
 
         else:
-            return u'%s%s' % (npo_zoeken,  href)
+            return u'%s%s' % (config.source_base_url[self.proc_id],  href)
 
     def get_channels(self):
         try:
@@ -10710,13 +10707,12 @@ class horizon_JSON(FetchData):
 
     def get_url(self, type = 'channels', channel = 0, start = 0, end = 0):
 
-        horizon = 'https://web-api-pepper.horizon.tv/oesp/api/NL/nld/web/'
-
         if type == 'channels':
-            return  u'%schannels/' % (horizon)
+            return  u'%schannels/' % (config.source_base_url[self.proc_id])
 
         elif type == 'day':
-            return '%slistings?byStationId=%s&byStartTime=%s~%s&sort=startTime' % (horizon, channel, start, end)
+            return '%slistings?byStationId=%s&byStartTime=%s~%s&sort=startTime' % \
+                            (config.source_base_url[self.proc_id], channel, start, end)
 
     def get_channels(self):
         """
@@ -10989,21 +10985,19 @@ class humo_JSON(FetchData):
 
     def get_url(self, channels = 'channels', offset = 0):
 
-        base_url = 'http://www.humo.be'
-        base_json = base_url + '/api/epg/humosite'
         scan_day = datetime.date.fromordinal(self.current_date + offset).strftime("%Y-%m-%d")
 
         if channels == 'channels':
-            return  u'%s/channels' % (base_json)
+            return  u'%s/channels' % (config.source_base_url[self.proc_id])
 
         elif channels == 'main':
-            return '%s/schedule/main/%s/full' % (base_json, scan_day)
+            return '%s/schedule/main/%s/full' % (config.source_base_url[self.proc_id], scan_day)
 
         elif channels == 'rest':
-            return '%s/schedule/rest/%s/full' % (base_json, scan_day)
+            return '%s/schedule/rest/%s/full' % (config.source_base_url[self.proc_id], scan_day)
 
         else:
-            return '%s/schedule/%s/%s/full' % (base_json, channels, scan_day)
+            return '%s/schedule/%s/%s/full' % (config.source_base_url[self.proc_id], channels, scan_day)
 
     def get_channels(self):
         """
@@ -11275,13 +11269,12 @@ class vpro_HTML(FetchData):
 
     def get_url(self, offset = None):
 
-        vpro_base = 'http://www.vpro.nl/epg-embeddable'
         if offset == None:
-            return u'%s.html' % (vpro_base)
+            return u'%s.html' % (config.source_base_url[self.proc_id])
 
         elif isinstance(offset, int):
             scan_date = datetime.date.fromordinal(self.current_date + offset)
-            return u'%s/content/0.html?day=%s' % (vpro_base,  scan_date.strftime('%Y-%m-%d'))
+            return u'%s/content/0.html?day=%s' % (config.source_base_url[self.proc_id],  scan_date.strftime('%Y-%m-%d'))
 
     def get_channels(self):
 
@@ -11796,19 +11789,18 @@ class nieuwsblad_HTML(FetchData):
 
     def get_url(self, channel = None, offset = 0, chan_group = 0):
 
-        base_url = 'http://www.nieuwsblad.be/tv-gids'
         scan_day = config.weekdagen[int(datetime.date.fromordinal(self.current_date + offset).strftime("%w"))]
         if channel == 'base':
-            return base_url
+            return config.source_base_url[self.proc_id]
 
         elif channel == 'zenders':
-            return '%s/zenders' % base_url
+            return '%s/zenders' % config.source_base_url[self.proc_id]
 
         elif channel != None:
-            return '%s/%s/%s' % (base_url, channel,  scan_day)
+            return '%s/%s/%s' % (config.source_base_url[self.proc_id], channel,  scan_day)
 
         else:
-            return u'%s/%s/%s' % (base_url,  scan_day, chan_group)
+            return u'%s/%s/%s' % (config.source_base_url[self.proc_id],  scan_day, chan_group)
 
     def get_channels(self):
         """
@@ -12156,16 +12148,15 @@ class primo_HTML(FetchData):
             self.chanids[sourceid] = chanid
 
     def get_url(self, offset = 0, detail = None):
-        base_url = 'http://www.primo.eu'
         if offset == 'channels':
-            return base_url + "/Tv%20programma's%20in%20volledig%20scherm%20bekijken"
+            return config.source_base_url[self.proc_id] + "/Tv%20programma's%20in%20volledig%20scherm%20bekijken"
 
         elif detail == None and isinstance(offset, int):
             date = self.get_datestamp(offset)
-            return '%s/tv-programs-full-view/%s/all/all' % (base_url, date)
+            return '%s/tv-programs-full-view/%s/all/all' % (config.source_base_url[self.proc_id], date)
 
         else:
-            return u'%s/tvprograms/ajaxcallback/%s' % (base_url,  detail)
+            return u'%s/tvprograms/ajaxcallback/%s' % (config.source_base_url[self.proc_id],  detail)
 
     def get_channels(self):
         """
@@ -12530,29 +12521,28 @@ class vrt_JSON(FetchData):
 
     def get_url(self, type = 'channels', offset = 0, chanid = None):
 
-        base_url = 'http://services.vrt.be/'
         scan_date = datetime.date.fromordinal(self.current_date + offset).strftime('%Y%m%d')
 
         if type == 'channels':
-            return  [u'%schannel/s' % (base_url), 'application/vnd.channel.vrt.be.channels_1.1+json']
+            return  [u'%schannel/s' % (config.source_base_url[self.proc_id]), 'application/vnd.channel.vrt.be.channels_1.1+json']
 
         elif type == 'genres':
-            return  [u'%sepg/standardgenres' % (base_url), 'application/vnd.epg.vrt.be.standardgenres_1.0+json']
+            return  [u'%sepg/standardgenres' % (config.source_base_url[self.proc_id]), 'application/vnd.epg.vrt.be.standardgenres_1.0+json']
 
         elif type == 'week' and chanid == None:
-            return  [u'%sepg/schedules/%s?type=week' % (base_url, scan_date),
+            return  [u'%sepg/schedules/%s?type=week' % (config.source_base_url[self.proc_id], scan_date),
                             'application/vnd.epg.vrt.be.schedule_3.1+json']
 
         elif type == 'week':
-            return  [u'%sepg/schedules/%s?type=week&channel_code=%s' % (base_url, scan_date, chanid),
+            return  [u'%sepg/schedules/%s?type=week&channel_code=%s' % (config.source_base_url[self.proc_id], scan_date, chanid),
                             'application/vnd.epg.vrt.be.schedule_3.1+json']
 
         elif type == 'day' and chanid == None:
-            return  [u'%sepg/schedules/%s?type=day' % (base_url, scan_date),
+            return  [u'%sepg/schedules/%s?type=day' % (config.source_base_url[self.proc_id], scan_date),
                             'application/vnd.epg.vrt.be.schedule_3.1+json']
 
         elif type == 'day':
-            return  [u'%sepg/schedules/%s?type=day&channel_code=%s' % (base_url, scan_date, chanid),
+            return  [u'%sepg/schedules/%s?type=day&channel_code=%s' % (config.source_base_url[self.proc_id], scan_date, chanid),
                             'application/vnd.epg.vrt.be.schedule_3.1+json']
 
     def get_channels(self):
@@ -12967,14 +12957,13 @@ class oorboekje_HTML(FetchData):
 
     def get_url(self, type = None, offset = 0):
 
-        base_url = 'http://www.oorboekje.nl/'
         week_day = datetime.date.fromordinal(self.current_date + offset).isoweekday()
 
         if type == 'channels':
-            return  base_url
+            return  config.source_base_url[self.proc_id]
 
         else:
-            return u'%sprogram.php?dag=%s' % (base_url, week_day)
+            return u'%sprogram.php?dag=%s' % (config.source_base_url[self.proc_id], week_day)
 
     def get_channels(self):
         """
