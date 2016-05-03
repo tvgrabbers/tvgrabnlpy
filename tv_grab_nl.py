@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 14
-        self.patchdate = u'20160430'
+        self.patchdate = u'20160501'
         self.alfa = False
         self.beta = True
 
@@ -10215,11 +10215,16 @@ class npo_HTML(FetchData):
     def load_pages(self):
 
         first_fetch = True
-        def get_programs(xml, chanid, omroep = True):
+        max_offset = min((config.opt_dict['offset'] + config.opt_dict['days']), 7)
+        def get_programs(xml, chanid, offset, omroep = True):
             try:
                 tdict = None
                 day_offset = 0
                 for p in xml.findall('a'):
+                    if tdict != None:
+                        with self.source_lock:
+                            self.program_data[chanid].append(tdict)
+
                     ptext = p.find('i[@class="np"]')
                     if ptext == None:
                         # No title Found
@@ -10304,17 +10309,28 @@ class npo_HTML(FetchData):
 
                     # and append the program to the list of programs
                     tdict = self.check_title_name(tdict)
-                    if last_added[chanid] != None and last_added[chanid]['name'] == tdict['name']:
-                        with self.source_lock:
-                            self.program_data[chanid][-1]['stop-time'] = tdict['stop-time']
+                    if first_added[offset][chanid] == None:
+                        # It's the first program of the day
+                        first_added[offset][chanid] = tdict
+                        #~ if offset - 1 in last_added.keys() and chanid in last_added[offset - 1] \
+                          #~ and last_added[offset - 1][chanid] != None and last_added[offset - 1][chanid]['name'] == tdict['name']:
+                            #~ # We merge it with the last program of the previous day
+                            #~ with self.source_lock:
+                                #~ last_added[offset - 1][chanid]['stop-time'] = tdict['stop-time']
 
-                    else:
-                        with self.source_lock:
-                            self.program_data[chanid].append(tdict)
+                        tdict = None
 
-                    last_added[chanid] = None
+                last_added[offset][chanid] = tdict
+                #~ if tdict != None:
+                    #~ if offset + 1 in first_added.keys() and chanid in first_added[offset + 1] \
+                      #~ and first_added[offset + 1][chanid] != None and first_added[offset + 1][chanid]['name'] == tdict['name']:
+                        #~ # We merge it with the first program of the next day
+                        #~ with self.source_lock:
+                            #~ first_added[offset + 1][chanid]['start-time'] = tdict['start-time']
 
-                last_added[chanid] = tdict
+                    #~ else:
+                        #~ with self.source_lock:
+                            #~ self.program_data[chanid].append(tdict)
 
             except:
                 log(traceback.format_exc())
@@ -10329,10 +10345,11 @@ class npo_HTML(FetchData):
         if len(self.channels) == 0 :
             return
 
+        first_added = {}
         last_added = {}
         month_names = ['dummy', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
         for retry in (0, 1):
-            for offset in range(config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 7)):
+            for offset in range(config.opt_dict['offset'], max_offset):
                 if self.quit:
                     return
 
@@ -10340,8 +10357,14 @@ class npo_HTML(FetchData):
                 if self.day_loaded[0][offset]:
                     continue
 
+                first_added[offset] = {}
+                last_added[offset] = {}
+                for chanid in self.channels.keys():
+                    first_added[offset][chanid] = None
+                    last_added[offset][chanid] = None
+
                 log(['\n', 'Now fetching %s channels from npo.nl\n' % (len(self.channels)), \
-                    '    (day %s of %s).\n' % (offset, config.opt_dict['days'])], 2)
+                    '    (day %s of %s).\n' % (offset, max_offset - config.opt_dict['offset'])], 2)
 
                 channel_url = self.get_url(offset)
 
@@ -10407,10 +10430,7 @@ class npo_HTML(FetchData):
                             continue
 
                         chanid = self.chanids[scid]
-                        if not chanid in last_added:
-                            last_added[chanid] = None
-
-                        get_programs(c, chanid, self.all_channels[scid]['group'] in (1, 7, 11))
+                        get_programs(c, chanid, offset, self.all_channels[scid]['group'] in (1, 7, 11))
                         self.day_loaded[chanid][offset] = True
 
                 except:
@@ -10419,6 +10439,27 @@ class npo_HTML(FetchData):
                 self.day_loaded[0][offset] = True
 
         for chanid in self.channels.keys():
+            with self.source_lock:
+                if first_added[config.opt_dict['offset']][chanid] != None:
+                    self.program_data[chanid].append(first_added[config.opt_dict['offset']][chanid])
+
+                if last_added[max_offset - 1][chanid] != None:
+                    self.program_data[chanid].append(last_added[max_offset - 1][chanid])
+
+                for offset in range(config.opt_dict['offset'] + 1, max_offset):
+                    if first_added[offset][chanid] != None and last_added[offset - 1][chanid] != None \
+                      and last_added[offset - 1][chanid]['name'].lower().strip() == first_added[offset][chanid]['name'].lower().strip():
+                        # We merge them
+                        first_added[offset][chanid]['start-time'] = last_added[offset - 1][chanid]['start-time']
+                        self.program_data[chanid].append(first_added[offset][chanid])
+
+                    else:
+                        if first_added[offset][chanid] != None:
+                            self.program_data[chanid].append(first_added[offset][chanid])
+
+                        if last_added[offset - 1][chanid] != None:
+                            self.program_data[chanid].append(last_added[offset - 1][chanid])
+
             self.channel_loaded[chanid] = True
             if len(self.program_data[chanid]) == 0:
                 config.channels[chanid].source_data[self.proc_id].set()
