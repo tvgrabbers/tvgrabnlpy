@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 14
-        self.patchdate = u'20160501'
+        self.patchdate = u'20160505'
         self.alfa = False
         self.beta = True
 
@@ -3900,15 +3900,18 @@ class InfoFiles:
 
             for tdict in plist:
                 if sid == None:
-                    sid = tdict['ID']
+                    psid = tdict['ID']
 
                 elif sid in tdict['prog_ID']:
-                    sid = tdict['prog_ID'][sid]
+                    psid = tdict['prog_ID'][sid]
+
+                else:
+                    psid = ''
 
                 self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
                                 tdict['start-time'].strftime('%d %b %H:%M'), \
                                 tdict['stop-time'].strftime('%H:%M'), \
-                                sid.rjust(15), tdict['genre'][0:10].rjust(10), \
+                                psid.rjust(15), tdict['genre'][0:10].rjust(10), \
                                 tdict['name'], tdict['titel aflevering'], \
                                 tdict['season'], tdict['episode'])
 
