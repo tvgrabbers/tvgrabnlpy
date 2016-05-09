@@ -64,6 +64,9 @@
 		"enclose-with-html-tag":true,
 		"datetime-type":5,
 		"datetime-format":":",
+		"value-filters":{
+			"channelid":[]
+			},
 		"data":{
 			"init-path":[
 				{"tag":"html"},
@@ -87,6 +90,16 @@
 				"values":[
 					[{"path":"parent"},
 						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent","select":"index", "link":1},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"tag":"ul", "attrs":{"class":"epg-channel-names"}},
+						{"tag":"li", "index":{"link":1},"type":"lower-ascii","member-off":"channelid"}],
+					[{"path":"parent"},
+						{"path":"parent"},
 						{"path":"parent","select":"index", "link":1},
 						{"path":"parent"}, 
 						{"tag":"li", "index":{"link":1,"calc":["plus",1]}},
@@ -102,16 +115,6 @@
 						{"path":"parent"},
 						{"path":"parent"},
 						{"path":"parent","attr":"data-selected-guide-date","type":"date"}],
-					[{"path":"parent"},
-						{"path":"parent"},
-						{"path":"parent"},
-						{"path":"parent","select":"index", "link":1},
-						{"path":"parent"},
-						{"path":"parent"},
-						{"path":"parent"},
-						{"path":"parent"},
-						{"tag":"ul", "attrs":{"class":"epg-channel-names"}},
-						{"tag":"li", "index":{"link":1},"type":"lower-ascii"}],
 					[{"path":"parent"},
 						{"path":"parent"},
 						{"tag":"h6", "attrs":{"class":"title"}}],
@@ -133,9 +136,9 @@
 						{"attr":"class", "lstrip": "epg-program", "rstrip": "epg-long-program", "sub":["_", "", "gvpro", "", " ", ","]}]
 						]}]},
 		"values":{
-			"channelid":{"varid": 3},
-			"start-time":{"funcid":4, "data":[{"varid": 2},{"varid": 0}, 6]},
-			"stop-time":{"funcid":4, "data":[{"varid": 2},{"varid": 1}, 6]},
+			"channelid":{"varid": 1},
+			"start-time":{"funcid":4, "data":[{"varid": 3},{"varid": 0}, 6]},
+			"stop-time":{"funcid":4, "data":[{"varid": 3},{"varid": 2}, 6]},
 			"name":{"varid":4},
 			"length":{"varid":7},
 			"genres":{"funcid":18, "data":[{"varid":8}, 5]},

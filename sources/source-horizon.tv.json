@@ -13,7 +13,7 @@
 	"detail_processor":false,
 	"detail_check":"",
 	"channels":{
-		"url":["https://www.horizon.tv/oesp/api/NL/nld/web/channels/"],
+		"url":["https://web-api-pepper.horizon.tv/oesp/api/NL/nld/web/channels/"],
 		"data-format":"application/json",
 		"encoding":"utf-8",
 		"accept-header":null,
@@ -50,7 +50,7 @@
 			"icongrp":null,
 			"HD":{"varid": 2}}},
 	"base":{
-		"url":["https://www.horizon.tv/oesp/api/NL/nld/web/listings/"],
+		"url":["https://web-api-pepper.horizon.tv/oesp/api/NL/nld/web/listings/"],
 		"data-format":"application/json",
 		"encoding":"utf-8",
 		"accept-header":null,

@@ -1605,16 +1605,19 @@ class ChannelNode():
 
             if source in self.config.channelsource.keys():
                 self.prime_source = source
-                self.add_prime_source_programs(programs, source)
+                self.add_first_source(programs, source)
 
-    def add_prime_source_programs(self, programs, source):
+    def program_count(self):
+        return len(self.programs_by_start)
+
+    def add_first_source(self, programs, source):
         # Is programs empty?
         if len(programs) == 0:
             return
 
         # Are there already programs from another source?
         if len(self.programs_by_name) > 0:
-            self.add_source_programs(programs, source)
+            self.merge_source(programs, source)
             return
 
         #Is it a valid source or does It look like a a channel merge
@@ -1628,6 +1631,22 @@ class ChannelNode():
             last_stop = self.start
             previous_node = None
             for index in range(len(programs)):
+                # Some sanity Check
+                if not 'stop-time' in programs[index] or not isinstance(programs[index]['stop-time'], datetime.datetime):
+                    if index == len(programs) -1:
+                        continue
+
+                    programs[index]['stop-time'] = programs[index+1]['start-time']
+
+                if programs[index]['stop-time'] == programs[index]['start-time']:
+                    continue
+
+                if not 'length' in programs[index] or not isinstance(programs[index]['length'], datetime.timedelta):
+                    programs[index]['length'] = programs[index]['stop-time'] - programs[index]['start-time']
+
+                if not 'name' in programs[index] or not isinstance(programs[index]['name'], unicode) or programs[index]['name'] == u'':
+                    continue
+
                 # Check for renames
                 if programs[index]['name'].lower().strip() in self.config.channelprogram_rename[self.chanid].keys():
                     programs[index]['name'] = self.config.channelprogram_rename[self.chanid][programs[index]['name'].lower().strip()]
@@ -1640,12 +1659,8 @@ class ChannelNode():
                 if self.first_node == None:
                     self.first_node = pn
 
-                pn.previous = previous_node
-                if isinstance(previous_node, ProgramNode):
-                    previous_node.next = pn
-
-                # Check if there was a gap
-                gap =self.check_for_gap(previous_node, pn)
+                # Link the nodes and check if there was a gap
+                gap =self.link_nodes(previous_node, pn)
                 if gap != None:
                     self.program_gaps.append(gap)
 
@@ -1662,14 +1677,14 @@ class ChannelNode():
             self.current['count'] = len(self.programs_by_start) + len(self.group_slots)
             self.current['groups'] = len(self.group_slots)
 
-    def add_source_programs(self, programs, source):
+    def merge_source(self, programs, source):
         # Is programs empty?
         if len(programs) == 0:
             return
 
         # Is this the first source?
         if len(self.programs_by_name) == 0:
-            self.add_prime_source_programs(programs, source)
+            self.add_first_source(programs, source)
             return
 
         #Is it a valid source or does It look like a a channel merge
@@ -1679,75 +1694,131 @@ class ChannelNode():
 
         with self.node_lock:
             group_slots = []
+            add_to_start = []
+            add_to_end = []
             unmatched = []
-            new_start = self.start
-            new_stop = self.stop
 
-            # first we see if we can match any existing program without genre to give it a genre
-            # do some general renaming and filter out the groupslots
+            # first we do some general renaming and filter out the groupslots
             programs.sort(key=lambda program: (program['start-time']))
             self.adding = {}
             self.adding['start-count'] = len(programs)
             self.adding['start'] = programs[0]['start-time']
             self.adding['stop'] = programs[-1]['stop-time']
+            self.adding['matched'] = 0
+            self.adding['groupslot'] = 0
+            self.adding['outside'] = 0
             for p in programs[:]:
                 if p['name'].lower().strip() in self.config.channelprogram_rename[self.chanid].keys():
                     p['name'] = self.config.channelprogram_rename[self.chanid][p['name'].lower().strip()]
 
-                p['mname'] = re.sub('[-,. ]', '', self.config.fetch_func.remove_accents(p['name']).lower())
-                #~ if 'genre' in p and p['genre'] != None and p['genre'].lower().strip() not in ('', self.config.cattrans_unknown.lower().strip()) \
-                    #~ and p['mname'] in self.programs_with_no_genre.keys():
-                        #~ for pg in self.programs_with_no_genre[p['mname']]:
-                            #~ pg.set_value('genre', p['genre'], source)
-                            #~ if 'subgenre'in p:
-                                #~ pg.set_value('subgenre', p['subgenre'], source)
-
-                        #~ del self.programs_with_no_genre[p['mname']]
-
+                p['mname'] = re.sub('[-,. ]', '', self.config.fetch_func.remove_accents(p['name']).lower()).strip()
                 # It's a groupslot
-                if p['name'].lower().strip() in self.config.groupslot_names:
+                if p['mname'] in self.config.groupslot_names:
                     group_slots.append(p)
                     programs.remove(p)
                     continue
 
             self.adding['groups'] = len(group_slots)
             programs.sort(key=lambda program: (program['start-time']))
-            # Try matching on time and name
+            # Try matching on time and name or check if it falls into a groupslot, a gap or outside the range
             for index in range(len(programs)):
                 for check in self.checkrange:
                     mstart = programs[index]['start-time'] + datetime.timedelta(0, 0, 0, 0, check)
                     if mstart in self.programs_by_start.keys() and self.programs_by_start[mstart].match_title(programs[index], source):
                         # ### Check on split episodes
-                        l_diff = programs[index]['length'].total_seconds()/ self.programs_by_start[mstart].length.total_seconds()
-                        if l_diff >1.2 or l_diff < 1.2:
-                            pass
+                        #~ l_diff = programs[index]['length'].total_seconds()/ self.programs_by_start[mstart].length.total_seconds()
+                        #~ if l_diff >1.2 or l_diff < 1.2:
+                            #~ pass
 
                         self.programs_by_start[mstart].add_source_data(programs[index], source)
-
+                        self.adding['matched'] += 1
                         break
 
                 else:
-                    # Unmatched
-                    unmatched.append(programs[index])
-
-            self.adding['matched'] = self.adding['start-count'] - self.adding['groups'] - len(unmatched)
-            # Check if it falls into a groupslot
-            if len(self.group_slots) > 0:
-                programs = unmatched
-                unmatched = []
-                programs.sort(key=lambda program: (program['start-time']))
-                for index in range(len(programs)):
+                    # Check if it falls into a groupslot
                     for gs in self.group_slots:
                         if gs.gs_start <= programs[index]['start-time'] <= gs.gs_stop or gs.gs_start <= programs[index]['stop-time'] <= gs.gs_stop:
                             # It falls (partially) into a group slot
                             pn = ProgramNode(self, source, programs[index])
                             if pn.is_valid:
                                 gs.gs_detail.append(pn)
+
                             break
 
                     else:
-                        # Unmatched
-                        unmatched.append(programs[index])
+                        # Check if it falls outside current range
+                        if programs[index]['start-time'] < self.start:
+                            pn = ProgramNode(self, source, programs[index])
+                            if pn.is_valid:
+                                add_to_start.append(pn)
+
+                            continue
+
+                        if programs[index]['stop-time'] > self.stop:
+                            pn = ProgramNode(self, source, programs[index])
+                            if pn.is_valid:
+                                self.add_new_program(pn)
+                                add_to_end.append(pn)
+
+                            continue
+
+                        for pgap in self.program_gaps:
+                            if pgap['start-time'] <= programs[index]['start-time'] <= pgap['stop-time'] \
+                              or pgap['start-time'] <= programs[index]['stop-time'] <= pgap['stop-time']:
+                                # It falls into a gap
+                                pn = ProgramNode(self, source, programs[index])
+                                if pn.is_valid:
+                                    pgap['gap_detail'].append(pn)
+                                break
+
+                        else:
+                            # Unmatched
+                            unmatched.append(programs[index])
+
+            # Check if any new groupslot falls in a detailed groupslot or outside current range or in gaps
+            if len(group_slots) > 0:
+                self.program_gaps.sort(key=lambda program: (program['start-time']))
+                group_slots.sort(key=lambda program: (program['start-time']))
+                for index in range(len(group_slots)):
+                    for gs in self.group_slots[:]:
+                        if gs.gs_start <= group_slots[index]['start-time'] <= gs.gs_stop or gs.gs_start <= group_slots[index]['stop-time'] <= gs.gs_stop:
+                            # if the groupslot is not detailed we only mark it matched
+                            if len(gs.gs_detail) > 0:
+                                pn = ProgramNode(self, source, group_slots[index])
+                                pn.is_groupslot = True
+                                if pn.is_valid:
+                                    gs.gs_detail.append(pn)
+
+                            break
+
+                    else:
+                        if group_slots[index]['start-time'] < self.start:
+                            pn = ProgramNode(self, source, group_slots[index])
+                            if pn.is_valid:
+                                add_to_start.append(pn)
+
+                            continue
+
+                        if group_slots[index]['stop-time'] > self.stop:
+                            pn = ProgramNode(self, source, group_slots[index])
+                            if pn.is_valid:
+                                self.add_new_program(pn)
+                                add_to_end.append(pn)
+
+                            continue
+
+                        for pgap in self.program_gaps:
+                            if pgap['start-time'] <= group_slots[index]['start-time'] <= pgap['stop-time'] \
+                              or pgap['start-time'] <= group_slots[index]['stop-time'] <= pgap['stop-time']:
+                                # It falls into a gap
+                                pn = ProgramNode(self, source, group_slots[index])
+                                if pn.is_valid:
+                                    pgap['gap_detail'].append(pn)
+                                break
+
+                        else:
+                            # Unmatched
+                            unmatched.append(group_slots[index])
 
             # Add the programs found inside groupslots
             for gs in self.group_slots[:]:
@@ -1755,49 +1826,28 @@ class ChannelNode():
                 if len(gs.gs_detail) == 0:
                     continue
 
-                # First check if any of the new groupslots (if any) fall into this slot
-                if len(group_slots) > 0:
-                    for p in group_slots[:]:
-                        if gs.gs_start <= p['start-time'] <= gs.gs_stop or gs.gs_start <= p['stop-time'] <= gs.gs_stop:
-                            pn = ProgramNode(self, source, p)
-                            pn.is_groupslot = True
-                            group_slots.remove(p)
-                            if pn.is_valid:
-                                gs.gs_detail.append(pn)
-
-
-                # And replace the groupslot with the details
+                print 'adding details', gs.start, gs.stop
+                # We replace the groupslot with the details
+                self.adding['groupslot'] += len(gs.gs_detail)
                 gs.gs_detail.sort(key=lambda program: (program.start))
-                start_gap = None
-                stop_gap = None
+                start_gap = self.link_nodes(gs.previous, gs.gs_detail[0], 'start')
+                stop_gap = self.link_nodes(gs.gs_detail[-1], gs.next, 'stop')
                 gs_gaps = []
-                if gs.previous != None:
-                    gs.gs_detail[0].previous = gs.previous
-                    gs.previous.next = gs.gs_detail[0]
-                    start_gap = self.check_for_gap(gs.previous, gs.gs_detail[0], 'start')
-
-                elif gs == self.first_node:
-                    self.first_node = gs.gs_detail[0]
-                    self.start = gs.gs_detail[0].start + datetime.timedelta(seconds = 5)
-
-                if gs.next != None:
-                    gs.gs_detail[-1].next = gs.next
-                    gs.next.previous = gs.gs_detail[-1]
-                    stop_gap = self.check_for_gap(gs.gs_detail[-1], gs.next, 'stop')
-
-                elif gs == self.last_node:
-                    self.last_node = gs.gs_detail[-1]
-                    self.stop = gs.gs_detail[-1].stop - datetime.timedelta(seconds = 5)
-
                 for index in range(1, len(gs.gs_detail)):
-                    gs.gs_detail[index - 1].next = gs.gs_detail[index]
-                    gs.gs_detail[index].previous = gs.gs_detail[index - 1]
-                    gap = self.check_for_gap(gs.gs_detail[index - 1], gs.gs_detail[index])
+                    gap = self.link_nodes(gs.gs_detail[index - 1], gs.gs_detail[index])
                     if gap != None:
                         gs_gaps.append(gap)
 
                 for pn in gs.gs_detail:
                     self.add_new_program(pn)
+
+                if gs == self.first_node:
+                    self.first_node = gs.gs_detail[0]
+                    self.start = gs.gs_detail[0].start + datetime.timedelta(seconds = 5)
+
+                if gs == self.last_node:
+                    self.last_node = gs.gs_detail[-1]
+                    self.stop = gs.gs_detail[-1].stop - datetime.timedelta(seconds = 5)
 
                 if start_gap != None:
                     self.program_gaps.append(start_gap)
@@ -1816,72 +1866,30 @@ class ChannelNode():
 
                 self.group_slots.remove(gs)
 
-            # Check if it falls outside current range or in gaps, but we first readd the groupslots
-            programs = unmatched
-            programs.extend(group_slots)
-            unmatched = []
-            add_to_start = []
-            add_to_end = []
-            programs.sort(key=lambda program: (program['start-time']))
-            for index in range(len(programs)):
-                if programs[index]['start-time'] < self.start:
-                    pn = ProgramNode(self, source, programs[index])
-                    if pn.is_valid:
-                        add_to_start.append(pn)
-
-                    continue
-
-                if programs[index]['stop-time'] < self.stop:
-                    pn = ProgramNode(self, source, programs[index])
-                    if pn.is_valid:
-                        self.add_new_program(pn)
-                        add_to_end.append(pn)
-
-                    continue
-
-                for pgap in self.program_gaps:
-                    if pgap['start-time'] <= programs[index]['start-time'] <= pgap['stop-time'] \
-                      or pgap['start-time'] <= programs[index]['stop-time'] <= pgap['stop-time']:
-                        # It falls into a gap
-                        pn = ProgramNode(self, source, programs[index])
-                        if pn.is_valid:
-                            pgap['gap_detail'].append(pn)
-                        break
-
-                else:
-                    # Unmatched
-                    unmatched.append(programs[index])
-
             # Add any program at the start or the end
             if len(add_to_start) > 0:
+                self.adding['outside'] += len(add_to_start)
                 add_to_start.sort(key=lambda program: (program.start))
-                self.first_node.previous = add_to_start[-1]
-                add_to_start[-1].next = self.first_node
-                gap = self.check_for_gap(add_to_start[-1], self.first_node, 'stop')
+                gap = self.link_nodes(add_to_start[-1], self.first_node, 'stop')
                 if gap != None:
                     self.program_gaps.append(gap)
 
                 for index in range(1, len(add_to_start)):
-                    add_to_start[index - 1].next = add_to_start[index]
-                    add_to_start[index].previous = add_to_start[index - 1]
-                    gap = self.check_for_gap(add_to_start[index - 1], add_to_start[index])
+                    gap = self.link_nodes(add_to_start[index - 1], add_to_start[index])
                     if gap != None:
                         self.program_gaps.append(gap)
 
                 self.first_node == add_to_start[0]
 
             if len(add_to_end) > 0:
+                self.adding['outside'] += len(add_to_end)
                 add_to_end.sort(key=lambda program: (program.start))
-                self.last_node.next = add_to_end[0]
-                add_to_end[0].previous = self.last_node
-                gap = self.check_for_gap(self.last_node, add_to_end[0], 'start')
+                gap = self.link_nodes(self.last_node, add_to_end[0], 'start')
                 if gap != None:
                     self.program_gaps.append(gap)
 
                 for index in range(1, len(add_to_end)):
-                    add_to_end[index - 1].next = add_to_end[index]
-                    add_to_end[index].previous = add_to_end[index - 1]
-                    gap = self.check_for_gap(add_to_end[index - 1], add_to_end[index])
+                    gap = self.link_nodes(add_to_end[index - 1], add_to_end[index])
                     if gap != None:
                         self.program_gaps.append(gap)
 
@@ -1893,7 +1901,8 @@ class ChannelNode():
                 if len(pgap['gap_detail']) == 0:
                     continue
 
-                pgap['gap_detail'].sort(key=lambda program: (program['start-time']))
+                self.adding['outside'] += len(pgap['gap_detail'])
+                pgap['gap_detail'].sort(key=lambda program: (program.start))
                 start_gap = None
                 stop_gap = None
                 new_gaps = []
@@ -1908,7 +1917,7 @@ class ChannelNode():
                                     'stop-time': pgap['gap_detail'][0].start,
                                     'length': pgap['gap_detail'][0].start - pgap['start-time'],
                                     'gap_detail': [],
-                                    'next': gs_detail[0],
+                                    'next': pgap['gap_detail'][0],
                                     'previous': pgap['previous']}
 
                         pgap['gap_detail'][0].previous_gap = start_gap
@@ -1926,7 +1935,7 @@ class ChannelNode():
                                     'length': pgap['stop-time'] - pgap['gap_detail'][-1].stop,
                                     'gap_detail': [],
                                     'next': pgap['next'],
-                                    'previous': gs_detail[-1]}
+                                    'previous': pgap['gap_detail'][-1]}
 
                         pgap['gap_detail'][-1].next_gap = stop_gap
                         pgap['next'].previous_gap = stop_gap
@@ -1940,7 +1949,7 @@ class ChannelNode():
                                     'length': pgap['gap_detail'][index].start - pgap['gap_detail'][index - 1].stop,
                                     'gap_detail': [],
                                     'next': pgap['gap_detail'][index],
-                                    'previous': gs_detail[index - 1]}
+                                    'previous': pgap['gap_detail'][index - 1]}
 
                         pgap['gap_detail'][index - 1].next_gap = gap
                         pgap['gap_detail'][index].previous_gap = gap
@@ -1962,13 +1971,20 @@ class ChannelNode():
 
             # Finally we check if we can add any genres
             self.check_on_missing_genres()
+            # Matching on genre
 
     def add_other_channel(self):
         with self.node_lock:
             pass
 
-    def check_for_gap(self, node1, node2, adjust_overlap=None):
+    def link_nodes(self, node1, node2, adjust_overlap=None):
         with self.node_lock:
+            if isinstance(node1, ProgramNode):
+                node1.next = node2
+
+            if isinstance(node2, ProgramNode):
+                node2.previous = node1
+
             if not isinstance(node1, ProgramNode) or not isinstance(node2, ProgramNode):
                 return None
 
@@ -1996,7 +2012,7 @@ class ChannelNode():
     def add_new_program(self,pn):
         with self.node_lock:
             # Check if it has a groupslot name
-            if pn.name.lower().strip() in self.config.groupslot_names:
+            if pn.match_name in self.config.groupslot_names:
                 self.group_slots.append(pn)
                 pn.is_groupslot = True
                 # Include a gap into the groupslot for testing
@@ -2064,6 +2080,7 @@ class ProgramNode():
         with self.node_lock:
             self.channode = channode
             self.config = channode.config
+            self.channel_config = channode.channel_config
             self.start = None
             self.stop = None
             self.length = None
@@ -2080,10 +2097,6 @@ class ProgramNode():
             self.tdict = {}
             self.matchobject = difflib.SequenceMatcher(isjunk=lambda x: x in " '\",.-/", autojunk=False)
             if isinstance(data, dict):
-                if not ('start-time' in data and isinstance(data['start-time'], datetime.datetime)) or not 'name' in data:
-                    self.is_valid = False
-                    return
-
                 self.start = data['start-time'].replace(second = 0, microsecond = 0)
                 if 'stop-time' in data and isinstance(data['stop-time'], datetime.datetime):
                     self.stop = data['stop-time'].replace(second = 0, microsecond = 0)
@@ -2098,7 +2111,7 @@ class ProgramNode():
                     return
 
                 self.name = data['name']
-                self.match_name = re.sub('[-,. ]', '', self.config.fetch_func.remove_accents(data['name']).lower())
+                self.match_name = re.sub('[-,. ]', '', self.config.fetch_func.remove_accents(data['name']).lower()).strip()
                 self.add_source_data(data, source)
                 self.is_valid = True
 
@@ -2108,6 +2121,16 @@ class ProgramNode():
     def is_set(self, key):
         if key in self.tdict:
             return True
+
+        if key == 'credits':
+            for k in self.config.key_values['credits']:
+                if k in self.tdict:
+                    return True
+
+        elif key == 'video':
+            for k in self.config.key_values['video']:
+                if k in self.tdict:
+                    return True
 
         return False
 
@@ -2124,28 +2147,6 @@ class ProgramNode():
             self.tdict['stop-time']['prime'] = pstop
             self.length = self.stop - self.start
             self.tdict['length']['prime'] = self.length
-
-    def get_value(self, key):
-        if key in self.tdict:
-            return self.tdict[key]['prime']
-
-        if key == 'genre':
-            return self.config.cattrans_unknown.lower().strip()
-
-        elif key in self.config.key_values['text']:
-            return u''
-
-        elif key in self.config.key_values['timedelta']:
-            return datetime.timedelta(0)
-
-        elif key in self.config.key_values['bool'] or key in self.config.key_values['video']:
-            return False
-
-        elif key in self.config.key_values['int']:
-            return 0
-
-        else:
-            return u''
 
     def match_title(self, data, source):
         if self.match_name == data['mname']:
@@ -2227,15 +2228,111 @@ class ProgramNode():
                     self.set_value(k, v, source)
 
     def set_value(self, key, value, source=None):
+        def add_value(value):
+            if not self.is_set(key):
+                self.tdict[key] = {}
+                self.tdict[key]['sources'] = {}
+                self.tdict[key]['channels'] = {}
+                self.tdict[key]['values'] = []
+                self.tdict[key]['rank'] = []
+
+            if source in self.config.channelsource.keys():
+                self.tdict[key]['sources'][source] = value
+
+            elif source in self.config.channels.keys():
+                self.tdict[key]['channels'][source] = value
+
+            if key in ( "ID", "prog_ID", "detail_url", "start-time", "stop-time", "length", "offset",
+                            "name","episode title","originaltitle","genre", "subgenre"):
+                if not 'prime' in self.tdict[key].keys():
+                    self.tdict[key]['prime'] = value
+                # These are further handled separately
+                return
+
+            elif key in ("actor", "guest"):
+                if not 'prime names' in self.tdict[key].keys():
+                    self.tdict[key]['prime names'] = []
+                    self.tdict[key]['prime'] = []
+
+                if isinstance(value, dict):
+                    value = [value]
+
+                if isinstance(value, list):
+                    for v in value:
+                        if v['name'].lower() in self.tdict[key]['prime names']:
+                            if v['role'] == None:
+                                continue
+
+                            for index in range(len(self.tdict[key]['prime'])):
+                                if self.tdict[key]['prime'][index]['name'].lower() == v['name'].lower():
+                                    if self.tdict[key]['prime'][index]['role'] == None:
+                                        self.tdict[key]['prime'][index]['role'] = v['role']
+
+                        else:
+                            self.tdict[key]['prime names'].append(v['name'].lower())
+                            self.tdict[key]['prime'].append(v)
+
+            elif key in self.config.key_values['credits']:
+                if not 'prime' in self.tdict[key].keys():
+                    self.tdict[key]['prime'] = []
+
+                if isinstance(value, list):
+                    for v in value:
+                        if not v.capitalize() in self.tdict[key]['prime']:
+                            self.tdict[key]['prime'].append(v.capitalize())
+
+                elif not value.capitalize() in self.tdict[key]['prime']:
+                    self.tdict[key]['prime'].append(value.capitalize())
+
+            elif key in ("country", "rating"):
+                if not 'prime' in self.tdict[key].keys():
+                    self.tdict[key]['prime'] = []
+
+                if isinstance(value, list):
+                    for v in value:
+                        if not v.lower() in self.tdict[key]['prime']:
+                            self.tdict[key]['prime'].append(v.lower())
+
+                elif not value.lower() in self.tdict[key]['prime']:
+                    self.tdict[key]['prime'].append(value.lower())
+
+            elif key == 'description':
+                if not 'prime' in self.tdict[key].keys() or len(value) > len(self.tdict[key]['prime']):
+                    self.tdict[key]['prime'] = value
+
+                if source != None and self.channel_config.opt_dict['prefered_description'] == source:
+                    self.tdict[key]['preferred'] = value
+
+            else:
+                # Get the most common value
+                if not 'prime' in self.tdict[key].keys():
+                    self.tdict[key]['prime'] = value
+                    self.tdict[key]['values'].append(value)
+                    self.tdict[key]['rank'].append(1)
+
+                else:
+                    if not value in self.tdict[key]['values']:
+                        self.tdict[key]['values'].append(value)
+                        self.tdict[key]['rank'].append(1)
+
+                    else:
+                        for index in range(len(self.tdict[key]['values'])):
+                            if value == self.tdict[key]['values'][index]:
+                                self.tdict[key]['rank'][index] += 1
+                                break
+
+                    vcnt = 0
+                    for index in range(len(self.tdict[key]['values'])):
+                        if self.tdict[key]['rank'][index] > vcnt:
+                            vcnt= self.tdict[key]['rank'][index]
+                            self.tdict[key]['prime'] = self.tdict[key]['values'][index]
+
         with self.node_lock:
             # validate the values
-            if key == 'genre' and value in (None, ''):
-                value = self.config.cattrans_unknown.lower().strip()
+            if value in ('', None) or (key == 'genre' and value.lower().strip() == self.config.cattrans_unknown.lower().strip()):
+                return
 
             if key in self.config.key_values['text']:
-                if value in ('', None):
-                    return
-
                 if isinstance(value, list):
                     if len(value) == 0:
                         return
@@ -2284,32 +2381,30 @@ class ProgramNode():
                                 elif self.config.write_info_files:
                                     self.config.infofiles.addto_detail_list(u'new country => %s' % (cstr))
 
-                    if len(rlist) == 0:
-                        return
+                    if len(rlist) > 0:
+                        add_value(rlist)
 
-                    elif len(rlist) == 1:
-                        value = rlist[0]
-
-                    else:
-                        value = rlist
+                    return
 
                 elif key == 'premiere year':
                     value = re.sub('[()]', '', value).strip()
                     if isinstance(value, unicode) and len(value) == 4:
                         try:
                             x = int(value)
+                            add_value(value)
 
                         except:
                             return
 
-                    else:
-                        return
+                    return
 
                 elif key == 'broadcaster':
-                    value = re.sub('[()]', '', value).strip()
+                    add_value(re.sub('[()]', '', value).strip())
+                    return
 
                 elif key == 'description':
-                    pass
+                    add_value(value)
+                    return
 
             elif key in self.config.key_values['datetime']:
                 if not isinstance(value, datetime.datetime):
@@ -2331,19 +2426,105 @@ class ProgramNode():
                 if not isinstance(value, int):
                     return
 
+            add_value(value)
 
-            if not self.is_set(key):
-                self.tdict[key] = {}
-                self.tdict[key]['prime'] = value
+    def get_value(self, key):
+        if key in self.tdict:
+            if key == 'description' and 'preferred' in self.tdict[key] and len(self.tdict[key]['preferred']) > 100:
+                return self.tdict[key]['preferred']
 
-            if source != None:
-                self.tdict[key][source] = value
-            if key == 'description':
-                if source != None and self.channode.channel_config.opt_dict['prefered_description'] == source:
-                    self.tdict[key]['preferred'] = value
+            if key == 'country' and isinstance(self.tdict[key]['prime'], list):
+                if len(self.tdict[key]['prime']) > 0:
+                    return self.tdict[key]['prime'][0]
 
-                if len(value) > len(self.tdict[key]['prime']):
-                    self.tdict[key]['prime'] = value
+                else:
+                    return ''
+
+            return self.tdict[key]['prime']
+
+        if key == 'genre':
+            return self.config.cattrans_unknown.lower().strip()
+
+        elif key in self.config.key_values['text']:
+            return u''
+
+        elif key in self.config.key_values['timedelta']:
+            return datetime.timedelta(0)
+
+        elif key in self.config.key_values['bool'] or key in self.config.key_values['video']:
+            return False
+
+        elif key in self.config.key_values['int']:
+            return 0
+
+        else:
+            return u''
+
+    def get_title(self):
+        with self.node_lock:
+            pass
+
+    def get_genre(self):
+        with self.node_lock:
+            g = self.get_value('genre')
+            sg = self.get_value('subgenre')
+            if self.channel_config.opt_dict['cattrans']:
+                cat0 = ('', '')
+                cat1 = (g.lower(), '')
+                cat2 = (g.lower(), sg.lower())
+                if cat2 in self.config.cattrans.keys() and self.config.cattrans[cat2] != '':
+                    cat = self.config.cattrans[cat2].capitalize()
+
+                elif cat1 in self.config.cattrans.keys() and self.config.cattrans[cat1] != '':
+                    cat = self.config.cattrans[cat1].capitalize()
+
+                elif cat0 in self.config.cattrans.keys() and self.config.cattrans[cat0] != '':
+                   cat = self.config.cattrans[cat0].capitalize()
+
+                else:
+                    cat = 'Unknown'
+
+                return cat
+
+            elif g == '':
+                return self.config.cattrans_unknown.capitalize()
+
+            else:
+                return g.capitalize()
+
+    def get_description(self):
+        desc_line = u''
+        with self.node_lock:
+            if self.is_set('subgenre'):
+                sg = self.get_value('subgenre')
+                if sg != '':
+                    desc_line = u'%s: ' % (sg)
+
+            if self.is_set('broadcaster'):
+                bc = self.get_value('broadcaster')
+                if bc != '':
+                    desc_line = u'%s(%s) ' % (desc_line, bc)
+
+            if'description' in self.tdict:
+                if 'preferred' in self.tdict['description'] and len(self.tdict['description']['preferred']) > 100:
+                    description = self.tdict['description']['preferred']
+
+                else:
+                    description = self.tdict['description']['prime']
+
+                desc_line = u'%s%s ' % (desc_line, description)
+
+            # Limit the length of the description
+            if desc_line != '':
+                desc_line = re.sub('\n', ' ', desc_line)
+                if len(desc_line) > self.channel_config.opt_dict['desc_length']:
+                    spacepos = desc_line[0:self.channel_config.opt_dict['desc_length']-3].rfind(' ')
+                    desc_line = desc_line[0:spacepos] + '...'
+
+        return desc_line.strip()
+
+    def copy(self):
+        pass
 
 # end ProgramNode
 
@@ -2363,7 +2544,7 @@ class InfoFiles():
         self.lineup_changes = []
         self.url_failure = []
         if self.write_info_files:
-            self.fetch_list = self.functions.open_file(self.config.opt_dict['xmltv_dir'] + '/fetched-programs','w')
+            self.fetch_list = self.functions.open_file(self.config.opt_dict['xmltv_dir'] + '/fetched-programs3','w')
             self.raw_output =  self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/raw_output', 'w')
 
     def check_new_channels(self, source, source_channels):
@@ -2465,15 +2646,18 @@ class InfoFiles():
 
             for tdict in plist:
                 if sid == None:
-                    sid = tdict['ID']
+                    psid = tdict['ID']
 
                 elif sid in tdict['prog_ID']:
-                    sid = tdict['prog_ID'][sid]
+                    psid = tdict['prog_ID'][sid]
+
+                else:
+                    psid = ''
 
                 self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
                                 self.config.output_tz.normalize(tdict['start-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
-                                self.config.output_tz.normalize(tdict['stop-time'].astimezone(self.config.output_tz)).strftime('%H:%M'), \
-                                sid.rjust(15), tdict['genre'][0:10].rjust(10), \
+                                self.config.output_tz.normalize(tdict['stop-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
+                                psid.rjust(15), tdict['genre'][0:10].rjust(10), \
                                 tdict['name'], tdict['episode title'], \
                                 tdict['season'], tdict['episode'])
 
@@ -2482,7 +2666,7 @@ class InfoFiles():
     def write_xmloutput(self, xml):
 
         if self.write_info_files:
-            xml_output =self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/xml_output', 'w')
+            xml_output =self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/xml_output3', 'w')
             if xml_output == None:
                 return
 
@@ -2577,11 +2761,11 @@ class XMLoutput():
         """Escape <, > and & characters for use in XML"""
         return saxutils.escape(s)
 
-    def format_timezone(self, td, use_utc=False, only_date=False ):
+    def format_timezone(self, td, only_date=False ):
         """
         Given a datetime object, returns a string in XMLTV format
         """
-        if not use_utc:
+        if not self.config.opt_dict['use_utc']:
             td = self.config.output_tz.normalize(td.astimezone(self.config.output_tz))
 
         if only_date:
@@ -2626,7 +2810,7 @@ class XMLoutput():
         self.xml_channels[xmltvid] = []
         self.xml_channels[xmltvid].append(self.add_starttag('channel', 2, 'id="%s%s"' % \
             (xmltvid, self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
-        self.xml_channels[xmltvid].append(self.add_starttag('display-name', 4, 'lang="nl"', \
+        self.xml_channels[xmltvid].append(self.add_starttag('display-name', 4, 'lang="%s"' % (self.config.xml_language), \
             self.config.channels[chanid].chan_name, True))
         if (self.config.channels[chanid].opt_dict['logos']):
             if self.config.channels[chanid].icon_source in self.logo_provider.keys():
@@ -2668,62 +2852,47 @@ class XMLoutput():
                 self.program_count += len(self.config.channels[chanid].all_programs)
 
         self.xml_programs[xmltvid] = []
-        self.config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
-        for program in self.config.channels[chanid].all_programs[:]:
+        #~ self.config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
+        #~ for program in self.config.channels[chanid].all_programs[:]:
+        channel_node = self.config.channels[chanid].channel_node
+        if not isinstance(channel_node, ChannelNode):
+            return
+        program = channel_node.first_node
+        while isinstance(program, ProgramNode):
             xml = []
 
             # Start/Stop
             attribs = 'start="%s" stop="%s" channel="%s%s"' % \
-                (self.format_timezone(program['start-time'], self.config.opt_dict['use_utc']), \
-                self.format_timezone(program['stop-time'], self.config.opt_dict['use_utc']), \
-                xmltvid, self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')
+                (self.format_timezone(program.start), self.format_timezone(program.stop), \
+                xmltvid, self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or '')
 
-            if 'clumpidx' in program and program['clumpidx'] != '':
-                attribs += 'clumpidx="%s"' % program['clumpidx']
+            #~ if 'clumpidx' in program and program['clumpidx'] != '':
+                #~ attribs += 'clumpidx="%s"' % program['clumpidx']
 
             xml.append(self.add_starttag('programme', 2, attribs))
 
             # Title
-            xml.append(self.add_starttag('title', 4, 'lang="nl"', program['name'], True))
-            if program['originaltitle'] != '' and program['country'] != '' and program['country'].lower() != 'nl' and program['country'].lower() != 'be':
-                xml.append(self.add_starttag('title', 4, 'lang="%s"' % (program['country'].lower()), program['originaltitle'], True))
+            xml.append(self.add_starttag('title', 4, 'lang="%s"' % (self.config.xml_language), program.name, True))
+            if program.is_set('originaltitle') and program.is_set('country') :
+                xml.append(self.add_starttag('title', 4, 'lang="%s"' % (program.get_value('country').lower()), program.get_value('originaltitle'), True))
 
             # Subtitle
-            if 'episode title' in program and program['episode title'] != '':
-                xml.append(self.add_starttag('sub-title', 4, 'lang="nl"', program['episode title'] ,True))
+            if program.is_set('episode title'):
+                xml.append(self.add_starttag('sub-title', 4, 'lang="%s"' % (self.config.xml_language), program.get_value('episode title') ,True))
 
-            # Add an available subgenre in front off the description or give it as description
-
-            # A prefered description was set and found
-            if len(program['prefered description']) > 100:
-                program['description'] = program['prefered description']
-
-            desc_line = u''
-            if program['subgenre'] != '':
-                 desc_line = u'%s: ' % (program['subgenre'])
-
-            if program['broadcaster'] != ''and re.search('(\([A-Za-z \-]*?\))', program['broadcaster']):
-                desc_line = u'%s%s ' % (desc_line, re.search('(\([A-Za-z \-]*?\))', program['broadcaster']).group(1))
-
-            if program['description'] != '':
-                desc_line = u'%s%s ' % (desc_line, program['description'])
-
-            # Limit the length of the description
+            # Description
+            desc_line = program.get_description()
             if desc_line != '':
-                desc_line = re.sub('\n', ' ', desc_line)
-                if len(desc_line) > self.config.channels[chanid].opt_dict['desc_length']:
-                    spacepos = desc_line[0:self.config.channels[chanid].opt_dict['desc_length']-3].rfind(' ')
-                    desc_line = desc_line[0:spacepos] + '...'
-
-                xml.append(self.add_starttag('desc', 4, 'lang="nl"', desc_line.strip(),True))
+                xml.append(self.add_starttag('desc', 4, 'lang="%s"' % (self.config.xml_language), desc_line,True))
 
             # Process credits section if present.
             # This will generate director/actor/presenter info.
-            if program['credits'] != {}:
+            if program.is_set('credits'):
                 xml.append(self.add_starttag('credits', 4))
-                for role in ('director', 'actor', 'guest', 'writer', 'composer', 'presenter', 'reporter', 'commentator', 'adapter', 'producer', 'editor'):
-                    if role in program['credits']:
-                        for name in program['credits'][role]:
+                for role in self.config.key_values['credits']:
+                    if program.is_set(role):
+                        rlist = program.get_value(role)
+                        for name in rlist:
                             if isinstance(name, dict) and 'name'in name:
                                 xml.append(self.add_starttag((role), 6, '', self.xmlescape(name['name']),True))
 
@@ -2733,111 +2902,91 @@ class XMLoutput():
                 xml.append(self.add_endtag('credits', 4))
 
             # Original Air-Date
-            if isinstance(program['airdate'], datetime.date):
+            if program.is_set('airdate'):
                 xml.append(self.add_starttag('date', 4, '',  \
-                    self.format_timezone(program['airdate'], self.config.opt_dict['use_utc'],True), True))
+                    self.format_timezone(program.get_value('airdate'),True), True))
 
-            elif program['premiere year'] != '':
-                xml.append(self.add_starttag('date', 4, '', program['premiere year'],True))
+            elif program.is_set('premiere year'):
+                xml.append(self.add_starttag('date', 4, '', program.get_value('premiere year'),True))
 
             # Genre
+            cat = program.get_genre()
             if self.config.channels[chanid].opt_dict['cattrans']:
-                cat0 = ('', '')
-                cat1 = (program['genre'].lower(), '')
-                cat2 = (program['genre'].lower(), program['subgenre'].lower())
-                if cat2 in self.config.cattrans.keys() and self.config.cattrans[cat2] != '':
-                    cat = self.config.cattrans[cat2].capitalize()
-
-                elif cat1 in self.config.cattrans.keys() and self.config.cattrans[cat1] != '':
-                    cat = self.config.cattrans[cat1].capitalize()
-
-                elif cat0 in self.config.cattrans.keys() and self.config.cattrans[cat0] != '':
-                   cat = self.config.cattrans[cat0].capitalize()
-
-                else:
-                    cat = 'Unknown'
-
                 xml.append(self.add_starttag('category', 4 , '', cat, True))
 
             else:
-                cat = program['genre']
-                if program['genre'] != '':
-                    xml.append(self.add_starttag('category', 4, 'lang="nl"', program['genre'].capitalize(), True))
-
-                else:
-                    xml.append(self.add_starttag('category', 4 , '', 'Overige', True))
+                xml.append(self.add_starttag('category', 4, 'lang="%s"' % (self.config.xml_language), cat, True))
 
             # An available url
-            if program['infourl'] != '':
-                xml.append(self.add_starttag('url', 4, '', program['infourl'],True))
+            if program.is_set('infourl'):
+                xml.append(self.add_starttag('url', 4, '', program.get_value('infourl'),True))
 
-            if isinstance(program['country'], list) and len(program['country']) > 0 and program['country'][0] not in ('', None):
-                xml.append(self.add_starttag('country', 4, '', program['country'][0],True))
-
-            elif isinstance(program['country'], (str, unicode)) and program['country'] != '':
-                xml.append(self.add_starttag('country', 4, '', program['country'],True))
+            # A Country
+            if program.is_set('country'):
+                xml.append(self.add_starttag('country', 4, '', program.get_value('country'),True))
 
             # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
             # Also exclude Sports for MythTV will make it into a Series
-            if cat.lower() != 'sports' and cat.lower() != 'sport':
-                if program['season'] != 0 and program['episode'] != 0:
-                    if program['season'] == 0:
-                        text = ' . %d . '  % (int(program['episode']) - 1)
+            if program.is_set('season') and program.is_set('episode') and cat.lower() not in self.config.episode_exclude_genres:
+                se = program.get_value('season')
+                ep = program.get_value('episode')
+                if se != 0 and ep != 0:
+                    if se == 0:
+                        text = ' . %d . '  % (ep - 1)
 
                     else:
-                        text = '%d . %d . '  % (int(program['season']) - 1, int(program['episode']) - 1)
+                        text = '%d . %d . '  % (se - 1, ep - 1)
 
                     xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
 
             # Process video/audio/teletext sections if present
-            if (program['video']['widescreen'] or program['video']['blackwhite'] \
-              or (self.config.channels[chanid].opt_dict['mark_hd'] \
-              or add_HD == True) and (program['video']['HD'])):
+            if program.get_value('widescreen') or program.get_value('blackwhite') \
+              or (program.get_value('HD') and (self.config.channels[chanid].opt_dict['mark_hd'] or add_HD == True)):
                 xml.append(self.add_starttag('video', 4))
 
-                if program['video']['widescreen']:
+                if program.get_value('widescreen'):
                     xml.append(self.add_starttag('aspect', 6, '', '16:9',True))
 
-                if program['video']['blackwhite']:
+                if program.get_value('blackwhite'):
                     xml.append(self.add_starttag('colour', 6, '', 'no',True))
 
-                if (self.config.channels[chanid].opt_dict['mark_hd'] \
-                  or add_HD == True) and (program['video']['HD']):
+                if program.get_value('HD') and (self.config.channels[chanid].opt_dict['mark_hd'] or add_HD == True):
                     xml.append(self.add_starttag('quality', 6, '', 'HDTV',True))
 
                 xml.append(self.add_endtag('video', 4))
 
-            if program['audio'] != '':
+            if program.is_set('audio'):
                 xml.append(self.add_starttag('audio', 4))
-                xml.append(self.add_starttag('stereo', 6, '',program['audio'] ,True))
+                xml.append(self.add_starttag('stereo', 6, '',program.get_value('audio') ,True))
                 xml.append(self.add_endtag('audio', 4))
 
             # It's been shown before
-            if program['rerun']:
+            if program.get_value('rerun'):
                 xml.append(self.add_starttag('previously-shown', 4, '', '',True))
 
             # It's a first
-            if program['premiere']:
+            if program.get_value('premiere'):
                 xml.append(self.add_starttag('premiere', 4, '', '',True))
 
             # It's the last showing
-            if program['last-chance']:
+            if program.get_value('last-chance'):
                 xml.append(self.add_starttag('last-chance', 4, '', '',True))
 
             # It's new
-            if program['new']:
+            if program.get_value('new'):
                 xml.append(self.add_starttag('new', 4, '', '',True))
 
             # There are teletext subtitles
-            if program['teletext']:
+            if program.get_value('teletext'):
                 xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
 
             # Add any rating items
-            if self.config.opt_dict['kijkwijzerstijl'] in ('long', 'short', 'single'):
+            if program.is_set('rating') and self.config.opt_dict['kijkwijzerstijl'] in ('long', 'short', 'single'):
+                pr = program.get_value('rating')
                 kstring = ''
                 # First only one age limit from high to low
                 for k in self.config.rating['unique_codes'].keys():
-                    if k in program['rating']:
+                    if k in pr:
                         if self.config.opt_dict['kijkwijzerstijl'] == 'single':
                             kstring += (self.config.rating['unique_codes'][k]['code'] + ': ')
 
@@ -2855,7 +3004,7 @@ class XMLoutput():
 
                 # And only one of any of the others
                 for k in self.config.rating['addon_codes'].keys():
-                    if k in program['rating']:
+                    if k in pr:
                         if self.config.opt_dict['kijkwijzerstijl'] == 'single':
                             kstring += k.upper()
 
@@ -2876,13 +3025,14 @@ class XMLoutput():
                     xml.append(self.add_endtag('rating', 4))
 
             # Set star-rating if applicable
-            if program['star-rating'] != '':
+            if program.is_set('star-rating'):
                 xml.append(self.add_starttag('star-rating', 4))
-                xml.append(self.add_starttag('value', 6, '',('%s/10' % (program['star-rating'])).strip(),True))
+                xml.append(self.add_starttag('value', 6, '',('%s/10' % (program.get_value('star-rating'))).strip(),True))
                 xml.append(self.add_endtag('star-rating', 4))
 
             xml.append(self.add_endtag('programme', 2))
             self.xml_programs[xmltvid].append(xml)
+            program = program.next
 
     def get_xmlstring(self):
         '''

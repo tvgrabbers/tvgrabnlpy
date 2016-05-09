@@ -7,7 +7,7 @@
 		"\n",
 		"\n"],
 	"fetch-timezone":"Europe/Amsterdam",
-	"active_sources":[7,0,1,5,9,6,8,2,4,10,11,12],
+	"language":"nl",
 	"source-url":"",
 	"sources":{
 		"0":{
@@ -70,6 +70,7 @@
 			"version":0,
 			"cattrans type":null,
 			"cattransid":null}},
+	"active_sources":[7,0,1,5,9,6,8,2,4,10,11,12],
 	"source_channels":{
 		"0":{"0-1": "1",
 			"0-2": "2",
@@ -1415,7 +1416,7 @@
 				"text": "Grof taalgebruik",
 				"icon":"http://tvgidsassets.nl/img/kijkwijzer/grof_transp.png"},
 			"h": {"code": "Drugs",
-				"text": "drugs- en/of alcoholmisbruik",
+				"text": "Drugs- en/of alcoholmisbruik",
 				"icon":"http://tvgidsassets.nl/img/kijkwijzer/drugs_transp.png"},
 			"d": {"code": "Discriminatie",
 				"text": "Discriminatie",
@@ -1424,6 +1425,7 @@
 		"navy ncis": "NCIS", 
 		"inspector banks": "DCI Banks"},
 	"groupnameremove":["kro detectives", "detectives", "premiére"],
+	"episode exclude genres": ["sport","sports","movie","film"],
 	"cattrans_unknown":"Overige",
 	"cattrans": {
 		"News":[

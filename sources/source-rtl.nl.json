@@ -36,6 +36,9 @@
 			"station": 2},
 		"calc-end-times":true,
 		"start-off-day": 7,
+		"value-filters":{
+			"channelid":[]
+			},
 		"data":{
 			"key-path":[
 				{"key":"schedule"},
@@ -43,8 +46,8 @@
 				{"key":"abstract_key","default":null}
 				],
 			"values":[
+				[{"key":"station","type":"string","member-off":"channelid"}],
 				[{"key":"episode_key","default":""}],
-				[{"key":"station","type":"string"}],
 				[{"key":"unixtime", "type":"timestamp"}],
 				[{"select":"index", "link":1},
 					{"path":"parent"}, 
@@ -94,8 +97,8 @@
 					{"keys":{"episode_key":{"link":3}}},
 					{"key":"synopsis","default":""}]]},
 		"values":{
-			"channelid":{"varid": 2},
-			"prog_ID":{"funcid":2, "data":["rtl-",{"varid":1}]},
+			"channelid":{"varid": 1},
+			"prog_ID":{"funcid":2, "data":["rtl-",{"varid":2}]},
 			"start-time":{"varid":3},
 			"stop-time":{"varid":4},
 			"rerun":{"varid":5},

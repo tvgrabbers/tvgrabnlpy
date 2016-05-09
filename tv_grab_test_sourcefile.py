@@ -76,9 +76,10 @@ def main():
             #~ print weekday, first_day, datetime.date.fromordinal(current_date + first_day).strftime('%Y%m%d')
 
 
-        channel ='een'
+        #~ channel ='een'
         #~ source = tv_grab_fetch.FetchData(config, 11, 'source-virtual.nl')
 
+        channel = 'npo-radio-1'
         source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
         #~ source = tv_grab_fetch.FetchData(config, 2, 'source-rtl.nl')
         #~ channel ='een'

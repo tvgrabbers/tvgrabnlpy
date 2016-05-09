@@ -36,7 +36,7 @@
 					{"tag":"img", "attrs":{"src":"/img/WMP.gif"}}
 					],
 				"values":[
-					[{"path":"parent","attr":"href","split":[["=",-1]]}],
+					[{"path":"parent","attr":"href","split":[["/",2]],"type":"lower-ascii"}],
 					[{"path":"parent"},
 						{"path":"parent"},
 						{"tag":"p"}],
@@ -60,6 +60,9 @@
 		"max days":7,
 		"weekdays":[7, 1, 2, 3, 4, 5, 6],
 		"autoclose-tags":["meta", "link"],
+		"value-filters":{
+			"channelid":[]
+			},
 		"data":{
 			"init-path":[
 				{"tag":"html"},
@@ -73,16 +76,16 @@
 					{"tag":"b"}
 						],
 				"values":[
+					[{"path":"parent"},
+						{"path":"parent"},
+						{"path":"parent"},
+						{"tag":"div", "attrs":{"class":"pgMenuKop"}},
+						{"tag":"a", "index":0, "attr":"href","split":[["/",2]],"type":"lower-ascii","member-off":"channelid"}],
 					[{"path":"parent", "split":[["-",0]],"type":"time"}],
 					[{"path":"parent", "select":"index", "link":1},
 						{"path":"parent"}, 
 						{"tag":"div", "attrs":{"class":"pgProgOmschr"}, "index":{"link":1,"calc":["plus",1]},"type":"time"}],
 					[{"path":"parent", "split":[["-",1]],"type":"time"}],
-					[{"path":"parent"},
-						{"path":"parent"},
-						{"path":"parent"},
-						{"tag":"div", "attrs":{"class":"pgMenuKop"}},
-						{"tag":"a", "index":0, "attr":"href","split":[["=",-1]]}],
 					[{"path":"parent"},
 						{"tag":"br", "select":"tail"}],
 					[{"path":"parent"},
@@ -91,10 +94,10 @@
 						{"tag":"img", "attrs":{"alt":"nonstop"},"select":"presence"}]
 					]}]},
 		"values":{
-			"channelid":{"varid": 4},
-			"start-time":{"funcid":4, "data":[null,{"varid": 1}, 6]},
-			"stop-time":{"funcid":4, "data":[null,{"varid": 2}, 6]},
-			"alt-stop-time":{"funcid":4, "data":[null,{"varid": 3}, 7]},
+			"channelid":{"varid": 1},
+			"start-time":{"funcid":4, "data":[null,{"varid": 2}, 6]},
+			"stop-time":{"funcid":4, "data":[null,{"varid": 3}, 6]},
+			"alt-stop-time":{"funcid":4, "data":[null,{"varid": 4}, 7]},
 			"name":{"varid":0},
 			"credits":{"funcid":6, "data":[{"varid":5}], "default":{}},
 			"rerun":{"varid":6},

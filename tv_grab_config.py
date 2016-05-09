@@ -1710,6 +1710,7 @@ class Configure:
                 self.prime_source_order.remove(s)
 
         self.fetch_timezone = get_githubdata("fetch-timezone", 'UTC')
+        self.xml_language = get_githubdata("language")
         try:
             self.fetch_timezone = pytz.timezone(self.fetch_timezone)
         except:
@@ -1868,7 +1869,7 @@ class Configure:
         self.generic_channel_genres = get_githubdict("generic_channel_genres")
         self.groupslot_names = get_githubdata("groupslot_names")
         for index in range(len(self.groupslot_names)):
-            self.groupslot_names[index] = self.groupslot_names[index].lower().strip()
+            self.groupslot_names[index] = re.sub('[-,. ]', '', self.fetch_func.remove_accents(self.groupslot_names[index]).lower().strip())
 
         self.compat_text = get_githubdata("compat_text")
         self.channelprogram_rename = get_githubdict("channelprogram_rename")
@@ -1882,6 +1883,7 @@ class Configure:
         self.rating = get_githubdict("rating")
         self.titlerename = get_githubdict("titlerename")
         self.groupnameremove = get_githubdata("groupnameremove")
+        self.episode_exclude_genres = get_githubdata("episode exclude genres")
         self.cattrans_unknown = get_githubdict("cattrans_unknown")
         cattrans = get_githubdict("cattrans")
         for k, v in cattrans.items():

@@ -61,7 +61,7 @@ I1
 VUnable to get channel info from %s\u000a
 p27
 sI2
-VNow fetching %s channels from %s\u000a
+VNow fetching %s channel(s) from %s\u000a
 p28
 sI3
 V    for day %s of %s.\u000a
@@ -1264,85 +1264,88 @@ p409
 sI70
 VThe supplied data was: %s\u000a
 p410
-sssVIO
+sI71
+VError reading the %spage for source: %s\u000a
 p411
-(dp412
-g18
+sssVIO
+p412
 (dp413
+g18
+(dp414
 g20
 g20
 ssg25
-(dp414
+(dp415
 I1
 VFile: "%s" not found.\u000a
-p415
+p416
 sI2
 V%s is not encoded in %s.\u000a
-p416
+p417
 sI3
 V%s has invalid encoding %s.\u000a
-p417
+p418
 sI4
 VIf you want assistence, please attach your configuration and log files!\u000a
-p418
+p419
 sI5
 VUnrecognized log-message: %s of type %s\u000a
-p419
+p420
 sI6
 VCache function disabled!\u000a
-p420
+p421
 sI7
 VThe cache directory is not accesible. Cache function disabled!\u000a
-p421
+p422
 sI8
 VVerifying the database\u000a
-p422
+p423
 sI9
 VError loading the database: %s.db (possibly corrupt)\u000a
-p423
+p424
 sI10
 VTrying to load a backup copy
-p424
+p425
 sI11
 VFailed to load the database: %s.db\u000a
-p425
+p426
 sI12
 VDisableing Cache function
-p426
+p427
 sI13
 VError creating the %s table!\u000a
-p427
+p428
 sI14
 VError updating the %s table with collumn "%s"!\u000a
-p428
+p429
 sI15
 VError updating the %s table with Index "%s"!\u000a
-p429
+p430
 sI16
 VError loading old cache file: %s (possibly corrupt)\u000a
-p430
+p431
 sI17
 VConverting the old pickle cache to sqlite.\u000a
-p431
+p432
 sI18
 VThis may take some time!\u000a
-p432
+p433
 sI19
 VAdded %s program records to the database.\u000a
-p433
+p434
 sI20
 VError saving program %s to the database.\u000a
-p434
+p435
 sI21
 VAn unexpected error has occured in the %s thread:\u000a
-p435
+p436
 sI22
 VAn unexpected error has occured:\u000a
-p436
-ssssVversion
 p437
+ssssVversion
+p438
 (I1
 I0
 I0
-tp438
+tp439
 s.

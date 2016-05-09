@@ -56,9 +56,12 @@
 		"accept-header":"",
 		"url-type": 3,
 		"url-data":{},
-		"url-date-format":"%Y%m%d",
+		"url-date-format":"%Y-%m-%d",
 		"url-channel-groups": ["main","rest"],
 		"max days":7,
+		"value-filters":{
+			"channelid":[]
+			},
 		"data":{
 			"key-path":[
 				{"key":"broadcasters"},
@@ -70,7 +73,7 @@
 			"values":[
 				[{"path":"parent"},
 					{"path":"parent"},
-					{"key":"id", "type":"string"}],
+					{"key":"id", "type":"string","member-off":"channelid"}],
 				[{"key":"starttime", "type":"timestamp"}],
 				[{"key":"endtime", "type":"timestamp"}],
 				[{"key":"program"},

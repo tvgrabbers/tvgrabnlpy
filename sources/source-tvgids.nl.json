@@ -45,6 +45,9 @@
 			"day":11},
 		"max days":4,
 		"datetimestring":"%Y-%m-%d %H:%M:%S",
+		"value-filters":{
+			"channelid":[]
+			},
 		"data":{
 			"key-path":[
 				{"path":"all"},
@@ -52,7 +55,7 @@
 				{"key":"db_id"}
 				],
 			"values":[
-				[{"path":"parent","select":"key", "type":"string"}],
+				[{"path":"parent","select":"key", "type":"string","member-off":"channelid"}],
 				[{"key":"datum_start","default":"", "type":"datetimestring"}],
 				[{"key":"datum_end","default":"", "type":"datetimestring"}],
 				[{"key":"titel","default":""}],
