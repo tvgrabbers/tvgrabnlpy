@@ -124,9 +124,11 @@
 			"airdate":{"varid":10},
 			"cast":{"varid":11},
 			"directors":{"varid":12},
-			"genre":{"varid":13},
-			"subgenre":{"varid":14}
-			}},
+			"genre":{"funcid": 10, "data":[["FeatureFilm"],["Film"],{"varid":15},{"varid":13}]},
+			"subgenre":{"varid":14},
+			"rerun":{"funcid":15, "data":[{"varid":2},{"varid":16},false, true]}
+			},
+		"scan-description":{"IMDb rating:":"star-rating"}},
 	"no_genric_matching":[
 		"24443942983", "24443942987", "24443943012", "24443943014", "24443943071", "24443943091",
 		"24443943096", "24443943143", "24443943146", "24443943182", "24443943184", "120746535305", 

@@ -609,6 +609,32 @@ class Functions():
 
                 else:
                     return False
+            # Compare the values 1 and 2 returning 3 (or True) if equal, 4 (or False) if unequal and 5 (or None) if one of them is None
+            if fid == 15:
+                if len(data) < 2:
+                    return None
+
+                if data[0] == None or data[1] == None:
+                    if len(data) > 4:
+                        return data[4]
+
+                    else:
+                        return None
+
+                if data[0] == data[1]:
+                    if len(data) > 2:
+                        return data[2]
+
+                    else:
+                        return True
+
+                else:
+                    if len(data) > 3:
+                        return data[3]
+
+                    else:
+                        return False
+
             # Return a string on value True
             if fid == 7:
                 if len(data) < 2 or not isinstance(data[0], bool):
@@ -654,60 +680,27 @@ class Functions():
                       (not isinstance(item, (str, unicode, list, tuple, dict)) and item != None):
                         return item
 
-            # look for item 2 in list 0 and return the coresponding value in list1
+            # look for item 2 in list 0 and return the coresponding value in list1, If not found return item 3 (or None)
             if fid == 10:
-                if len(data) < 3 or not isinstance(data[0], (list,tuple)) or not isinstance(data[1], (list,tuple)):
+                if len(data) < 3 :
                     return default
+
+                if not isinstance(data[0], (list,tuple)):
+                    data[0] = [data[0]]
 
                 for index in range(len(data[0])):
                     data[0][index] = data[0][index].lower().strip()
 
-                if not isinstance(data[2], (list,tuple)):
-                    data[2] = [data[2]]
+                if not isinstance(data[1], (list,tuple)):
+                    data[1] = [data[1]]
 
-                max_length = 0
-                min_length = 0
-                search_regex = None
-                dtype = None
-                if len(data) > 3 and isinstance(data[3], dict):
-                    max_length = source.data_value('max length', int, data[3], 0)
-                    min_length = source.data_value('min length', int, data[3], 0)
-                    search_regex = source.data_value('regex', str, data[3], None)
+                if data[2].lower().strip() in data[0]:
+                    index = data[0].index(data[2].lower().strip())
+                    if index < len(data[1]):
+                        return data[1][index]
 
-                if not isinstance(data[2], (list,tuple)):
-                    data[2] = [data[2]]
-
-                for item in data[2]:
-                    if not item.lower() in data[0]:
-                        continue
-
-                    index = data[0].index(item.lower())
-                    if index >= len(data[1]):
-                        continue
-
-                    if data[1][index] not in ('', None):
-                        if min_length > 0 and len(data[1][index]) < min_length:
-                            continue
-
-                        if max_length > 0 and len(data[1][index]) > max_length:
-                            continue
-
-                        if search_regex != None:
-                            try:
-                                dd = re.search(search_regex, data[1][index], re.DOTALL)
-                                if dd.group(1) not in ('', None):
-                                    d = dd.group(1)
-
-                                else:
-                                    continue
-
-                            except:
-                                continue
-
-                        else:
-                            d = data[1][index]
-
-                        return d
+                if len(data) > 3 :
+                    return data[3]
 
                 return default
 
@@ -2026,10 +2019,10 @@ class FetchData(Thread):
         for chanid, channelid in self.channels.items():
             self.chanids[channelid] = chanid
 
-    def get_url(self, ptype, data):
+    def get_url(self, ptype, udata):
         """return the several url's for ordinairy, detail and channel info"""
-        data['source'] = self.source
-        data['channels'] = self.channels
+        udata['source'] = self.source
+        udata['channels'] = self.channels
         if not self.is_data_value([ptype, "url"]):
             self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
             return None
@@ -2042,7 +2035,7 @@ class FetchData(Thread):
 
                 elif isinstance(u_part, int):
                     # get a variable
-                    uval = self.functions.url_functions(self, ptype, u_part, data)
+                    uval = self.functions.url_functions(self, ptype, u_part, udata)
                     if uval == None:
                         self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
                         return None
@@ -2063,7 +2056,7 @@ class FetchData(Thread):
 
             elif isinstance(v, int):
                 # get a variable
-                uval = self.functions.url_functions(self, ptype, v, data)
+                uval = self.functions.url_functions(self, ptype, v, udata)
                 if uval == None:
                     self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
                     return None
@@ -2072,7 +2065,7 @@ class FetchData(Thread):
                     url_data[k] = uval
 
         if ptype in ('detail', 'detail2'):
-            counter = ['detail', self.proc_id, data['channel']]
+            counter = ['detail', self.proc_id, udata['channel']]
 
         else:
             counter = ['base', self.proc_id]
@@ -2470,6 +2463,9 @@ class FetchData(Thread):
                     # We fetch all days in one
                     # rtl.nl
                     elif (url_type & 12) == 4:
+                        #~ self.print_searchtree = True
+                        #~ self.show_parsing = True
+                        #~ self.show_result = True
                         self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
                             self.config.text('sources', 11, (self.config.opt_dict['days']))], 2)
                         # be nice to the source
@@ -2570,13 +2566,13 @@ class FetchData(Thread):
 
             return None
 
-    def parse_basepage(self, data, subset = {}):
+    def parse_basepage(self, fdata, subset = {}):
         chanids = []
         last_start = {}
         tdd = datetime.timedelta(days=1)
         tdh = datetime.timedelta(hours=1)
-        if isinstance(data, list):
-            for program in data:
+        if isinstance(fdata, list):
+            for program in fdata:
                 # link the data to the right variable, doing any defined adjustments
                 values = self.link_values("base", program)
                 if 'channelid' in values.keys():
@@ -2720,8 +2716,8 @@ class FetchData(Thread):
 
     def load_detailpage(self, ptype, tdict):
         """The code for retreiving and processing a detail page"""
-        data = {'channel': tdict['channelid'], 'detailid': tdict['detail_url'][self.proc_id]}
-        strdata = self.get_page_data(ptype, data)
+        ddata = {'channel': tdict['channelid'], 'detailid': tdict['detail_url'][self.proc_id]}
+        strdata = self.get_page_data(ptype, ddata)
         if not isinstance(strdata, (list,tuple)) or len(strdata) == 0:
             self.config.log(self.config.text('sources', 8, (tdict['detail_url'][self.proc_id], )), 1)
             return
@@ -2739,14 +2735,17 @@ class FetchData(Thread):
 
         return tdict
 
-    def get_page_data(self, ptype, data={}):
+    def get_page_data(self, ptype, pdata = None):
         try:
-            if ptype in ('channels', 'base-channels'):
-                data['start'] = 0
-                data['days'] = 0
-                data[ 'offset'] = 0
+            if pdata == None:
+                pdata = {}
 
-            url = self. get_url(ptype, data)
+            if ptype in ('channels', 'base-channels'):
+                pdata['start'] = 0
+                pdata['days'] = 0
+                pdata[ 'offset'] = 0
+
+            url = self. get_url(ptype, pdata)
             if url == None:
                 return
 
@@ -2780,7 +2779,7 @@ class FetchData(Thread):
                 searchtree.month_names = self.data_value([ptype, "month-names"], list)
                 searchtree.weekdays = self.data_value([ptype, "weekdays"], list)
                 rw = self.data_value([ptype, "relative-weekdays"], dict)
-                self.fetch_date = self.current_date + self.data_value('offset', int, data, default=0)
+                self.fetch_date = self.current_date + self.data_value('offset', int, pdata, default=0)
                 for name, index in rw.items():
                     searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.current_date + index)
 
@@ -2829,7 +2828,7 @@ class FetchData(Thread):
                 elif cd.toordinal() != self.current_date:
                     url_type = self.data_value(["base", "url-type"], int, default = 2)
                     if url_type == 1:
-                        self.config.log(self.config.text('sources', 21, (data['channel'], self.source, data['offset'])))
+                        self.config.log(self.config.text('sources', 21, (pdata['channel'], self.source, pdata['offset'])))
                     elif (url_type & 3) == 1:
                         # chanid
                         pass
