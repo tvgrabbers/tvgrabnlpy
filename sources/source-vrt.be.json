@@ -79,7 +79,7 @@
 				[{"key":"cast","default":""}],
 				[{"key":"categories","default":""}],
 				[{"key":"aspectRatio", "replace":{"4:3":false, "16:9":true},"default":false}],
-				[{"key":"videoFormat", "replace":{"SD":false, "HD":true},"default":false}],
+				[{"key":"videoFormat", "replace":{"sd":false, "hd":true},"default":false}],
 				[{"key":"hasTTSubTitles","type":"boolean","default":false}],
 				[{"key":"isRepeat","type":"boolean","default":false}],
 				[{"key":"standardGenres"},

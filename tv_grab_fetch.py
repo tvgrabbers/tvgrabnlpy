@@ -614,7 +614,8 @@ class Functions():
                 if len(data) < 2:
                     return None
 
-                if data[0] == None or data[1] == None:
+                #~ print data[0], data[1], 'x'
+                if data[0] in (None, '') or data[1] in (None, ''):
                     if len(data) > 4:
                         return data[4]
 
@@ -1812,7 +1813,8 @@ class FetchData(Thread):
 
         # First some generic initiation that couldn't be done earlier in __init__
         # Specifics can be done in init_channels and init_json which are called here
-        tdict = self.functions.checkout_program_dict()
+        #~ tdict = self.functions.checkout_program_dict()
+        tdict = {}
         idle_timeout = 1800
         try:
             # Check if the source is not deactivated and if so set them all loaded
@@ -1962,7 +1964,8 @@ class FetchData(Thread):
 
                         # do not cache programming that is unknown at the time of fetching.
                         if tdict['name'].lower() != 'onbekend':
-                            self.config.queues['cache'].put({'task':'add', 'program': self.functions.checkout_program_dict(detailed_program)})
+                            #~ self.config.queues['cache'].put({'task':'add', 'program': self.functions.checkout_program_dict(detailed_program)})
+                            self.config.queues['cache'].put({'task':'add', 'program': detailed_program})
 
             else:
                 self.ready = True
@@ -2149,7 +2152,7 @@ class FetchData(Thread):
                             repeat+= 1
                             for g in group[:]:
                                 gdict = g.copy()
-                                gdict['prog_ID'][self.proc_id] = ''
+                                gdict['prog_ID'] = ''
                                 gdict['rerun'] = True
                                 gdict['start-time'] += repeat*group_duur
                                 gdict['stop-time'] += repeat*group_duur
@@ -2172,7 +2175,7 @@ class FetchData(Thread):
                 self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
 
             except:
-                #~ traceback.print_exc()
+                traceback.print_exc()
                 pass
 
             self.config.channels[chanid].source_ready(self.proc_id).set()
@@ -2599,56 +2602,38 @@ class FetchData(Thread):
                     last_start[channelid] = None
 
                 chanid = self.chanids[channelid]
-                tdict = self.functions.checkout_program_dict()
+                if not 'prog_ID' in values.keys():
+                    values['prog_ID'] = ''
+                if  not 'name' in values.keys() or values['name'] == None or values['name'] == '':
+                    self.config.log(self.config.text('sources', 6, (values['prog_ID'], self.config.channels[chanid].chan_name, self.source)))
+                    continue
+
+                #~ tdict = self.functions.checkout_program_dict()
+                tdict = {}
                 tdict['source'] = self.source
                 tdict['channelid'] = chanid
                 tdict['channel']  = self.config.channels[chanid].chan_name
-                # Add any known value that does not need further processing
-                for k, v in values.items():
-                    if k in ('channelid', 'video', 'genre', 'subgenre'):
-                        continue
 
-                    elif k in tdict.keys():
-                        if k in ('prog_ID', 'detail_url'):
-                            tdict[k][self.proc_id] =v
+                if 'stop-time' in values.keys() and isinstance(values['stop-time'], datetime.datetime):
+                    tdict['stop-time'] = values['stop-time']
+                elif "alt-stop-time" in values and isinstance(values["alt-stop-time"], datetime.datetime):
+                    tdict['stop-time'] = values["alt-stop-time"]
 
-                        elif k == 'episode' and v > 1000:
-                            continue
-
-                        else:
-                            tdict[k] = v
-
-                    elif k in tdict['video'].keys():
-                        tdict['video'][k] =v
-
-                tdict = self.check_title_name(tdict)
-                if  tdict['name'] == None or tdict['name'] == '':
-                    self.config.log(self.config.text('sources', 6, (tdict['prog_ID'][self.proc_id], tdict['channel'], self.source)))
+                if 'start-time' in values.keys() and isinstance(values['start-time'], datetime.datetime):
+                    tdict['start-time'] = values['start-time']
+                elif "alt-start-time" in values and isinstance(values["alt-start-time"], datetime.datetime):
+                    tdict['start-time'] = values["alt-start-time"]
+                elif "length" in values and isinstance(values['length'], datetime.timedelta) and 'stop-time' in tdict.keys():
+                    tdict['start-time'] = tdict['stop-time'] - values['length']
+                elif "previous-start-time" in values and isinstance(values["previous-start-time"], datetime.datetime) \
+                  and "previous-length" in values and isinstance(values["previous-length"], datetime.timedelta):
+                    tdict['start-time'] = values['previous-start-time'] + values['previous-length']
+                else:
+                    self.config.log(self.config.text('sources', 7, (values['name'], tdict['channel'], self.source)))
                     continue
 
-                if not isinstance(tdict['stop-time'], datetime.datetime):
-                    if "alt-stop-time" in values and isinstance(values["alt-stop-time"], datetime.datetime):
-                        tdict['stop-time'] = values["alt-stop-time"]
-
-                if not isinstance(tdict['start-time'], datetime.datetime):
-                    if "alt-start-time" in values and isinstance(values["alt-start-time"], datetime.datetime):
-                        tdict['start-time'] = values["alt-start-time"]
-                    elif "length" in values and isinstance(values['length'], datetime.timedelta) and isinstance(tdict['stop-time'], datetime.datetime):
-                        tdict['start-time'] = tdict['stop-time'] - values['length']
-                    elif "previous-start-time" in values and isinstance(values["previous-start-time"], datetime.datetime) \
-                      and "previous-length" in values and isinstance(values["previous-length"], datetime.timedelta):
-                        tdict['start-time'] = values['previous-start-time'] + values['previous-length']
-                    else:
-                        self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
-                        continue
-
-                if not isinstance(tdict['stop-time'], datetime.datetime):
-                    if "length" in values and isinstance(values['length'], datetime.timedelta):
-                        tdict['stop-time'] = tdict['start-time'] + values['length']
-
-                    #~ else:
-                        #~ self.config.log(self.config.text('sources', 7, (tdict['name'], tdict['channel'], self.source)))
-                        #~ continue
+                if not 'stop-time' in tdict.keys() and "length" in values and isinstance(values['length'], datetime.timedelta):
+                    tdict['stop-time'] = tdict['start-time'] + values['length']
 
                 if self.without_full_timings:
                     # This is to catch the midnight date change for HTML pages with just start(stop) times without date
@@ -2660,7 +2645,7 @@ class FetchData(Thread):
                         tdict['start-time'] += tdd
 
                     last_start[channelid] = tdict['start-time']
-                    if isinstance(tdict['stop-time'], datetime.datetime):
+                    if 'stop-time' in tdict.keys():
                         while tdict['stop-time'] < tdict['start-time']:
                             tdict['stop-time'] += tdd
 
@@ -2671,14 +2656,51 @@ class FetchData(Thread):
                         print  'outside timerange', tdict['offset'], tdict['start-time'], tdict['stop-time']
                     continue
 
+                # Add any known value that does not need further processing
+                for k, v in values.items():
+                    if k in ('channelid', 'video', 'genre', 'subgenre'):
+                        continue
+
+                    if k in self.config.key_values['text'] and not v in (None, ''):
+                        tdict[k] = v
+
+                    elif (k in self.config.key_values['bool'] or k in self.config.key_values['video']) and  isinstance(v, bool):
+                        tdict[k] = v
+
+                    elif k in self.config.key_values['int'] and isinstance(v, int):
+                        if k == 'episode' and v > 1000:
+                            continue
+
+                        tdict[k] = v
+
+                    elif k in self.config.key_values['list'] and isinstance(v, list) and len(v) > 0:
+                        tdict[k] = v
+
+                    elif k in self.config.key_values['timedelta'] and isinstance(v, datetime.timedelta):
+                        tdict[k] = v
+
+                    elif k in self.config.key_values['date'] and isinstance(v, datetime.date):
+                        tdict[k] = v
+
+                # The credits
+                if 'credits' in values.keys() and isinstance(values['credits'], dict):
+                    for k, v in values['credits'].items():
+                        if k in self.config.roletrans.keys() and isinstance(v, (list, tuple)):
+                            if not self.config.roletrans[k] in tdict or len(tdict[self.config.roletrans[k]]) == 0:
+                                tdict[self.config.roletrans[k]] = v
+
+                            for item in v:
+                                if not item in tdict[self.config.roletrans[k]]:
+                                    tdict[self.config.roletrans[k]].append(item)
+
                 for k in self.config.roletrans.keys():
                     if k in values.keys() and isinstance(values[k], (list, tuple)):
-                        if not self.config.roletrans[k] in tdict['credits'] or len(tdict['credits'][self.config.roletrans[k]]) == 0:
-                            tdict['credits'][self.config.roletrans[k]] = values[k]
+                        if not self.config.roletrans[k] in tdict or len(tdict[self.config.roletrans[k]]) == 0:
+                            tdict[self.config.roletrans[k]] = values[k]
 
                         for item in values[k]:
-                            if not item in tdict['credits'][self.config.roletrans[k]]:
-                                tdict['credits'][self.config.roletrans[k]].append(item)
+                            if not item in tdict[self.config.roletrans[k]]:
+                                tdict[self.config.roletrans[k]].append(item)
 
                 gg = self.get_genre(values)
                 tdict['genre'] = gg[0]
@@ -2691,7 +2713,8 @@ class FetchData(Thread):
 
                     #~ self.groupitems[chanid][values['group']].append({'channel': channelid, 'start-time': tdict['start-time'], 'stop-time': tdict['stop-time'], 'program': dict})
 
-                tdict = self.functions.checkout_program_dict(tdict)
+                #~ tdict = self.functions.checkout_program_dict(tdict)
+                tdict = self.check_title_name(tdict)
                 with self.source_lock:
                     self.program_data[chanid].append(tdict)
 
@@ -3190,7 +3213,7 @@ class FetchData(Thread):
         Return the updated Progam dict
         """
         ptitle = program['name']
-        psubtitle = program['episode title']
+        psubtitle = '' if not 'episode title'in program.keys() else program['episode title']
         if  ptitle == None or ptitle == '':
             return program
 
@@ -3236,7 +3259,9 @@ class FetchData(Thread):
             ptitle = self.config.titlerename[ptitle.lower()]
 
         program['name'] = ptitle
-        program['episode title'] = psubtitle
+        if psubtitle != '':
+            program['episode title'] = psubtitle
+
         return program
 
     def filter_description(self,ETitem, ETfind, tdict):
@@ -3469,7 +3494,7 @@ class FetchData(Thread):
         for i in range(len(programs)):
 
             # Try to correct missing end time by taking start time from next program on schedule
-            if (not isinstance(programs[i]['stop-time'], datetime.datetime) and i < len(programs)-1):
+            if (not 'stop-time' in programs[i] or not isinstance(programs[i]['stop-time'], datetime.datetime)) and i < len(programs)-1:
                 self.config.log(self.config.text('fetch', 22, (programs[i]['name'], )), 64)
                 programs[i]['stop-time'] = programs[i+1]['start-time']
 
@@ -3558,7 +3583,8 @@ class FetchData(Thread):
 
                     # We fill it with a programinfo/commercial block
                     elif overlap_strategy == 'fill' and overlap < 0:
-                        tdict = self.functions.checkout_program_dict()
+                        #~ tdict = self.functions.checkout_program_dict()
+                        tdict = {}
                         tdict['source'] = good_programs[i]['source']
                         tdict['channelid'] = good_programs[i]['channelid']
                         tdict['channel'] = good_programs[i]['channel']
@@ -3585,7 +3611,8 @@ class FetchData(Thread):
                         good_programs.pop(i+1)
 
                     else:
-                        tdict = self.functions.checkout_program_dict()
+                        #~ tdict = self.functions.checkout_program_dict()
+                        tdict = {}
                         tdict['source'] = good_programs[i]['source']
                         tdict['channelid'] = good_programs[i]['channelid']
                         tdict['channel'] = good_programs[i]['channel']
@@ -4920,7 +4947,7 @@ class Channel_Config(Thread):
         # copy the cached information, except the start/end times, rating and clumping,
         # these may have changed.
         # But first checkout the dict
-        cached = self.config.fetch_func.checkout_program_dict(cached)
+        #~ cached = self.config.fetch_func.checkout_program_dict(cached)
         try:
             clump  = tdict['clumpidx']
 

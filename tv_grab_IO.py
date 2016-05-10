@@ -1579,7 +1579,7 @@ class ChannelNode():
                 self.config.channelprogram_rename[self.chanid] = {}
 
             self.key_list = []
-            for kt, kl in self.config.key_values.items():
+            for kl in self.config.key_values.values():
                 self.key_list.extend(kl)
 
             self.key_list.append('genre')
@@ -2220,10 +2220,6 @@ class ProgramNode():
                         if k2 in self.config.key_values['video']:
                             self.set_value(k2, v2, source)
 
-                elif k in  self.config.key_values['source']:
-                    if source in v:
-                        self.set_value(k, v[source], source)
-
                 elif k in self.channode.key_list:
                     self.set_value(k, v, source)
 
@@ -2303,7 +2299,7 @@ class ProgramNode():
                 if source != None and self.channel_config.opt_dict['prefered_description'] == source:
                     self.tdict[key]['preferred'] = value
 
-            elif key in self.config.key_values['bool']:
+            elif key in self.config.key_values['bool'] or key in self.config.key_values['video']:
                 if not 'prime' in self.tdict[key].keys():
                     self.tdict[key]['prime'] = value
 
@@ -2632,6 +2628,29 @@ class InfoFiles():
                 self.detail_list.append(detail_data)
 
     def write_fetch_list(self, programs, chanid, source, chan_name = '', sid = None, ismerge = False):
+        def value(vname):
+            if vname == 'ID':
+                if sid == None:
+                    return tdict['ID']
+
+                elif 'prog_ID' in tdict:
+                    return tdict['prog_ID']
+
+                return '---'
+
+            if not vname in tdict.keys():
+                return '--- '
+
+            if isinstance(tdict[vname], datetime.datetime):
+                return self.config.output_tz.normalize(tdict[vname].astimezone(self.config.output_tz)).strftime('%d %b %H:%M')
+
+            if isinstance(tdict[vname], bool):
+                if tdict[vname]:
+                    return 'True '
+
+                return 'False '
+
+            return tdict[vname]
 
         if (not self.write_info_files) or (self.fetch_list == None):
             return
@@ -2655,32 +2674,21 @@ class InfoFiles():
             plist.sort(key=lambda program: (program['start-time']))
 
             for tdict in plist:
-                if sid == None:
-                    psid = tdict['ID']
+                extra = value('rerun') + value('teletext') + value('new') + value('last-chance') + value('premiere')
+                extra2 = value('HD') + value('widescreen') + value('blackwhite')
 
-                elif sid in tdict['prog_ID']:
-                    psid = tdict['prog_ID'][sid]
+                self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s] [%s]\n' % (\
+                                value('start-time'), value('stop-time'), \
+                                value('ID').rjust(15), value('genre')[0:10].rjust(10), \
+                                value('name'), value('episode title'), \
+                                extra, extra2)
 
-                else:
-                    psid = ''
-
-                extra = u''
-                #~ if 'rerun'in tdict.keys():
-                    #~ if tdict['rerun']:
-                        #~ extra = u'True '
-
-                    #~ else:
-                        #~ extra = u'False '
-
-                #~ if 'star-rating' in tdict.keys():
-                    #~ extra +=  unicode( tdict['star-rating'])
-
-                self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]%s\n' % (\
-                                self.config.output_tz.normalize(tdict['start-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
-                                self.config.output_tz.normalize(tdict['stop-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
-                                psid.rjust(15), tdict['genre'][0:10].rjust(10), \
-                                tdict['name'], tdict['episode title'], \
-                                tdict['season'], tdict['episode'], extra)
+                #~ self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
+                                #~ self.config.output_tz.normalize(tdict['start-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
+                                #~ self.config.output_tz.normalize(tdict['stop-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
+                                #~ psid.rjust(15), tdict['genre'][0:10].rjust(10), \
+                                #~ tdict['name'], tdict['episode title'], \
+                                #~ tdict['season'], tdict['episode'])
 
             if ismerge: self.fetch_strings[chanid][source] += u'#\n'
 

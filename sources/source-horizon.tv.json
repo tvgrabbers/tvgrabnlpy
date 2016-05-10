@@ -109,7 +109,7 @@
 				[{"key":"program"},
 					{"key":"mediaType","default":""}],
 				[{"key":"program"},
-					{"key":"latestBroadcastStartTime", "type":"timestamp","multiplier":1000}]
+					{"key":"latestBroadcastStartTime", "type":"timestamp","multiplier":1000, "default": null}]
 					]},
 		"values":{
 			"channelid":{"varid": 1},
