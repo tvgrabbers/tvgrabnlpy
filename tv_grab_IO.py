@@ -1638,7 +1638,7 @@ class ChannelNode():
 
                     programs[index]['stop-time'] = programs[index+1]['start-time']
 
-                if programs[index]['stop-time'] == programs[index]['start-time']:
+                if programs[index]['stop-time'] <= programs[index]['start-time']:
                     continue
 
                 if not 'length' in programs[index] or not isinstance(programs[index]['length'], datetime.timedelta):
@@ -2274,11 +2274,11 @@ class ProgramNode():
 
                 if isinstance(value, list):
                     for v in value:
-                        if not v.capitalize() in self.tdict[key]['prime']:
-                            self.tdict[key]['prime'].append(v.capitalize())
+                        if not v in self.tdict[key]['prime']:
+                            self.tdict[key]['prime'].append(v)
 
-                elif not value.capitalize() in self.tdict[key]['prime']:
-                    self.tdict[key]['prime'].append(value.capitalize())
+                elif not value in self.tdict[key]['prime']:
+                    self.tdict[key]['prime'].append(value)
 
             elif key in ("country", "rating"):
                 if not 'prime' in self.tdict[key].keys():
@@ -2906,7 +2906,7 @@ class XMLoutput():
                 xml.append(self.add_starttag('title', 4, 'lang="%s"' % (program.get_value('country').lower()), program.get_value('originaltitle'), True))
 
             # Subtitle
-            if program.is_set('episode title'):
+            if program.is_set('episode title') and program.get_value('episode title') != program.name:
                 xml.append(self.add_starttag('sub-title', 4, 'lang="%s"' % (self.config.xml_language), program.get_value('episode title') ,True))
 
             # Description
@@ -2952,7 +2952,7 @@ class XMLoutput():
 
             # A Country
             if program.is_set('country'):
-                xml.append(self.add_starttag('country', 4, '', program.get_value('country'),True))
+                xml.append(self.add_starttag('country', 4, '', program.get_value('country').upper(),True))
 
             # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
             # Also exclude Sports for MythTV will make it into a Series

@@ -518,14 +518,14 @@ class Functions():
                 credits[prole] = []
 
             if prole in ('actor', 'guest'):
-                if isinstance(palias ,(str, unicode)):
-                    palias = palias.capitalize()
+                #~ if isinstance(palias ,(str, unicode)):
+                    #~ palias = palias.capitalize()
 
-                p = {'name': pname.capitalize(), 'role': palias}
+                p = {'name': pname, 'role': palias}
                 credits[prole].append(p)
 
             else:
-                credits[prole].append(pname.capitalize())
+                credits[prole].append(pname)
 
         try:
             # strip data[1] from the end of data[0] if present and make sure it's unicode
@@ -614,27 +614,28 @@ class Functions():
                 if len(data) < 2:
                     return None
 
-                #~ print data[0], data[1], 'x'
                 if data[0] in (None, '') or data[1] in (None, ''):
                     if len(data) > 4:
-                        return data[4]
+                        rval = data[4]
 
                     else:
-                        return None
+                        rval = None
 
-                if data[0] == data[1]:
+                elif data[0] == data[1]:
                     if len(data) > 2:
-                        return data[2]
+                        rval = data[2]
 
                     else:
-                        return True
+                        rval = True
 
                 else:
                     if len(data) > 3:
-                        return data[3]
+                        rval = data[3]
 
                     else:
-                        return False
+                        rval = False
+
+                return rval
 
             # Return a string on value True
             if fid == 7:
@@ -2575,6 +2576,7 @@ class FetchData(Thread):
         tdd = datetime.timedelta(days=1)
         tdh = datetime.timedelta(hours=1)
         if isinstance(fdata, list):
+            last_stop = None
             for program in fdata:
                 # link the data to the right variable, doing any defined adjustments
                 values = self.link_values("base", program)
@@ -2628,6 +2630,8 @@ class FetchData(Thread):
                 elif "previous-start-time" in values and isinstance(values["previous-start-time"], datetime.datetime) \
                   and "previous-length" in values and isinstance(values["previous-length"], datetime.timedelta):
                     tdict['start-time'] = values['previous-start-time'] + values['previous-length']
+                elif self.data_value(["base", "data-format"], str) == "text/html" and isinstance(last_stop, datetime.datetime):
+                    tdict['start-time'] = last_stop
                 else:
                     self.config.log(self.config.text('sources', 7, (values['name'], tdict['channel'], self.source)))
                     continue
@@ -2635,7 +2639,7 @@ class FetchData(Thread):
                 if not 'stop-time' in tdict.keys() and "length" in values and isinstance(values['length'], datetime.timedelta):
                     tdict['stop-time'] = tdict['start-time'] + values['length']
 
-                if self.without_full_timings:
+                if self.without_full_timings and self.data_value(["base", "data-format"], str) == "text/html":
                     # This is to catch the midnight date change for HTML pages with just start(stop) times without date
                     # don't enable it on json pages where the programs are in a dict as they will not be in chronological order!!!
                     if last_start[channelid] == None:
@@ -2650,11 +2654,11 @@ class FetchData(Thread):
                             tdict['stop-time'] += tdd
 
                 tdict['offset'] = self.functions.get_offset(tdict['start-time'])
-                # check if it is inside the request range
-                if not (self.config.opt_dict["offset"] <= tdict['offset'] < (self.config.opt_dict["offset"] + self.config.opt_dict["days"])):
-                    if self.show_result:
-                        print  'outside timerange', tdict['offset'], tdict['start-time'], tdict['stop-time']
-                    continue
+                if self.data_value(["base", "data-format"], str) == "text/html":
+                    if 'stop-time' in tdict.keys():
+                        last_stop = tdict['stop-time']
+                    else:
+                        last_stop = None
 
                 # Add any known value that does not need further processing
                 for k, v in values.items():
@@ -3494,24 +3498,26 @@ class FetchData(Thread):
         for i in range(len(programs)):
 
             # Try to correct missing end time by taking start time from next program on schedule
-            if (not 'stop-time' in programs[i] or not isinstance(programs[i]['stop-time'], datetime.datetime)) and i < len(programs)-1:
-                self.config.log(self.config.text('fetch', 22, (programs[i]['name'], )), 64)
-                programs[i]['stop-time'] = programs[i+1]['start-time']
+            if (not 'stop-time' in programs[i] or not isinstance(programs[i]['stop-time'], datetime.datetime)):
+                if i < len(programs)-1:
+                    self.config.log(self.config.text('fetch', 22, (programs[i]['name'], )), 64)
+                    programs[i]['stop-time'] = programs[i+1]['start-time']
+
+                else:
+                    continue
 
             # The common case: start and end times are present and are not
             # equal to each other (yes, this can happen)
             if isinstance(programs[i]['start-time'], datetime.datetime) \
                 and isinstance(programs[i]['stop-time'], datetime.datetime) \
-                and programs[i]['start-time'] != programs[i]['stop-time']:
+                and programs[i]['start-time'] < programs[i]['stop-time'] \
+                and (self.config.opt_dict["offset"] <= programs[i]['offset'] < (self.config.opt_dict["offset"] + self.config.opt_dict["days"])):
                     programs[i]['start-time'].replace(second = 0, microsecond = 0)
                     programs[i]['stop-time'].replace(second = 0, microsecond = 0)
                     programs[i]['length'] = programs[i]['stop-time'] - programs[i]['start-time']
                     good_programs.append(programs[i])
-
-        # Han Holl: try to exclude programs that stop before they begin
-        for i in range(len(good_programs)-1,-1,-1):
-            if good_programs[i]['stop-time'] <= good_programs[i]['start-time']:
-                self.config.log(self.config.text('fetch', 23, (good_programs[i]['name'], )), 64)
+                    if self.show_result:
+                        print  'outside timerange', programs[i]['offset'], programs[i]['start-time'], programs[i]['stop-time']
 
         # Try to exclude programs that only identify a group or broadcaster and have overlapping start/end times with
         # the actual programs
