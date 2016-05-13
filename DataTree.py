@@ -59,8 +59,11 @@ class DATAnode():
             node.child_index = len(self.children)
             self.children.append(node)
 
-    def get_children(self, data_def = None, link_values={}):
+    def get_children(self, data_def = None, link_values=None):
         childs = []
+        if not isinstance(link_values, dict):
+            link_values = {}
+
         d_def = data_def if isinstance(data_def, list) else [data_def]
         if len(d_def) == 0 or d_def[0] == None:
             # It's not a child definition
@@ -193,7 +196,7 @@ class DATAnode():
             if self.dtree.show_result:
                 self.dtree.print_text(u'    saving link to node %s: %s\n'.encode('utf-8', 'replace') % (self.find_value(node_def), self.print_node()))
 
-    def match_node(self, node_def = None, link_values ={}):
+    def match_node(self, node_def = None, link_values = None):
         self.link_value = {}
         return False
 
@@ -245,16 +248,22 @@ class HTMLnode(DATAnode):
 
         return False
 
-    def get_child(self, tag = None, attributes = {}):
+    def get_child(self, tag = None, attributes = None):
         childs = []
+        if not isinstance(attributes,list):
+            attributes = []
+
         for c in self.children:
             if c.match_node(tag, attributes):
                 childs.append(c)
 
         return childs
 
-    def match_node(self, tag = None, attributes = {}, node_def = None, link_values={}):
+    def match_node(self, tag = None, attributes = None, node_def = None, link_values=None):
         self.link_value = {}
+        if not isinstance(attributes,list):
+            attributes = []
+
         if not isinstance(link_values, dict):
             link_values ={}
 
@@ -475,7 +484,7 @@ class JSONnode(DATAnode):
 
         return None
 
-    def match_node(self, node_def = None, link_values ={}):
+    def match_node(self, node_def = None, link_values = None):
         self.link_value = {}
         if not isinstance(link_values, dict):
             link_values ={}
@@ -594,148 +603,153 @@ class JSONnode(DATAnode):
 class DATAtree():
     def __init__(self, output = sys.stdout):
         self.tree_lock = RLock()
-        self.print_searchtree = False
-        self.show_result = False
-        self.fle = output
-        self.extract_from_parent = False
-        self.result = []
-        self.month_names = []
-        self.weekdays = []
-        self.relative_weekdays = {}
-        self.datetimestring = u"%Y-%m-%d %H:%M:%S"
-        self.time_splitter = u':'
-        self.date_sequence = ["y","m","d"]
-        self.date_splitter = u'-'
-        self.utc = pytz.utc
-        self.timezone = pytz.utc
-        self.value_filters = {}
+        with self.tree_lock:
+            self.print_searchtree = False
+            self.show_result = False
+            self.fle = output
+            self.extract_from_parent = False
+            self.result = []
+            self.month_names = []
+            self.weekdays = []
+            self.relative_weekdays = {}
+            self.datetimestring = u"%Y-%m-%d %H:%M:%S"
+            self.time_splitter = u':'
+            self.date_sequence = ["y","m","d"]
+            self.date_splitter = u'-'
+            self.utc = pytz.utc
+            self.timezone = pytz.utc
+            self.value_filters = {}
 
-    def find_start_node(self, data_def={}):
-        self.data_def = data_def
-        if self.print_searchtree:
-            self.print_text('The root Tree:\n')
-            self.start_node.print_tree()
-        init_path = self.data_value(['data',"init-path"],list)
-        if self.show_result:
-            self.print_text(self.root.print_node())
+    def find_start_node(self, data_def=None):
+        with self.tree_lock:
+            self.data_def = data_def if isinstance(datadef, dict) else {}
+            if self.print_searchtree:
+                self.print_text('The root Tree:\n')
+                self.start_node.print_tree()
 
-        sn = self.root.get_children(data_def = init_path)
-        self.start_node = self.root if (sn == None or len(sn) == 0) else sn[0]
+            init_path = self.data_value(['data',"init-path"],list)
+            if self.show_result:
+                self.print_text(self.root.print_node())
 
-    def find_data_value(self, path_def= [], start_node = None, link_values = None):
-        if not isinstance(path_def, (list, tuple)) or len(path_def) == 0:
-            return
+            sn = self.root.get_children(data_def = init_path)
+            self.start_node = self.root if (sn == None or len(sn) == 0) else sn[0]
 
-        if start_node == None or not isinstance(start_node, DATAnode):
-            start_node = self.start_node
+    def find_data_value(self, path_def, start_node = None, link_values = None):
+        with self.tree_lock:
+            if not isinstance(path_def, (list, tuple)) or len(path_def) == 0:
+                return
 
-        nlist = start_node.get_children(data_def = path_def, link_values = link_values)
-        if self.data_value('select', str, path_def[-1]) == 'presence':
-            # We return True if exactly one node is found, else False
-            return bool(isinstance(nlist, DATAnode) or (isinstance(nlist, list) and len(nlist) == 1 and  isinstance(nlist[0], DATAnode)))
+            if start_node == None or not isinstance(start_node, DATAnode):
+                start_node = self.start_node
 
-        # Nothing found, so give the default or None
-        if nlist in ([], None):
-            if self.data_value('type', None, path_def[-1]) == 'list':
-                return []
+            nlist = start_node.get_children(data_def = path_def, link_values = link_values)
+            if self.data_value('select', str, path_def[-1]) == 'presence':
+                # We return True if exactly one node is found, else False
+                return bool(isinstance(nlist, DATAnode) or (isinstance(nlist, list) and len(nlist) == 1 and  isinstance(nlist[0], DATAnode)))
 
-            else:
-                return self.data_value('default', None, path_def[-1])
-
-        # We found multiple values
-        elif len(nlist) > 1 or (isinstance(path_def, list) and len(path_def)>0 and self.data_value('type', None, path_def[-1]) == 'list'):
-            vlist = []
-            for node in nlist:
-                if isinstance(node, DATAnode):
-                    vlist.append(node.find_value(path_def[-1]))
-
-                # There is a named subset of the found nodes
-                elif isinstance(node, dict):
-                    for k, v in node.items():
-                        slist = []
-                        for item in v:
-                            if isinstance(item, DATAnode):
-                                slist.append(item.find_value(path_def[-1]))
-
-                        vlist.append({k: slist})
-
-            return vlist
-
-        # We found one value
-        if not isinstance(nlist[0], DATAnode):
-            if isinstance(path_def, list) and len(path_def)>0:
+            # Nothing found, so give the default or None
+            if nlist in ([], None):
                 if self.data_value('type', None, path_def[-1]) == 'list':
                     return []
 
                 else:
                     return self.data_value('default', None, path_def[-1])
 
-        else:
-            return nlist[0].find_value(path_def[-1])
+            # We found multiple values
+            elif len(nlist) > 1 or (isinstance(path_def, list) and len(path_def)>0 and self.data_value('type', None, path_def[-1]) == 'list'):
+                vlist = []
+                for node in nlist:
+                    if isinstance(node, DATAnode):
+                        vlist.append(node.find_value(path_def[-1]))
 
-    def extract_datalist(self, data_def={}):
-        self.data_def = data_def
-        if self.print_searchtree:
-            self.print_text('The %s Tree:\n' % self.start_node.print_node())
-            self.start_node.print_tree()
-        self.result = []
-        # Are there multiple data definitions
-        if self.is_data_value(['data',"iter"],list):
-            def_list = self.data_value(['data','iter'],list)
+                    # There is a named subset of the found nodes
+                    elif isinstance(node, dict):
+                        for k, v in node.items():
+                            slist = []
+                            for item in v:
+                                if isinstance(item, DATAnode):
+                                    slist.append(item.find_value(path_def[-1]))
 
-        # Or just one
-        elif self.is_data_value('data',dict):
-            def_list = [self.data_value('data',dict)]
+                            vlist.append({k: slist})
 
-        else:
-            return
+                return vlist
 
-        for dset in def_list:
-            # Get all the key nodes
-            if self.is_data_value(["key-path"], list, dset):
-                kp = self.data_value(["key-path"], list, dset)
-                if len(kp) == 0:
-                    continue
-
-                if self.show_result:
-                    self.fle.write('parsing keypath %s\n'.encode('utf-8') % (kp[0]))
-
-                self.key_list = self.start_node.get_children(data_def = kp)
-                for k in self.key_list:
-                    if not isinstance(k, DATAnode):
-                        continue
-
-                    # And if it's a valid node, find the belonging values (the last dict in a path list contains the value definition)
-                    tlist = [k.find_value(kp[-1])]
-                    link_values = {}
-                    if self.is_data_value('link', int, kp[-1]):
-                        link_values = {kp[-1]["link"]: k.find_value(kp[-1])}
-
-                    for v in self.data_value(["values"], list, dset):
-                        if not isinstance(v, list) or len(v) == 0:
-                            tlist.append(None)
-                            continue
-
-                        if self.is_data_value('value',None, v[0]):
-                            tlist.append(self.data_value('value',None, v[0]))
-                            continue
-
-                        if self.show_result:
-                            self.fle.write('parsing key %s %s\n'.encode('utf-8') % ( [k.find_value(kp[-1])], v[-1]))
-
-                        if self.extract_from_parent and isinstance(k.parent, DATAnode):
-                            dv = self.find_data_value(v, k.parent, link_values)
-
-                        else:
-                            dv = self.find_data_value(v, k, link_values)
-
-                        if isinstance(dv, NULLnode):
-                            break
-
-                        tlist.append(dv)
+            # We found one value
+            if not isinstance(nlist[0], DATAnode):
+                if isinstance(path_def, list) and len(path_def)>0:
+                    if self.data_value('type', None, path_def[-1]) == 'list':
+                        return []
 
                     else:
-                        self.result.append(tlist)
+                        return self.data_value('default', None, path_def[-1])
+
+            else:
+                return nlist[0].find_value(path_def[-1])
+
+    def extract_datalist(self, data_def=None):
+        with self.tree_lock:
+            self.data_def = data_def if isinstance(datadef, dict) else {}
+            if self.print_searchtree:
+                self.print_text('The %s Tree:\n' % self.start_node.print_node())
+                self.start_node.print_tree()
+            self.result = []
+            # Are there multiple data definitions
+            if self.is_data_value(['data',"iter"],list):
+                def_list = self.data_value(['data','iter'],list)
+
+            # Or just one
+            elif self.is_data_value('data',dict):
+                def_list = [self.data_value('data',dict)]
+
+            else:
+                return
+
+            for dset in def_list:
+                # Get all the key nodes
+                if self.is_data_value(["key-path"], list, dset):
+                    kp = self.data_value(["key-path"], list, dset)
+                    if len(kp) == 0:
+                        continue
+
+                    if self.show_result:
+                        self.fle.write('parsing keypath %s\n'.encode('utf-8') % (kp[0]))
+
+                    self.key_list = self.start_node.get_children(data_def = kp)
+                    for k in self.key_list:
+                        if not isinstance(k, DATAnode):
+                            continue
+
+                        # And if it's a valid node, find the belonging values (the last dict in a path list contains the value definition)
+                        tlist = [k.find_value(kp[-1])]
+                        link_values = {}
+                        if self.is_data_value('link', int, kp[-1]):
+                            link_values = {kp[-1]["link"]: k.find_value(kp[-1])}
+
+                        for v in self.data_value(["values"], list, dset):
+                            if not isinstance(v, list) or len(v) == 0:
+                                tlist.append(None)
+                                continue
+
+                            if self.is_data_value('value',None, v[0]):
+                                tlist.append(self.data_value('value',None, v[0]))
+                                continue
+
+                            if self.show_result:
+                                self.fle.write('parsing key %s %s\n'.encode('utf-8') % ( [k.find_value(kp[-1])], v[-1]))
+
+                            if self.extract_from_parent and isinstance(k.parent, DATAnode):
+                                dv = self.find_data_value(v, k.parent, link_values)
+
+                            else:
+                                dv = self.find_data_value(v, k, link_values)
+
+                            if isinstance(dv, NULLnode):
+                                break
+
+                            tlist.append(dv)
+
+                        else:
+                            self.result.append(tlist)
 
     def calc_value(self, value, node_def = None):
         if isinstance(value, (str, unicode)):
@@ -1136,21 +1150,21 @@ class HTMLtree(HTMLParser, DATAtree):
     def __init__(self, data='', autoclose_tags=[], print_tags = False, output = sys.stdout):
         HTMLParser.__init__(self)
         DATAtree.__init__(self, output)
-
-        self.print_tags = print_tags
-        self.autoclose_tags = autoclose_tags
-        self.is_tail = False
-        self.root = HTMLnode(self, 'root')
-        self.current_node = self.root
-        self.last_node = None
-        self.text = u''
-        self.open_tags = {}
-        self.count_tags(data)
-        # read the html page into the tree
-        self.feed(data)
-        self.reset()
-        # And find the dataset into self.result
-        self.start_node = self.root
+        with self.tree_lock:
+            self.print_tags = print_tags
+            self.autoclose_tags = autoclose_tags
+            self.is_tail = False
+            self.root = HTMLnode(self, 'root')
+            self.current_node = self.root
+            self.last_node = None
+            self.text = u''
+            self.open_tags = {}
+            self.count_tags(data)
+            # read the html page into the tree
+            self.feed(data)
+            self.reset()
+            # And find the dataset into self.result
+            self.start_node = self.root
 
     def count_tags(self, data):
         tag_list = re.compile("\<(.*?)\>", re.DOTALL)
@@ -1309,11 +1323,12 @@ class HTMLtree(HTMLParser, DATAtree):
 class JSONtree(DATAtree):
     def __init__(self, data, output = sys.stdout):
         DATAtree.__init__(self, output)
-        self.extract_from_parent = True
-        self.data = data
-        # Read the json data into the tree
-        self.root = JSONnode(self, data, key = 'ROOT')
-        self.start_node = self.root
+        with self.tree_lock:
+            self.extract_from_parent = True
+            self.data = data
+            # Read the json data into the tree
+            self.root = JSONnode(self, data, key = 'ROOT')
+            self.start_node = self.root
 
 # end JSONtree
 
