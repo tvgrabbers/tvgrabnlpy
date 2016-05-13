@@ -4,7 +4,7 @@
 from __future__ import unicode_literals
 import re, sys, traceback
 import time, datetime, pytz
-from threading import Lock
+from threading import RLock
 try:
     from html.parser import HTMLParser, HTMLParseError
 except ImportError:
@@ -15,13 +15,26 @@ try:
 except ImportError:
     from htmlentitydefs import name2codepoint
 
+dt_name = u'DataTree'
+dt_major = 1
+dt_minor = 0
+dt_patch = 0
+dt_patchdate = u'20160512'
+dt_alfa = True
+dt_beta = True
 
-class Exclude_Node():
+def version():
+    return (dt_name, dt_major, dt_minor, dt_patch, dt_patchdate, dt_beta, dt_alfa)
+# end version()
+
+class NULLnode():
     value = None
+
+# end NULLnode
 
 class DATAnode():
     def __init__(self, dtree, parent = None):
-        self.node_lock = Lock()
+        self.node_lock = RLock()
         with self.node_lock:
             self.children = []
             self.dtree = dtree
@@ -580,7 +593,7 @@ class JSONnode(DATAnode):
 
 class DATAtree():
     def __init__(self, output = sys.stdout):
-        self.tree_lock = Lock()
+        self.tree_lock = RLock()
         self.print_searchtree = False
         self.show_result = False
         self.fle = output
@@ -716,7 +729,7 @@ class DATAtree():
                         else:
                             dv = self.find_data_value(v, k, link_values)
 
-                        if isinstance(dv, Exclude_Node):
+                        if isinstance(dv, NULLnode):
                             break
 
                         tlist.append(dv)
@@ -999,7 +1012,7 @@ class DATAtree():
         if self.is_data_value('member-off', unicode, node_def) and self.data_value('member-off', unicode, node_def) in self.value_filters.keys():
             vf = self.value_filters[self.data_value('member-off', unicode, node_def)]
             if not value in vf:
-                value = Exclude_Node()
+                value = NULLnode()
 
         return value
 
