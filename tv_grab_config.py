@@ -131,17 +131,28 @@ try:
 except NameError:
     unichr = chr    # Python 3
 
+api_name = u'tv_grab_API'
+api_major = 1
+api_minor = 0
+api_patch = 0
+api_patchdate = u'20160512'
+api_alfa = True
+api_beta = True
+
+def version():
+    return (api_name, api_major, api_minor, api_patch, api_patchdate, api_beta, api_alfa)
+
 class Configure:
 
     def __init__(self):
         # Version info as returned by the version function
-        self.api_name ='tv_grab_API'
-        self.api_major = 1
-        self.api_minor = 0
-        self.api_patch = 0
-        self.api_patchdate = u'20160316'
-        self.api_alfa = True
-        self.api_beta = True
+        self.api_name = api_name
+        self.api_major = api_major
+        self.api_minor = api_minor
+        self.api_patch = api_patch
+        self.api_patchdate = api_patchdate
+        self.api_alfa = api_alfa
+        self.api_beta = api_beta
         try:
            x = self.name
         except AttributeError:
@@ -198,7 +209,7 @@ class Configure:
         self.opt_dict['config_file'] = u'%s/%s.conf' % (self.opt_dict['xmltv_dir'], self.name)
         self.opt_dict['log_file'] = u'%s/%s.log' % (self.opt_dict['xmltv_dir'], self.name)
         self.opt_dict['settings_file'] = u'%s/%s.set' % (self.opt_dict['xmltv_dir'], self.name)
-        self.opt_dict['cache_file'] = u'%s/program_cache' % self.opt_dict['xmltv_dir']
+        self.opt_dict['cache_file'] = u'%s/program_cache3' % self.opt_dict['xmltv_dir']
         self.program_cache = None
         self.clean_cache = True
         self.clear_cache = False

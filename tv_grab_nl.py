@@ -143,8 +143,8 @@ if sys.version_info[:2] >= (3,0):
 
 locale.setlocale(locale.LC_ALL, '')
 
-if tv_grab_config.Configure().version()[1:4] < (1,0,0):
-    sys.stderr.write("tv_grab_nl_py requires tv_grab_config 1.0.0 or higher\n")
+if tv_grab_config.version()[1:4] < (1,0,0):
+    sys.stderr.write("tv_grab_nl_py requires tv_grab_API 1.0.0 or higher\n")
     sys.exit(2)
 
 class Configure(tv_grab_config.Configure):
