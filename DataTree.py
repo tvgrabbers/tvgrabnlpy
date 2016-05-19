@@ -622,7 +622,7 @@ class DATAtree():
 
     def find_start_node(self, data_def=None):
         with self.tree_lock:
-            self.data_def = data_def if isinstance(datadef, dict) else {}
+            self.data_def = data_def if isinstance(data_def, dict) else {}
             if self.print_searchtree:
                 self.print_text('The root Tree:\n')
                 self.start_node.print_tree()
@@ -688,7 +688,7 @@ class DATAtree():
 
     def extract_datalist(self, data_def=None):
         with self.tree_lock:
-            self.data_def = data_def if isinstance(datadef, dict) else {}
+            self.data_def = data_def if isinstance(data_def, dict) else {}
             if self.print_searchtree:
                 self.print_text('The %s Tree:\n' % self.start_node.print_node())
                 self.start_node.print_tree()

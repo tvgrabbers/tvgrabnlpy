@@ -1284,7 +1284,12 @@
 			"that source suplies the chanid, else a virtual chanid is created",
 			"every definition is a list of channels to be merged into this chanid",
 			"It at least contains a chanid, but can also be a dict with next to the chanid a start and end time",
-			"For these times the above 'combined-channels-tz' timezone must be used!"],
+			"If in a definition any times are provided the following rules apply!",
+			"For these times the above 'combined-channels-tz' timezone must be used!",
+			"If start or end time is invalid, it is removed. Next missing start/end times will get replaced by 0:00/24:00",
+			"If the children do overlap, end times will get truncated! So if they allign you can leave out end times,",
+			"but partially leaving out start times will probably result in a cuckoo pushing the other(s) out!",
+			"If you want a child to fill-up certain slots, you can add a slots keyword followed by a list of names"],
 		"11-bbc3": [
 			{"chanid": "5-24443943013", "start": "20:00", "end": "6:30"}],
 		"11-cbbc": [
@@ -1308,7 +1313,7 @@
 			{"chanid": "0-34", "start": "18:00", "end": "4:00"},
 			{"chanid": "0-311", "start": "4:00", "end": "18:00"}],
 		"5-24443943080": ["0-301", "1-cbeebies"],
-		"1-veronica": ["0-34", "0-311"],
+		"1-veronica": [{"chanid": "0-34"}, {"chanid": "0-311", "slots": ["disney xd"]}],
 		"1-ketnet-canvas-2": ["8-ketnet", "8-eenplus"],
 		"1-nickelodeon": ["0-89", "0-467"]},
 	"merge_into":{

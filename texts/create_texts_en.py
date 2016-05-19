@@ -73,6 +73,7 @@ def load_texts():
                 44: u'Unable to continue with configure!\n',
                 45: u'Invalid starttime for %s in combined channel: %s\nRemoving it!',
                 46: u'Invalid endtime for %s in combined channel: %s\nRemoving it!',
+                90: u'Invalid timezone for %s in combined channel: %s\nRemoving it!',
                 47: u'We merged %s into %s\n',
                 48: u'Since both were active, we have not set an alias\n',
                 49: u'If you want to use the old chanid %s as xmltvid\n',

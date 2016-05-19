@@ -1776,6 +1776,11 @@ class Configure:
             if chanid == "--description--":
                 continue
 
+            with_timings = False
+            for child in chanlist:
+                if isinstance(child, dict) and 'chanid' in child and ('start' in child or 'end' in child):
+                    with_timings = True
+
             clist = []
             for child in chanlist:
                 if isinstance(child, dict) and 'chanid' in child:
@@ -1795,10 +1800,10 @@ class Configure:
                             self.log(self.text('config', 46, (child['chanid'], chanid)))
                             del child['end']
 
-                    if 'start' in child and not 'end' in child:
-                        child['end'] = datetime.time(24, 0)
+                    if not 'end' in child and ('start' in child or with_timings):
+                        child['end'] = datetime.time(23, 59)
 
-                    elif 'end' in child and not 'start' in child:
+                    if not 'start' in child and ('end' in child or with_timings):
                         child['start'] = datetime.time(0, 0)
 
                     clist.append(child)
@@ -1806,7 +1811,8 @@ class Configure:
                 elif isinstance(child, (str, unicode)):
                     clist.append({'chanid': child})
 
-            self.combined_channels[chanid] = clist
+            if len(clist) > 0:
+                self.combined_channels[chanid] = clist
 
         #~ if configuring:
             #~ self.opt_dict["data_version"] = dv

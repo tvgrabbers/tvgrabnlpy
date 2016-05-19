@@ -179,7 +179,6 @@
 			"genre":{"funcid":14, "data":[{"varid":1},"genre"]},
 			"subgenre":{"funcid":14, "data":[{"varid":1},"samenvatting"], "max length":25},
 			"credits":{"funcid":5, "data":[{"varid":1}]},
-			
 			"--log-unknown--":{"funcid":11, "data":[{"varid": 12},{"varid": 13}, 
 				["programmanaam","datum en tijd","zender","genre","synopsis","titel aflevering",
 					"nr. aflevering","seizoen","jaar","land","samenvatting","minimumleeftijd","rating"]]}

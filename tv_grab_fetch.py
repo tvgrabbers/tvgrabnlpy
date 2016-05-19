@@ -485,22 +485,17 @@ class Functions():
             return None
     # end get_datetime()
 
-    def merge_date_time(self, time_string, scan_date, tzinfo = None, split_sign = ':', offset = 0, last_time = None):
+    def merge_date_time(self, date_ordinal, date_time, tzinfo = None, as_utc = True):
         if tzinfo == None:
             tzinfo = self.config.utc_tz
 
         try:
-            time_string = re.split(split_sign, time_string)
-            prog_time = datetime.time(int(time_string[0]), int(time_string[1]))
-            while True:
-                time = tzinfo.localize(datetime.datetime.combine(scan_date, prog_time))
-                if last_time == None or time >= last_time:
-                    break
+            rtime = datetime.datetime.combine(datetime.date.fromordinal(date_ordinal), date_time)
+            rtime = tzinfo.localize(rtime)
+            if as_utc:
+                rtime = self.config.utc_tz.normalize(rtime.astimezone(self.config.utc_tz))
 
-                offset += 1
-                scan_date += datetime.timedelta(1)
-
-            return [self.config.utc_tz.normalize(time.astimezone(self.config.utc_tz)), offset, scan_date]
+            return rtime
 
         except:
             return None
@@ -1716,6 +1711,19 @@ class FetchData(Thread):
             self.site_tz = pytz.timezone(self.data_value('site-timezone', str, default = 'utc'))
             self.night_date_switch = self.data_value('night-date-switch', int, default = 0)
             self.item_count = self.data_value(['base', 'default-item-count'], int, default=0)
+            if self.detail_processor:
+                if self.proc_id not in self.config.detail_sources:
+                    self.detail_processor = False
+
+                if self.is_data_value('detail', dict) or self.is_data_value('detail2', dict):
+                    self.detail_keys = list(self.data_value(['detail', 'values'], dict).keys())
+                    self.detail2_keys = list(self.data_value(['detail2', 'values'], dict).keys())
+
+                else:
+                    self.detail_processor = False
+
+            elif self.proc_id in self.config.detail_sources:
+                self.config.detail_sources.remove(self.proc_id)
 
         except:
             traceback.print_exc()
@@ -4728,7 +4736,6 @@ class Channel_Config(Thread):
             if (self.get_source_id(self.opt_dict['prime_source']) != '') \
               and not (self.opt_dict['prime_source'] in self.opt_dict['disable_source']) \
               and not (self.opt_dict['prime_source'] in self.config.opt_dict['disable_source']):
-                #~ if self.get_source_id(self.opt_dict['prime_source']) in self.config.no_genric_matching[self.opt_dict['prime_source']]:
                 if self.get_source_id(self.opt_dict['prime_source']) in self.config.channelsource[self.opt_dict['prime_source']].no_genric_matching:
                     last_merge.append(self.opt_dict['prime_source'])
 
@@ -4740,7 +4747,6 @@ class Channel_Config(Thread):
                   and index != self.opt_dict['prime_source'] \
                   and not (index in self.opt_dict['disable_source']) \
                   and not (index in self.config.opt_dict['disable_source']):
-                    #~ if self.get_source_id(index) in self.config.no_genric_matching[index]:
                     if self.get_source_id(index) in self.config.channelsource[index].no_genric_matching:
                         last_merge.append(index)
 
@@ -4789,19 +4795,21 @@ class Channel_Config(Thread):
                         self.config.log(['\n', self.config.text('fetch', 31, (self.chan_name , self.counter, self.config.chan_count)), \
                             self.config.text('fetch', 32, (cnt, self.config.channelsource[index].source, self.channel_node.program_count(), prime_source_name))], 2)
                         xml_data = True
-                        self.channel_node.merge_source(self.config.channelsource[index].program_data[self.chanid][:], index)
-                        #~ self.config.channelsource[index].merge_sources(self.chanid,  prime_source, self.counter)
-                        #~ self.config.channelsource[index].parse_programs(self.chanid, 1, 'None')
-                        #~ for i in range(0, len(self.all_programs)):
-                            #~ self.all_programs[i] = self.config.fetch_func.checkout_program_dict(self.all_programs[i])
+                        with self.config.channelsource[index].source_lock:
+                            self.channel_node.merge_source(self.config.channelsource[index].program_data[self.chanid][:], index)
+                            #~ self.config.channelsource[index].merge_sources(self.chanid,  prime_source, self.counter)
+                            #~ self.config.channelsource[index].parse_programs(self.chanid, 1, 'None')
+                            #~ for i in range(0, len(self.all_programs)):
+                                #~ self.all_programs[i] = self.config.fetch_func.checkout_program_dict(self.all_programs[i])
 
             if self.chanid in self.config.combined_channels.keys():
                 self.statetext = 'waiting for children'
                 self.state = 3
-                for c in self.config.combined_channels[self.chanid]:
+                for c in self.config.combined_channels[self.chanid][:]:
                     if c['chanid'] in self.config.channels:
                         while not self.config.channels[c['chanid']].child_data.is_set():
                             # Wait till the event is set by the child, but check every 5 seconds for an unexpected break or wether the child is still alive
+                            #~ print 'Waiting for', c['chanid']
                             self.config.channels[c['chanid']].child_data.wait(5)
                             if self.quit:
                                 self.ready = True
@@ -4811,40 +4819,52 @@ class Channel_Config(Thread):
                             if not self.config.channels[c['chanid']].is_alive():
                                 break
 
-                        if len(self.config.channels[c['chanid']].child_programs) == 0:
+                        if not isinstance(self.config.channels[c['chanid']].channel_node, tv_grab_IO.ChannelNode) \
+                          or self.config.channels[c['chanid']].channel_node.program_count() == 0:
                             self.config.log(self.config.text('fetch', 51, (self.config.channels[c['chanid']].chan_name, self.chan_name)))
 
                         elif self.child_data.is_set():
                             # We always merge as there might be restrictions
                             xml_data = True
-                            self.channel_node.add_other_channel()
+                            if self.channel_node == None:
+                                self.channel_node = tv_grab_IO.ChannelNode(self.config, self)
+
+                            print 'adding channel:', c['chanid']
+                            self.channel_node.add_other_channel(self.config.channels[c['chanid']].channel_node)
                             #~ self.config.channelsource[0].merge_sources(self.chanid,  None, self.counter, c)
                             #~ self.config.channelsource[0].parse_programs(self.chanid, 1, 'None')
                             #~ for i in range(0, len(self.all_programs)):
                                 #~ self.all_programs[i] = self.config.fetch_func.checkout_program_dict(self.all_programs[i])
 
-            if self.is_child:
+                if isinstance(self.channel_node, tv_grab_IO.ChannelNode):
+                     #~ and self.channel_node.program_count() > 0
+                    #~ print 'checking lineup'
+                    self.channel_node.check_lineup()
+
+            if self.is_child and not self.active:
                 #~ self.child_programs = deepcopy(self.all_programs) if self.active else self.all_programs
+                #~ print 'setting child_data for', self.chanid
                 self.child_data.set()
-                if not self.active:
-                    self.statetext = ''
-                    self.state = None
-                    self.ready = True
-                    return
+                self.statetext = ''
+                self.state = None
+                #~ self.ready = True
 
             # And get the detailpages
-            if len(self.all_programs) == 0:
+            #~ elif not isinstance(self.channel_node, tv_grab_IO.ChannelNode) or self.channel_node.program_count() == 0:
+            elif len(self.all_programs) == 0:
                 self.statetext = ''
                 self.state = None
                 self.detail_data.set()
 
             else:
                 self.statetext = 'processing details'
+                #~ print 'processing details for ', self.chanid
                 self.state = 4
                 self.get_details()
                 self.statetext = 'waiting for details'
                 self.state = 5
                 while not self.detail_data.is_set():
+                    #~ print 'waiting for details for ', self.chanid
                     self.detail_data.wait(5)
                     if self.quit:
                         self.ready = True
@@ -4871,6 +4891,10 @@ class Channel_Config(Thread):
                         self.config.log([self.config.text('fetch', 52, (log_string, )), self.config.text('fetch', 53, (self.chan_name,))])
 
                 self.all_programs = self.detailed_programs
+
+            if self.is_child:
+                #~ print 'setting active child_data for', self.chanid
+                self.child_data.set()
 
             # And log the results
             with self.functions.count_lock:
