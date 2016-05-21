@@ -7,7 +7,7 @@ from __future__ import unicode_literals
 
 import re, sys, traceback
 import time, datetime, random, difflib
-import httplib, socket, json, DataTree
+import httplib, socket, json, DataTreeGrab
 import requests, pytz, tv_grab_IO
 from threading import Thread, Lock, Semaphore, Event
 from xml.sax import saxutils
@@ -2800,14 +2800,14 @@ class FetchData(Thread):
                 #~ return page
 
             if is_json:
-                searchtree = DataTree.JSONtree(page, self.test_output)
+                searchtree = DataTreeGrab.JSONtree(page, self.test_output)
 
             else:
                 autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
                 if self.data_value([ptype, "enclose-with-html-tag"], bool, default=False):
                     page = u'<html>%s</html>' % page
 
-                searchtree = DataTree.HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
+                searchtree = DataTreeGrab.HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
 
             if ptype in ('base', 'detail', 'detail2'):
                 # We load some values from the definition file into the tree
