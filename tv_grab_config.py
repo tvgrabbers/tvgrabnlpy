@@ -131,7 +131,7 @@ try:
 except NameError:
     unichr = chr    # Python 3
 
-api_name = u'tv_grab_API'
+api_name = u'tv_grab_py_API'
 api_major = 1
 api_minor = 0
 api_patch = 0
