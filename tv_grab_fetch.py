@@ -2811,28 +2811,8 @@ class FetchData(Thread):
 
             if ptype in ('base', 'detail', 'detail2'):
                 # We load some values from the definition file into the tree
-                searchtree.month_names = self.data_value([ptype, "month-names"], list)
-                searchtree.weekdays = self.data_value([ptype, "weekdays"], list)
-                rw = self.data_value([ptype, "relative-weekdays"], dict)
-                self.fetch_date = self.current_date + self.data_value('offset', int, pdata, default=0)
-                for name, index in rw.items():
-                    searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.current_date + index)
-
-                current_weekday = datetime.date.fromordinal(self.fetch_date).weekday()
-                for index in range(len(searchtree.weekdays)):
-                    name = searchtree.weekdays[index]
-                    if index < current_weekday:
-                        searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index + 7 - current_weekday)
-
-                    else:
-                        searchtree.relative_weekdays[name] = datetime.date.fromordinal(self.fetch_date + index - current_weekday)
-
-                searchtree.datetimestring = self.data_value([ptype, "datetimestring"], str)
-                searchtree.time_splitter = self.data_value([ptype, "time-splitter"], str, default = ':')
-                searchtree.date_sequence = self.data_value([ptype, "date-sequence"], list, default = ["y","m","d"])
-                searchtree.date_splitter = self.data_value([ptype, "date-splitter"], str, default = '-')
-                searchtree.timezone = self.site_tz
-                searchtree.value_filters = self.data_value([ptype, "value-filters"], dict)
+                self.source_data[ptype]['timezone'] = self.data_value('site-timezone', str, default = 'utc')
+                searchtree.check_data_def(self.data_value(ptype, dict))
                 if not "channelid" in searchtree.value_filters.keys() or not isinstance(searchtree.value_filters["channelid"], list) :
                     searchtree.value_filters["channelid"] = []
 
@@ -2847,7 +2827,7 @@ class FetchData(Thread):
 
             searchtree.show_result = self.show_parsing
             searchtree.print_searchtree = self.print_roottree
-            searchtree.find_start_node(self.data_value(ptype, dict))
+            searchtree.find_start_node()
             if ptype == 'base' and self.is_data_value([ptype,'data',"today"],list):
                 # We check on the right offset
                 url_type = self.data_value([ptype, "url-type"], int, default = 2)
@@ -2873,7 +2853,7 @@ class FetchData(Thread):
                     return None
 
             searchtree.print_searchtree = self.print_searchtree
-            searchtree.extract_datalist(self.data_value(ptype, dict))
+            searchtree.extract_datalist()
             if self.show_result:
                 #~ self.test_output.write(searchtree.result)
                 #~ self.test_output.write('\n')
