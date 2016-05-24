@@ -378,10 +378,10 @@ class Configure:
                         if isinstance(txt, unicode):
                             return txt
 
-            return self.texts['config']['error'][0]
+            return self.texts['config']['error'][0] % (module, type, tno)
 
         except:
-            return self.texts['config']['error'][-1]
+            return self.texts['config']['error'][-1] % (module, type, tno)
     # end text()
 
     def init_sources(self):

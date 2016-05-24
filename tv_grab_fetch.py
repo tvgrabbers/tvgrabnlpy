@@ -2811,6 +2811,7 @@ class FetchData(Thread):
 
             if ptype in ('base', 'detail', 'detail2'):
                 # We load some values from the definition file into the tree
+                self.fetch_date = self.current_date + self.data_value('offset', int, pdata, default=0)
                 self.source_data[ptype]['timezone'] = self.data_value('site-timezone', str, default = 'utc')
                 searchtree.check_data_def(self.data_value(ptype, dict))
                 if not "channelid" in searchtree.value_filters.keys() or not isinstance(searchtree.value_filters["channelid"], list) :
@@ -4771,9 +4772,6 @@ class Channel_Config(Thread):
 
                     else:
                         # There is already data, so we merge the incomming data into that
-                        cnt = len(self.config.channelsource[index].program_data[self.chanid])
-                        self.config.log(['\n', self.config.text('fetch', 31, (self.chan_name , self.counter, self.config.chan_count)), \
-                            self.config.text('fetch', 32, (cnt, self.config.channelsource[index].source, self.channel_node.program_count(), prime_source_name))], 2)
                         xml_data = True
                         with self.config.channelsource[index].source_lock:
                             self.channel_node.merge_source(self.config.channelsource[index].program_data[self.chanid][:], index)
@@ -4810,7 +4808,7 @@ class Channel_Config(Thread):
                                 self.channel_node = tv_grab_IO.ChannelNode(self.config, self)
 
                             print 'adding channel:', c['chanid']
-                            self.channel_node.add_other_channel(self.config.channels[c['chanid']].channel_node)
+                            self.channel_node.merge_channel(self.config.channels[c['chanid']].channel_node)
                             #~ self.config.channelsource[0].merge_sources(self.chanid,  None, self.counter, c)
                             #~ self.config.channelsource[0].parse_programs(self.chanid, 1, 'None')
                             #~ for i in range(0, len(self.all_programs)):

@@ -1581,7 +1581,11 @@ class ChannelNode():
             self.config = config
             self.channel_config = channel_config
             self.chanid = channel_config.chanid
-            self.current = {}
+            self.name = channel_config.chan_name
+            self.shortname = self.name[:15] if len(self.name) > 15 else self.name
+            self.current_stats = {}
+            self.adding_stats = {}
+            self.merge_stats = {}
             if not self.chanid in self.config.channels.keys():
                 return
 
@@ -1658,6 +1662,7 @@ class ChannelNode():
                                 if isinstance(gs, (str, unicode)):
                                     self.groupslot_names.append(re.sub('[-,. ]', '', self.config.fetch_func.remove_accents(gs).lower().strip()))
 
+            self.merge_type = None
             if source in self.config.channelsource.keys():
                 self.prime_source = source
                 self.merge_source(programs, source)
@@ -1676,6 +1681,122 @@ class ChannelNode():
             self.stop = None
             self.first_node = None
             self.last_node = None
+
+    def save_current_stats(self):
+        with self.node_lock:
+            self.current_stats['start'] = self.start
+            self.current_stats['stop'] = self.stop
+            self.current_stats['count'] = self.program_count()
+            self.current_stats['groups'] = len(self.group_slots)
+            self.current_stats['start-str'] = self.start.strftime('%d-%b %H:%M') if isinstance(self.start, datetime.datetime) else ''
+            self.current_stats['stop-str'] = self.stop.strftime('%d-%b %H:%M') if isinstance(self.stop, datetime.datetime) else ''
+            return self.current_stats
+
+    def get_adding_stats(self, programs, group_slots = None):
+        with self.node_lock:
+            if isinstance(programs, ChannelNode):
+                self.adding_stats = programs.save_current_stats()
+                if self.adding_stats['count'] == 0:
+                    return False
+
+                else:
+                    return True
+
+            elif len(programs) == 0:
+                return False
+
+            else:
+                self.adding_stats['count'] = len(programs)
+                self.adding_stats['groups'] = 0
+                try:
+                    if isinstance(programs[0], ProgramNode):
+                        programs.sort(key=lambda program: (program.start))
+                        self.adding_stats['start'] = programs[0].start
+                        self.adding_stats['stop'] = programs[-1].stop
+                        if group_slots != None and len(group_slots) > 0:
+                            self.adding_stats['groups'] = len(group_slots)
+                            self.adding_stats['count'] += self.adding_stats['groups']
+                            group_slots.sort(key=lambda program: (program.start))
+                            if group_slots[0].start < self.adding_stats['start']:
+                                self.adding_stats['start'] = group_slots[0].start
+
+                            if group_slots[0].stop > self.adding_stats['stop']:
+                                self.adding_stats['stop'] = group_slots[0].stop
+
+                    else:
+                        programs.sort(key=lambda program: (program['start-time']))
+                        self.adding_stats['start'] = programs[0]['start-time']
+                        self.adding_stats['stop'] = programs[-1]['stop-time']
+
+                    self.adding_stats['start-str'] = self.adding_stats['start'].strftime('%d-%b %H:%M') if isinstance(self.adding_stats['start'], datetime.datetime) else ''
+                    self.adding_stats['stop-str'] = self.adding_stats['stop'].strftime('%d-%b %H:%M') if isinstance(self.adding_stats['stop'], datetime.datetime) else ''
+                    return True
+
+                except:
+                    self.adding_stats['start'] = None
+                    self.adding_stats['stop'] = None
+                    self.adding_stats['count'] = 0
+                    self.adding_stats['groups'] = 0
+                    return False
+
+    def init_merge_stats(self):
+        with self.node_lock:
+            self.merge_stats['new'] = 0
+            self.merge_stats['matched'] = 0
+            self.merge_stats['groupslot'] = 0
+            self.merge_stats['unmatched'] = 0
+            self.merge_stats['genre'] = 0
+
+    def add_stat(self, type = 'matched', addcnt = 1):
+        with self.node_lock:
+            if not type in self.merge_stats:
+                self.merge_stats[type] = 0
+
+            self.merge_stats[type] += addcnt
+
+            if self.merge_stats[type] < 0:
+                self.merge_stats[type] = 0
+
+    def log_merge_statistics(self, source):
+        with self.node_lock:
+            # merge_types
+            # 0/1 adding/merging
+            # 0/2/4 source/filtered channel/unfiltered channel
+            self.merge_stats['new'] -= self.merge_stats['groupslot']
+            if self.merge_type & 1:
+                mtype = self.config.text('IO', 2, type = 'stats')
+
+            else:
+                mtype = self.config.text('IO', 1, type = 'stats')
+
+            log_array = ['\n']
+            if isinstance(source, ChannelNode):
+                addingid = source.chanid
+                addingname = source.shortname
+                stype = self.config.text('IO', 6, type = 'stats')
+
+            else:
+                addingid = source
+                addingname = self.config.channelsource[source].source
+                stype = self.config.text('IO', 5, type = 'stats')
+
+            log_array.append(self.config.text('IO', 9, \
+                (mtype, self.name , self.channel_config.counter, self.config.chan_count, stype, addingname), 'stats'))
+            log_array.append(self.config.text('IO', 10, \
+                (self.current_stats['count'], self.current_stats['groups'], self.shortname.ljust(15), self.current_stats['start-str'], self.current_stats['stop-str']), 'stats'))
+            log_array.append(self.config.text('IO', 11, \
+                (self.adding_stats['count'], addingname.ljust(15), self.adding_stats['start-str'], self.adding_stats['stop-str']), 'stats'))
+            log_array.append('\n')
+            log_array.append(self.config.text('IO', 12, (self.merge_stats['new'], ), 'stats'))
+            log_array.append(self.config.text('IO', 13, (self.merge_stats['genre'], ), 'stats'))
+            log_array.append(self.config.text('IO', 14, (self.merge_stats['matched'], ), 'stats'))
+            log_array.append(self.config.text('IO', 15, (self.merge_stats['groupslot'], ), 'stats'))
+            log_array.append(self.config.text('IO', 16, (self.merge_stats['unmatched'], addingname), 'stats'))
+            log_array.append(self.config.text('IO', 17, (self.program_count(), len(self.group_slots)), 'stats'))
+            log_array.append(self.config.text('IO', 18, (len(self.programs_with_no_genre), ), 'stats'))
+            log_array.append('\n')
+            self.config.log(log_array, 4, 3)
+            self.merge_type = None
 
     def program_count(self):
         return len(self.programs)
@@ -1719,7 +1840,7 @@ class ChannelNode():
 
         #Is it a valid source or does It look like a a channel merge
         if isinstance(programs, ChannelNode):
-            self.add_other_channel(programs)
+            self.merge_channel(programs)
             return
 
         # Is programs empty or is the source invalid?
@@ -1727,9 +1848,18 @@ class ChannelNode():
             return
 
         with self.node_lock:
-            programs.sort(key=lambda program: (program['start-time']))
+            self.save_current_stats()
+            self.init_merge_stats()
+            if not self.get_adding_stats(programs):
+                return
+
             # Is this the first source?
             if self.program_count() == 0:
+                self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 3, type='stats'), \
+                    self.adding_stats['count'], self.config.channelsource[source].source, self.current_stats['count'], self.name), 'stats'), \
+                    self.config.text('IO', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+
+                self.merge_type = 0
                 last_stop = self.start
                 previous_node = None
                 for index in range(len(programs)):
@@ -1773,25 +1903,20 @@ class ChannelNode():
 
                 self.last_node = previous_node
                 self.stop = last_stop
-                self.current['start'] = self.start
-                self.current['stop'] = self.stop
-                self.current['count'] = self.program_count()
-                self.current['groups'] = len(self.group_slots)
+                self.adding_stats['groups'] = len(self.group_slots)
 
             else:
+                self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 4, type='stats'), \
+                    self.adding_stats['count'], self.config.channelsource[source].source, self.current_stats['count'], self.name), 'stats'), \
+                    self.config.text('IO', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+
+                self.merge_type = 1
                 group_slots = []
                 add_to_start = []
                 add_to_end = []
                 unmatched = []
 
                 # first we do some general renaming and filter out the groupslots
-                self.adding = {}
-                self.adding['start-count'] = len(programs)
-                self.adding['start'] = programs[0]['start-time']
-                self.adding['stop'] = programs[-1]['stop-time']
-                self.adding['matched'] = 0
-                self.adding['groupslot'] = 0
-                self.adding['outside'] = 0
                 for p in programs[:]:
                     if p['name'].lower().strip() in self.config.channelprogram_rename[self.chanid].keys():
                         p['name'] = self.config.channelprogram_rename[self.chanid][p['name'].lower().strip()]
@@ -1803,7 +1928,7 @@ class ChannelNode():
                         programs.remove(p)
                         continue
 
-                self.adding['groups'] = len(group_slots)
+                self.adding_stats['groups'] = len(group_slots)
                 programs.sort(key=lambda program: (program['start-time']))
                 # Try matching on time and name or check if it falls into a groupslot, a gap or outside the range
                 for index in range(len(programs)):
@@ -1816,7 +1941,7 @@ class ChannelNode():
                                 #~ pass
 
                             self.programs_by_start[mstart].add_source_data(programs[index], source)
-                            self.adding['matched'] += 1
+                            self.add_stat('matched', 1)
                             break
 
                     else:
@@ -1829,6 +1954,7 @@ class ChannelNode():
                     for index in range(len(group_slots)):
                         check_gaps(group_slots[index], True)
 
+                self.add_stat('unmatched', len(unmatched))
                 # And add any program found new
                 for gs in self.group_slots[:]:
                     self.fill_group(gs)
@@ -1841,8 +1967,9 @@ class ChannelNode():
             # Finally we check if we can add any genres
             self.check_on_missing_genres()
             # Matching on genre
+            self.log_merge_statistics(source)
 
-    def add_other_channel(self, chan_node):
+    def merge_channel(self, channode):
         def add_to_list(dlist, pn):
             if pn.channode != self:
                 pn = pn.copy(self)
@@ -1855,7 +1982,6 @@ class ChannelNode():
                   or gs.gs_start() <= pn.stop <= gs.gs_stop():
                     # if the groupslot is not detailed we only mark it matched
                     if add_always or len(gs.gs_detail) > 0:
-                        print pn.print_start_name(), 'matched in gs', gs.print_start_name()
                         add_to_list(gs.gs_detail, pn)
 
                     break
@@ -1863,12 +1989,10 @@ class ChannelNode():
             else:
                 # Check if it falls outside current range
                 if pn.start < self.start:
-                    print 'added', pn.print_start_name()
                     add_to_list(add_to_start, pn)
                     return
 
                 if pn.stop > self.stop:
-                    print 'added', pn.print_start_name()
                     add_to_list(add_to_end, pn)
                     return
 
@@ -1876,52 +2000,42 @@ class ChannelNode():
                     if pgap.start <= pn.start <= pgap.stop \
                       or pgap.start <= pn.stop <= pgap.stop:
                         # It falls into a gap
-                        print 'added to gap', pn.print_start_name()
                         add_to_list(pgap.gap_detail, pn)
                         break
 
                 else:
                     # Unmatched
-                    print 'unmatched', pn.print_start_name()
                     unmatched.append(pn)
 
-        if not isinstance(chan_node, ChannelNode) or chan_node.program_count == 0:
+        if not isinstance(channode, ChannelNode) or channode.program_count == 0:
             return
 
         with self.node_lock:
-            self.adding = {}
-            self.adding['start-count'] = chan_node.program_count()
-            self.adding['start'] = chan_node.start
-            self.adding['stop'] = chan_node.stop
-            self.adding['matched'] = 0
-            self.adding['groupslot'] = 0
-            self.adding['outside'] = 0
+            self.save_current_stats()
+            self.init_merge_stats()
             programs = []
             group_slots = []
             add_to_start = []
             add_to_end = []
             unmatched = []
-            pnode = chan_node.first_node
+            pnode = channode.first_node
             if len(self.child_times) > 0:
-                print 'filtering the nodes'
                 # We filter the nodes
+                self.merge_type = 2
                 for pzone in self.child_times:
-                    if pzone['chanid'] == chan_node.chanid:
+                    if pzone['chanid'] == channode.chanid:
                         while True:
                             if not isinstance(pnode, ProgramNode):
                                 # We reached the last node
-                                print 'last node'
                                 break
 
                             if pnode.stop <= pzone['start']:
                                 # Before the zone
-                                print 'to early', pnode.print_start_name()
                                 pnode = pnode.next
                                 continue
 
                             if pnode.start >= pzone['stop']:
                                 # We passed the zone, so go to the next
-                                print 'to late', pnode.print_start_name()
                                 break
 
                             # Copy the node
@@ -1933,7 +2047,6 @@ class ChannelNode():
                             if cnode.stop >pzone['stop']:
                                 # Truncate the end add the node and move to the next zone
                                 cnode.adjust_stop(pzone['stop'])
-                                print 'adding and breaking', cnode.print_start_name()
                                 if cnode.is_groupslot:
                                     group_slots.append(cnode)
 
@@ -1943,7 +2056,6 @@ class ChannelNode():
                                 break
 
                             # Add the node
-                            print 'adding', cnode.print_start_name()
                             if cnode.is_groupslot:
                                 group_slots.append(cnode)
 
@@ -1955,10 +2067,12 @@ class ChannelNode():
 
                     if not isinstance(pnode, ProgramNode):
                         # We reached the last node
-                        print 'last node'
                         break
+                self.get_adding_stats(programs, group_slots)
 
             else:
+                self.merge_type = 4
+                self.get_adding_stats(channode)
                 while isinstance(pnode, ProgramNode):
                     if pnode.is_groupslot:
                         group_slots.append(pnode)
@@ -1968,12 +2082,14 @@ class ChannelNode():
 
                     pnode = pnode.next
 
-            print 'start count', self.program_count(), 'programs'
             if self.program_count() == 0:
                 # We add
+                self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 3, type='stats'), \
+                    self.adding_stats['count'], channode.name, self.current_stats['count'], self.name), 'stats'), \
+                    self.config.text('IO', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+
                 programs.extend(group_slots)
                 programs.sort(key=lambda pnode: (pnode.start))
-                print 'Adding', len(programs), 'nodes'
                 self.first_node = programs[0]
                 self.last_node = programs[-1]
                 self.start = self.first_node.start
@@ -1989,8 +2105,12 @@ class ChannelNode():
 
             else:
                 # Try matching on time and name or check if it falls into a groupslot, a gap or outside the range
+                self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 4, type='stats'), \
+                    self.adding_stats['count'], channode.name, self.current_stats['count'], self.name), 'stats'), \
+                    self.config.text('IO', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+
+                self.merge_type += 1
                 programs.sort(key=lambda pnode: (pnode.start))
-                print 'Merging', len(programs) + len(group_slots), 'nodes'
                 for index in range(len(programs)):
                     for check in self.checkrange:
                         mstart = programs[index].start + datetime.timedelta(0, 0, 0, 0, check)
@@ -2000,9 +2120,8 @@ class ChannelNode():
                             #~ if l_diff >1.2 or l_diff < 1.2:
                                 #~ pass
 
-                            print 'matched', programs[index].print_start_name()
                             self.programs_by_start[mstart].add_node_data(programs[index])
-                            self.adding['matched'] += 1
+                            self.add_stat('matched', 1)
                             break
 
                     else:
@@ -2015,6 +2134,7 @@ class ChannelNode():
                     for index in range(len(group_slots)):
                         check_gaps(group_slots[index])
 
+                self.add_stat('unmatched', len(unmatched))
                 # And add any program found new
                 for gs in self.group_slots[:]:
                     self.fill_group(gs)
@@ -2024,9 +2144,9 @@ class ChannelNode():
                 for pgap in self.program_gaps[:]:
                     self.fill_group(pgap)
 
-            print 'end count', self.program_count(), 'programs'
             # Finally we check if we can add any genres
             self.check_on_missing_genres()
+            self.log_merge_statistics(channode)
 
     def check_lineup(self, overlap_strategy = None):
         #~ self.channel_config.opt_dict['max_overlap']
@@ -2061,35 +2181,38 @@ class ChannelNode():
     def fill_group(self, pgrp):
         with self.node_lock:
             if isinstance(pgrp, ProgramNode):
-                self.adding['groupslot'] += len(pgrp.gs_detail)
+                if len(pgrp.gs_detail) == 0:
+                    return
+
+                self.add_stat('groupslot', len(pgrp.gs_detail))
                 gtype = 'gs'
                 gdetail = pgrp.gs_detail
                 gprevious = pgrp.previous
                 gnext = pgrp.next
 
             elif isinstance(pgrp, GapNode):
-                self.adding['outside'] += len(pgrp.gap_detail)
+                if len(pgrp.gap_detail) == 0:
+                    return
+
                 gtype = 'gap'
                 gdetail = pgrp.gap_detail
                 gprevious = pgrp.previous
                 gnext = pgrp.next
 
             elif isinstance(pgrp, list):
+                if len(pgrp) == 0:
+                    return
+
                 for pn in pgrp:
                     if not isinstance(pn, ProgramNode):
                         return
 
-                self.adding['outside'] += len(pgrp)
                 gtype = 'list'
                 gdetail = pgrp
                 gprevious = None
                 gnext = None
 
             else:
-                return
-
-            if len(gdetail) == 0:
-                # Nothing was found there
                 return
 
             # We replace the group with the details
@@ -2173,6 +2296,7 @@ class ChannelNode():
         with self.node_lock:
             if not pn in self.programs:
                 self.programs.append(pn)
+                self.add_stat('new', 1)
 
             # Check if it has a groupslot name
             if pn.match_name in self.groupslot_names:
@@ -2214,6 +2338,7 @@ class ChannelNode():
                         for pg in pl:
                             pg.set_value('genre', pn.get_value('genre'))
                             pg.set_value('subgenre', pn.get_value('subgenre'))
+                            self.add_stat('genre', 1)
 
                         name_remove.append(k)
                         break
