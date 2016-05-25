@@ -2129,7 +2129,7 @@ class ChannelNode():
 
                 # Check if any new groupslot falls in a detailed groupslot or outside current range or in gaps
                 if len(group_slots) > 0:
-                    self.program_gaps.sort(key=lambda program: (program['start-time']))
+                    self.program_gaps.sort(key=lambda program: (program.start))
                     group_slots.sort(key=lambda program: (program.start))
                     for index in range(len(group_slots)):
                         check_gaps(group_slots[index])
@@ -2373,24 +2373,9 @@ class ProgramNode():
             self.gs_detail = []
             self.tdict = {}
             self.matchobject = difflib.SequenceMatcher(isjunk=lambda x: x in " '\",.-/", autojunk=False)
+            self.first_source = True
             if isinstance(data, dict):
-                self.start = data['start-time'].replace(second = 0, microsecond = 0)
-                if 'stop-time' in data and isinstance(data['stop-time'], datetime.datetime):
-                    self.stop = data['stop-time'].replace(second = 0, microsecond = 0)
-                    self.length = self.stop - self.start
-
-                elif 'length'  in data and isinstance(data['length'], datetime.timedelta):
-                    self.length = data['length']
-                    self.stop = (self.start + self.length).replace(second = 0, microsecond = 0)
-
-                else:
-                    self.is_valid = False
-                    return
-
-                self.name = data['name']
-                self.match_name = re.sub('[-,. ]', '', self.config.fetch_func.remove_accents(data['name']).lower()).strip()
-                self.add_source_data(data, source)
-                self.is_valid = True
+                self.is_valid =  self.add_source_data(data, source)
 
             else:
                 self.is_valid = False
@@ -2467,40 +2452,56 @@ class ProgramNode():
             return
 
         with self.node_lock:
-            # Check if the new source is longer and if so extend over any gap
-            start_diff = (self.start - data['start-time']).total_seconds() / 60
-            if start_diff > 0:
-                if self.previous_gap != None:
-                    if data['start-time'] <= self.previous_gap.start:
-                        # We add the gap to the program
-                        self.adjust_start(self.previous_gap.start.replace(second = 0, microsecond = 0))
-                        self.channode.remove_gap(self.previous_gap)
+            if self.first_source:
+                self.start = data['start-time'].replace(second = 0, microsecond = 0)
+                if 'stop-time' in data and isinstance(data['stop-time'], datetime.datetime):
+                    self.stop = data['stop-time'].replace(second = 0, microsecond = 0)
+                    self.length = self.stop - self.start
 
-                    else:
-                        # We reduce the gap
+                elif 'length'  in data and isinstance(data['length'], datetime.timedelta):
+                    self.length = data['length']
+                    self.stop = (self.start + self.length).replace(second = 0, microsecond = 0)
+
+                else:
+                    return False
+
+                self.name = data['name']
+                self.match_name = re.sub('[-,. ]', '', self.config.fetch_func.remove_accents(data['name']).lower()).strip()
+            else:
+                # Check if the new source is longer and if so extend over any gap
+                start_diff = (self.start - data['start-time']).total_seconds() / 60
+                if start_diff > 0:
+                    if self.previous_gap != None:
+                        if data['start-time'] <= self.previous_gap.start:
+                            # We add the gap to the program
+                            self.adjust_start(self.previous_gap.start.replace(second = 0, microsecond = 0))
+                            self.channode.remove_gap(self.previous_gap)
+
+                        else:
+                            # We reduce the gap
+                            self.adjust_start(data['start-time'].replace(second = 0, microsecond = 0))
+                            self.previous_gap.adjust_stop(self.start)
+
+                    elif self.previous == None and start_diff < self.channel_config.opt_dict['max_overlap']:
+                        # It's the first program
                         self.adjust_start(data['start-time'].replace(second = 0, microsecond = 0))
-                        self.previous_gap.adjust_stop(self.start)
 
-                elif self.previous == None and start_diff < self.channel_config.opt_dict['max_overlap']:
-                    # It's the first program
-                    self.adjust_start(data['start-time'].replace(second = 0, microsecond = 0))
+                stop_diff = (data['stop-time'] - self.stop).total_seconds() / 60
+                if stop_diff > 0:
+                    if self.next_gap != None:
+                        if data['stop-time'] >= self.next_gap.stop:
+                            # We add the gap to the program
+                            self.adjust_stop(self.next_gap.stop.replace(second = 0, microsecond = 0))
+                            self.channode.remove_gap(self.next_gap)
 
-            stop_diff = (data['stop-time'] - self.stop).total_seconds() / 60
-            if stop_diff > 0:
-                if self.next_gap != None:
-                    if data['stop-time'] >= self.next_gap.stop:
-                        # We add the gap to the program
-                        self.adjust_stop(self.next_gap.stop.replace(second = 0, microsecond = 0))
-                        self.channode.remove_gap(self.next_gap)
+                        else:
+                            # We reduce the gap
+                            self.adjust_stop(data['stop-time'].replace(second = 0, microsecond = 0))
+                            self.next_gap.adjust_start(self.stop)
 
-                    else:
-                        # We reduce the gap
+                    elif self.next == None and stop_diff < self.channel_config.opt_dict['max_overlap']:
+                        # It's the last program
                         self.adjust_stop(data['stop-time'].replace(second = 0, microsecond = 0))
-                        self.next_gap.adjust_start(self.stop)
-
-                elif self.next == None and stop_diff < self.channel_config.opt_dict['max_overlap']:
-                    # It's the last program
-                    self.adjust_stop(data['stop-time'].replace(second = 0, microsecond = 0))
 
             self.length = self.stop - self.start
             # Check for allowed key values
@@ -2513,6 +2514,9 @@ class ProgramNode():
                 elif k in self.channode.key_list:
                     self.set_value(k, v, source)
 
+            self.first_source = False
+            return True
+
     def add_node_data(self, pnode):
         if not isinstance(pnode, ProgramNode):
             return
@@ -2520,6 +2524,8 @@ class ProgramNode():
         with self.node_lock:
             for k, v in pnode.tdict.items():
                 pass
+
+            self.first_source = False
 
     def set_value(self, key, value, source=None):
         def add_value(value):
@@ -2841,6 +2847,7 @@ class ProgramNode():
             new_pnode.match_name = copy.copy(self.match_name)
             new_pnode.is_groupslot = self.is_groupslot
             new_pnode.gs_detail = copy.deepcopy(self.gs_detail)
+            new_pnode.first_source = False
             new_pnode.is_valid = True
             return new_pnode
 
@@ -3429,7 +3436,7 @@ class XMLoutput():
         Compound the compleet XML output and return it
         '''
         if self.config.output == None:
-            startstring =[u'<?xml version="1.0" encoding="%s"?>\n' % logging.local_encoding]
+            startstring =[u'<?xml version="1.0" encoding="%s"?>\n' % self.config.logging.local_encoding]
 
         else:
             startstring =[u'<?xml version="1.0" encoding="%s"?>\n' % self.xmlencoding]
@@ -3468,7 +3475,7 @@ class XMLoutput():
 
         if xml != None:
             if self.config.output == None:
-                sys.stdout.write(xml.encode(logging.local_encoding, 'replace'))
+                sys.stdout.write(xml.encode(self.config.logging.local_encoding, 'replace'))
 
             else:
                 self.config.output.write(xml)

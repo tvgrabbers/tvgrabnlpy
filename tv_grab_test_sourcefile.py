@@ -8,7 +8,9 @@ from __future__ import unicode_literals
 # Modules we need
 import sys, locale, traceback, json
 import time, datetime, pytz
-import tv_grab_config, tv_grab_fetch
+import tvgrabpyAPI
+import tvgrabpyAPI.tv_grab_fetch as tv_grab_fetch
+
 try:
     unichr(42)
 except NameError:
@@ -16,24 +18,24 @@ except NameError:
 
 # check Python version
 if sys.version_info[:3] < (2,7,9):
-    sys.stderr.write("tv_grab_nl_py requires Pyton 2.7.9 or higher\n")
+    sys.stderr.write("tv_grab_nl_API requires Pyton 2.7.9 or higher\n")
     sys.exit(2)
 
 if sys.version_info[:2] >= (3,0):
-    sys.stderr.write("tv_grab_nl_py does not yet support Pyton 3 or higher.\nExpect errors while we proceed\n")
+    sys.stderr.write("tv_grab_nl_API does not yet support Pyton 3 or higher.\nExpect errors while we proceed\n")
 
 locale.setlocale(locale.LC_ALL, '')
 
-if tv_grab_config.Configure().version()[1:4] < (1,0,0):
-    sys.stderr.write("tv_grab_nl_py requires tv_grab_config 1.0.0 or higher\n")
+if tvgrabpyAPI.version()[1:4] < (1,0,0):
+    sys.stderr.write("tv_grab_nl3_py requires tv_grab_nl_API 1.0.0 or higher\n")
     sys.exit(2)
 
-class Configure(tv_grab_config.Configure):
+class Configure(tvgrabpyAPI.Configure):
     def __init__(self):
-        self.name ='tv_grab_nl_py'
+        self.name ='tv_grab_nl3_py'
         self.datafile = 'tv_grab_nl.json'
         self.compat_text = '.tvgids.nl'
-        tv_grab_config.Configure.__init__(self)
+        tvgrabpyAPI.Configure.__init__(self)
         # Version info as returned by the version function
         self.country = 'The Netherlands'
         self.description = 'Dutch/Flemish grabber combining multiple sources.'
@@ -75,19 +77,22 @@ def main():
                 #~ first_day -= 7
             #~ print weekday, first_day, datetime.date.fromordinal(current_date + first_day).strftime('%Y%m%d')
 
+        config.validate_option('config_file')
+        config.get_sourcematching_file()
+
 
         #~ channel ='een'
         #~ source = tv_grab_fetch.FetchData(config, 11, 'source-virtual.nl')
 
-        channel = 'npo-radio-1'
-        source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
+        #~ channel = 'npo-radio-1'
+        #~ source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
         #~ source = tv_grab_fetch.FetchData(config, 2, 'source-rtl.nl')
         #~ channel ='een'
         #~ source = tv_grab_fetch.FetchData(config, 8, 'source-nieuwsblad.be')
         #~ source = tv_grab_fetch.FetchData(config, 7, 'source-vpro.nl', 2)
         #~ source = tv_grab_fetch.FetchData(config, 4, 'source-npo.nl', 1)
-        #~ channel ='24443943184'
-        #~ source = tv_grab_fetch.FetchData(config, 5, 'source-horizon.tv', 1)
+        channel ='24443943146'
+        source = tv_grab_fetch.FetchData(config, 5, 'source-horizon.tv', 1)
         #~ source = tv_grab_fetch.FetchData(config, 6, 'source-humo.be', 1)
         #~ channel ='O8'
         #~ source = tv_grab_fetch.FetchData(config, 10, 'source-vrt.be', 1)
@@ -100,13 +105,10 @@ def main():
         #~ channel ='een'
         #~ source= tv_grab_fetch.FetchData(config, 9, 'source-primo.eu', 1)
 
-        config.validate_option('config_file')
-        config.get_sourcematching_file()
-
         source.test_output = sys.stdout
         #~ source.print_tags = True
         #~ source.print_roottree = True
-        #~ source.show_parsing = True
+        source.show_parsing = True
         source.print_searchtree = True
         source.show_result = True
 

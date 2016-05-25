@@ -950,7 +950,8 @@ class Functions():
                         if k.lower().strip() in self.config.roletrans.keys():
                             continue
 
-                        self.config.infofiles.addto_detail_list(u'new %s dataitem %s => %s' % (source.source, k, v))
+                        if self.config.write_info_files:
+                            self.config.infofiles.addto_detail_list(u'new %s dataitem %s => %s' % (source.source, k, v))
 
             # Return unlisted values to infofiles in a fid 10 list set
             if fid == 11:
@@ -1684,7 +1685,7 @@ class FetchData(Thread):
 
         self.source_data = {}
         try:
-            fle = self.config.IO_func.open_file('%s/sources/%s.json' % (sys.path[0], data_file), 'r', 'utf-8')
+            fle = self.config.IO_func.open_file('%s/%s.json' % (config.source_dir, data_file), 'r', 'utf-8')
             self.source_data = json.load(fle)
             self.source = self.data_value('name', str)
             self.config.sourceid_by_name[self.source] = self.proc_id
@@ -2181,7 +2182,8 @@ class FetchData(Thread):
 
             self.parse_programs(chanid, 0, 'None')
             try:
-                self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
+                if self.config.write_info_files:
+                    self.config.infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.config.channels[chanid].chan_name, self.proc_id)
 
             except:
                 traceback.print_exc()
@@ -2615,10 +2617,11 @@ class FetchData(Thread):
                 if not 'prog_ID' in values.keys():
                     values['prog_ID'] = ''
                 if  not 'name' in values.keys() or values['name'] == None or values['name'] == '':
-                    self.config.log(self.config.text('sources', 6, (values['prog_ID'], self.config.channels[chanid].chan_name, self.source)))
-                    continue
+                    # Give it the Unknown Program Title Name, to mark it as a groupslot.
+                    values['name'] = self.config.unknown_program_title
+                    #~ self.config.log(self.config.text('sources', 6, (values['prog_ID'], self.config.channels[chanid].chan_name, self.source)))
+                    #~ continue
 
-                #~ tdict = self.functions.checkout_program_dict()
                 tdict = {}
                 tdict['source'] = self.source
                 tdict['channelid'] = chanid
@@ -2641,6 +2644,7 @@ class FetchData(Thread):
                 elif self.data_value(["base", "data-format"], str) == "text/html" and isinstance(last_stop, datetime.datetime):
                     tdict['start-time'] = last_stop
                 else:
+                    # Unable to determin a Start Time
                     self.config.log(self.config.text('sources', 7, (values['name'], tdict['channel'], self.source)))
                     continue
 
@@ -2809,11 +2813,11 @@ class FetchData(Thread):
 
                 searchtree = DataTreeGrab.HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
 
+            self.source_data[ptype]['timezone'] = self.data_value('site-timezone', str, default = 'utc')
+            searchtree.check_data_def(self.data_value(ptype, dict))
             if ptype in ('base', 'detail', 'detail2'):
                 # We load some values from the definition file into the tree
                 self.fetch_date = self.current_date + self.data_value('offset', int, pdata, default=0)
-                self.source_data[ptype]['timezone'] = self.data_value('site-timezone', str, default = 'utc')
-                searchtree.check_data_def(self.data_value(ptype, dict))
                 if not "channelid" in searchtree.value_filters.keys() or not isinstance(searchtree.value_filters["channelid"], list) :
                     searchtree.value_filters["channelid"] = []
 
@@ -4595,7 +4599,8 @@ class FetchData(Thread):
 
         self.config.channels[chanid].all_programs = matched_programs
         try:
-            self.config.infofiles.write_fetch_list(matched_programs, chanid, other_source_name, self.config.channels[chanid].chan_name, None, True)
+            if self.config.write_info_files:
+                self.config.infofiles.write_fetch_list(matched_programs, chanid, other_source_name, self.config.channels[chanid].chan_name, None, True)
 
         except:
             pass
@@ -4807,7 +4812,6 @@ class Channel_Config(Thread):
                             if self.channel_node == None:
                                 self.channel_node = tv_grab_IO.ChannelNode(self.config, self)
 
-                            print 'adding channel:', c['chanid']
                             self.channel_node.merge_channel(self.config.channels[c['chanid']].channel_node)
                             #~ self.config.channelsource[0].merge_sources(self.chanid,  None, self.counter, c)
                             #~ self.config.channelsource[0].parse_programs(self.chanid, 1, 'None')

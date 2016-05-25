@@ -32,20 +32,17 @@
 				{"key-path":[
 					{"tag":"tr"},
 					{"tag":"td", "attrs":{"class":"pgMenuInhoud"}},
-					{"tag":"a"},
-					{"tag":"img", "attrs":{"src":"/img/WMP.gif"}}
+					{"tag":"p", "attrs":{"class":"pnZender"}}
 					],
 				"values":[
-					[{"path":"parent","attr":"href","split":[["/",2]],"type":"lower-ascii"}],
 					[{"path":"parent"},
-						{"path":"parent"},
-						{"tag":"p"}],
+						{"tag":"a", "attr":"href", "first":"","split":[["/",2]],"type":"lower-ascii"}],
 					[{"value":11}]
 					]}]},
 		"values":{
 			"channelid":{"varid": 1, "type":"str"},
-			"name":{"funcid":0, "data":[{"varid": 2}]},
-			"group":{"varid": 3},
+			"name":{"funcid":0, "data":[{"varid": 0}]},
+			"group":{"varid": 2},
 			"icon":null,
 			"icongrp":null,
 			"HD":null}},
