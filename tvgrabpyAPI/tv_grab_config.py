@@ -181,17 +181,23 @@ class Configure:
         from tvgrabpyAPI import __path__
         self.api_path = __path__[0]
         self.opt_dict['home_dir'] = ''
+        self.opt_dict['etc_dir'] = u'/etc/tvgrabpyAPI'
+        self.opt_dict['var_dir'] = u'/var/lib/tvgrabpyAPI'
+        self.source_dir =  self.opt_dict['var_dir']
         if 'HOME' in os.environ:
             self.opt_dict['home_dir'] = os.environ['HOME']
         elif 'HOMEPATH' in os.environ:
             self.opt_dict['home_dir'] = os.environ['HOMEPATH']
+
         if os.name == 'nt' and 'USERPROFILE' in os.environ:
             self.opt_dict['home_dir'] = os.environ['USERPROFILE']
-            self.source_dir = u'%s/.xmltv/sources' % home_dir
-        else:
-            self.source_dir = u'/var/lib/tvgrabpyAPI'
-
+        self.as_root = (self.opt_dict['home_dir'] == '/root')
         self.opt_dict['xmltv_dir'] = u'%s/.xmltv' % self.opt_dict['home_dir']
+        if os.name == 'nt':
+            self.source_dir = u'%s/sources' % self.opt_dict['xmltv_dir']
+        elif self.as_root:
+            self.opt_dict['xmltv_dir'] = self.opt_dict['etc_dir']
+
         self.opt_dict['config_file'] = u'%s/%s.conf' % (self.opt_dict['xmltv_dir'], self.name)
         self.opt_dict['log_file'] = u'%s/%s.log' % (self.opt_dict['xmltv_dir'], self.name)
         self.opt_dict['settings_file'] = u'%s/%s.set' % (self.opt_dict['xmltv_dir'], self.name)
@@ -417,6 +423,9 @@ class Configure:
             return(x)
 
         x = self.get_sourcematching_file(self.args.configure)
+        if x != None:
+            return(x)
+
         self.init_sources()
         # The Source Query options
         for (a, o) in ((self.args.show_sources, 'show_sources'), \
@@ -426,8 +435,10 @@ class Configure:
                 self.validate_option(o)
                 return(0)
 
-        if x != None:
-            return(x)
+        if self.as_root and not self.args.configure:
+            # Not allowed to run as root except to configure
+            self.log([self.text('config', 87)])
+            return(0)
 
         if self.args.quiet != None:
             self.opt_dict['quiet'] = self.args.quiet
@@ -838,7 +849,10 @@ class Configure:
             self.log(self.text('config', 19, (self.opt_dict['config_file'], )))
             # get config if available Overrule if set by commandline
             if not self.read_config() and not self.args.configure:
-                return(1)
+                self.opt_dict['config_file'] = u'%s/%s.conf' % (self.opt_dict['etc_dir'], self.name)
+                self.log([self.text('config', 88, (self.opt_dict['config_file'], ))])
+                if not self.read_config():
+                    return(1)
 
         elif option == 'cache_file':
             if self.args.cache_file != self.opt_dict['cache_file']:
@@ -1196,7 +1210,7 @@ class Configure:
                             self.validate_option('disable_source', value = 4)
 
                     # String values
-                    elif cfg_option in ('mailserver', 'mail_log_address'):
+                    elif cfg_option in ('mailserver', 'mail_log_address', 'output_tz'):
                         self.opt_dict[cfg_option] = a[1].strip()
 
                     # Select Values
@@ -1427,6 +1441,14 @@ class Configure:
             self.write_info_files = self.opt_dict['write_info_files']
             if self.write_info_files :
                 self.infofiles = tv_grab_IO.InfoFiles(self)
+
+        if 'output_tz' in self.opt_dict.keys():
+            try:
+                self.output_tz = pytz.timezone(self.opt_dict['output_tz'])
+
+            except:
+                if not isinstance(self.output_tz, pytz.timezone):
+                    self.output_tz = self.utc_tz
 
         return True
     # end read_config()
@@ -2105,6 +2127,7 @@ class Configure:
         log_array.append(u'disable_ttvdb = %s' % (self.opt_dict['disable_ttvdb']))
         log_array.append(u'quiet = %s' % (self.opt_dict['quiet']))
         log_array.append(u'output_file = %s' % (self.opt_dict['output_file']))
+        log_array.append(u'output_tz = %s' % (self.opt_dict['output_tz']))
         log_array.append(u'fast = %s' % (self.opt_dict['fast']))
         log_array.append(u'offset = %s' % (self.opt_dict['offset']))
         log_array.append(u'days = %s' % (self.opt_dict['days']))
@@ -2254,6 +2277,7 @@ class Configure:
         f.write(u'\n')
         f.write(u'quiet = %s\n' % self.opt_dict['quiet'])
         f.write(u'output_file = %s\n' % self.opt_dict['output_file'])
+        f.write(u'output_tz = %s\n' % self.opt_dict['output_tz'])
         for index in self.source_order:
             if index in self.opt_dict['disable_source']:
                 f.write(u'disable_source = %s\n' % index)

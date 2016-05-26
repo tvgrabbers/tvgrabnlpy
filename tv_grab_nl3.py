@@ -142,10 +142,9 @@ class Configure(tvgrabpyAPI.Configure):
         self.patchdate = u'20160525'
         self.alfa = True
         self.beta = True
-        self.output_tz = pytz.timezone('Europe/Amsterdam')
-
-    def init_sources(self):
-        tvgrabpyAPI.Configure.init_sources(self)
+        # The default timezone to use in the xmltv output file
+        self.opt_dict['output_tz'] = 'Europe/Amsterdam'
+        self.output_tz = pytz.timezone(self.opt_dict['output_tz'])
 
 # end Configure()
 config = Configure()
