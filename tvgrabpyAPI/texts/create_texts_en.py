@@ -114,8 +114,8 @@ def load_texts():
                 84: u'%6.0f   base page(s) fetched from %s\n',
                 85: u'%6.0f detail page(s) fetched from %s\n',
                 86: u'%6.0f failure(s) on %s\n',
-                87: u'',
-                88: u'',
+                87: u'You can not run this script as root, except with --configure.\nIf you run --configure as root, the configuration is placed in\n"/etc/tvgrabpyAPI/" and used as fall-back configuration.\n',
+                88: u'Trying to fall back on %s.\n',
                 89: u''},
             u'other':{
                 1: u'The available sources are: ',
@@ -305,17 +305,17 @@ def load_texts():
                 2: u'%s is not encoded in %s.\n',
                 3: u'%s has invalid encoding %s.\n'},
             u'stats':{
-                1: u'Add',
-                2: u'Merge',
+                1: u'   Add',
+                2: u' Merge',
                 3: u'adding',
                 4: u'merging',
-                5: u'source',
+                5: u' source',
                 6: u'channel',
                 7: u'Now %s %s programs from %s into %s programs from %s\n',
                 8: u'    (channel %s of %s)',
-                9: u'%s statistics for %s (channel %s of %s) from %s %s\n',
-                10: u'%7.0f programs (%2.0f groupslots) in %s for range: %s - %s, \n',
-                11: u'%7.0f programs                 in %s for range: %s - %s\n',
+                9: u'%s statistics for %s (channel %s of %s)\n         from %s %s\n',
+                10: u'%7.0f programs in %s for range: %s - %s\n    (%2.0f groupslots),\n',
+                11: u'%7.0f programs in %s for range: %s - %s\n',
                 12: u'%7.0f programs added new\n',
                 13: u'%7.0f programs generically matched on name to get genre\n',
                 14: u'%7.0f programs matched on time and name\n',
@@ -323,7 +323,7 @@ def load_texts():
                 16: u'%7.0f programs left unmatched in %s\n',
                 17: u'Now%4.0f programs of which %2.0f groupslots\n',
                 18: u'and%4.0f without genre.\n',
-                19: u''
+                19: u'Detail'
             },
             u'other':{
                 u'': u''}},

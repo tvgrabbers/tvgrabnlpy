@@ -1688,8 +1688,8 @@ class ChannelNode():
             self.current_stats['stop'] = self.stop
             self.current_stats['count'] = self.program_count()
             self.current_stats['groups'] = len(self.group_slots)
-            self.current_stats['start-str'] = self.start.strftime('%d-%b %H:%M') if isinstance(self.start, datetime.datetime) else ''
-            self.current_stats['stop-str'] = self.stop.strftime('%d-%b %H:%M') if isinstance(self.stop, datetime.datetime) else ''
+            self.current_stats['start-str'] = self.start.strftime('%d-%b %H:%M') if isinstance(self.start, datetime.datetime) else '            '
+            self.current_stats['stop-str'] = self.stop.strftime('%d-%b %H:%M') if isinstance(self.stop, datetime.datetime) else '            '
             return self.current_stats
 
     def get_adding_stats(self, programs, group_slots = None):
@@ -1728,8 +1728,10 @@ class ChannelNode():
                         self.adding_stats['start'] = programs[0]['start-time']
                         self.adding_stats['stop'] = programs[-1]['stop-time']
 
-                    self.adding_stats['start-str'] = self.adding_stats['start'].strftime('%d-%b %H:%M') if isinstance(self.adding_stats['start'], datetime.datetime) else ''
-                    self.adding_stats['stop-str'] = self.adding_stats['stop'].strftime('%d-%b %H:%M') if isinstance(self.adding_stats['stop'], datetime.datetime) else ''
+                    stt = self.adding_stats['start']
+                    self.adding_stats['start-str'] = stt.strftime('%d-%b %H:%M') if isinstance(stt, datetime.datetime) else '            '
+                    stt = self.adding_stats['stop']
+                    self.adding_stats['stop-str'] = stt.strftime('%d-%b %H:%M') if isinstance(stt, datetime.datetime) else '            '
                     return True
 
                 except:
@@ -1783,14 +1785,15 @@ class ChannelNode():
             log_array.append(self.config.text('IO', 9, \
                 (mtype, self.name , self.channel_config.counter, self.config.chan_count, stype, addingname), 'stats'))
             log_array.append(self.config.text('IO', 10, \
-                (self.current_stats['count'], self.current_stats['groups'], self.shortname.ljust(15), self.current_stats['start-str'], self.current_stats['stop-str']), 'stats'))
+                (self.current_stats['count'], self.shortname.ljust(15), self.current_stats['start-str'], \
+                self.current_stats['stop-str'], self.current_stats['groups']), 'stats'))
             log_array.append(self.config.text('IO', 11, \
                 (self.adding_stats['count'], addingname.ljust(15), self.adding_stats['start-str'], self.adding_stats['stop-str']), 'stats'))
             log_array.append('\n')
-            log_array.append(self.config.text('IO', 12, (self.merge_stats['new'], ), 'stats'))
-            log_array.append(self.config.text('IO', 13, (self.merge_stats['genre'], ), 'stats'))
             log_array.append(self.config.text('IO', 14, (self.merge_stats['matched'], ), 'stats'))
+            log_array.append(self.config.text('IO', 12, (self.merge_stats['new'], ), 'stats'))
             log_array.append(self.config.text('IO', 15, (self.merge_stats['groupslot'], ), 'stats'))
+            log_array.append(self.config.text('IO', 13, (self.merge_stats['genre'], ), 'stats'))
             log_array.append(self.config.text('IO', 16, (self.merge_stats['unmatched'], addingname), 'stats'))
             log_array.append(self.config.text('IO', 17, (self.program_count(), len(self.group_slots)), 'stats'))
             log_array.append(self.config.text('IO', 18, (len(self.programs_with_no_genre), ), 'stats'))

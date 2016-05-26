@@ -916,243 +916,245 @@ sI86
 V%6.0f failure(s) on %s\u000a
 p299
 sI87
-g20
+VYou can not run this script as root, except with --configure.\u000aIf you run --configure as root, the configuration is placed in\u000a"/etc/tvgrabpyAPI/" and used as fall-back configuration.\u000a
+p300
 sI88
-g20
+VTrying to fall back on %s.\u000a
+p301
 sI89
 g20
 sI90
 VInvalid timezone for %s in combined channel: %s\u000aRemoving it!
-p300
+p302
 sI-2
 VLoaded the English texts file\u000a
-p301
+p303
 sI-1
 VError creating message text! (%s, %s: %s)\u000a
-p302
+p304
 sssVfetch
-p303
-(dp304
-Verror2
 p305
 (dp306
+Verror2
+p307
+(dp308
 I68
 VError parsing the %spage description for source: %s\u000a
-p307
+p309
 sI11
 VChannel %s seems to be waiting for %s lost detail requests from %s.\u000a
-p308
+p310
 sI12
 VSetting it to ready\u000a
-p309
+p311
 sI13
 VFatal Error processing the basepages from %s\u000a
-p310
+p312
 sI14
 VSetting them all to being loaded, to let the other sources finish the job\u000a
-p311
+p313
 sI15
 VError processing the detailpage: %s\u000a
-p312
+p314
 sI16
 VError processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\u000a
-p313
+p315
 sI17
 V[fetch failed or timed out] %s:(%3.0f%%) %s\u000a
-p314
+p316
 sI18
 V      [cached] %s:(%3.0f%%) %s\u000a
-p315
+p317
 sI19
 V[%s fetch] %s:(%3.0f%%) %s\u000a
-p316
+p318
 sI20
 VRemoving "%s" from "%s"\u000a
-p317
+p319
 sI21
 VRenaming "%s" to "%s"\u000a
-p318
+p320
 sI22
 VOops, "%s" has no end time. Trying to fix...\u000a
-p319
+p321
 sI23
 VDeleting invalid stop/start time: %s\u000a
-p320
+p322
 sI24
 VDeleting duplicate: %s\u000a
-p321
+p323
 sI25
 VDeleting grouping/broadcaster: %s\u000a
-p322
+p324
 sI26
 V"%s" and "%s" overlap %s minutes. Adjusting times.\u000a
-p323
+p325
 sI27
 V"%s" and "%s" have gap of %s minutes. Adjusting times.\u000a
-p324
+p326
 sI28
 VMatch details:\u000a
-p325
+p327
 sI29
 Vtitle match: 
-p326
+p328
 sI30
 Vgenre match: 
-p327
+p329
 sI31
 VNow merging %s (channel %s of %s):\u000a
-p328
+p330
 sI32
 V  %s programs from %s into %s programs from %s\u000a
-p329
+p331
 sI33
 VMerg statistics for %s (channel %s of %s) from %s into %s\u000a
-p330
+p332
 sI34
 VNow merging %s programs from %s into %s programs from %s\u000a
-p331
+p333
 sI35
 V    (channel %s of %s)
-p332
+p334
 sI36
 VMerg statistics for %s (channel %s of %s) from %s\u000a
-p333
+p335
 sI37
 V%6.0f programs in %s for range: %s - %s, \u000a
-p334
+p336
 sI38
 V%6.0f programs in %s for range: %s - %s\u000a
-p335
+p337
 sI39
 V%6.0f programs added outside common timerange\u000a
-p336
+p338
 sI40
 V%6.0f programs left in %s to match\u000a
-p337
+p339
 sI41
 V%6.0f programs generically matched on name to get genre\u000a
-p338
+p340
 sI42
 V%6.0f programs matched on time and name\u000a
-p339
+p341
 sI43
 V%6.0f programs matched on time and genre\u000a
-p340
+p342
 sI44
 V%6.0f details  added from group slots\u000a
-p341
+p343
 sI45
 V%6.0f programs added unmatched from info\u000a
-p342
+p344
 sI46
 Vadded from info
-p343
+p345
 sI47
 Vgroupslot in 
-p344
+p346
 sI48
 Vadded from 
-p345
+p347
 sI49
 Vgroupslot in info
-p346
+p348
 sI50
 Vleft over in 
-p347
+p349
 ssg18
-(dp348
+(dp350
 g20
 g20
 ssg25
-(dp349
+(dp351
 I1
 Vget_page timed out on (>%s s): %s\u000a
-p350
+p352
 sI2
 VAn unexpected error "%s:%s" has occured while fetching page: %s\u000a
-p351
+p353
 sI3
 VCannot open url %s\u000a
-p352
+p354
 sI4
 VCannot parse url %s: code=%s\u000a
-p353
+p355
 sI5
 Vget_page timed out on (>%s s): %s\u000a
-p354
+p356
 sI6
 VError retreiving episodes from theTVDB.com\u000a
-p355
+p357
 sI7
 VError retreiving an ID from theTVdb.com\u000a
-p356
+p358
 sI8
 V  No ttvdb id for "%s" on channel %s\u000a
-p357
+p359
 sI9
 Vttvdb lookup for "%s: %s"\u000a
-p358
+p360
 sI10
 Vttvdb failure for "%s: %s" on channel %s\u000a
-p359
+p361
 sI11
 VChannel %s seems to be waiting for %s lost detail requests from %s.\u000a
-p360
+p362
 sI12
 VSetting it to ready\u000a
-p361
+p363
 sI13
 VFatal Error processing the basepages from %s\u000a
-p362
+p364
 sI14
 VSetting them all to being loaded, to let the other sources finish the job\u000a
-p363
+p365
 sI15
 VError processing the detailpage: %s\u000a
-p364
+p366
 sI16
 VError processing the json detailpage: http://www.tvgids.nl/json/lists/program.php?id=%s\u000a
-p365
+p367
 sI17
 V[fetch failed or timed out] %s:(%3.0f%%) %s\u000a
-p366
+p368
 sI18
 V      [cached] %s:(%3.0f%%) %s\u000a
-p367
+p369
 sI19
 V[%s fetch] %s:(%3.0f%%) %s\u000a
-p368
+p370
 sI20
 VRemoving "%s" from "%s"\u000a
-p369
+p371
 sI21
 VRenaming "%s" to "%s"\u000a
-p370
+p372
 sI22
 VOops, "%s" has no end time. Trying to fix...\u000a
-p371
+p373
 sI23
 VDeleting invalid stop/start time: %s\u000a
-p372
+p374
 sI24
 VDeleting duplicate: %s\u000a
-p373
+p375
 sI25
 VDeleting grouping/broadcaster: %s\u000a
-p374
+p376
 sI26
 V"%s" and "%s" overlap %s minutes. Adjusting times.\u000a
-p375
+p377
 sI27
 V"%s" and "%s" have gap of %s minutes. Adjusting times.\u000a
-p376
+p378
 sI28
 VMatch details:\u000a
-p377
+p379
 sI29
-g326
+g328
 sI30
-g327
+g329
 sI31
 g20
 sI32
@@ -1173,229 +1175,230 @@ sI39
 g20
 sI40
 V%6.0f programs left in %s to match\u000a
-p378
+p380
 sI41
 g20
 sI42
 g20
 sI43
 V%6.0f programs matched on time and genre\u000a
-p379
+p381
 sI44
 g20
 sI45
 V%6.0f programs added unmatched from info\u000a
-p380
+p382
 sI46
-g343
-sI47
-g344
-sI48
 g345
-sI49
+sI47
 g346
-sI50
+sI48
 g347
+sI49
+g348
+sI50
+g349
 sI51
 VNo Data from %s for channel: %s\u000a
-p381
+p383
 sI52
 VDetail sources: %s died.\u000a
-p382
+p384
 sI53
 VSo we stop waiting for the pending details for channel %s\u000a
-p383
+p385
 sI54
 VDetail statistics for %s (channel %s of %s)\u000a
-p384
+p386
 sI55
 V%6.0f cache hit(s)\u000a
-p385
+p387
 sI56
 V%6.0f without details in cache\u000a
-p386
+p388
 sI57
 V%6.0f succesful ttvdb lookups\u000a
-p387
+p389
 sI58
 V%6.0f    failed ttvdb lookups\u000a
-p388
+p390
 sI59
 V%6.0f detail fetch(es) from %s.\u000a
-p389
+p391
 sI60
 V%6.0f failure(s)\u000a
-p390
+p392
 sI61
 V%6.0f without detail info\u000a
-p391
+p393
 sI62
 V%6.0f left in the %s queue to process\u000a
-p392
+p394
 sI63
 VNow Checking cache for %s programs on %s(xmltvid=%s%s)\u000a
-p393
+p395
 sI64
 V    (channel %s of %s) for %s days.\u000a
-p394
+p396
 sI65
 VNow fetching details for %s programs on %s(xmltvid=%s%s)\u000a
-p395
+p397
 sI66
 V    [no fetch] %s:(%3.0f%%) %s\u000a
-p396
+p398
 sI67
 VSplitting title "%s"\u000a
-p397
+p399
 sI68
 VError parsing the %spage description for source: %s\u000a
-p398
+p400
 sI69
 VError processing %s-function %s for source %s\u000a
-p399
+p401
 sI70
 VThe supplied data was: %s\u000a
-p400
+p402
 sI71
 VError reading the %spage for source: %s\u000a
-p401
+p403
 sssVIO
-p402
-(dp403
+p404
+(dp405
 g18
-(dp404
+(dp406
 g20
 g20
 ssVstats
-p405
-(dp406
-I1
-VAdd
 p407
+(dp408
+I1
+V   Add
+p409
 sI2
-VMerge
-p408
+V Merge
+p410
 sI3
 Vadding
-p409
+p411
 sI4
 Vmerging
-p410
+p412
 sI5
-Vsource
-p411
+V source
+p413
 sI6
 Vchannel
-p412
+p414
 sI7
 VNow %s %s programs from %s into %s programs from %s\u000a
-p413
-sI8
-g332
-sI9
-V%s statistics for %s (channel %s of %s) from %s %s\u000a
-p414
-sI10
-V%7.0f programs (%2.0f groupslots) in %s for range: %s - %s, \u000a
 p415
-sI11
-V%7.0f programs                 in %s for range: %s - %s\u000a
+sI8
+g334
+sI9
+V%s statistics for %s (channel %s of %s)\u000a         from %s %s\u000a
 p416
+sI10
+V%7.0f programs in %s for range: %s - %s\u000a    (%2.0f groupslots),\u000a
+p417
+sI11
+V%7.0f programs in %s for range: %s - %s\u000a
+p418
 sI12
 V%7.0f programs added new\u000a
-p417
+p419
 sI13
 V%7.0f programs generically matched on name to get genre\u000a
-p418
+p420
 sI14
 V%7.0f programs matched on time and name\u000a
-p419
+p421
 sI15
 V%7.0f programs added to group slots\u000a
-p420
+p422
 sI16
 V%7.0f programs left unmatched in %s\u000a
-p421
+p423
 sI17
 VNow%4.0f programs of which %2.0f groupslots\u000a
-p422
+p424
 sI18
 Vand%4.0f without genre.\u000a
-p423
+p425
 sI19
-g20
+VDetail
+p426
 ssg25
-(dp424
+(dp427
 I1
 VFile: "%s" not found.\u000a
-p425
+p428
 sI2
 V%s is not encoded in %s.\u000a
-p426
+p429
 sI3
 V%s has invalid encoding %s.\u000a
-p427
+p430
 sI4
 VIf you want assistence, please attach your configuration and log files!\u000a
-p428
+p431
 sI5
 VUnrecognized log-message: %s of type %s\u000a
-p429
+p432
 sI6
 VCache function disabled!\u000a
-p430
+p433
 sI7
 VThe cache directory is not accesible. Cache function disabled!\u000a
-p431
+p434
 sI8
 VVerifying the database\u000a
-p432
+p435
 sI9
 VError loading the database: %s.db (possibly corrupt)\u000a
-p433
+p436
 sI10
 VTrying to load a backup copy
-p434
+p437
 sI11
 VFailed to load the database: %s.db\u000a
-p435
+p438
 sI12
 VDisableing Cache function
-p436
+p439
 sI13
 VError creating the %s table!\u000a
-p437
+p440
 sI14
 VError updating the %s table with collumn "%s"!\u000a
-p438
+p441
 sI15
 VError updating the %s table with Index "%s"!\u000a
-p439
+p442
 sI16
 VError loading old cache file: %s (possibly corrupt)\u000a
-p440
+p443
 sI17
 VConverting the old pickle cache to sqlite.\u000a
-p441
+p444
 sI18
 VThis may take some time!\u000a
-p442
+p445
 sI19
 VAdded %s program records to the database.\u000a
-p443
+p446
 sI20
 VError saving program %s to the database.\u000a
-p444
+p447
 sI21
 VAn unexpected error has occured in the %s thread:\u000a
-p445
+p448
 sI22
 VAn unexpected error has occured:\u000a
-p446
+p449
 ssssVversion
-p447
+p450
 (I1
 I0
 I0
-tp448
+tp451
 s.
