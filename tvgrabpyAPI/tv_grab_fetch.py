@@ -180,6 +180,7 @@ class Functions():
                         return json.load(fle)
 
             except:
+                #~ traceback.print_exc()
                 pass
 
             # And then in the library location if that is not the same
@@ -1758,6 +1759,7 @@ class FetchData(Thread):
         try:
             self.source_data = source_data
             self.source = self.data_value('name', str)
+            self.is_virtual = self.data_value('is_virtual', bool, default = False)
             self.config.sourceid_by_name[self.source] = self.proc_id
             self.detail_id = self.data_value('detail_id', str, default = '%s-ID' % self.source)
             self.detail_url = self.data_value('detail_url', str, default = '%s-url' % self.source)
@@ -4834,7 +4836,7 @@ class Channel_Config(Thread):
                 if self.source_ready(index).is_set():
                     if len(self.config.channelsource[index].program_data[self.chanid]) == 0:
                         # Nothing was returned
-                        if not (index == 1 and 0 in self.merge_order):
+                        if not self.config.channelsource[index].is_virtual:
                             self.config.log(self.config.text('fetch', 51, (self.config.channelsource[index].source, self.chan_name)))
 
                     elif self.channel_node == None:
