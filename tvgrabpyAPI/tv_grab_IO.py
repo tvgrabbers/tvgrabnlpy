@@ -1799,7 +1799,8 @@ class ChannelNode():
                 (self.current_stats['count'], self.shortname.ljust(15), self.current_stats['start-str'], \
                 self.current_stats['stop-str'], self.current_stats['groups']), 'stats'))
             log_array.append(self.config.text('IO', 11, \
-                (self.adding_stats['count'], addingname.ljust(15), self.adding_stats['start-str'], self.adding_stats['stop-str']), 'stats'))
+                (self.adding_stats['count'], addingname.ljust(15), self.adding_stats['start-str'], \
+                self.adding_stats['stop-str'], self.adding_stats['groups']), 'stats'))
             log_array.append('\n')
             log_array.append(self.config.text('IO', 14, (self.merge_stats['matched'], ), 'stats'))
             log_array.append(self.config.text('IO', 12, (self.merge_stats['new'], ), 'stats'))
@@ -2536,8 +2537,174 @@ class ProgramNode():
             return
 
         with self.node_lock:
-            for k, v in pnode.tdict.items():
-                pass
+            if self.first_source:
+                self.start = pnode.start
+                if isinstance(pnode.stop, datetime.datetime):
+                    self.stop = pnode.stop
+                    self.length = self.stop - self.start
+
+                elif 'stop-time' in pnode.tdict.keys() and isinstance(pnode.tdict['stop-time']['prime'], datetime.datetime):
+                    self.stop = pnode.tdict['stop-time']['prime'].replace(second = 0, microsecond = 0)
+                    self.length = self.stop - self.start
+
+                elif 'length'  in  pnode.tdict.keys() and isinstance(pnode.tdict['length']['prime'], datetime.timedelta):
+                    self.length = pnode.tdict['length']['prime']
+                    self.stop = (self.start + self.length).replace(second = 0, microsecond = 0)
+
+                else:
+                    return False
+
+                self.name = pnode.name
+                self.match_name = pnode.match_name
+
+            else:
+                # Check if the new source is longer and if so extend over any gap
+                start_diff = (self.start - pnode.start).total_seconds() / 60
+                if start_diff > 0:
+                    if self.previous_gap != None:
+                        if pnode.start <= self.previous_gap.start:
+                            # We add the gap to the program
+                            self.adjust_start(self.previous_gap.start.replace(second = 0, microsecond = 0))
+                            self.channode.remove_gap(self.previous_gap)
+
+                        else:
+                            # We reduce the gap
+                            self.adjust_start(pnode.start.replace(second = 0, microsecond = 0))
+                            self.previous_gap.adjust_stop(self.start)
+
+                    elif self.previous == None and start_diff < self.channel_config.opt_dict['max_overlap']:
+                        # It's the first program
+                        self.adjust_start(pnode.start.replace(second = 0, microsecond = 0))
+
+                stop_diff = (pnode.stop - self.stop).total_seconds() / 60
+                if stop_diff > 0:
+                    if self.next_gap != None:
+                        if pnode.stop >= self.next_gap.stop:
+                            # We add the gap to the program
+                            self.adjust_stop(self.next_gap.stop.replace(second = 0, microsecond = 0))
+                            self.channode.remove_gap(self.next_gap)
+
+                        else:
+                            # We reduce the gap
+                            self.adjust_stop(pnode.stop.replace(second = 0, microsecond = 0))
+                            self.next_gap.adjust_start(self.stop)
+
+                    elif self.next == None and stop_diff < self.channel_config.opt_dict['max_overlap']:
+                        # It's the last program
+                        self.adjust_stop(pnode.stop.replace(second = 0, microsecond = 0))
+
+            self.length = self.stop - self.start
+            # Check for allowed key values
+            for key, v in pnode.tdict.items():
+                value = pnode.get_value(k)
+                if not self.is_set(key):
+                    self.tdict[key] = v
+                    continue
+
+                for s, v in v['sources'].items():
+                    if not s in self.tdict[key]['sources'].keys():
+                        self.tdict[key]['sources'][s] = v
+
+                    else:
+                        pass
+
+                for s, v in v['channels'].items():
+                    if not s in self.tdict[key]['channels'].keys():
+                        self.tdict[key]['channels'][s] = v
+
+                    else:
+                        pass
+
+                if key in ( "ID", "prog_ID", "detail_url", "start-time", "stop-time", "length", "offset",
+                                "name","episode title","originaltitle","genre", "subgenre"):
+                    if not 'prime' in self.tdict[key].keys():
+                        self.tdict[key]['prime'] = value
+
+                    continue
+
+                elif key in ("actor", "guest"):
+                    if not 'prime names' in self.tdict[key].keys():
+                        self.tdict[key]['prime names'] = []
+                        self.tdict[key]['prime'] = []
+
+                    if isinstance(value, dict):
+                        value = [value]
+
+                    if isinstance(value, list):
+                        for v in value:
+                            if v['name'].lower() in self.tdict[key]['prime names']:
+                                if v['role'] == None:
+                                    continue
+
+                                for index in range(len(self.tdict[key]['prime'])):
+                                    if self.tdict[key]['prime'][index]['name'].lower() == v['name'].lower():
+                                        if self.tdict[key]['prime'][index]['role'] == None:
+                                            self.tdict[key]['prime'][index]['role'] = v['role']
+
+                            else:
+                                self.tdict[key]['prime names'].append(v['name'].lower())
+                                self.tdict[key]['prime'].append(v)
+
+                elif key in self.config.key_values['credits']:
+                    if not 'prime' in self.tdict[key].keys():
+                        self.tdict[key]['prime'] = []
+
+                    if isinstance(value, list):
+                        for v in value:
+                            if not v in self.tdict[key]['prime']:
+                                self.tdict[key]['prime'].append(v)
+
+                    elif not value in self.tdict[key]['prime']:
+                        self.tdict[key]['prime'].append(value)
+
+                elif key in ("country", "rating"):
+                    if not 'prime' in self.tdict[key].keys():
+                        self.tdict[key]['prime'] = []
+
+                    if isinstance(value, list):
+                        for v in value:
+                            if not v.lower() in self.tdict[key]['prime']:
+                                self.tdict[key]['prime'].append(v.lower())
+
+                    elif not value.lower() in self.tdict[key]['prime']:
+                        self.tdict[key]['prime'].append(value.lower())
+
+                elif key == 'description':
+                    if not 'prime' in self.tdict[key].keys() or len(value) > len(self.tdict[key]['prime']):
+                        self.tdict[key]['prime'] = value
+
+                    if 'preferred' in v and not 'preferred' in self.tdict[key]:
+                        self.tdict[key]['preferred'] = value
+
+                elif key in self.config.key_values['bool'] or key in self.config.key_values['video']:
+                    if not 'prime' in self.tdict[key].keys():
+                        self.tdict[key]['prime'] = value
+
+                    elif value:
+                        self.tdict[key]['prime'] = True
+
+                else:
+                    # Get the most common value
+                    for value in v['sources'].values():
+                        if not value in self.tdict[key]['values']:
+                            self.tdict[key]['values'].append(value)
+                            self.tdict[key]['rank'].append(1)
+
+                        else:
+                            for index in range(len(self.tdict[key]['values'])):
+                                if value == self.tdict[key]['values'][index]:
+                                    self.tdict[key]['rank'][index] += 1
+                                    break
+
+                        vcnt = 0
+                        for index in range(len(self.tdict[key]['values'])):
+                            if self.tdict[key]['rank'][index] > vcnt:
+                                if key in ('season', 'episode') and self.tdict[key]['values'][index] == 0:
+                                    continue
+
+                                vcnt= self.tdict[key]['rank'][index]
+                                self.tdict[key]['prime'] = self.tdict[key]['values'][index]
+
 
             self.first_source = False
 
