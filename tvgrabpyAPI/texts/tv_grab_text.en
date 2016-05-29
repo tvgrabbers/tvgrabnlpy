@@ -1276,10 +1276,10 @@ ssVstats
 p409
 (dp410
 I1
-V   Add
+VAdd
 p411
 sI2
-V Merge
+VMerge
 p412
 sI3
 Vadding
@@ -1297,112 +1297,113 @@ sI7
 VNow %s %s programs from %s into %s programs from %s\u000a
 p417
 sI8
-g335
-sI9
-V%s statistics for %s (channel %s of %s)\u000a         from %s %s\u000a
+V    (channel %s of %s)\u000a
 p418
+sI9
+V%s statistics for %s (channel %s of %s)\u000a        from %s %s\u000a
+p419
 sI10
 V%7.0f programs in %s for range: %s - %s\u000a    (%2.0f groupslots),\u000a
-p419
-sI11
-V%7.0f programs in %s for range: %s - %s\u000a
 p420
+sI11
+V%7.0f programs in %s for range: %s - %s\u000a    (%2.0f groupslots)\u000a
+p421
 sI12
 V%7.0f programs added new\u000a
-p421
+p422
 sI13
 V%7.0f programs generically matched on name to get genre\u000a
-p422
+p423
 sI14
 V%7.0f programs matched on time and name\u000a
-p423
+p424
 sI15
 V%7.0f programs added to group slots\u000a
-p424
+p425
 sI16
 V%7.0f programs left unmatched in %s\u000a
-p425
+p426
 sI17
 VNow%4.0f programs of which %2.0f groupslots\u000a
-p426
-sI18
-Vand%4.0f without genre.\u000a
 p427
+sI18
+Vand%4.0f titles without associated genre.\u000a
+p428
 sI19
 VDetail
-p428
+p429
 ssg25
-(dp429
+(dp430
 I1
 VFile: "%s" not found or could not be accessed.\u000a
-p430
+p431
 sI2
 V%s is not encoded in %s.\u000a
-p431
+p432
 sI3
 V%s has invalid encoding %s.\u000a
-p432
+p433
 sI4
 VIf you want assistence, please attach your configuration and log files!\u000a
-p433
+p434
 sI5
 VUnrecognized log-message: %s of type %s\u000a
-p434
+p435
 sI6
 VCache function disabled!\u000a
-p435
+p436
 sI7
 VThe cache directory is not accesible. Cache function disabled!\u000a
-p436
+p437
 sI8
 VVerifying the database\u000a
-p437
+p438
 sI9
 VError loading the database: %s.db (possibly corrupt)\u000a
-p438
+p439
 sI10
 VTrying to load a backup copy
-p439
+p440
 sI11
 VFailed to load the database: %s.db\u000a
-p440
+p441
 sI12
 VDisableing Cache function
-p441
+p442
 sI13
 VError creating the %s table!\u000a
-p442
+p443
 sI14
 VError updating the %s table with collumn "%s"!\u000a
-p443
+p444
 sI15
 VError updating the %s table with Index "%s"!\u000a
-p444
+p445
 sI16
 VError loading old cache file: %s (possibly corrupt)\u000a
-p445
+p446
 sI17
 VConverting the old pickle cache to sqlite.\u000a
-p446
+p447
 sI18
 VThis may take some time!\u000a
-p447
+p448
 sI19
 VAdded %s program records to the database.\u000a
-p448
+p449
 sI20
 VError saving program %s to the database.\u000a
-p449
+p450
 sI21
 VAn unexpected error has occured in the %s thread:\u000a
-p450
+p451
 sI22
 VAn unexpected error has occured:\u000a
-p451
-ssssVversion
 p452
+ssssVversion
+p453
 (I1
 I0
 I0
-tp453
+tp454
 s.

@@ -33,7 +33,7 @@ if tvgrabpyAPI.version()[1:4] < (1,0,0):
 class Configure(tvgrabpyAPI.Configure):
     def __init__(self):
         self.name ='tv_grab_nl3_py'
-        self.datafile = 'tv_grab_nl.json'
+        self.datafile = 'tv_grab_nl'
         self.compat_text = '.tvgids.nl'
         tvgrabpyAPI.Configure.__init__(self)
         # Version info as returned by the version function
@@ -68,42 +68,53 @@ def read_commandline(self):
 def main():
     # We want to handle unexpected errors nicely. With a message to the log
     try:
-        #~ site_tz = pytz.timezone('Europe/Amsterdam')
-        #~ current_date = datetime.datetime.now(site_tz).toordinal()
-        #~ for offset in range(14):
-            #~ weekday = int(datetime.date.fromordinal(current_date + offset).strftime('%w'))
-            #~ first_day = offset + 2 - weekday
-            #~ if weekday < 2:
-                #~ first_day -= 7
-            #~ print weekday, first_day, datetime.date.fromordinal(current_date + first_day).strftime('%Y%m%d')
-
         config.validate_option('config_file')
         config.get_sourcematching_file()
 
-
         #~ channel ='een'
-        #~ source = tv_grab_fetch.FetchData(config, 11, 'source-virtual.nl')
+        # virtual.nl
+        #~ source = config.init_sources(11)
 
-        #~ channel = 'npo-radio-1'
-        #~ source = tv_grab_fetch.FetchData(config, 12, 'source-oorboekje.nl')
-        #~ source = tv_grab_fetch.FetchData(config, 2, 'source-rtl.nl')
-        #~ channel ='een'
-        #~ source = tv_grab_fetch.FetchData(config, 8, 'source-nieuwsblad.be')
-        #~ source = tv_grab_fetch.FetchData(config, 7, 'source-vpro.nl', 2)
-        #~ source = tv_grab_fetch.FetchData(config, 4, 'source-npo.nl', 1)
-        channel ='24443943146'
-        source = tv_grab_fetch.FetchData(config, 5, 'source-horizon.tv', 1)
-        #~ source = tv_grab_fetch.FetchData(config, 6, 'source-humo.be', 1)
-        #~ channel ='O8'
-        #~ source = tv_grab_fetch.FetchData(config, 10, 'source-vrt.be', 1)
-
+        # tvgids.nl
         #~ channel = '5'
-        #~ source = tv_grab_fetch.FetchData(config, 0, 'source-tvgids.nl', 0)
+        #~ source = config.init_sources(0)
+
+        # tvgids.tv
         #~ channel ='nederland-1'
-        #~ source = tv_grab_fetch.FetchData(config, 1, 'source-tvgids.tv', 3)
+        #~ source = config.init_sources(1)
+
+        # rtl.nl
+        #~ source = config.init_sources(2)
+
+        # npo.nl
+        #~ source = config.init_sources(4)
+
+        # vpro.nl
+        #~ source = config.init_sources(7)
+
+        # horizon.tv
+        #~ channel ='24443943146'
+        #~ source = config.init_sources(5)
+
+        # humo.be
+        #~ source = config.init_sources(6)
+
+        # nieuwsblad.be
+        #~ channel ='een'
+        #~ source = config.init_sources(8)
+
+        # vrt.be
+        #~ channel ='O8'
+        #~ source = config.init_sources(10)
+
+        # primo.eu
         #~ channel = 'npo1'
         #~ channel ='een'
-        #~ source= tv_grab_fetch.FetchData(config, 9, 'source-primo.eu', 1)
+        #~ source = config.init_sources(9)
+
+        # oorboekje.nl
+        channel = 'npo-radio-1'
+        source = config.init_sources(12)
 
         source.test_output = sys.stdout
         #~ source.print_tags = True
@@ -118,10 +129,10 @@ def main():
         tdict = config.fetch_func.checkout_program_dict()
         #~ tdict['channelid'] = config.channelsource[sid].chanids[channel]
 
-        #~ config.channelsource[sid].get_channels()
+        config.channelsource[sid].get_channels()
 
-        data = config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'rest', 'cnt-offset': 0, 'start':0, 'days':4})
-        config.channelsource[sid].parse_basepage(data, {'offset': 1, 'channel': channel, 'channelgrp': 'main'})
+        #~ data = config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'rest', 'cnt-offset': 0, 'start':0, 'days':4})
+        #~ config.channelsource[sid].parse_basepage(data, {'offset': 1, 'channel': channel, 'channelgrp': 'main'})
 
         #~ tdict['detail_url'][sid] = 'midsomer-murders/15170844'
         #~ config.channelsource[sid].load_detailpage('detail', tdict)

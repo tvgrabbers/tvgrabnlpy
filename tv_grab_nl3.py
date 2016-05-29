@@ -132,7 +132,7 @@ class Configure(tvgrabpyAPI.Configure):
     def __init__(self):
         self.name ='tv_grab_nl3_py'
         self.datafile = 'tv_grab_nl'
-        self.source_url = 'https://raw.githubusercontent.com/tvgrabbers/tvgrabnlpy/tvgrabnlpy3/sources'
+        self.source_url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master'
         tvgrabpyAPI.Configure.__init__(self)
         # Version info as returned by the version function
         self.country = 'The Netherlands'
