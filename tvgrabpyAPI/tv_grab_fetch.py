@@ -36,15 +36,16 @@ class Functions():
         self.source_counters = {}
         self.source_counters['total'] = {}
         self.fetch_string_parts = re.compile("(.*?[.?!:]+ |.*?\Z)")
+        self.raw_json = {}
 
     # end init()
 
     def update_counter(self, cnt_type, source_id=-1, chanid=None, cnt_add=True, cnt_change=1):
-        #source_id: -1 = cache, -2 = ttvdb
+        #source_id: -1 = cache, -2 = ttvdb, -3 = jsondata
         if not isinstance(cnt_change, int) or cnt_change == 0:
             return
 
-        if not cnt_type in ('base', 'detail', 'fail', 'lookup', 'lookup_fail', 'queue'):
+        if not cnt_type in ('base', 'detail', 'fail', 'lookup', 'lookup_fail', 'queue', 'jsondata', 'failjson'):
             return
 
         if not isinstance(cnt_change, int) or cnt_change == 0:
@@ -73,7 +74,7 @@ class Functions():
                 self.source_counters[source_id][cnt_type] = 0
 
             self.source_counters[source_id][cnt_type] += cnt_change
-            if isinstance(source_id, int) and source_id >= 0:
+            if isinstance(source_id, int) and (source_id >= 0 or source_id == -3):
                 if cnt_type in self.source_counters['total'].keys():
                     self.source_counters['total'][cnt_type] += cnt_change
 
@@ -164,6 +165,75 @@ class Functions():
             self.max_fetches.release()
             return None
     # end get_page()
+
+    def get_json_data(self, name, version = None, source = -3, url = None, fpath = None):
+        self.raw_json[name] = ''
+        local_name = '%s.json' % (name)
+        # Try to find the source files locally
+        if isinstance(version, int):
+            local_name = '%s.%s.json' % (name, version)
+            # First we try to get it in the supplied location
+            try:
+                if fpath != None:
+                    fle = self.config.IO_func.open_file('%s/%s' % (fpath, local_name), 'r', 'utf-8')
+                    if fle != None:
+                        return json.load(fle)
+
+            except:
+                pass
+
+            # And then in the library location if that is not the same
+            try:
+                if fpath != self.config.source_dir:
+                    fle = self.config.IO_func.open_file('%s\%s' % (self.config.source_dir, local_name), 'r', 'utf-8')
+                    if fle != None:
+                        return json.load(fle)
+
+            except:
+                pass
+
+        # Finaly we try to download unless the only_local_sourcefiles flag is set
+        if not self.config.only_local_sourcefiles:
+            try:
+                txtheaders = {'Keep-Alive' : '300',
+                              'User-Agent' : self.config.user_agents[random.randint(0, len(self.config.user_agents)-1)] }
+
+                if url in (None, u''):
+                    url = self.config.source_url
+
+                url = '%s/%s.json' % (url, name)
+                self.config.log(self.config.text('fetch', 1,(name, ), 'other'), 2)
+                fu = FetchURL(self.config, url, None, txtheaders, 'utf-8', True)
+                self.max_fetches.acquire()
+                self.update_counter('jsondata', source)
+                fu.start()
+                fu.join(self.config.opt_dict['global_timeout']+1)
+                page = fu.result
+                self.max_fetches.release()
+                if (page == None) or (page =={}) or (isinstance(page, (str, unicode)) and ((re.sub('\n','', page) == '') or (re.sub('\n','', page) =='{}'))):
+                    self.update_counter('failjson', source)
+                    if isinstance(version, int):
+                        return None
+
+                else:
+                    self.raw_json[name] = fu.url_text
+                    return page
+
+            except:
+                if isinstance(version, int):
+                    return None
+
+        # And for the two mainfiles we try to fall back to the library location
+        if version == None:
+            try:
+                fle = self.config.IO_func.open_file('%s/%s' % (self.config.source_dir, local_name), 'r', 'utf-8')
+                if fle != None:
+                    return json.load(fle)
+
+            except:
+                return None
+
+    # end get_json_data()
 
     def checkout_program_dict(self, tdict = None):
         """
@@ -1117,7 +1187,7 @@ class FetchURL(Thread):
         self.txtheaders = txtheaders
         self.encoding = encoding
         self.is_json = is_json
-        self.raw = None
+        self.raw = ''
         self.result = None
 
     def run(self):
@@ -1131,10 +1201,10 @@ class FetchURL(Thread):
 
             return None
 
-    def find_html_encoding(self, htmlhead):
+    def find_html_encoding(self):
         # look for the text '<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />'
         # in the first 600 bytes of the HTTP page
-        m = re.search(r'<meta[^>]+\bcharset=["\']?([A-Za-z0-9\-]+)\b', htmlhead[:512].decode('ascii', 'ignore'))
+        m = re.search(r'<meta[^>]+\bcharset=["\']?([A-Za-z0-9\-]+)\b', self.raw[:512].decode('ascii', 'ignore'))
         if m:
             return m.group(1)
 
@@ -1147,22 +1217,24 @@ class FetchURL(Thread):
         try:
             url_request = requests.get(self.url, headers = self.txtheaders, params = self.txtdata, timeout=self.config.opt_dict['global_timeout']/2)
             self.raw = url_request.content
-            encoding = self.find_html_encoding(url_request.content)
+            encoding = self.find_html_encoding()
             if encoding != None:
                 url_request.encoding = encoding
 
             elif self.encoding != None:
                 url_request.encoding = self.encoding
 
+            self.url_text = url_request.text
+
             if 'content-type' in url_request.headers and 'json' in url_request.headers['content-type'] or self.is_json:
                 try:
                     return url_request.json()
 
                 except:
-                    return url_request.text
+                    return self.url_text
 
             else:
-                return url_request.text
+                return self.url_text
 
         except (requests.ConnectionError) as e:
             self.config.log(self.config.text('fetch', 3, (self.url, )), 1, 1)
@@ -1639,7 +1711,7 @@ class FetchData(Thread):
     contains a dictionary with program information.
     It runs as a separate thread for every source
     """
-    def __init__(self, config, proc_id, data_file, cattrans_type = None):
+    def __init__(self, config, proc_id, source_data, cattrans_type = None):
         Thread.__init__(self)
         # Flag to stop the thread
         self.config = config
@@ -1683,10 +1755,8 @@ class FetchData(Thread):
         self.new_cattrans = None
         self.cattrans_type = cattrans_type
 
-        self.source_data = {}
         try:
-            fle = self.config.IO_func.open_file('%s/%s.json' % (config.source_dir, data_file), 'r', 'utf-8')
-            self.source_data = json.load(fle)
+            self.source_data = source_data
             self.source = self.data_value('name', str)
             self.config.sourceid_by_name[self.source] = self.proc_id
             self.detail_id = self.data_value('detail_id', str, default = '%s-ID' % self.source)
@@ -1727,6 +1797,7 @@ class FetchData(Thread):
                 self.config.detail_sources.remove(self.proc_id)
 
         except:
+            self.config.validate_option('disable_source', value = self.proc_id)
             traceback.print_exc()
 
     def run(self):

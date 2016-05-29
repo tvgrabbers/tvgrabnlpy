@@ -116,7 +116,7 @@ api_name = u'tv_grab_py_API'
 api_major = 1
 api_minor = 0
 api_patch = 0
-api_patchdate = u'20160512'
+api_patchdate = u'20160528'
 api_alfa = True
 api_beta = True
 
@@ -135,8 +135,9 @@ class Configure:
         self.api_alfa = api_alfa
         self.api_beta = api_beta
         try:
-           x = self.name
+            x = self.name
         except AttributeError:
+            # No name was set in the frontend
             self.name ='tv_grab_configure.py'
         self.major = self.api_major
         self.minor = self.api_minor
@@ -156,8 +157,11 @@ class Configure:
                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36',
                'Mozilla/5.0 (X11; Linux x86_64; rv:38.0) Gecko/20100101 Firefox/38.0']
 
+        # Some debug Flags
         self.write_info_files = False
+        self.only_local_sourcefiles = False
         self.infofiles = None
+
         self.log_output = None
         self.httpencoding = 'iso-8859-15'
         self.file_encoding = 'utf-8'
@@ -174,15 +178,12 @@ class Configure:
         self.cattranstype[1] = {}
         self.cattranstype[2] = {}
 
-        #Channel group names as used in tvgids.tv
-        self.group_names = {}
-        self.group_order = []
-
         from tvgrabpyAPI import __path__
         self.api_path = __path__[0]
         self.opt_dict['home_dir'] = ''
         self.opt_dict['etc_dir'] = u'/etc/tvgrabpyAPI'
         self.opt_dict['var_dir'] = u'/var/lib/tvgrabpyAPI'
+        self.source_url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master'
         self.source_dir =  self.opt_dict['var_dir']
         if 'HOME' in os.environ:
             self.opt_dict['home_dir'] = os.environ['HOME']
@@ -195,8 +196,12 @@ class Configure:
         self.opt_dict['xmltv_dir'] = u'%s/.xmltv' % self.opt_dict['home_dir']
         if os.name == 'nt':
             self.source_dir = u'%s/sources' % self.opt_dict['xmltv_dir']
+            self.opt_dict['sources'] = self.source_dir
         elif self.as_root:
             self.opt_dict['xmltv_dir'] = self.opt_dict['etc_dir']
+            self.opt_dict['sources'] = self.source_dir
+        else:
+            self.opt_dict['sources'] = u'%s/sources' % self.opt_dict['xmltv_dir']
 
         self.opt_dict['config_file'] = u'%s/%s.conf' % (self.opt_dict['xmltv_dir'], self.name)
         self.opt_dict['log_file'] = u'%s/%s.log' % (self.opt_dict['xmltv_dir'], self.name)
@@ -378,9 +383,46 @@ class Configure:
 
     def init_sources(self):
         """Initialize the sources named in sourcematching"""
+        def disable_source(s):
+            # Disable the source as no data file is supplied
+            self.log(self.text('config', 89,(s, )))
+            self.validate_option('disable_source', value = s)
+            self.channelsource[s] = tv_grab_fetch.FetchData(self, s, None)
+            if s in self.source_order[:]:
+                self.source_order.remove(s)
+
+            if s in self.sourceid_order[:]:
+                self.sourceid_order.remove(s)
+
+            if s in self.prime_source_order[:]:
+                self.prime_source_order.remove(s)
+
+            if s in self.detail_sources[:]:
+                self.detail_sources.remove(s)
+
         for s, v in self.sources.items():
-            ctype = None if not ("cattrans type" in v and isinstance(v["cattrans type"], int)) else v["cattrans type"]
-            self.channelsource[s] = tv_grab_fetch.FetchData(self, s, v['json file'], ctype)
+            if not 'json file' in v:
+                disable_source(s)
+                continue
+
+            dversion = v['version'] if ('version' in v and isinstance(v["version"], int)) else 0
+            jurl = v["json_url"] if ("json_url" in v and isinstance(v["json_url"], (str, unicode))) else self.source_url
+            sdata = self.fetch_func.get_json_data(v['json file'], dversion, s, jurl, self.opt_dict['sources'])
+            if sdata == None:
+                disable_source(s)
+                continue
+
+            raw_json = self.fetch_func.raw_json[v['json file']]
+            if raw_json != '':
+                dv = sdata["version"] if ("version" in sdata and isinstance(sdata["version"], int)) else 0
+                # The file was downloaded. Check if it is already saved locally
+                fle = self.IO_func.open_file('%s/%s.%s.json' % (self.opt_dict['sources'], v['json file'], dv), 'w', 'utf-8')
+                if fle != None:
+                    fle.write(raw_json)
+                    fle.close()
+
+            ctype = v["cattrans type"] if ("cattrans type" in v and isinstance(v["cattrans type"], int)) else None
+            self.channelsource[s] = tv_grab_fetch.FetchData(self, s, sdata, ctype)
             if ctype == None:
                 continue
 
@@ -1632,58 +1674,46 @@ class Configure:
                 self.log(self.text('config', 42, (gvar,)))
                 return default
 
+        def log_failure():
+            self.log([self.text('config', 43), traceback.format_exc()], 0)
+            if configuring:
+                self.log([self.text('config', 44)], 0)
+
         try:
-            fle = self.IO_func.open_file('%s/tv_grab_API.json' % (self.source_dir), 'r', 'utf-8')
-            githubdata = json.load(fle)
-            fle = self.IO_func.open_file('%s/%s' % (self.source_dir, self.datafile), 'r', 'utf-8')
-            githubdata2 = json.load(fle)
-            for k, v in githubdata2.items():
-                githubdata[k] = v
-            #~ url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master/sourcematching.json'
-            #~ githubdata = self.fetch_func.get_page(url, 'utf-8', is_json = True)
-            #~ # Check on data or program updates
-            dv = int(githubdata["data_version"])
+            if not os.path.exists(self.opt_dict['sources']):
+                os.mkdir(self.opt_dict['sources'])
+
+        except:
+            pass
+
+        try:
+            githubdata = self.fetch_func.get_json_data('tv_grab_API')
+            if githubdata == None:
+                log_failure()
+                return 2
+
+            # Check on program updates
             nv = githubdata["program_version"]
             pv = u'%s.%s.%s' % (self.api_major+2, self.api_minor, self.api_patch)
             if not "data_version" in self.opt_dict:
                 self.opt_dict["data_version"] = 0
 
-            #~ if pv < nv or (pv == nv and (self.alfa or self.beta)):
-                #~ loglist = ['There is a newer stable release available on github!\n']
-                #~ if "version_message" in githubdata:
-                    #~ if isinstance(githubdata["version_message"], (str, unicode)):
-                        #~ loglist.append(githubdata["version_message"])
+            if pv < nv or (pv == nv and (self.alfa or self.beta)):
+                loglist = ['There is a newer stable release available on github!\n']
+                if "version_message" in githubdata:
+                    if isinstance(githubdata["version_message"], (str, unicode)):
+                        loglist.append(githubdata["version_message"])
 
-                    #~ elif isinstance(githubdata["version_message"], list):
-                        #~ loglist.extend(githubdata["version_message"])
+                    elif isinstance(githubdata["version_message"], list):
+                        loglist.extend(githubdata["version_message"])
 
-                #~ loglist.append("Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n")
-                #~ if show_info:
-                    #~ self.log(loglist, 0)
-
-            #~ elif dv > self.opt_dict["data_version"]:
-                #~ loglist = ['The channel/source matching data on github is newer!\n']
-                #~ if "warning_message_2" in githubdata:
-                    #~ for v, tekst in githubdata["warning_message_2"].items():
-                        #~ if int(v) > self.opt_dict["data_version"]:
-                            #~ if isinstance(tekst, (str, unicode)):
-                                #~ loglist.append(tekst)
-
-                            #~ elif isinstance(tekst, list):
-                                #~ loglist.extend(tekst)
-
-                #~ if not configuring:
-                    #~ loglist.append("Run with '--configure' to implement it\n")
-
-                #~ if show_info:
-                    #~ self.log(loglist, 0)
+                loglist.append("Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n")
+                if show_info:
+                    self.log(loglist, 0)
 
         except:
-            githubdata = {}
-            self.log([self.text('config', 43), traceback.format_exc()], 0)
-            if configuring:
-                self.log([self.text('config', 44)], 0)
-                return 2
+            log_failure()
+            return 2
 
         # Read in the tables needed for normal grabbing
         self.key_values = get_githubdict("data_keys")
@@ -1696,16 +1726,52 @@ class Configure:
                 i+=1
         else:
             self.xml_output.logo_provider = logo_provider
+        self.xml_output.logo_source_preference = get_githubdata("logo_source_preference")
         self.ttvdb_aliasses = get_githubdict("ttvdb_aliasses")
         self.coutrytrans = get_githubdict("coutrytrans")
         self.notitlesplit = get_githubdata("notitlesplit")
         self.user_agents = get_githubdata("user_agents", self.user_agents)
-        self.xml_output.logo_source_preference = get_githubdata("logo_source_preference")
         for k in self.xml_output.logo_provider.keys():
             if k not in self.xml_output.logo_source_preference:
                 self.xml_output.logo_source_preference.append(k)
 
-        self.source_url = get_githubdata("source-url")
+
+        try:
+            githubdata = self.fetch_func.get_json_data(self.datafile)
+            if githubdata == None:
+                log_failure()
+                return 2
+
+            # Check on data updates
+            dv = int(githubdata["data_version"])
+            if dv > self.opt_dict["data_version"]:
+                loglist = ['The channel/source matching data on github is newer!\n']
+                if "warning_message_2" in githubdata:
+                    for v, tekst in githubdata["warning_message_2"].items():
+                        if int(v) > self.opt_dict["data_version"]:
+                            if isinstance(tekst, (str, unicode)):
+                                loglist.append(tekst)
+
+                            elif isinstance(tekst, list):
+                                loglist.extend(tekst)
+
+                if not configuring:
+                    loglist.append("Run with '--configure' to implement it\n")
+
+                if show_info:
+                    self.log(loglist, 0)
+
+        except:
+            log_failure()
+            return 2
+
+        source_url = get_githubdata("source-url", self.source_url)
+        if source_url in (None, ''):
+            self.source_url = u'%s/sources' % self.source_url
+
+        else:
+            self.source_url = source_url
+
         self.sources = get_githubdict("sources", 1)
         self.source_count = max(self.sources.keys()) + 1
         # Check on disabled sources
@@ -2905,8 +2971,12 @@ class Configure:
         log_array.append(self.text('config', 74, (start.strftime('%Y-%m-%d %H:%M'), )))
         log_array.append(self.text('config', 75, (end.strftime('%Y-%m-%d %H:%M'), )))
         log_array.append(self.text('config', 76, (end - start, )))
-        fetch_count = self.fetch_func.get_counter('base', 'total') + self.fetch_func.get_counter('detail', 'total')
-        log_array.append( self.text('config', 77, (fetch_count, self.fetch_func.get_counter('fail', 'total'))))
+        fetch_count = self.fetch_func.get_counter('base', 'total') \
+                            + self.fetch_func.get_counter('detail', 'total') \
+                            + self.fetch_func.get_counter('jsondata', 'total')
+        fetch_fail = self.fetch_func.get_counter('fail', 'total') \
+                            + self.fetch_func.get_counter('failjson', 'total')
+        log_array.append( self.text('config', 77, (fetch_count, fetch_fail)))
         log_array.append(self.text('config', 78, (self.fetch_func.get_counter('detail', -1), )))
         log_array.append(self.text('config', 79, (self.fetch_func.get_counter('lookup', -2), )))
         log_array.append(self.text('config', 80, (self.fetch_func.get_counter('lookup_fail', -2), )))

@@ -8,7 +8,7 @@
 		"\n"],
 	"fetch-timezone":"Europe/Amsterdam",
 	"language":"nl",
-	"source-url":"",
+	"source-url":"https://raw.githubusercontent.com/tvgrabbers/sourcematching/master/sources",
 	"sources":{
 		"0":{
 			"json file":"source-tvgids.nl",

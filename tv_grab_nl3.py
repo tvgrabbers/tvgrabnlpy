@@ -131,7 +131,8 @@ if tvgrabpyAPI.version()[1:4] < (1,0,0):
 class Configure(tvgrabpyAPI.Configure):
     def __init__(self):
         self.name ='tv_grab_nl3_py'
-        self.datafile = 'tv_grab_nl.json'
+        self.datafile = 'tv_grab_nl'
+        self.source_url = 'https://raw.githubusercontent.com/tvgrabbers/tvgrabnlpy/tvgrabnlpy3/sources'
         tvgrabpyAPI.Configure.__init__(self)
         # Version info as returned by the version function
         self.country = 'The Netherlands'
@@ -139,7 +140,7 @@ class Configure(tvgrabpyAPI.Configure):
         self.major = 3
         self.minor = 0
         self.patch = 0
-        self.patchdate = u'20160525'
+        self.patchdate = u'20160528'
         self.alfa = True
         self.beta = True
         # The default timezone to use in the xmltv output file
@@ -184,7 +185,7 @@ def main():
             channel_threads.append(channel)
 
         # Synchronize
-        for index in (0, 1):
+        for index in config.detail_sources:
             config.channelsource[index].join()
 
         for channel in channel_threads:

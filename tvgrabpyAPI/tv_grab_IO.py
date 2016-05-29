@@ -49,21 +49,23 @@ class Functions():
 
     def save_oldfile(self, fle, save_ext='old'):
         """ save the old file to .old if it exists """
-        if os.path.isfile(fle + '.' + save_ext):
-            os.remove(fle + '.' + save_ext)
+        save_fle = '%s.%s' % (fle, save_ext)
+        if os.path.isfile(save_fle):
+            os.remove(save_fle)
 
         if os.path.isfile(fle):
-            os.rename(fle, fle + '.' + save_ext)
+            os.rename(fle, save_fle)
 
     # end save_oldfile()
 
     def restore_oldfile(self, fle, save_ext='old'):
         """ restore the old file from .old if it exists """
+        save_fle = '%s.%s' % (fle, save_ext)
         if os.path.isfile(fle):
             os.remove(fle)
 
-        if os.path.isfile(fle + '.' + save_ext):
-            os.rename(fle + '.' + save_ext, fle)
+        if os.path.isfile(save_fle):
+            os.rename(save_fle, fle)
 
     # end save_oldfile()
 
@@ -71,6 +73,15 @@ class Functions():
         """ Open a file and return a file handler if success """
         if encoding == None:
             encoding = self.default_file_encoding
+
+        if 'r' in mode and not (os.path.isfile(file_name) and os.access(file_name, os.R_OK)):
+            self.log(self.config.text('IO', 1, (file_name, )))
+            return None
+
+        if ('a' in mode or 'w' in mode):
+            if os.path.isfile(file_name) and not os.access(file_name, os.W_OK):
+                self.log(self.config.text('IO', 1, (file_name, )))
+                return None
 
         try:
             if 'b' in mode:
@@ -1944,7 +1955,7 @@ class ChannelNode():
                                 #~ pass
 
                             self.programs_by_start[mstart].add_source_data(programs[index], source)
-                            self.add_stat('matched', 1)
+                            self.add_stat()
                             break
 
                     else:
@@ -2124,7 +2135,7 @@ class ChannelNode():
                                 #~ pass
 
                             self.programs_by_start[mstart].add_node_data(programs[index])
-                            self.add_stat('matched', 1)
+                            self.add_stat()
                             break
 
                     else:

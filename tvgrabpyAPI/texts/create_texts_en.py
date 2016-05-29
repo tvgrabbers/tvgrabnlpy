@@ -116,7 +116,7 @@ def load_texts():
                 86: u'%6.0f failure(s) on %s\n',
                 87: u'You can not run this script as root, except with --configure.\nIf you run --configure as root, the configuration is placed in\n"/etc/tvgrabpyAPI/" and used as fall-back configuration.\n',
                 88: u'Trying to fall back on %s.\n',
-                89: u''},
+                89: u'No valid source description for %s found. Disableing it!\n'},
             u'other':{
                 1: u'The available sources are: ',
                 2: u'The available detail sources are: ',
@@ -301,7 +301,7 @@ def load_texts():
                 18: u'This may take some time!\n',
                 19: u'Added %s program records to the database.\n',
                 20: u'Error saving program %s to the database.\n',
-                1: u'File: "%s" not found.\n',
+                1: u'File: "%s" not found or could not be accessed.\n',
                 2: u'%s is not encoded in %s.\n',
                 3: u'%s has invalid encoding %s.\n'},
             u'stats':{
@@ -447,6 +447,7 @@ def load_texts():
                 50: u'left over in ',
                 },
             u'other':{
+                1: u'  Downloading %s.json...\n',
                 u'': u''}},
         u'sources':{
             u'error':{
