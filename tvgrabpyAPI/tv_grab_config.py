@@ -381,7 +381,7 @@ class Configure:
             return self.texts['config']['error'][-1] % (module, type, tno)
     # end text()
 
-    def init_sources(self):
+    def init_sources(self, sid = None):
         """Initialize the sources named in sourcematching"""
         def disable_source(s):
             # Disable the source as no data file is supplied
@@ -400,17 +400,17 @@ class Configure:
             if s in self.detail_sources[:]:
                 self.detail_sources.remove(s)
 
-        for s, v in self.sources.items():
+        def init_source(sid, v):
             if not 'json file' in v:
-                disable_source(s)
-                continue
+                disable_source(sid)
+                return
 
             dversion = v['version'] if ('version' in v and isinstance(v["version"], int)) else 0
             jurl = v["json_url"] if ("json_url" in v and isinstance(v["json_url"], (str, unicode))) else self.source_url
-            sdata = self.fetch_func.get_json_data(v['json file'], dversion, s, jurl, self.opt_dict['sources'])
+            sdata = self.fetch_func.get_json_data(v['json file'], dversion, sid, jurl, self.opt_dict['sources'])
             if sdata == None:
-                disable_source(s)
-                continue
+                disable_source(sid)
+                return
 
             raw_json = self.fetch_func.raw_json[v['json file']]
             if raw_json != '':
@@ -422,20 +422,29 @@ class Configure:
                     fle.close()
 
             ctype = v["cattrans type"] if ("cattrans type" in v and isinstance(v["cattrans type"], int)) else None
-            self.channelsource[s] = tv_grab_fetch.FetchData(self, s, sdata, ctype)
+            self.channelsource[sid] = tv_grab_fetch.FetchData(self, sid, sdata, ctype)
             if ctype == None:
-                continue
+                return self.channelsource[sid]
 
             if not ctype in self.cattranstype.keys():
                 self.cattranstype[ctype] = {}
 
             if "cattransid" in v and isinstance(v["cattransid"], int):
-                self.__DEFAULT_SECTIONS__[10 + v["cattransid"]] = u'%s genres' % (self.channelsource[s].source)
-                self.cattranstype[ctype][10 + v["cattransid"]] = s
+                self.__DEFAULT_SECTIONS__[10 + v["cattransid"]] = u'%s genres' % (self.channelsource[sid].source)
+                self.cattranstype[ctype][10 + v["cattransid"]] = sid
                 if ctype == 1:
-                    self.channelsource[s].new_cattrans = {}
+                    self.channelsource[sid].new_cattrans = {}
                 elif ctype == 2:
-                    self.channelsource[s].new_cattrans = []
+                    self.channelsource[sid].new_cattrans = []
+
+            return self.channelsource[sid]
+
+        if sid == None:
+            for s, v in self.sources.items():
+                init_source(s, v)
+
+        elif sid in self.sources.keys():
+            return init_source(sid, self.sources[sid])
 
     # end init_sources()
 
@@ -1688,7 +1697,7 @@ class Configure:
 
         try:
             githubdata = self.fetch_func.get_json_data('tv_grab_API')
-            if githubdata == None:
+            if not isinstance(githubdata, dict):
                 log_failure()
                 return 2
 
@@ -1713,6 +1722,7 @@ class Configure:
 
         except:
             log_failure()
+            #~ traceback.print_exc()
             return 2
 
         # Read in the tables needed for normal grabbing
@@ -1738,7 +1748,7 @@ class Configure:
 
         try:
             githubdata = self.fetch_func.get_json_data(self.datafile)
-            if githubdata == None:
+            if not isinstance(githubdata, dict):
                 log_failure()
                 return 2
 
@@ -1746,8 +1756,8 @@ class Configure:
             dv = int(githubdata["data_version"])
             if dv > self.opt_dict["data_version"]:
                 loglist = ['The channel/source matching data on github is newer!\n']
-                if "warning_message_2" in githubdata:
-                    for v, tekst in githubdata["warning_message_2"].items():
+                if "warning_message" in githubdata:
+                    for v, tekst in githubdata["warning_message"].items():
                         if int(v) > self.opt_dict["data_version"]:
                             if isinstance(tekst, (str, unicode)):
                                 loglist.append(tekst)
@@ -1763,6 +1773,7 @@ class Configure:
 
         except:
             log_failure()
+            #~ traceback.print_exc()
             return 2
 
         source_url = get_githubdata("source-url", self.source_url)
@@ -2058,6 +2069,9 @@ class Configure:
         for index in self.sourceid_order:
             self.channelsource[index].init_channel_source_ids()
             for chan_scid, channel in self.channelsource[index].all_channels.items():
+                if not 'name' in channel.keys():
+                    continue
+
                 if chan_scid in reverse_channels[index].keys():
                     chanid = reverse_channels[index][chan_scid]['chanid']
 
@@ -2985,6 +2999,9 @@ class Configure:
         log_array.append(self.text('config', 82, (self.fetch_func.get_counter('detail', -2), )))
         log_array.extend([self.text('config', 83, (self.fetch_func.get_counter('fail', -2), )), '\n'])
         for s, source in self.channelsource.items():
+            if source.is_virtual:
+                continue
+
             log_array.append(self.text('config', 84, (self.fetch_func.get_counter('base', s), source.source)))
             if source.detail_processor:
                 log_array.append(self.text('config', 85, (self.fetch_func.get_counter('detail', s), source.source)))
