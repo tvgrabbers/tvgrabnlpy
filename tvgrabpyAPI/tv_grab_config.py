@@ -105,7 +105,7 @@ from __future__ import unicode_literals
 # from __future__ import print_function
 
 import os, re, sys, argparse, traceback, datetime, codecs, pickle, json
-import tv_grab_IO, tv_grab_fetch, pytz
+import tv_grab_IO, tv_grab_fetch, tv_grab_channel, pytz
 try:
     unichr(42)
 except NameError:
@@ -253,7 +253,7 @@ class Configure:
         self.logging = tv_grab_IO.Logging(self)
         self.IO_func = tv_grab_IO.Functions(self)
         self.fetch_func = tv_grab_fetch.Functions(self)
-        self.xml_output = tv_grab_IO.XMLoutput(self)
+        self.xml_output = tv_grab_channel.XMLoutput(self)
         self.channelsource = {}
         self.sourceid_by_name = {}
         self.ttvdb = None
@@ -1307,7 +1307,7 @@ class Configure:
             for line in self.config_dict[2]:
                 try:
                     channel = line.split(None, 1) # split on first whitespace
-                    self.channels[unicode(channel[0]).strip()] = tv_grab_fetch.Channel_Config(self, unicode(channel[0]).strip(), unicode(channel[1]).strip())
+                    self.channels[unicode(channel[0]).strip()] = tv_grab_channel.Channel_Config(self, unicode(channel[0]).strip(), unicode(channel[1]).strip())
                     self.channels[unicode(channel[0]).strip()].active = True
                     channel_names[unicode(channel[1]).strip().lower()] = unicode(channel[0]).strip()
 
@@ -1361,7 +1361,7 @@ class Configure:
 
                         chanid = u'%s-%s' % (index, old_chanid)
                         old_chanids[old_chanid] = chanid
-                        self.channels[chanid] = tv_grab_fetch.Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
+                        self.channels[chanid] = tv_grab_channel.Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
                         for index in range(4):
                             self.channels[chanid].source_id[index] = unicode(channel[index + 2]).strip()
 
@@ -1377,7 +1377,7 @@ class Configure:
 
                         chanid = unicode(channel[2])
                         channel_names[unicode(channel[0]).strip().lower()] = chanid
-                        self.channels[chanid] = tv_grab_fetch.Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
+                        self.channels[chanid] = tv_grab_channel.Channel_Config(self, chanid, unicode(channel[0]).strip(), int(channel[1]))
                         for index in range(len(channel) - 5):
                             self.channels[chanid].source_id[index] = unicode(channel[index + 3]).strip()
 
@@ -2104,7 +2104,7 @@ class Configure:
                     if (chan_scid in self.channelsource[index].empty_channels):
                         continue
 
-                    self.channels[chanid] = tv_grab_fetch.Channel_Config(self, chanid, chan['name'] )
+                    self.channels[chanid] = tv_grab_channel.Channel_Config(self, chanid, chan['name'] )
 
                 self.channels[chanid].source_id[index] = chan_scid
                 # Set the group
