@@ -1692,7 +1692,7 @@ class InfoFiles():
                 return '--- '
 
             if isinstance(tdict[vname], datetime.datetime):
-                return self.config.output_tz.normalize(tdict[vname].astimezone(self.config.output_tz)).strftime('%d %b %H:%M')
+                return config.in_output_tz(tdict[vname]).strftime('%d %b %H:%M')
 
             if isinstance(tdict[vname], bool):
                 if tdict[vname]:

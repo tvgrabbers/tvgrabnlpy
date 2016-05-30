@@ -381,6 +381,28 @@ class Configure:
             return self.texts['config']['error'][-1] % (module, type, tno)
     # end text()
 
+    def in_tz(self, cdate, tz = None):
+        if tz == None:
+            tz = pyz.utc
+
+        if isinstance(cdate, datetime.datetime):
+            if cdate.tzinfo == None:
+                return tz.localize(cdate)
+
+            else:
+                return tz.normalize(cdate.astimezone(tz))
+
+    def in_utc(self, cdate):
+        return self.in_tz(cdate, self.utc_tz)
+
+    def in_output_tz(self, cdate):
+        return self.in_tz(cdate, self.output_tz)
+
+    def in_fetch_tz(self, cdate):
+        return self.in_tz(cdate, self.fetch_tz)
+
+    # end in_tz()
+
     def init_sources(self, sid = None):
         """Initialize the sources named in sourcematching"""
         def disable_source(s):
@@ -1805,12 +1827,12 @@ class Configure:
             if not s in self.sources.keys():
                 self.prime_source_order.remove(s)
 
-        self.fetch_timezone = get_githubdata("fetch-timezone", 'UTC')
+        self.fetch_tz = get_githubdata("fetch-timezone", 'UTC')
         self.xml_language = get_githubdata("language")
         try:
-            self.fetch_timezone = pytz.timezone(self.fetch_timezone)
+            self.fetch_tz = pytz.timezone(self.fetch_tz)
         except:
-            self.fetch_timezone = pytz.utc
+            self.fetch_tz = pytz.utc
 
         self.source_channels = get_githubdict("source_channels", 1)
         self.prime_source = get_githubdict("prime_source")
@@ -2982,8 +3004,8 @@ class Configure:
     def write_statistics(self, start, end):
         log_array = ['\n', self.text('config', 72), '\n']
         log_array.append(self.text('config', 73, (self.xml_output.program_count, self.chan_count)))
-        log_array.append(self.text('config', 74, (start.strftime('%Y-%m-%d %H:%M'), )))
-        log_array.append(self.text('config', 75, (end.strftime('%Y-%m-%d %H:%M'), )))
+        log_array.append(self.text('config', 74, (self.in_output_tz(start).strftime('%Y-%m-%d %H:%M'), )))
+        log_array.append(self.text('config', 75, (self.in_output_tz(end).strftime('%Y-%m-%d %H:%M'), )))
         log_array.append(self.text('config', 76, (end - start, )))
         fetch_count = self.fetch_func.get_counter('base', 'total') \
                             + self.fetch_func.get_counter('detail', 'total') \

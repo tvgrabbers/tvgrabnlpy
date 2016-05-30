@@ -7,11 +7,10 @@ from __future__ import unicode_literals
 
 import codecs, locale, os, io, shutil, smtplib
 
-import re, sys, traceback
+import re, sys, traceback, copy
 import time, datetime, pytz, random, difflib
-from threading import Thread, Lock, Semaphore, Event
+from threading import Thread, Lock, RLock, Event
 from Queue import Queue, Empty
-from copy import deepcopy
 from xml.sax import saxutils
 
 class Channel_Config(Thread):
@@ -595,6 +594,7 @@ class ChannelNode():
         with self.node_lock:
             self.prime_source = None
             self.config = config
+            self.tz = self.config.output_tz
             self.channel_config = channel_config
             self.chanid = channel_config.chanid
             self.name = channel_config.chan_name
@@ -625,8 +625,7 @@ class ChannelNode():
             self.groupslot_names = self.config.groupslot_names[:]
             if self.chanid in self.config.combined_channels.keys():
                 # This channel has children
-                tz = self.config.fetch_timezone
-                date_now = tz.normalize(datetime.datetime.now(pytz.utc).astimezone(tz)).toordinal()
+                date_now = self.config.in_fetch_tz(datetime.datetime.now(pytz.utc)).toordinal()
                 start_date = date_now + self.config.opt_dict['offset']
                 start_time = self.config.fetch_func.merge_date_time(start_date, datetime.time(0, 0), self.config.combined_channels_tz)
                 end_date = start_date + self.config.opt_dict['days']
@@ -704,8 +703,13 @@ class ChannelNode():
             self.current_stats['stop'] = self.stop
             self.current_stats['count'] = self.program_count()
             self.current_stats['groups'] = len(self.group_slots)
-            self.current_stats['start-str'] = self.start.strftime('%d-%b %H:%M') if isinstance(self.start, datetime.datetime) else '            '
-            self.current_stats['stop-str'] = self.stop.strftime('%d-%b %H:%M') if isinstance(self.stop, datetime.datetime) else '            '
+            self.current_stats['start-str'] = '            '
+            if isinstance(self.current_stats['start'], datetime.datetime):
+                self.current_stats['start-str'] = self.config.in_output_tz(self.current_stats['start']).strftime('%d-%b %H:%M')
+
+            self.current_stats['stop-str'] = '            '
+            if isinstance(self.current_stats['stop'], datetime.datetime):
+                self.current_stats['stop-str'] = self.config.in_output_tz(self.current_stats['stop']).strftime('%d-%b %H:%M')
             return self.current_stats
 
     def get_adding_stats(self, programs, group_slots = None):
@@ -744,10 +748,14 @@ class ChannelNode():
                         self.adding_stats['start'] = programs[0]['start-time']
                         self.adding_stats['stop'] = programs[-1]['stop-time']
 
-                    stt = self.adding_stats['start']
-                    self.adding_stats['start-str'] = stt.strftime('%d-%b %H:%M') if isinstance(stt, datetime.datetime) else '            '
-                    stt = self.adding_stats['stop']
-                    self.adding_stats['stop-str'] = stt.strftime('%d-%b %H:%M') if isinstance(stt, datetime.datetime) else '            '
+                    self.adding_stats['start-str'] = '            '
+                    if isinstance(self.adding_stats['start'], datetime.datetime):
+                        self.adding_stats['start-str'] = self.config.in_output_tz(self.adding_stats['start']).strftime('%d-%b %H:%M')
+
+                    self.adding_stats['stop-str'] = '            '
+                    if isinstance(self.adding_stats['stop'], datetime.datetime):
+                        self.adding_stats['stop-str'] = self.config.in_output_tz(self.adding_stats['stop']).strftime('%d-%b %H:%M')
+
                     return True
 
                 except:
@@ -800,9 +808,10 @@ class ChannelNode():
 
             log_array.append(self.config.text('IO', 9, \
                 (mtype, self.name , self.channel_config.counter, self.config.chan_count, stype, addingname), 'stats'))
-            log_array.append(self.config.text('IO', 10, \
-                (self.current_stats['count'], self.shortname.ljust(15), self.current_stats['start-str'], \
-                self.current_stats['stop-str'], self.current_stats['groups']), 'stats'))
+            if self.merge_type & 1:
+                log_array.append(self.config.text('IO', 10, \
+                    (self.current_stats['count'], self.shortname.ljust(15), self.current_stats['start-str'], \
+                    self.current_stats['stop-str'], self.current_stats['groups']), 'stats'))
             log_array.append(self.config.text('IO', 11, \
                 (self.adding_stats['count'], addingname.ljust(15), self.adding_stats['start-str'], \
                 self.adding_stats['stop-str'], self.adding_stats['groups']), 'stats'))
@@ -1449,7 +1458,7 @@ class ProgramNode():
             return self.stop
 
     def print_start_name(self):
-        pstart = self.config.output_tz.normalize(self.start.astimezone(self.config.output_tz)).strftime('%d %b %H:%M')
+        pstart = self.config.in_output_tz(self.start).strftime('%d %b %H:%M')
         return '%s: %s' % (pstart, self.name)
 
     def match_title(self, mname):
@@ -2125,7 +2134,7 @@ class XMLoutput():
         Given a datetime object, returns a string in XMLTV format
         """
         if not self.config.opt_dict['use_utc']:
-            td = self.config.output_tz.normalize(td.astimezone(self.config.output_tz))
+            td = self.config.in_output_tz(td)
 
         if only_date:
             return td.strftime('%Y%m%d')

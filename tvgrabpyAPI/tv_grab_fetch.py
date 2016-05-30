@@ -5,10 +5,10 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-import re, sys, traceback
-import time, datetime, random, difflib
-import httplib, socket, DataTreeGrab
-import requests, pytz, tv_grab_IO
+import re, sys, traceback, difflib
+import time, datetime, pytz, random
+import requests, httplib, socket, json
+import tv_grab_IO, DataTreeGrab
 from threading import Thread, Lock, Semaphore, Event
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
@@ -500,10 +500,8 @@ class Functions():
 
     def get_offset(self, date):
         """Return the offset from today"""
-        tz = self.config.fetch_timezone
-        cd = tz.normalize(datetime.datetime.now(pytz.utc).astimezone(tz))
-        rd = tz.normalize(date.astimezone(tz))
-
+        cd = self.config.in_fetch_tz(datetime.datetime.now(pytz.utc))
+        rd = self.config.in_fetch_tz(date)
         return int(rd.toordinal() -  cd.toordinal())
     # end get_offset()
 
@@ -512,7 +510,7 @@ class Functions():
             return offset
 
         if current_date == None:
-            current_date = datetime.datetime.now(self.config.utc_tz).toordinal()
+            current_date = datetime.datetime.now(pytz.utc).toordinal()
 
         weekday = int(datetime.date.fromordinal(current_date + offset).strftime('%w'))
         first_day = offset + sow - weekday
@@ -550,7 +548,7 @@ class Functions():
             if seconds > 0 and not round_down:
                 date = date + datetime.timedelta(minutes = 1)
 
-            return self.config.utc_tz.normalize(date.astimezone(self.config.utc_tz))
+            return self.config.in_utc(date)
 
         except:
             return None
@@ -564,7 +562,7 @@ class Functions():
             rtime = datetime.datetime.combine(datetime.date.fromordinal(date_ordinal), date_time)
             rtime = tzinfo.localize(rtime)
             if as_utc:
-                rtime = self.config.utc_tz.normalize(rtime.astimezone(self.config.utc_tz))
+                rtime = self.config.in_utc(rtime)
 
             return rtime
 
@@ -654,8 +652,7 @@ class Functions():
                     return default
 
                 dt = datetime.datetime.combine(data[0], data[1])
-                dt = source.site_tz.localize(dt)
-                dt = self.config.utc_tz.normalize(dt.astimezone(self.config.utc_tz))
+                dt = self.config.in_utc(source.site_tz.localize(dt))
                 return dt.replace(second = 0, microsecond = 0)
 
             # Return True (or data[2]) if data[1] is present in data[0], else False (or data[3])
@@ -2069,8 +2066,9 @@ class FetchData(Thread):
     # The fetching functions
     def init_channel_source_ids(self):
         """Get the list of requested channels for this source from the channel configurations"""
-        self.current_date = self.site_tz.normalize(datetime.datetime.now(pytz.utc).astimezone(self.site_tz)).toordinal()
-        self.current_hour = self.site_tz.normalize(datetime.datetime.now(pytz.utc).astimezone(self.site_tz)).hour
+        current_date = self.config.in_tz(datetime.datetime.now(pytz.utc), self.site_tz)
+        self.current_hour = current_date.hour
+        self.current_date = current_date.toordinal()
         for chanid, channel in self.config.channels.iteritems():
             self.groupitems[chanid] = 0
             self.program_data[chanid] = []
