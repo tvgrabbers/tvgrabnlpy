@@ -2068,6 +2068,7 @@ class FetchData(Thread):
 
     # The fetching functions
     def init_channel_source_ids(self):
+        ´"""Get the list of requested channels for this source from the channel configurations"""
         self.current_date = self.site_tz.normalize(datetime.datetime.now(pytz.utc).astimezone(self.site_tz)).toordinal()
         self.current_hour = self.site_tz.normalize(datetime.datetime.now(pytz.utc).astimezone(self.site_tz)).hour
         for chanid, channel in self.config.channels.iteritems():
@@ -2104,59 +2105,6 @@ class FetchData(Thread):
 
         for chanid, channelid in self.channels.items():
             self.chanids[channelid] = chanid
-
-    def get_url(self, ptype, udata):
-        """return the several url's for ordinairy, detail and channel info"""
-        udata['source'] = self.source
-        udata['channels'] = self.channels
-        if not self.is_data_value([ptype, "url"]):
-            self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
-            return None
-
-        if self.is_data_value([ptype, "url"], list):
-            url = ''
-            for u_part in self.data_value([ptype, "url"], list):
-                if isinstance(u_part, (str, unicode)):
-                    url += u_part
-
-                elif isinstance(u_part, int):
-                    # get a variable
-                    uval = self.functions.url_functions(self, ptype, u_part, udata)
-                    if uval == None:
-                        self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
-                        return None
-
-                    else:
-                        url += unicode(uval)
-
-        else:
-            url = self.data_value([ptype, "url"])
-
-        is_json = bool('json' in self.data_value([ptype, "data-format"], str))
-        encoding = self.data_value([ptype, "encoding"])
-        accept_header = self.data_value([ptype, "accept-header"])
-        url_data = {}
-        for k, v in self.data_value([ptype, "url-data"], dict).items():
-            if isinstance(v, (str, unicode)):
-                url_data[k] = v
-
-            elif isinstance(v, int):
-                # get a variable
-                uval = self.functions.url_functions(self, ptype, v, udata)
-                if uval == None:
-                    self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
-                    return None
-
-                else:
-                    url_data[k] = uval
-
-        if ptype in ('detail', 'detail2'):
-            counter = ['detail', self.proc_id, udata['channel']]
-
-        else:
-            counter = ['base', self.proc_id]
-
-        return (url, encoding, accept_header, url_data, counter, is_json)
 
     def get_channels(self):
         """The code for the retreiving a list of supported channels"""
@@ -2204,7 +2152,7 @@ class FetchData(Thread):
             return 69
 
     def load_pages(self):
-        """The code for the actual Grabbing and dataprocessing"""
+        """The code for the actual Grabbing and dataprocessing of the base pages"""
         def do_final_processing(chanid):
             self.program_data[chanid].sort(key=lambda program: (program['start-time']))
             #~ print chanid, self.groupitems[chanid]
@@ -2654,6 +2602,7 @@ class FetchData(Thread):
             return None
 
     def parse_basepage(self, fdata, subset = {}):
+        """Process the data retreived from DataTree for the base pages"""
         chanids = []
         last_start = {}
         tdd = datetime.timedelta(days=1)
@@ -2689,16 +2638,17 @@ class FetchData(Thread):
                 chanid = self.chanids[channelid]
                 if not 'prog_ID' in values.keys():
                     values['prog_ID'] = ''
-                if  not 'name' in values.keys() or values['name'] == None or values['name'] == '':
-                    # Give it the Unknown Program Title Name, to mark it as a groupslot.
-                    values['name'] = self.config.unknown_program_title
-                    #~ self.config.log(self.config.text('sources', 6, (values['prog_ID'], self.config.channels[chanid].chan_name, self.source)))
-                    #~ continue
 
                 tdict = {}
                 tdict['source'] = self.source
                 tdict['channelid'] = chanid
                 tdict['channel']  = self.config.channels[chanid].chan_name
+                if  not 'name' in values.keys() or values['name'] == None or values['name'] == '':
+                    # Give it the Unknown Program Title Name, to mark it as a groupslot.
+                    values['name'] = self.config.unknown_program_title
+                    tdict['is_gap'] = True
+                    #~ self.config.log(self.config.text('sources', 6, (values['prog_ID'], self.config.channels[chanid].chan_name, self.source)))
+                    #~ continue
 
                 if 'stop-time' in values.keys() and isinstance(values['stop-time'], datetime.datetime):
                     tdict['stop-time'] = values['stop-time']
@@ -2847,7 +2797,65 @@ class FetchData(Thread):
 
         return tdict
 
+    def get_url(self, ptype, udata):
+        """return the several url's for ordinairy, detail and channel info as defined in the data-file"""
+        udata['source'] = self.source
+        udata['channels'] = self.channels
+        if not self.is_data_value([ptype, "url"]):
+            self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
+            return None
+
+        if self.is_data_value([ptype, "url"], list):
+            url = ''
+            for u_part in self.data_value([ptype, "url"], list):
+                if isinstance(u_part, (str, unicode)):
+                    url += u_part
+
+                elif isinstance(u_part, int):
+                    # get a variable
+                    uval = self.functions.url_functions(self, ptype, u_part, udata)
+                    if uval == None:
+                        self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
+                        return None
+
+                    else:
+                        url += unicode(uval)
+
+        else:
+            url = self.data_value([ptype, "url"])
+
+        is_json = bool('json' in self.data_value([ptype, "data-format"], str))
+        encoding = self.data_value([ptype, "encoding"])
+        accept_header = self.data_value([ptype, "accept-header"])
+        url_data = {}
+        for k, v in self.data_value([ptype, "url-data"], dict).items():
+            if isinstance(v, (str, unicode)):
+                url_data[k] = v
+
+            elif isinstance(v, int):
+                # get a variable
+                uval = self.functions.url_functions(self, ptype, v, udata)
+                if uval == None:
+                    self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
+                    return None
+
+                else:
+                    url_data[k] = uval
+
+        if ptype in ('detail', 'detail2'):
+            counter = ['detail', self.proc_id, udata['channel']]
+
+        else:
+            counter = ['base', self.proc_id]
+
+        return (url, encoding, accept_header, url_data, counter, is_json)
+
     def get_page_data(self, ptype, pdata = None):
+        """
+        Here for every fetch, the url is gathered, the page retreived and
+        together with the data definition inserted in the DataTree module
+        The then by the DataTree extracted data is return
+        """
         try:
             if pdata == None:
                 pdata = {}
@@ -2953,6 +2961,12 @@ class FetchData(Thread):
             return None
 
     def link_values(self, ptype, linkdata):
+        """
+        Following the definition in the values definition.
+        Her the data-list for every keyword (channel/program)
+        retreived with the DataTree module is validated and linked to keywords
+        A dict is return
+        """
         def get_variable(vdef):
             max_length = self.data_value('max length', int, vdef, 0)
             min_length = self.data_value('min length', int, vdef, 0)
@@ -3100,6 +3114,7 @@ class FetchData(Thread):
         return values
 
     def get_genre(self, values):
+        """Sub process for link_values"""
         genre = ''
         subgenre = ''
         if 'genres'in values:
@@ -3201,6 +3216,13 @@ class FetchData(Thread):
 
     # Helper functions
     def is_data_value(self, dpath, dtype = None, subpath = None):
+        """
+        Follow dpath through the datatree in subpath
+        and report if there exists a value of type dtype
+        dpath is a list of keys/indices
+        If subpath is not given use self.source_data
+        If dtype is None check for any value
+        """
         pval = (dpath, dtype, subpath)
         if isinstance(dpath, (str, unicode, int)):
             dpath = [dpath]
@@ -3249,6 +3271,15 @@ class FetchData(Thread):
         return bool(isinstance(subpath, dtype))
 
     def data_value(self, dpath, dtype = None, subpath = None, default = None):
+        """
+        Follow dpath through the datatree in subpath
+        and return if it exists a value of type dtype
+        dpath is a list of keys/indices
+        If subpath is not given use self.source_data
+        If dtype is None check for any value
+        If it is not found return default or if dtype is set to
+        a string, list or dict, an empty one
+        """
         if self.is_data_value(dpath, dtype, subpath):
             if isinstance(dpath, (str, unicode, int)):
                 dpath = [dpath]
@@ -3474,52 +3505,6 @@ class FetchData(Thread):
                 tdict['subgenre']  = aheader[0]
 
         return tdict
-
-    # Selectie functions
-    def get_programcount(self, chanid = 0, offset = None):
-        """Return the programcount for given channel id and Offset"""
-        if not chanid in self.channels.keys():
-            return 0
-
-        if not self.channel_loaded[chanid]:
-            return 0
-
-        if offset == None:
-            if chanid == 0:
-                count = 0
-
-            else:
-                return len(self.program_data[chanid])
-
-        if not self.day_loaded[chanid][offset]:
-            return 0
-
-        pcount = 0
-        for tdict in self.program_data[chanid]:
-            if tdict['offset'] == offset:
-                pcount += 1
-
-        return pcount
-
-    def get_channel(self, chanid):
-        """Return program_data for given channel"""
-        if not chanid in self.channels.keys():
-            return []
-
-        if not self.channel_loaded[chanid]:
-            return []
-
-        return self.program_data[chanid]
-
-    def get_program_data(self, id, item):
-        """Return value of given program id and dict key"""
-        tdict = get_program(id, item)
-
-        if item in tdict.keys():
-            return tdict[item]
-
-        else:
-            return None
 
     # Filter/merge processes
     def parse_programs(self, chanid, mode = 0, overlap_strategy = None):
