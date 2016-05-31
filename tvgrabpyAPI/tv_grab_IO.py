@@ -8,6 +8,7 @@ from __future__ import unicode_literals
 import codecs, locale, re, os, sys, io, shutil, difflib
 import traceback, smtplib, sqlite3
 import datetime, time, pytz, copy
+import tv_grab_channel
 from threading import Thread, Lock, RLock
 from Queue import Queue, Empty
 from email.mime.text import MIMEText
@@ -1601,7 +1602,7 @@ class InfoFiles():
         self.url_failure = []
         if self.write_info_files:
             self.fetch_list = self.functions.open_file(self.config.opt_dict['xmltv_dir'] + '/fetched-programs3','w')
-            self.raw_output =  self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/raw_output', 'w')
+            self.raw_output =  self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/raw_output3', 'w')
 
     def check_new_channels(self, source, source_channels):
         if not self.write_info_files:
@@ -1677,7 +1678,7 @@ class InfoFiles():
             with self.info_lock:
                 self.detail_list.append(detail_data)
 
-    def write_fetch_list(self, programs, chanid, source, chan_name = '', sid = None, ismerge = False):
+    def write_fetch_list(self, programs, chanid = None, source = None, chan_name = '', sid = None, ismerge = False):
         def value(vname):
             if vname == 'ID':
                 if sid == None:
@@ -1692,7 +1693,7 @@ class InfoFiles():
                 return '--- '
 
             if isinstance(tdict[vname], datetime.datetime):
-                return config.in_output_tz(tdict[vname]).strftime('%d %b %H:%M')
+                return self.config.in_output_tz(tdict[vname]).strftime('%d %b %H:%M')
 
             if isinstance(tdict[vname], bool):
                 if tdict[vname]:
@@ -1706,41 +1707,64 @@ class InfoFiles():
             return
 
         with self.info_lock:
-            plist = copy.deepcopy(programs)
-            if not chanid in  self.fetch_strings:
-                 self.fetch_strings[chanid] = {}
+            if isinstance(programs, tv_grab_channel.ChannelNode):
 
-            if not source in  self.fetch_strings[chanid]:
-                self.fetch_strings[chanid][source] = ''
+                if source in self.config.channelsource.keys():
+                    fstr = u' (%3.0f) after merging from: %s\n' % (programs.program_count(), self.config.channelsource[source].source)
 
-            if ismerge:
-                self.fetch_strings[chanid][source] += u'(%3.0f) merging channel: %s from: %s\n' % \
-                    (len(plist), chan_name, source)
+                else:
+                    fstr = u' (%3.0f) after merging from: %s\n' % (programs.program_count(), source)
+
+                pnode = programs.first_node
+                while isinstance(pnode, tv_grab_channel.ProgramNode):
+                    fstr += u'  %s-%s: [%s][%s] %s: %s\n' % (\
+                                    pnode.get_value('start'), pnode.get_value('stop'), \
+                                    pnode.get_value('ID').rjust(15), pnode.get_value('genre')[0:10].rjust(10), \
+                                    pnode.get_value('name'), pnode.get_value('episode title'))
+
+                    pnode = pnode.next
+
+                fstr += u'#\n'
 
             else:
-                self.fetch_strings[chanid][source] += u'(%3.0f) channel: %s from: %s\n' % \
-                    (len(plist), chan_name, source)
+                plist = copy.deepcopy(programs)
+                fstr = u' (%3.0f) from: %s\n' % (len(plist),  self.config.channelsource[source].source)
 
-            plist.sort(key=lambda program: (program['start-time']))
+                plist.sort(key=lambda program: (program['start-time']))
 
-            for tdict in plist:
-                extra = value('rerun') + value('teletext') + value('new') + value('last-chance') + value('premiere')
-                extra2 = value('HD') + value('widescreen') + value('blackwhite')
+                for tdict in plist:
+                    extra = value('rerun') + value('teletext') + value('new') + value('last-chance') + value('premiere')
+                    extra2 = value('HD') + value('widescreen') + value('blackwhite')
 
-                self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s] [%s]\n' % (\
-                                value('start-time'), value('stop-time'), \
-                                value('ID').rjust(15), value('genre')[0:10].rjust(10), \
-                                value('name'), value('episode title'), \
-                                extra, extra2)
+                    fstr += u'  %s-%s: [%s][%s] %s: %s [%s] [%s]\n' % (\
+                                    value('start-time'), value('stop-time'), \
+                                    value('ID').rjust(15), value('genre')[0:10].rjust(10), \
+                                    value('name'), value('episode title'), \
+                                    extra, extra2)
 
-                #~ self.fetch_strings[chanid][source] += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
-                                #~ self.config.output_tz.normalize(tdict['start-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
-                                #~ self.config.output_tz.normalize(tdict['stop-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
-                                #~ psid.rjust(15), tdict['genre'][0:10].rjust(10), \
-                                #~ tdict['name'], tdict['episode title'], \
-                                #~ tdict['season'], tdict['episode'])
+                    #~ fstr += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
+                                    #~ self.config.output_tz.normalize(tdict['start-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
+                                    #~ self.config.output_tz.normalize(tdict['stop-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
+                                    #~ psid.rjust(15), tdict['genre'][0:10].rjust(10), \
+                                    #~ tdict['name'], tdict['episode title'], \
+                                    #~ tdict['season'], tdict['episode'])
 
-            if ismerge: self.fetch_strings[chanid][source] += u'#\n'
+            if not chanid in  self.fetch_strings:
+                 self.fetch_strings[chanid] = {}
+                 self.fetch_strings[chanid]['name'] = u'Channel: %s\n' % chan_name
+
+            if source in self.config.channelsource.keys():
+                if not source in  self.fetch_strings[chanid]:
+                    self.fetch_strings[chanid][source] = fstr
+
+                else:
+                    self.fetch_strings[chanid][source] += fstr
+
+            elif not 'channels' in self.fetch_strings[chanid]:
+                self.fetch_strings[chanid]['channels'] = fstr
+
+            else:
+                self.fetch_strings[chanid]['channels'] += fstr
 
     def write_xmloutput(self, xml):
 
@@ -1766,17 +1790,25 @@ class InfoFiles():
             self.config.logging.send_mail(self.url_failure, self.config.opt_dict['mail_info_address'], 'Tv_grab_nl_py url failures')
 
         if self.fetch_list != None:
+            chan_list = []
+            combine_list = []
             for chanid in channels.keys():
                 if (channels[chanid].active or channels[chanid].is_child) and chanid in self.fetch_strings:
-                    for s in channels[chanid].merge_order:
-                        if sources[s].source in self.fetch_strings[chanid].keys():
-                            self.fetch_list.write(self.fetch_strings[chanid][sources[s].source])
-
                     if chanid in combined_channels.keys():
-                        for c in combined_channels[chanid]:
-                            if c['chanid'] in channels and channels[c['chanid']].chan_name in self.fetch_strings[chanid]:
-                                self.fetch_list.write(self.fetch_strings[chanid][channels[c['chanid']].chan_name])
+                        combine_list.append(chanid)
 
+                    else:
+                        chan_list.append(chanid)
+
+            chan_list.extend(combine_list)
+            for chanid in chan_list:
+                self.fetch_list.write(self.fetch_strings[chanid]['name'])
+                for s in channels[chanid].merge_order:
+                    if s in self.fetch_strings[chanid].keys():
+                        self.fetch_list.write(self.fetch_strings[chanid][s])
+
+                if chanid in combined_channels.keys() and 'channels' in self.fetch_strings[chanid]:
+                    self.fetch_list.write(self.fetch_strings[chanid]['channels'])
 
             self.fetch_list.close()
 
@@ -1784,7 +1816,7 @@ class InfoFiles():
             self.raw_output.close()
 
         if len(self.detail_list) > 0:
-            f = self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/detail_output')
+            f = self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/detail_output3')
             if (f != None):
                 f.seek(0,0)
                 for byteline in f.readlines():
@@ -1794,7 +1826,7 @@ class InfoFiles():
 
                 f.close()
 
-            f = self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/detail_output', 'w')
+            f = self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/detail_output3', 'w')
             if (f != None):
                 ds = set(self.detail_list)
                 ds = set(self.detail_list)
