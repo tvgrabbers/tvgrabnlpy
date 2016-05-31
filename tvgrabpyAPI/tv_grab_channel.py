@@ -149,7 +149,6 @@ class Channel_Config(Thread):
                     self.source_ready(index).set()
 
             self.merge_order.extend(last_merge)
-            xml_data = False
             # Retrieve and merge the data from the available sources.
             self.statetext = 'waiting for basepages'
             self.state = 2
@@ -174,22 +173,13 @@ class Channel_Config(Thread):
 
                     elif self.channel_node == None:
                         # This is the first source with data, so we just take in the data creating the channel Node
-                        xml_data = True
-                        #~ prime_source = self.config.channelsource[index].proc_id
-                        prime_source_name = self.config.channelsource[index].source
                         with self.config.channelsource[index].source_lock:
                             self.channel_node = ChannelNode(self.config, self, self.config.channelsource[index].program_data[self.chanid][:], index)
-                            #~ self.all_programs = self.config.channelsource[index].program_data[self.chanid][:]
 
                     else:
                         # There is already data, so we merge the incomming data into that
-                        xml_data = True
                         with self.config.channelsource[index].source_lock:
                             self.channel_node.merge_source(self.config.channelsource[index].program_data[self.chanid][:], index)
-                            #~ self.config.channelsource[index].merge_sources(self.chanid,  prime_source, self.counter)
-                            #~ self.config.channelsource[index].parse_programs(self.chanid, 1, 'None')
-                            #~ for i in range(0, len(self.all_programs)):
-                                #~ self.all_programs[i] = self.config.fetch_func.checkout_program_dict(self.all_programs[i])
 
             if self.chanid in self.config.combined_channels.keys():
                 self.statetext = 'waiting for children'
@@ -198,7 +188,6 @@ class Channel_Config(Thread):
                     if c['chanid'] in self.config.channels:
                         while not self.config.channels[c['chanid']].child_data.is_set():
                             # Wait till the event is set by the child, but check every 5 seconds for an unexpected break or wether the child is still alive
-                            #~ print 'Waiting for', c['chanid']
                             self.config.channels[c['chanid']].child_data.wait(5)
                             if self.quit:
                                 self.ready = True
@@ -214,24 +203,12 @@ class Channel_Config(Thread):
 
                         elif self.child_data.is_set():
                             # We always merge as there might be restrictions
-                            xml_data = True
                             if self.channel_node == None:
                                 self.channel_node = ChannelNode(self.config, self)
 
                             self.channel_node.merge_channel(self.config.channels[c['chanid']].channel_node)
-                            #~ self.config.channelsource[0].merge_sources(self.chanid,  None, self.counter, c)
-                            #~ self.config.channelsource[0].parse_programs(self.chanid, 1, 'None')
-                            #~ for i in range(0, len(self.all_programs)):
-                                #~ self.all_programs[i] = self.config.fetch_func.checkout_program_dict(self.all_programs[i])
-
-                if isinstance(self.channel_node, ChannelNode):
-                     #~ and self.channel_node.program_count() > 0
-                    #~ print 'checking lineup'
-                    self.channel_node.check_lineup()
 
             if self.is_child and not self.active:
-                #~ self.child_programs = deepcopy(self.all_programs) if self.active else self.all_programs
-                #~ print 'setting child_data for', self.chanid
                 self.child_data.set()
                 self.statetext = ''
                 self.state = None
@@ -318,8 +295,7 @@ class Channel_Config(Thread):
             self.config.log(log_array, 4, 3)
 
             # a final check on the sanity of the data
-            #~ self.config.channelsource[0].parse_programs(self.chanid, 1)
-
+            self.channel_node.check_lineup()
             # Split titles with colon in it
             # Note: this only takes place if all days retrieved are also grabbed with details (slowdays=days)
             # otherwise this function might change some titles after a few grabs and thus may result in
@@ -597,6 +573,7 @@ class ChannelNode():
             self.tz = self.config.output_tz
             self.channel_config = channel_config
             self.chanid = channel_config.chanid
+            self.max_overlap = datetime.timedelta(minutes = self.channel_config.opt_dict['max_overlap'])
             self.name = channel_config.chan_name
             self.shortname = self.name[:15] if len(self.name) > 15 else self.name
             self.current_stats = {}
@@ -615,7 +592,6 @@ class ChannelNode():
             self.key_list.append('genre')
             self.config.key_values['source'] = ['prog_ID', 'detail_url', 'detail_fetched']
             self.config.key_values['dict'] = ['credits', 'video']
-            self.channel_nodes = []
             self.clear_all_programs()
             self.checkrange = [0]
             for i in range(1, 30):
@@ -636,7 +612,8 @@ class ChannelNode():
                     clist.sort(key=lambda ctime: (ctime['start']))
                     if clist[-1]['start'] > clist[-1]['end']:
                         cend = self.config.fetch_func.merge_date_time(start_date, clist[-1]['end'], self.config.combined_channels_tz)
-                        last_date = {'start': start_time, 'stop': cend, 'chanid': clist[-1]['chanid'], 'slots': []}
+                        cstart = self.config.fetch_func.merge_date_time(start_date - 1, clist[-1]['start'], self.config.combined_channels_tz)
+                        last_date = {'real-start': cstart, 'start': start_time, 'stop': cend, 'chanid': clist[-1]['chanid'], 'slots': []}
                         if 'slots' in clist[-1]:
                             last_date['slots'] = clist[-1]['slots']
 
@@ -663,6 +640,7 @@ class ChannelNode():
                                 last_date['slots'] = item['slots']
 
                     if last_date['stop'] > end_time:
+                        last_date['real-stop'] = last_date['stop']
                         last_date['stop'] = end_time
 
                     self.child_times.append(last_date)
@@ -745,8 +723,16 @@ class ChannelNode():
 
                     else:
                         programs.sort(key=lambda program: (program['start-time']))
+                        for i in range(len(programs)-1, 0, -1):
+                            if not 'stop-time' in programs[i-1] or not isinstance(programs[i-1]['stop-time'], datetime.datetime):
+                                programs[i-1]['stop-time'] = copy.copy(programs[i]['start-time'])
+
                         self.adding_stats['start'] = programs[0]['start-time']
-                        self.adding_stats['stop'] = programs[-1]['stop-time']
+                        if 'stop-time' in programs[-1] and isinstance(programs[-1]['stop-time'], datetime.datetime):
+                            self.adding_stats['stop'] = programs[-1]['stop-time']
+
+                        else:
+                            self.adding_stats['stop'] = programs[-1]['start-time']
 
                     self.adding_stats['start-str'] = '            '
                     if isinstance(self.adding_stats['start'], datetime.datetime):
@@ -759,6 +745,7 @@ class ChannelNode():
                     return True
 
                 except:
+                    #~ traceback.print_exc()
                     self.adding_stats['start'] = None
                     self.adding_stats['stop'] = None
                     self.adding_stats['count'] = 0
@@ -800,11 +787,13 @@ class ChannelNode():
                 addingid = source.chanid
                 addingname = source.shortname
                 stype = self.config.text('IO', 6, type = 'stats')
+                sn = source.name
 
             else:
                 addingid = source
                 addingname = self.config.channelsource[source].source
                 stype = self.config.text('IO', 5, type = 'stats')
+                sn = source
 
             log_array.append(self.config.text('IO', 9, \
                 (mtype, self.name , self.channel_config.counter, self.config.chan_count, stype, addingname), 'stats'))
@@ -825,6 +814,14 @@ class ChannelNode():
             log_array.append(self.config.text('IO', 18, (len(self.programs_with_no_genre), ), 'stats'))
             log_array.append('\n')
             self.config.log(log_array, 4, 3)
+            try:
+                if self.config.write_info_files and (self.merge_type & 7):
+                    self.config.infofiles.write_fetch_list(self, self.chanid, sn, self.name)
+
+            except:
+                traceback.print_exc()
+                pass
+
             self.merge_type = None
 
     def program_count(self):
@@ -838,6 +835,9 @@ class ChannelNode():
                 dlist.append(pn)
 
         def check_gaps(pp, is_groupslot = False):
+            if not 'stop-time' in pp or not isinstance(pp['stop-time'], datetime.datetime):
+                return
+
             for gs in self.group_slots[:]:
                 if gs.gs_start() <= pp['start-time'] <= gs.gs_stop() \
                   or gs.gs_start() <= pp['stop-time'] <= gs.gs_stop():
@@ -857,6 +857,10 @@ class ChannelNode():
                     return
 
                 for pgap in self.program_gaps:
+                    if pgap.is_overlap:
+                        # This is a negative gap
+                        continue
+
                     if pgap.start <= pp['start-time'] <= pgap.stop \
                       or pgap.start <= pp['stop-time'] <= pgap.stop:
                         # It falls into a gap
@@ -893,11 +897,20 @@ class ChannelNode():
                 previous_node = None
                 for index in range(len(programs)):
                     # Some sanity Check
+                    if 'stop from length' in programs[index] and programs[index]['stop from length']:
+                        if index < len(programs) -1 and programs[index]['stop-time'] > programs[index + 1]['start-time']:
+                            programs[index]['stop-time'] = copy.copy(programs[index+1]['start-time'])
+
+                        while programs[index]['length'] > datetime.timedelta(days = 1):
+                            programs[index]['length'] -= datetime.timedelta(days = 1)
+
+                        programs[index]['stop-time'] = programs[index]['start-time'] + programs[index]['length']
+
                     if not 'stop-time' in programs[index] or not isinstance(programs[index]['stop-time'], datetime.datetime):
                         if index == len(programs) -1:
                             continue
 
-                        programs[index]['stop-time'] = programs[index+1]['start-time']
+                        programs[index]['stop-time'] = copy.copy(programs[index+1]['start-time'])
 
                     if programs[index]['stop-time'] <= programs[index]['start-time']:
                         continue
@@ -1026,6 +1039,10 @@ class ChannelNode():
                     return
 
                 for pgap in self.program_gaps:
+                    if pgap.is_overlap:
+                        # This is a negative gap
+                        continue
+
                     if pgap.start <= pn.start <= pgap.stop \
                       or pgap.start <= pn.stop <= pgap.stop:
                         # It falls into a gap
@@ -1070,12 +1087,23 @@ class ChannelNode():
                             # Copy the node
                             cnode = pnode.copy(self)
                             if cnode.start < pzone['start']:
-                                # Truncate the start
-                                cnode.adjust_start(pzone['start'])
+                                # Truncate the start, but not it this is the start of the listing
+                                if 'real-start' in pzone and isinstance(pzone['real-start'], datetime.datetime):
+                                    if cnode.start < pzone['real-start']:
+                                        cnode.adjust_start(pzone['real-start'])
+
+                                else:
+                                    cnode.adjust_start(pzone['start'])
 
                             if cnode.stop >pzone['stop']:
-                                # Truncate the end add the node and move to the next zone
-                                cnode.adjust_stop(pzone['stop'])
+                                # Truncate the end, but not it this is the end of the listing, add the node and move to the next zone
+                                if 'real-stop' in pzone and isinstance(pzone['real-stop'], datetime.datetime):
+                                    if cnode.start > pzone['real-stop']:
+                                        cnode.adjust_stop(pzone['real-stop'])
+
+                                else:
+                                    cnode.adjust_stop(pzone['stop'])
+
                                 if cnode.is_groupslot:
                                     group_slots.append(cnode)
 
@@ -1178,10 +1206,29 @@ class ChannelNode():
             self.log_merge_statistics(channode)
 
     def check_lineup(self, overlap_strategy = None):
-        #~ self.channel_config.opt_dict['max_overlap']
+        if overlap_strategy not in ['average', 'stop', 'start']:
+            return
+
         with self.node_lock:
             # We check overlap
-            pass
+            for gap in self.program_gaps[:]:
+                if gap.abs_length > self.max_overlap:
+                    continue
+
+                 # stop-time of previous program wins
+                if overlap_strategy == 'stop':
+                    gap.next.adjust_start(gap.start)
+
+                # start-time of next program wins
+                elif overlap_strategy == 'start':
+                    gap.previous.adjust_stop(gap.stop)
+
+                # average the difference
+                elif overlap_strategy == 'average':
+                    gap.next.adjust_start(gap.start + (gap.length // 2))
+                    gap.previous.adjust_stop(gap.start + (gap.length // 2))
+
+                self.remove_gap(gap)
 
     def link_nodes(self, node1, node2, adjust_overlap = None):
         with self.node_lock:
@@ -1194,7 +1241,7 @@ class ChannelNode():
             if not isinstance(node1, ProgramNode) or not isinstance(node2, ProgramNode):
                 return None
 
-            if abs(node2.start - node1.stop) > datetime.timedelta(minutes = self.channel_config.opt_dict['max_overlap']):
+            if abs(node2.start - node1.stop) > self.max_overlap:
                 gap = GapNode(self, node1, node2)
                 return gap
 
@@ -1459,7 +1506,8 @@ class ProgramNode():
 
     def print_start_name(self):
         pstart = self.config.in_output_tz(self.start).strftime('%d %b %H:%M')
-        return '%s: %s' % (pstart, self.name)
+        pstop = self.config.in_output_tz(self.stop).strftime('%d %b %H:%M')
+        return '%s - %s: %s' % (pstart, pstop, self.name)
 
     def match_title(self, mname):
         if self.match_name == mname:
@@ -1477,19 +1525,27 @@ class ProgramNode():
 
         return False
     def add_source_data(self, data, source):
+        def create_dict_entry(key):
+            self.tdict[key] = {}
+            self.tdict[key]['sources'] = {}
+            self.tdict[key]['channels'] = {}
+            self.tdict[key]['values'] = []
+            self.tdict[key]['rank'] = []
+
         if not source in self.config.channelsource.keys() or not isinstance(data, dict):
             return
 
         with self.node_lock:
             if self.first_source:
+                for k in ('start-time', 'stop-time', 'length', 'name'):
+                    create_dict_entry(k)
+
                 self.start = data['start-time'].replace(second = 0, microsecond = 0)
                 if 'stop-time' in data and isinstance(data['stop-time'], datetime.datetime):
-                    self.stop = data['stop-time'].replace(second = 0, microsecond = 0)
-                    self.length = self.stop - self.start
+                    self.adjust_stop(data['stop-time'])
 
                 elif 'length'  in data and isinstance(data['length'], datetime.timedelta):
-                    self.length = data['length']
-                    self.stop = (self.start + self.length).replace(second = 0, microsecond = 0)
+                    self.adjust_stop(self.start + data['length'])
 
                 else:
                     return False
@@ -1498,9 +1554,9 @@ class ProgramNode():
                 self.match_name = re.sub('[-,. ]', '', self.config.fetch_func.remove_accents(data['name']).lower()).strip()
             else:
                 # Check if the new source is longer and if so extend over any gap
-                start_diff = (self.start - data['start-time']).total_seconds() / 60
-                if start_diff > 0:
-                    if self.previous_gap != None:
+                start_diff = (self.start - data['start-time'])
+                if start_diff.total_seconds() > 0:
+                    if self.previous_gap != None and not self.previous_gap.is_overlap:
                         if data['start-time'] <= self.previous_gap.start:
                             # We add the gap to the program
                             self.adjust_start(self.previous_gap.start.replace(second = 0, microsecond = 0))
@@ -1511,26 +1567,27 @@ class ProgramNode():
                             self.adjust_start(data['start-time'].replace(second = 0, microsecond = 0))
                             self.previous_gap.adjust_stop(self.start)
 
-                    elif self.previous == None and start_diff < self.channel_config.opt_dict['max_overlap']:
+                    elif self.previous == None and start_diff < self.channode.max_overlap:
                         # It's the first program
                         self.adjust_start(data['start-time'].replace(second = 0, microsecond = 0))
 
-                stop_diff = (data['stop-time'] - self.stop).total_seconds() / 60
-                if stop_diff > 0:
-                    if self.next_gap != None:
-                        if data['stop-time'] >= self.next_gap.stop:
-                            # We add the gap to the program
-                            self.adjust_stop(self.next_gap.stop.replace(second = 0, microsecond = 0))
-                            self.channode.remove_gap(self.next_gap)
+                if 'stop-time' in data and isinstance(data['stop-time'], datetime.datetime):
+                    stop_diff = (data['stop-time'] - self.stop)
+                    if stop_diff.total_seconds() > 0:
+                        if self.next_gap != None and not self.next_gap.is_overlap:
+                            if data['stop-time'] >= self.next_gap.stop:
+                                # We add the gap to the program
+                                self.adjust_stop(self.next_gap.stop.replace(second = 0, microsecond = 0))
+                                self.channode.remove_gap(self.next_gap)
 
-                        else:
-                            # We reduce the gap
+                            else:
+                                # We reduce the gap
+                                self.adjust_stop(data['stop-time'].replace(second = 0, microsecond = 0))
+                                self.next_gap.adjust_start(self.stop)
+
+                        elif self.next == None and stop_diff < self.channode.max_overlap:
+                            # It's the last program
                             self.adjust_stop(data['stop-time'].replace(second = 0, microsecond = 0))
-                            self.next_gap.adjust_start(self.stop)
-
-                    elif self.next == None and stop_diff < self.channel_config.opt_dict['max_overlap']:
-                        # It's the last program
-                        self.adjust_stop(data['stop-time'].replace(second = 0, microsecond = 0))
 
             self.length = self.stop - self.start
             # Check for allowed key values
@@ -1547,11 +1604,21 @@ class ProgramNode():
             return True
 
     def add_node_data(self, pnode):
+        def create_dict_entry(key):
+            self.tdict[key] = {}
+            self.tdict[key]['sources'] = {}
+            self.tdict[key]['channels'] = {}
+            self.tdict[key]['values'] = []
+            self.tdict[key]['rank'] = []
+
         if not isinstance(pnode, ProgramNode):
             return
 
         with self.node_lock:
             if self.first_source:
+                for k in ('start-time', 'stop-time', 'length', 'name'):
+                    create_dict_entry(k)
+
                 self.start = pnode.start
                 if isinstance(pnode.stop, datetime.datetime):
                     self.stop = pnode.stop
@@ -1572,10 +1639,10 @@ class ProgramNode():
                 self.match_name = pnode.match_name
 
             else:
-                # Check if the new source is longer and if so extend over any gap
-                start_diff = (self.start - pnode.start).total_seconds() / 60
-                if start_diff > 0:
-                    if self.previous_gap != None:
+                # Check if the new node is longer and if so extend over any gap
+                start_diff = (self.start - pnode.start)
+                if start_diff.total_seconds() > 0:
+                    if self.previous_gap != None and not self.previous_gap.is_overlap:
                         if pnode.start <= self.previous_gap.start:
                             # We add the gap to the program
                             self.adjust_start(self.previous_gap.start.replace(second = 0, microsecond = 0))
@@ -1586,13 +1653,13 @@ class ProgramNode():
                             self.adjust_start(pnode.start.replace(second = 0, microsecond = 0))
                             self.previous_gap.adjust_stop(self.start)
 
-                    elif self.previous == None and start_diff < self.channel_config.opt_dict['max_overlap']:
+                    elif self.previous == None and start_diff < self.channode.max_overlap:
                         # It's the first program
                         self.adjust_start(pnode.start.replace(second = 0, microsecond = 0))
 
-                stop_diff = (pnode.stop - self.stop).total_seconds() / 60
-                if stop_diff > 0:
-                    if self.next_gap != None:
+                stop_diff = (pnode.stop - self.stop)
+                if stop_diff.total_seconds() > 0:
+                    if self.next_gap != None and not self.next_gap.is_overlap:
                         if pnode.stop >= self.next_gap.stop:
                             # We add the gap to the program
                             self.adjust_stop(self.next_gap.stop.replace(second = 0, microsecond = 0))
@@ -1603,7 +1670,7 @@ class ProgramNode():
                             self.adjust_stop(pnode.stop.replace(second = 0, microsecond = 0))
                             self.next_gap.adjust_start(self.stop)
 
-                    elif self.next == None and stop_diff < self.channel_config.opt_dict['max_overlap']:
+                    elif self.next == None and stop_diff < self.channode.max_overlap:
                         # It's the last program
                         self.adjust_stop(pnode.stop.replace(second = 0, microsecond = 0))
 
@@ -1934,7 +2001,13 @@ class ProgramNode():
             add_value(value)
 
     def get_value(self, key):
-        if key in self.tdict:
+        if key == 'start':
+            return self.config.in_output_tz(self.start).strftime('%d %b %H:%M')
+
+        elif key == 'stop':
+            return self.config.in_output_tz(self.stop).strftime('%d %b %H:%M')
+
+        elif key in self.tdict:
             if key == 'description' and 'preferred' in self.tdict[key] and len(self.tdict[key]['preferred']) > 100:
                 return self.tdict[key]['preferred']
 
@@ -2075,11 +2148,11 @@ class GapNode():
         with self.node_lock:
             self.start = pstart.replace(second = 0, microsecond = 0)
             self.length = None
-            self.length_in_min = None
+            self.abs_length = None
             self.is_overlap = False
             if isinstance(self.start, datetime.datetime) and isinstance(self.stop, datetime.datetime):
                 self.length = self.stop - self.start
-                self.length_in_min = abs(self.length.total_seconds() / 60)
+                self.abs_length = abs(self.length)
                 if self.stop < self.start:
                     self.is_overlap = True
 
@@ -2087,11 +2160,11 @@ class GapNode():
         with self.node_lock:
             self.stop = pstop.replace(second = 0, microsecond = 0)
             self.length = None
-            self.length_in_min = None
+            self.abs_length = None
             self.is_overlap = False
             if isinstance(self.start, datetime.datetime) and isinstance(self.stop, datetime.datetime):
                 self.length = self.stop - self.start
-                self.length_in_min = abs(self.length.total_seconds() / 60)
+                self.abs_length = abs(self.length)
                 if self.stop < self.start:
                     self.is_overlap = True
 
@@ -2220,8 +2293,6 @@ class XMLoutput():
                 self.program_count += len(self.config.channels[chanid].all_programs)
 
         self.xml_programs[xmltvid] = []
-        #~ self.config.channels[chanid].all_programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
-        #~ for program in self.config.channels[chanid].all_programs[:]:
         channel_node = self.config.channels[chanid].channel_node
         if not isinstance(channel_node, ChannelNode):
             return

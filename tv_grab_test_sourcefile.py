@@ -90,7 +90,8 @@ def main():
         #~ source = config.init_sources(4)
 
         # vpro.nl
-        #~ source = config.init_sources(7)
+        channel ='veronica_jetix'
+        source = config.init_sources(7)
 
         # horizon.tv
         #~ channel ='24443943146'
@@ -113,8 +114,8 @@ def main():
         #~ source = config.init_sources(9)
 
         # oorboekje.nl
-        channel = 'npo-radio-1'
-        source = config.init_sources(12)
+        #~ channel = 'npo-radio-1'
+        #~ source = config.init_sources(12)
 
         source.test_output = sys.stdout
         #~ source.print_tags = True
@@ -127,12 +128,12 @@ def main():
         config.channelsource[sid] = source
         config.channelsource[sid].init_channel_source_ids()
         tdict = config.fetch_func.checkout_program_dict()
-        #~ tdict['channelid'] = config.channelsource[sid].chanids[channel]
+        tdict['channelid'] = config.channelsource[sid].chanids[channel]
 
-        config.channelsource[sid].get_channels()
+        #~ config.channelsource[sid].get_channels()
 
-        #~ data = config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'rest', 'cnt-offset': 0, 'start':0, 'days':4})
-        #~ config.channelsource[sid].parse_basepage(data, {'offset': 1, 'channel': channel, 'channelgrp': 'main'})
+        data = config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'rest', 'cnt-offset': 0, 'start':0, 'days':4})
+        config.channelsource[sid].parse_basepage(data, {'offset': 1, 'channel': channel, 'channelgrp': 'main'})
 
         #~ tdict['detail_url'][sid] = 'midsomer-murders/15170844'
         #~ config.channelsource[sid].load_detailpage('detail', tdict)
