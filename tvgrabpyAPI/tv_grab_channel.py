@@ -168,7 +168,7 @@ class Channel_Config(Thread):
 
                 if self.source_ready(index).is_set():
                     if len(self.config.channelsource[index].program_data[self.chanid]) == 0:
-                        # Nothing was returned
+                        # Nothing was returned. We log unless it is a virtual source
                         if not self.config.channelsource[index].is_virtual:
                             self.config.log(self.config.text('fetch', 51, (self.config.channelsource[index].source, self.chan_name)))
 
@@ -203,7 +203,6 @@ class Channel_Config(Thread):
                             self.config.log(self.config.text('fetch', 51, (self.config.channels[c['chanid']].chan_name, self.chan_name)))
 
                         elif self.child_data.is_set():
-                            # We always merge as there might be restrictions
                             if self.channel_node == None:
                                 self.channel_node = ChannelNode(self.config, self)
 
@@ -570,6 +569,7 @@ class ChannelNode():
         self.node_lock = RLock()
         with self.node_lock:
             self.prime_source = None
+            self.adding_from = ''
             self.config = config
             self.tz = self.config.output_tz
             self.channel_config = channel_config
@@ -675,11 +675,14 @@ class ChannelNode():
             self.stop = None
             self.first_node = None
             self.last_node = None
+            self.current_list = []
+            self.adding_list = []
 
     def save_current_stats(self):
         with self.node_lock:
-            self.current_stats['start'] = self.start
-            self.current_stats['stop'] = self.stop
+            self.current_list = self.programs[:]
+            self.current_stats['start'] = copy(self.start)
+            self.current_stats['stop'] = copy(self.stop)
             self.current_stats['count'] = self.program_count()
             self.current_stats['groups'] = len(self.group_slots)
             self.current_stats['start-str'] = '            '
@@ -694,18 +697,22 @@ class ChannelNode():
     def get_adding_stats(self, programs, group_slots = None):
         with self.node_lock:
             if isinstance(programs, ChannelNode):
-                self.adding_stats = programs.save_current_stats()
+                self.adding_stats = copy(programs.save_current_stats())
                 if self.adding_stats['count'] == 0:
+                    self.adding_list = []
                     return False
 
                 else:
+                    self.adding_list = programs.programs[:]
                     return True
 
             elif len(programs) == 0:
+                self.adding_list = []
                 return False
 
             else:
                 self.adding_stats['count'] = len(programs)
+                self.adding_list = programs[:]
                 self.adding_stats['groups'] = 0
                 try:
                     if isinstance(programs[0], ProgramNode):
@@ -747,6 +754,7 @@ class ChannelNode():
 
                 except:
                     #~ traceback.print_exc()
+                    self.adding_list = []
                     self.adding_stats['start'] = None
                     self.adding_stats['stop'] = None
                     self.adding_stats['count'] = 0
@@ -755,6 +763,7 @@ class ChannelNode():
 
     def init_merge_stats(self):
         with self.node_lock:
+            self.match_array = []
             self.merge_stats['new'] = 0
             self.merge_stats['matched'] = 0
             self.merge_stats['groupslot'] = 0
@@ -770,6 +779,69 @@ class ChannelNode():
 
             if self.merge_stats[type] < 0:
                 self.merge_stats[type] = 0
+
+    def add_match_stat(self, type, pnode1, pnode2):
+        with self.node_lock:
+            if not (type & self.config.opt_dict['match_log_level']):
+                return
+
+            if isinstance(pnode1, ProgramNode):
+                start_stop1 = pnode1.get_start_stop()
+                title1 = pnode1.get_title()
+                genre1 = pnode1.get_genre()
+
+            else:
+                start_stop1 = ''
+                title1 = ''
+                genre1 = ''
+
+            if isinstance(pnode2, (ProgramNode, dict)):
+                start_stop2 = self.get_start_stop(pnode2)
+                title2 = self.get_title(pnode2)
+                genre2 = self.get_genre(pnode2)
+
+            else:
+                start_stop2 = ''
+                title2 = ''
+                genre2 = ''
+
+            # Added
+            if type ==1:
+                #~ mstr = self.config.text('fetch', 48)
+                self.match_array.append(u'Added from %s:%s: %s Genre: %s.\n' % (self.adding_from.rjust(14), start_stop2, title2, genre2))
+
+            # It was already there but not matched
+            elif type == 33:
+                type = 1
+                #~ mstr = self.config.text('fetch', 46)
+                self.match_array.append(u'Kept unmatched:           %s: %s Genre: %s.\n' % (start_stop1, title1, genre1))
+
+            # Unmatched from the new source
+            elif type == 2:
+                #~ mstr = self.config.text('fetch', 50)
+                self.match_array.append(u'Leftover in %s:%s: %s Genre: %s.\n' % (self.adding_from.rjust(13), start_stop2, title2, genre2))
+
+            # Matched on title and time
+            elif type == 4:
+                #~ mstr = self.config.text('fetch', 29)
+                self.match_array.append(u'Match from %s:%s: %s Genre: %s.\n' % (self.adding_from.rjust(14), start_stop2, title2, genre2))
+                self.match_array.append(u'     on time and title to:%s: %s Genre: %s.\n' % (start_stop1, title1, genre1))
+
+            elif type == 36:
+                # For furure generic matches on Genre
+                type = 4
+                #~ mstr = self.config.text('fetch', 30)
+                return
+
+            # Added to a groupslot
+            elif type == 8:
+                #~ mstr = self.config.text('fetch', 47)
+                self.match_array.append(u'      from %s:%s: %s Genre: %s.\n' % (self.adding_from.rjust(14), start_stop2, title2, genre2))
+
+            # The groupslot
+            elif type == 40:
+                type = 8
+                self.match_array.append(u'Added to groupslot:       %s: %s Genre: %s.\n' % (start_stop1, title1, genre1))
 
     def log_merge_statistics(self, source):
         with self.node_lock:
@@ -890,6 +962,7 @@ class ChannelNode():
             if not self.get_adding_stats(programs):
                 return
 
+            self.adding_from = self.config.channelsource[source].source
             # Is this the first source?
             if self.program_count() == 0:
                 self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 3, type='stats'), \
@@ -925,6 +998,14 @@ class ChannelNode():
                 self.last_node = previous_node
                 self.stop = last_stop
                 self.adding_stats['groups'] = len(self.group_slots)
+                self.log_merge_statistics(source)
+                try:
+                    if self.config.write_info_files:
+                        self.config.infofiles.write_fetch_list(programs, self.chanid, source, self.name)
+
+                except:
+                    traceback.print_exc()
+                    pass
 
             else:
                 self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 4, type='stats'), \
@@ -949,6 +1030,14 @@ class ChannelNode():
                         programs.remove(p)
                         continue
 
+                try:
+                    if self.config.write_info_files:
+                        self.config.infofiles.write_fetch_list(programs, self.chanid, source, self.name, group_slots)
+
+                except:
+                    traceback.print_exc()
+                    pass
+
                 self.adding_stats['groups'] = len(group_slots)
                 programs.sort(key=lambda program: (program['start-time']))
                 # Try matching on time and name or check if it falls into a groupslot, a gap or outside the range
@@ -960,6 +1049,10 @@ class ChannelNode():
                             #~ l_diff = programs[index]['length'].total_seconds()/ self.programs_by_start[mstart].length.total_seconds()
                             #~ if l_diff >1.2 or l_diff < 1.2:
                                 #~ pass
+
+                            self.add_match_stat(4, self.programs_by_start[mstart], programs[index])
+                            if self.programs_by_start[mstart] in self.current_list:
+                                self.current_list.remove(self.programs_by_start[mstart])
 
                             self.programs_by_start[mstart].add_source_data(programs[index], source)
                             self.add_stat()
@@ -975,7 +1068,6 @@ class ChannelNode():
                     for index in range(len(group_slots)):
                         check_gaps(group_slots[index], True)
 
-                self.add_stat('unmatched', len(unmatched))
                 # And add any program found new
                 for gs in self.group_slots[:]:
                     self.fill_group(gs)
@@ -985,10 +1077,20 @@ class ChannelNode():
                 for pgap in self.program_gaps[:]:
                     self.fill_group(pgap)
 
-            # Finally we check if we can add any genres
-            self.check_on_missing_genres()
-            # Matching on genre
-            self.log_merge_statistics(source)
+                self.add_stat('unmatched', len(unmatched))
+                # Finally we check if we can add any genres
+                self.check_on_missing_genres()
+                for p in unmatched:
+                    self.add_match_stat(2, None, p)
+
+                for p in self.current_list:
+                    self.add_match_stat(33, p, None)
+
+                # Matching on genre?
+                self.log_merge_statistics(source)
+                self.config.log(self.match_array, 32, 3)
+
+            self.adding_from = ''
 
     def merge_channel(self, channode):
         def add_to_list(dlist, pn):
@@ -1038,6 +1140,7 @@ class ChannelNode():
         with self.node_lock:
             self.save_current_stats()
             self.init_merge_stats()
+            self.adding_from = channode.name
             programs = []
             group_slots = []
             add_to_start = []
@@ -1139,6 +1242,7 @@ class ChannelNode():
 
                 self.add_new_program(self.last_node)
 
+                self.log_merge_statistics(channode)
             else:
                 # Try matching on time and name or check if it falls into a groupslot, a gap or outside the range
                 self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 4, type='stats'), \
@@ -1156,6 +1260,10 @@ class ChannelNode():
                             #~ if l_diff >1.2 or l_diff < 1.2:
                                 #~ pass
 
+                            self.add_match_stat(4, self.programs_by_start[mstart], programs[index])
+                            if self.programs_by_start[mstart] in self.current_list:
+                                self.current_list.remove(self.programs_by_start[mstart])
+
                             self.programs_by_start[mstart].add_node_data(programs[index])
                             self.add_stat()
                             break
@@ -1170,7 +1278,6 @@ class ChannelNode():
                     for index in range(len(group_slots)):
                         check_gaps(group_slots[index])
 
-                self.add_stat('unmatched', len(unmatched))
                 # And add any program found new
                 for gs in self.group_slots[:]:
                     self.fill_group(gs)
@@ -1180,9 +1287,19 @@ class ChannelNode():
                 for pgap in self.program_gaps[:]:
                     self.fill_group(pgap)
 
-            # Finally we check if we can add any genres
-            self.check_on_missing_genres()
-            self.log_merge_statistics(channode)
+                self.add_stat('unmatched', len(unmatched))
+                # Finally we check if we can add any genres
+                self.check_on_missing_genres()
+                for p in unmatched:
+                    self.add_match_stat(2, None, p)
+
+                for p in self.current_list:
+                    self.add_match_stat(33, p, None)
+
+                self.log_merge_statistics(channode)
+                self.config.log(self.match_array, 32, 3)
+
+            self.adding_from = ''
 
     def check_lineup(self, overlap_strategy = None):
         if overlap_strategy not in ['average', 'stop', 'start']:
@@ -1250,6 +1367,12 @@ class ChannelNode():
                 gdetail = pgrp.gs_detail
                 gprevious = pgrp.previous
                 gnext = pgrp.next
+                self.add_match_stat(40, pgrp, None)
+                for p in gdetail:
+                    self.add_match_stat(8, None, p)
+
+                if pgrp in self.current_list:
+                    self.current_list.remove(pgrp)
 
             elif isinstance(pgrp, GapNode):
                 if len(pgrp.gap_detail) == 0:
@@ -1361,6 +1484,7 @@ class ChannelNode():
             if not pn in self.programs:
                 self.programs.append(pn)
                 self.add_stat('new', 1)
+                self.add_match_stat(1, None, pn)
 
             # Check if it has a groupslot name
             if pn.match_name in self.groupslot_names:
@@ -1410,6 +1534,94 @@ class ChannelNode():
             for k in name_remove:
                 if k in self.programs_with_no_genre.keys():
                     del self.programs_with_no_genre[k]
+
+    def get_start_stop(self, tdict, printable=True):
+        with self.node_lock:
+            if isinstance(tdict, ProgramNode):
+                pstart = self.config.in_output_tz(tdict.start)
+                pstop = self.config.in_output_tz(tdict.stop)
+                if printable and tdict.is_groupslot:
+                    return '#%s - %s' % (pstart.strftime('%d %b %H:%M'), pstop.strftime('%d %b %H:%M'))
+
+            elif isinstance(tdict, dict) and 'start-time' in tdict and 'stop-time' in tdict:
+                pstart = self.config.in_output_tz(tdict['start-time'])
+                pstop = self.config.in_output_tz(tdict['stop-time'])
+
+            else:
+                return
+
+            if printable:
+                return ' %s - %s' % (pstart.strftime('%d %b %H:%M'), pstop.strftime('%d %b %H:%M'))
+
+            return (pstart, pstop)
+
+    def get_title(self, tdict, printable=True):
+        with self.node_lock:
+            if isinstance(tdict, ProgramNode):
+                title = tdict.get_value('title')
+
+            elif isinstance(tdict, dict) and 'name' in tdict and 'episode title' in tdict:
+                title = (tdict['name'], tdict['episode title'])
+
+            elif isinstance(tdict, dict) and 'name' in tdict:
+                title = (tdict['name'], '')
+
+            else:
+                return
+
+            if printable and title[1] == '':
+                return '%s:---' % title[0]
+
+            if printable:
+                return '%s: %s' % title
+
+            return title
+
+    def get_genre(self, tdict):
+        with self.node_lock:
+            if isinstance(tdict, ProgramNode):
+                g = tdict.get_value('genre')
+                sg = tdict.get_value('subgenre')
+
+            elif isinstance(tdict, dict):
+                if 'genre' in tdict:
+                    g = tdict['genre']
+
+                else:
+                    g = self.config.cattrans_unknown.lower().strip()
+
+                if 'subgenre' in tdict:
+                    sg = tdict['subgenre']
+
+                else:
+                    sg = ''
+
+            else:
+                return
+
+            if self.channel_config.opt_dict['cattrans']:
+                cat0 = ('', '')
+                cat1 = (g.lower(), '')
+                cat2 = (g.lower(), sg.lower())
+                if cat2 in self.config.cattrans.keys() and self.config.cattrans[cat2] != '':
+                    cat = self.config.cattrans[cat2].capitalize()
+
+                elif cat1 in self.config.cattrans.keys() and self.config.cattrans[cat1] != '':
+                    cat = self.config.cattrans[cat1].capitalize()
+
+                elif cat0 in self.config.cattrans.keys() and self.config.cattrans[cat0] != '':
+                   cat = self.config.cattrans[cat0].capitalize()
+
+                else:
+                    cat = 'Unknown'
+
+                return cat
+
+            elif g == '':
+                return self.config.cattrans_unknown.capitalize().strip()
+
+            else:
+                return g.capitalize()
 
 # end ChannelNode
 
@@ -1462,7 +1674,11 @@ class ProgramNode():
 
     def adjust_start(self, pstart):
         with self.node_lock:
+            if self.start in self.channode.programs_by_start.keys():
+                del self.channode.programs_by_start[self.start]
+
             self.start = copy(pstart).replace(second = 0, microsecond = 0)
+            self.channode.programs_by_start[self.start] = self
             self.tdict['start-time']['prime'] = self.start
             self.length = self.stop - self.start
             self.tdict['length']['prime'] = self.length
@@ -1471,7 +1687,11 @@ class ProgramNode():
 
     def adjust_stop(self, pstop):
         with self.node_lock:
+            if self.stop in self.channode.programs_by_stop.keys():
+                del self.channode.programs_by_stop[self.stop]
+
             self.stop = copy(pstop).replace(second = 0, microsecond = 0)
+            self.channode.programs_by_stop[self.stop] = self
             self.tdict['stop-time']['prime'] = self.stop
             self.length = self.stop - self.start
             self.tdict['length']['prime'] = self.length
@@ -1492,7 +1712,7 @@ class ProgramNode():
         else:
             return self.stop
 
-    def match_title(self, mname):
+    def match_title(self, mname, submname = ''):
         if self.match_name == mname:
             return True
 
@@ -1959,55 +2179,13 @@ class ProgramNode():
             return u''
 
     def get_start_stop(self, printable=True):
-        with self.node_lock:
-            pstart = self.config.in_output_tz(self.start)
-            pstop = self.config.in_output_tz(self.stop)
-            if printable and self.is_groupslot:
-                return '#%s - %s' % (pstart.strftime('%d %b %H:%M'), pstop.strftime('%d %b %H:%M'))
-
-            if printable:
-                return ' %s - %s' % (pstart.strftime('%d %b %H:%M'), pstop.strftime('%d %b %H:%M'))
-
-            return (pstart, pstop)
+        return self.channode.get_start_stop(self, printable)
 
     def get_title(self, printable=True):
-        with self.node_lock:
-            title = self.get_value('title')
-            if printable and title[1] == '':
-                return '%s:---' % title[0]
-
-            if printable:
-                return '%s: %s' % title
-
-            return title
+        return self.channode.get_title(self, printable)
 
     def get_genre(self):
-        with self.node_lock:
-            g = self.get_value('genre')
-            sg = self.get_value('subgenre')
-            if self.channel_config.opt_dict['cattrans']:
-                cat0 = ('', '')
-                cat1 = (g.lower(), '')
-                cat2 = (g.lower(), sg.lower())
-                if cat2 in self.config.cattrans.keys() and self.config.cattrans[cat2] != '':
-                    cat = self.config.cattrans[cat2].capitalize()
-
-                elif cat1 in self.config.cattrans.keys() and self.config.cattrans[cat1] != '':
-                    cat = self.config.cattrans[cat1].capitalize()
-
-                elif cat0 in self.config.cattrans.keys() and self.config.cattrans[cat0] != '':
-                   cat = self.config.cattrans[cat0].capitalize()
-
-                else:
-                    cat = 'Unknown'
-
-                return cat
-
-            elif g == '':
-                return self.config.cattrans_unknown.capitalize()
-
-            else:
-                return g.capitalize()
+        return self.channode.get_genre(self)
 
     def get_description(self):
         desc_line = u''

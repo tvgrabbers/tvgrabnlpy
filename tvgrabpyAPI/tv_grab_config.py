@@ -3021,14 +3021,15 @@ class Configure:
         log_array.append(self.text('config', 82, (self.fetch_func.get_counter('detail', -2), )))
         log_array.extend([self.text('config', 83, (self.fetch_func.get_counter('fail', -2), )), '\n'])
         for s, source in self.channelsource.items():
-            if source.is_virtual:
-                continue
-
-            log_array.append(self.text('config', 84, (self.fetch_func.get_counter('base', s), source.source)))
             if source.detail_processor:
+                log_array.append(self.text('config', 84, (self.fetch_func.get_counter('base', s), source.source)))
                 log_array.append(self.text('config', 85, (self.fetch_func.get_counter('detail', s), source.source)))
+                log_array.extend([self.text('config', 86, (self.fetch_func.get_counter('fail', s), source.source)), '\n'])
 
-            log_array.extend([self.text('config', 86, (self.fetch_func.get_counter('fail', s), source.source)), '\n'])
+        for s, source in self.channelsource.items():
+            if not (source.is_virtual or source.detail_processor):
+                log_array.append(self.text('config', 84, (self.fetch_func.get_counter('base', s), source.source)))
+                log_array.extend([self.text('config', 86, (self.fetch_func.get_counter('fail', s), source.source)), '\n'])
 
         self.log(log_array, 4, 3)
     # write_statistics()

@@ -7,10 +7,11 @@ from __future__ import unicode_literals
 
 import codecs, locale, re, os, sys, io, shutil, difflib
 import traceback, smtplib, sqlite3
-import datetime, time, pytz, copy
+import datetime, time, pytz
 import tv_grab_channel
 from threading import Thread, Lock, RLock
 from Queue import Queue, Empty
+from copy import deepcopy, copy
 from email.mime.text import MIMEText
 from xml.sax import saxutils
 
@@ -1678,13 +1679,10 @@ class InfoFiles():
             with self.info_lock:
                 self.detail_list.append(detail_data)
 
-    def write_fetch_list(self, programs, chanid = None, source = None, chan_name = '', sid = None, ismerge = False):
-        def value(vname):
+    def write_fetch_list(self, programs, chanid = None, source = None, chan_name = '', group_slots = None):
+        def value(vname, is_gs = False):
             if vname == 'ID':
-                if sid == None:
-                    return tdict['ID']
-
-                elif 'prog_ID' in tdict:
+                if 'prog_ID' in tdict:
                     return tdict['prog_ID']
 
                 return '---'
@@ -1693,7 +1691,11 @@ class InfoFiles():
                 return '--- '
 
             if isinstance(tdict[vname], datetime.datetime):
-                return self.config.in_output_tz(tdict[vname]).strftime('%d %b %H:%M')
+                if vname == 'start-time' and is_gs:
+                    return u'#%s' % self.config.in_output_tz(tdict[vname]).strftime('%d %b %H:%M')
+
+                else:
+                    return self.config.in_output_tz(tdict[vname]).strftime('%d %b %H:%M')
 
             if isinstance(tdict[vname], bool):
                 if tdict[vname]:
@@ -1735,8 +1737,18 @@ class InfoFiles():
                 #~ fstr += u'#\n'
 
             else:
-                plist = copy.deepcopy(programs)
-                fstr = u' (%3.0f) from: %s\n' % (len(plist),  self.config.channelsource[source].source)
+                plist = deepcopy(programs)
+                if group_slots != None:
+                    pgs = deepcopy(group_slots)
+                    fstr = u' (%3.0f/%2.0f) from: %s\n' % (len(plist), len(pgs), self.config.channelsource[source].source)
+                    if len(pgs) > 0:
+                        for item in pgs:
+                            item['is_gs'] = True
+
+                        plist.extend(pgs)
+
+                else:
+                    fstr = u' (%3.0f) from: %s\n' % (len(plist),  self.config.channelsource[source].source)
 
                 plist.sort(key=lambda program: (program['start-time']))
 
