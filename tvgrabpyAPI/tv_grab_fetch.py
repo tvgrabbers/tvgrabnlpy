@@ -13,7 +13,7 @@ from threading import Thread, Lock, Semaphore, Event
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
 from Queue import Queue, Empty
-from copy import deepcopy
+from copy import deepcopy, copy
 try:
     from html.entities import name2codepoint
 except ImportError:
@@ -2153,7 +2153,54 @@ class FetchData(Thread):
         """The code for the actual Grabbing and dataprocessing of the base pages"""
         def do_final_processing(chanid):
             self.program_data[chanid].sort(key=lambda program: (program['start-time']))
-            #~ print chanid, self.groupitems[chanid]
+            pp = []
+            # Some sanity Check
+            plen = len(self.program_data[chanid]) -1
+            for index in range(plen + 1):
+                p = self.program_data[chanid][index]
+                if not 'name' in p.keys() or not isinstance(p['name'], (unicode, str)) or p['name'] == u'':
+                    continue
+
+                p['name'] = unicode(p['name'])
+                if index < plen:
+                    p2 = self.program_data[chanid][index + 1]
+                    if 'stop from length' in p.keys() and p['stop from length']:
+                        if p['stop-time'] > p2['start-time']:
+                            p['stop-time'] = copy(p2['start-time'])
+
+                    if not 'stop-time' in p.keys() or not isinstance(p['stop-time'], datetime.datetime):
+                        p['stop-time'] = copy(p2['start-time'])
+
+                    if not 'length' in p.keys() or not isinstance(p['length'], datetime.timedelta):
+                        p['length'] = p['stop-time'] - p['start-time']
+
+                    if 'last of the page' in p.keys():
+                        # Check for a program split by the day border
+                        if p[ 'name'].lower() == p2[ 'name'].lower() and p['stop-time'] >= p2['start-time'] \
+                          and ((not 'episode title' in p and not 'episode title' in p2) \
+                            or ('episode title' in p and 'episode title' in p2 \
+                            and p[ 'episode title'].lower() == p2[ 'episode title'].lower())):
+                                p2['start-time'] = copy(p['start-time'])
+                                continue
+
+                elif index == plen and'stop-time' in p.keys() and isinstance(p['stop-time'], datetime.datetime):
+                    if not 'length' in p.keys() or not isinstance(p['length'], datetime.timedelta):
+                        p['length'] = p['stop-time'] - p['start-time']
+
+                    while p['length'] > datetime.timedelta(days = 1):
+                        p['length'] -= datetime.timedelta(days = 1)
+
+                    p['stop-time'] = p['start-time'] + p['length']
+
+                else:
+                    continue
+
+                if p['stop-time'] <= p['start-time']:
+                    continue
+
+                pp.append(p)
+
+            self.program_data[chanid] = pp
             if self.groupitems[chanid] > 0:
                 group_start = False
                 for p in self.program_data[chanid][:]:
@@ -2773,6 +2820,11 @@ class FetchData(Thread):
                 #~ print name
                 #~ for p in item:
                     #~ print '  ',p['channel'] , p['start-time'], p['stop-time']
+
+            if len(chanids) > 0:
+                for chanid in chanids:
+                    if len(self.program_data[chanid]) > 0:
+                        self.program_data[chanid][-1]['last of the page'] = True
 
         return chanids
 
