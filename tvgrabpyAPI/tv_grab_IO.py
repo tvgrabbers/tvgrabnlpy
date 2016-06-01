@@ -1710,21 +1710,29 @@ class InfoFiles():
             if isinstance(programs, tv_grab_channel.ChannelNode):
 
                 if source in self.config.channelsource.keys():
-                    fstr = u' (%3.0f) after merging from: %s\n' % (programs.program_count(), self.config.channelsource[source].source)
+                    sname = self.config.channelsource[source].source
 
                 else:
-                    fstr = u' (%3.0f) after merging from: %s\n' % (programs.program_count(), source)
+                    sname = source
+
+                fstr = u' (%3.0f/%2.0f/%2.0f) after merging from: %s\n' % \
+                    (programs.program_count(), len(programs.group_slots), \
+                    len(programs.program_gaps),sname)
 
                 pnode = programs.first_node
                 while isinstance(pnode, tv_grab_channel.ProgramNode):
-                    fstr += u'  %s-%s: [%s][%s] %s: %s\n' % (\
-                                    pnode.get_value('start'), pnode.get_value('stop'), \
-                                    pnode.get_value('ID').rjust(15), pnode.get_value('genre')[0:10].rjust(10), \
-                                    pnode.get_value('name'), pnode.get_value('episode title'))
+                    fstr += u'  %s: [%s][%s] %s\n' % (\
+                                    pnode.get_start_stop(), \
+                                    pnode.get_value('ID').rjust(15), \
+                                    pnode.get_value('genre')[0:10].rjust(10), \
+                                    pnode.get_title())
+
+                    if pnode.next_gap != None:
+                        fstr += u'  %s: GAP\n' % pnode.next_gap.get_start_stop()
 
                     pnode = pnode.next
 
-                fstr += u'#\n'
+                #~ fstr += u'#\n'
 
             else:
                 plist = copy.deepcopy(programs)
@@ -1751,7 +1759,7 @@ class InfoFiles():
 
             if not chanid in  self.fetch_strings:
                  self.fetch_strings[chanid] = {}
-                 self.fetch_strings[chanid]['name'] = u'Channel: %s\n' % chan_name
+                 self.fetch_strings[chanid]['name'] = u'Channel: (%s) %s\n' % (chanid, chan_name)
 
             if source in self.config.channelsource.keys():
                 if not source in  self.fetch_strings[chanid]:
