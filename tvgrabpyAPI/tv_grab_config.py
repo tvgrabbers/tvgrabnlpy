@@ -2003,9 +2003,11 @@ class Configure:
         self.language_texts['and'] = ' %s ' % (self.language_texts['and'].strip().lower())
         roletrans = get_githubdict("roletrans")
         self.roletrans = {}
+        self.credit_keys = ['credits']
         for k,v in roletrans.items():
             for item in v:
                 self.roletrans[item] = k
+                self.credit_keys.append(item)
         self.rating = get_githubdict("rating")
         self.titlerename = get_githubdict("titlerename")
         self.groupnameremove = get_githubdata("groupnameremove")

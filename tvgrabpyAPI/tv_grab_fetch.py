@@ -359,13 +359,13 @@ class Functions():
                 re.sub(self.config.language_texts['and others'], '', dstring))).split(',')
 
         def add_person(prole, pname, palias = None):
+            if pname in ('', None):
+                return
+
             if not prole in credits:
                 credits[prole] = []
 
             if prole in ('actor', 'guest'):
-                #~ if isinstance(palias ,(str, unicode)):
-                    #~ palias = palias.capitalize()
-
                 p = {'name': pname, 'role': palias}
                 credits[prole].append(p)
 
@@ -2538,25 +2538,23 @@ class FetchData(Thread):
                     elif k in self.config.key_values['date'] and isinstance(v, datetime.date):
                         tdict[k] = v
 
-                # The credits
-                if 'credits' in values.keys() and isinstance(values['credits'], dict):
-                    for k, v in values['credits'].items():
-                        if k in self.config.roletrans.keys() and isinstance(v, (list, tuple)):
-                            if not self.config.roletrans[k] in tdict or len(tdict[self.config.roletrans[k]]) == 0:
-                                tdict[self.config.roletrans[k]] = v
+                    elif k in self.config.roletrans.keys() and isinstance(v, (list, tuple)) and len(v) > 0:
+                        if not self.config.roletrans[k] in tdict.keys() or len(tdict[self.config.roletrans[k]]) == 0:
+                            tdict[self.config.roletrans[k]] = v
 
-                            for item in v:
-                                if not item in tdict[self.config.roletrans[k]]:
-                                    tdict[self.config.roletrans[k]].append(item)
-
-                for k in self.config.roletrans.keys():
-                    if k in values.keys() and isinstance(values[k], (list, tuple)):
-                        if not self.config.roletrans[k] in tdict or len(tdict[self.config.roletrans[k]]) == 0:
-                            tdict[self.config.roletrans[k]] = values[k]
-
-                        for item in values[k]:
+                        for item in v:
                             if not item in tdict[self.config.roletrans[k]]:
                                 tdict[self.config.roletrans[k]].append(item)
+
+                    elif k in self.config.credit_keys and isinstance(v, dict):
+                        for k2, v2 in v.items():
+                            if k2 in self.config.roletrans.keys() and isinstance(v2, (list, tuple)) and len(v2) > 0:
+                                if not self.config.roletrans[k2] in tdict.keys() or len(tdict[self.config.roletrans[k2]]) == 0:
+                                    tdict[self.config.roletrans[k2]] = v2
+
+                                for item in v:
+                                    if not item in tdict[self.config.roletrans[k]]:
+                                        tdict[self.config.roletrans[k]].append(item)
 
                 gg = self.get_genre(values)
                 tdict['genre'] = gg[0]
