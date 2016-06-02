@@ -438,7 +438,7 @@ class ProgramCache(Thread):
             self.ID_list[s.detail_id] = key
             self.url_list[s.detail_url] = key
 
-        self.config.fetch_func.checkout_program_dict()
+        #~ self.config.fetch_func.checkout_program_dict()
         self.field_list = ['genre', 'rating']
         self.field_list.extend(self.config.fetch_func.text_values)
         self.field_list.extend(self.config.fetch_func.date_values)
@@ -1125,7 +1125,7 @@ class ProgramCache(Thread):
             if r == None:
                 return
 
-            program = self.config.fetch_func.checkout_program_dict()
+            #~ program = self.config.fetch_func.checkout_program_dict()
             for item in r.keys():
                 if item == 'pid':
                     continue
@@ -1149,7 +1149,7 @@ class ProgramCache(Thread):
 
                 program['credits'][r[str('title')]].append(r[str('name')])
 
-            program = self.config.fetch_func.checkout_program_dict(program)
+            #~ program = self.config.fetch_func.checkout_program_dict(program)
             return program
 
         elif table == 'ttvdb':
@@ -1680,7 +1680,7 @@ class InfoFiles():
                 self.detail_list.append(detail_data)
 
     def write_fetch_list(self, programs, chanid = None, source = None, chan_name = '', group_slots = None):
-        def value(vname, is_gs = False):
+        def value(vname):
             if vname == 'ID':
                 if 'prog_ID' in tdict:
                     return tdict['prog_ID']
@@ -1691,7 +1691,7 @@ class InfoFiles():
                 return '--- '
 
             if isinstance(tdict[vname], datetime.datetime):
-                if vname == 'start-time' and is_gs:
+                if vname == 'start-time' and 'is_gs' in tdict:
                     return u'#%s' % self.config.in_output_tz(tdict[vname]).strftime('%d %b %H:%M')
 
                 else:
@@ -1756,11 +1756,10 @@ class InfoFiles():
                     extra = value('rerun') + value('teletext') + value('new') + value('last-chance') + value('premiere')
                     extra2 = value('HD') + value('widescreen') + value('blackwhite')
 
-                    fstr += u'  %s-%s: [%s][%s] %s: %s [%s] [%s]\n' % (\
+                    fstr += u'  %s-%s: [%s][%s] %s: %s\n' % (\
                                     value('start-time'), value('stop-time'), \
                                     value('ID').rjust(15), value('genre')[0:10].rjust(10), \
-                                    value('name'), value('episode title'), \
-                                    extra, extra2)
+                                    value('name'), value('episode title'))
 
                     #~ fstr += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
                                     #~ self.config.output_tz.normalize(tdict['start-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \

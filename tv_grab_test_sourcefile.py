@@ -75,30 +75,24 @@ def main():
         # virtual.nl
         #~ source = config.init_sources(11)
 
-        # tvgids.nl
-        #~ channel = '5'
-        #~ source = config.init_sources(0)
-
-        # tvgids.tv
-        #~ channel ='nederland-1'
-        #~ source = config.init_sources(1)
-
         # rtl.nl
         #~ source = config.init_sources(2)
 
         # npo.nl
         #~ source = config.init_sources(4)
 
+        # humo.be
+        #~ source = config.init_sources(6)
+
         # vpro.nl
-        channel ='veronica_jetix'
-        source = config.init_sources(7)
+        #~ source = config.init_sources(7)
+
+        # oorboekje.nl
+        #~ source = config.init_sources(12)
 
         # horizon.tv
         #~ channel ='24443943146'
         #~ source = config.init_sources(5)
-
-        # humo.be
-        #~ source = config.init_sources(6)
 
         # nieuwsblad.be
         #~ channel ='een'
@@ -108,18 +102,22 @@ def main():
         #~ channel ='O8'
         #~ source = config.init_sources(10)
 
+        # tvgids.nl
+        channel = '5'
+        source = config.init_sources(0)
+
+        # tvgids.tv
+        #~ channel ='nederland-1'
+        #~ source = config.init_sources(1)
+
         # primo.eu
         #~ channel = 'npo1'
         #~ channel ='een'
         #~ source = config.init_sources(9)
 
-        # oorboekje.nl
-        #~ channel = 'npo-radio-1'
-        #~ source = config.init_sources(12)
-
         source.test_output = sys.stdout
         #~ source.print_tags = True
-        #~ source.print_roottree = True
+        source.print_roottree = True
         source.show_parsing = True
         source.print_searchtree = True
         source.show_result = True
@@ -127,29 +125,23 @@ def main():
         sid = source.proc_id
         config.channelsource[sid] = source
         config.channelsource[sid].init_channel_source_ids()
-        tdict = config.fetch_func.checkout_program_dict()
+        #~ tdict = config.fetch_func.checkout_program_dict()
+        tdict = {}
+        tdict['detail_url'] = {}
         tdict['channelid'] = config.channelsource[sid].chanids[channel]
 
         #~ config.channelsource[sid].get_channels()
 
-        data = config.channelsource[sid].get_page_data('base',{'offset': 0, 'channel': channel, 'channelgrp': 'rest', 'cnt-offset': 0, 'start':0, 'days':4})
-        config.channelsource[sid].parse_basepage(data, {'offset': 1, 'channel': channel, 'channelgrp': 'main'})
+        #~ data = config.channelsource[sid].get_page_data('base',{'offset': 2, 'channel': channel, 'channelgrp': 'rest', 'cnt-offset': 0, 'start':0, 'days':4})
+        #~ config.channelsource[sid].parse_basepage(data, {'offset': 1, 'channel': channel, 'channelgrp': 'main'})
 
-        #~ tdict['detail_url'][sid] = 'midsomer-murders/15170844'
-        #~ config.channelsource[sid].load_detailpage('detail', tdict)
-
-        #20091598
-        #20091569
-        #20054611
-        #20091568
-
-        #tussen-kunst-en-kitsch/15170469
-        #nos-sportjournaal/15170466
-        #midsomer-murders/15170844
-
-        #6526944
-        #6526945
-        #6526950
+        tdict['detail_url'][sid] = '20543224'
+        #~ tdict['detail_url'][sid] = '20629464'
+        #~ tdict['detail_url'][sid] = ''
+        #~ tdict['detail_url'][sid] = ''
+        #~ tdict['detail_url'][sid] = ''
+        #~ tdict['detail_url'][sid] = ''
+        config.channelsource[sid].load_detailpage('detail', tdict)
 
     except:
         traceback.print_exc()

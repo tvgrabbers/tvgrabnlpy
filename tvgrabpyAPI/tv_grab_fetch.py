@@ -135,7 +135,9 @@ class Functions():
 
             fu.start()
             fu.join(self.config.opt_dict['global_timeout']+1)
+            #~ print fu.url_text.encode('ascii', 'replace')
             page = fu.result
+            #~ print page.encode('ascii', 'replace')
             self.max_fetches.release()
             if (page == None) or (page =={}) or (isinstance(page, (str, unicode)) and ((re.sub('\n','', page) == '') or (re.sub('\n','', page) =='{}'))):
                 if isinstance(counter,(list, tuple)):
@@ -236,122 +238,6 @@ class Functions():
 
     # end get_json_data()
 
-    def checkout_program_dict(self, tdict = None):
-        """
-        Checkout a given dict for invalid values or
-        returnsa default empty dict for storing program info
-        """
-        self.text_values = ('channelid', 'source', 'channel', 'unixtime', 'prefered description', \
-              'clumpidx', 'name', 'episode title', 'description', 'premiere year', \
-              'originaltitle', 'subgenre', 'ID', 'merge-source', 'infourl', 'audio', 'star-rating', \
-              'country', 'broadcaster')
-        self.datetime_values = ('start-time', 'stop-time')
-        self.timedelta_values = ('length',)
-        self.date_values = ('airdate', )
-        self.bool_values = ('tvgids-fetched', 'tvgidstv-fetched', 'primo-fetched', 'rerun', 'teletext', \
-              'new', 'last-chance', 'premiere')
-        self.num_values = ('season', 'episode', 'offset')
-        self.dict_values = ('credits', 'video')
-        self.source_values = ('prog_ID', 'detail_url')
-        self.list_values = ('rating', )
-        self.video_values = ('HD', 'widescreen', 'blackwhite')
-        self.credit_values = ('director', 'actor', 'guest', 'writer', 'composer', 'presenter', 'reporter', 'commentator', 'adapter', 'producer', 'editor')
-
-        if tdict == None:
-            tdict = {}
-
-        for key in self.text_values:
-            if not key in tdict.keys() or tdict[key] == None:
-                tdict[key] = u''
-
-            try:
-                if isinstance(tdict[key], str):
-                    tdict[key] = unicode(tdict[key])
-
-            except UnicodeError:
-                tdict[key] = u''
-
-        for key in self.date_values:
-            if not key in tdict.keys() or tdict[key] == None:
-                tdict[key] = u''
-
-        for key in self.datetime_values:
-            if not key in tdict.keys() or tdict[key] == None:
-                tdict[key] = u''
-
-        for key in self.timedelta_values:
-            if not key in tdict.keys() or tdict[key] == None:
-                tdict[key] = datetime.timedelta(0)
-
-        if not 'genre' in tdict.keys() or tdict['genre'] == None or tdict['genre'] == '':
-            tdict['genre'] = u'overige'
-
-        for key in self.bool_values:
-            if not key in tdict.keys() or tdict[key] != True:
-                tdict[key] = False
-
-        for key in self.num_values:
-            if not key in tdict.keys() or tdict[key] == None or tdict[key] == '':
-                tdict[key] = 0
-
-        for key in self.dict_values:
-            if not key in tdict.keys() or not isinstance(tdict[key], dict):
-                tdict[key] = {}
-
-        for key in self.source_values:
-            if not key in tdict.keys() or not isinstance(tdict[key], dict):
-                tdict[key] = {}
-                for s in  self.config.source_order:
-                    if not s in tdict[key] or tdict[key][s] == None:
-                        tdict[key][s] = u''
-
-                    try:
-                        if not isinstance(tdict[key][s], unicode):
-                            tdict[key][s] = unicode(tdict[key][s])
-
-                    except UnicodeError:
-                        tdict[key][s] = u''
-
-        for key in self.list_values:
-            if not key in tdict.keys() or tdict[key] in ('', None):
-                tdict[key] = []
-
-            #~ elif not isinstance(tdict[key], list):
-                 #~ tdict[key] = [tdict[key]]
-
-        for subkey in self.credit_values:
-            if not subkey in tdict['credits'].keys() or  tdict['credits'][subkey] == None:
-                tdict['credits'][subkey] = []
-
-            for i in range(len(tdict['credits'][subkey])):
-                item = tdict['credits'][subkey][i]
-                if subkey in ('actor', 'guest'):
-                    if not isinstance(item, dict):
-                        tdict['credits'][subkey][i] = {'name': item}
-
-                    for k, v in item.items():
-                        try:
-                            if not isinstance(v, unicode):
-                                tdict['credits'][subkey][i][k] = unicode(v)
-
-                        except UnicodeError:
-                            tdict['credits'][subkey][i][k] = u''
-
-                else:
-                    try:
-                        if not isinstance(item, unicode):
-                            tdict['credits'][subkey][i] = unicode(item)
-
-                    except UnicodeError:
-                        tdict['credits'][subkey][i] = u''
-
-        for subkey in self.video_values:
-            if not subkey in tdict['video'].keys() or  tdict['video'][subkey] != True:
-                tdict['video'][subkey] = False
-
-        return tdict
-    # end checkout_program_dict()
-
     def remove_accents(self, name):
         name = re.sub('á','a', name)
         name = re.sub('é','e', name)
@@ -380,77 +266,6 @@ class Functions():
         name = re.sub('@','a', name)
         return name
     # end remove_accents()
-
-    def unescape(self, text):
-        # Removes HTML or XML character references and entities from a text string.
-        # source: http://effbot.org/zone/re-sub.htm#unescape-html
-        #
-        # @param text The HTML (or XML) source text.
-        # @return The plain text, as a Unicode string
-
-        def fixup(m):
-            text = m.group(0)
-            if text[:2] == "&#":
-                # character reference
-                try:
-                    if text[:3] == "&#x":
-                        return unichr(int(text[3:-1], 16))
-
-                    else:
-                        return unichr(int(text[2:-1]))
-
-                except ValueError:
-                    pass
-
-            else:
-                # named entity
-                try:
-                    text = unichr(name2codepoint[text[1:-1]])
-
-                except KeyError:
-                    pass
-
-            return text # leave as is
-
-        if not isinstance(text,(str, unicode)):
-            return text
-
-        text = re.sub("", "...", text)
-        text = re.sub("", "'", text)
-        text = re.sub("", "'", text)
-        return unicode(re.sub("&#?\w+;", fixup, text))
-    # end unescape()
-
-    def clean_html(self, data):
-        """Process characters that interfere with ElementTree processing"""
-        if data == None:
-            return
-
-        data = re.sub('&quot;', ' emprsant quot;', data)
-        data = re.sub('&lt;', ' emprsant lt;', data)
-        data = re.sub('&gt;', ' emprsant gt;', data)
-        data = self.unescape(data)
-        data = re.sub('&raquo<', '<', data)
-        data = re.sub('&', ' emprsant ', data)
-        return data
-    # end clean_html()
-
-    def empersant(self, data):
-        if data == None:
-            return u''
-
-        data = re.sub(' emprsant ', '&', data)
-        data = re.sub('emprsant ', '&', data)
-        data = re.sub(' emprsant', '&', data)
-        data = re.sub('emprsant', '&', data)
-        data = re.sub('&quot;', '"', data)
-        data = re.sub('&lt;', '<', data)
-        data = re.sub('&gt;', '>', data)
-        if not isinstance(data, unicode):
-            return unicode(data)
-
-        return data
-    # end empersant()
 
     def get_string_parts(self, sstring, header_items = None):
         if not isinstance(header_items, (list, tuple)):
@@ -518,41 +333,7 @@ class Functions():
             first_day -= 7
 
         return first_day
-
-    def get_datestamp(self, offset=0, tzinfo = None):
-        if tzinfo == None:
-            tzinfo = self.config.utc_tz
-
-        tsnu = (int(time.time()/86400)) * 86400
-        day =  datetime.datetime.fromtimestamp(tsnu)
-        datenu = int(tsnu - tzinfo.utcoffset(day).total_seconds())
-        if time.time() -  datenu > 86400:
-            datenu += 86400
-
-        return datenu + offset * 86400
-    # end get_datestamp()
-
-    #~ def get_timestamp(self, current_date, offset=0):
-        #~ return = int(time.mktime(datetime.date.fromordinal(current_date + offset).timetuple()))
-
-    # end get_timestamp()
-
-    def get_datetime(self, date_string, match_string = '%Y-%m-%d %H:%M:%S', tzinfo = None, round_down = True):
-        if tzinfo == None:
-            tzinfo = self.config.utc_tz
-
-        try:
-            date = tzinfo.localize(datetime.datetime.strptime(date_string, match_string))
-            seconds = date.second
-            date = date.replace(second = 0)
-            if seconds > 0 and not round_down:
-                date = date + datetime.timedelta(minutes = 1)
-
-            return self.config.in_utc(date)
-
-        except:
-            return None
-    # end get_datetime()
+    # end get_weekstart()
 
     def merge_date_time(self, date_ordinal, date_time, tzinfo = None, as_utc = True):
         if tzinfo == None:
@@ -1302,7 +1083,6 @@ class theTVDB(Thread):
                             self.quit = True
                             continue
 
-                        qanswer = self.functions.checkout_program_dict(qanswer)
                         if qanswer['ID'] != '':
                             self.config.queues['cache'].put({'task':'add', 'program': qanswer})
 
@@ -1893,7 +1673,6 @@ class FetchData(Thread):
 
         # First some generic initiation that couldn't be done earlier in __init__
         # Specifics can be done in init_channels and init_json which are called here
-        #~ tdict = self.functions.checkout_program_dict()
         tdict = {}
         idle_timeout = 1800
         try:
@@ -2044,7 +1823,6 @@ class FetchData(Thread):
 
                         # do not cache programming that is unknown at the time of fetching.
                         if tdict['name'].lower() != 'onbekend':
-                            #~ self.config.queues['cache'].put({'task':'add', 'program': self.functions.checkout_program_dict(detailed_program)})
                             self.config.queues['cache'].put({'task':'add', 'program': detailed_program})
 
             else:
@@ -2791,7 +2569,6 @@ class FetchData(Thread):
 
                     #~ self.groupitems[chanid][values['group']].append({'channel': channelid, 'start-time': tdict['start-time'], 'stop-time': tdict['stop-time'], 'program': dict})
 
-                #~ tdict = self.functions.checkout_program_dict(tdict)
                 tdict = self.check_title_name(tdict)
                 with self.source_lock:
                     self.program_data[chanid].append(tdict)
@@ -2919,6 +2696,7 @@ class FetchData(Thread):
                 #~ self.test_output.write('\n')
                 print url
             page = self.functions.get_page(url)
+            #~ print page.encode('ascii', 'replace')
             if page == None:
                 self.config.log([self.config.text('fetch', 71, (ptype, self.source))], 1)
                 if self.print_searchtree:
@@ -3157,6 +2935,100 @@ class FetchData(Thread):
 
         return values
 
+    # Helper functions
+    def is_data_value(self, dpath, dtype = None, subpath = None):
+        """
+        Follow dpath through the datatree in subpath
+        and report if there exists a value of type dtype
+        dpath is a list of keys/indices
+        If subpath is not given use self.source_data
+        If dtype is None check for any value
+        """
+        pval = (dpath, dtype, subpath)
+        if isinstance(dpath, (str, unicode, int)):
+            dpath = [dpath]
+
+        if not isinstance(dpath, (list, tuple)):
+            return False
+
+        if subpath == None:
+            subpath = self.source_data
+
+        for d in dpath:
+            #~ if not isinstance(subpath, dict):
+                #~ return False
+
+            #~ if not d in subpath.keys():
+                #~ return False
+
+            if isinstance(subpath, dict):
+                if not d in subpath.keys():
+                    return False
+
+            elif isinstance(subpath, list):
+                if (not isinstance(d, int) or d >= len(subpath)):
+                    return False
+
+            else:
+                return False
+
+            subpath = subpath[d]
+
+        if subpath in (None, "", {}, []):
+            return False
+
+        if dtype == None:
+            return True
+
+        if dtype == float:
+            return bool(isinstance(subpath, (float, int)))
+
+        if dtype in (str, unicode):
+            return bool(isinstance(subpath, (str, unicode)))
+
+        if dtype in (list, tuple):
+            return bool(isinstance(subpath, (list, tuple)))
+
+        return bool(isinstance(subpath, dtype))
+
+    def data_value(self, dpath, dtype = None, subpath = None, default = None):
+        """
+        Follow dpath through the datatree in subpath
+        and return if it exists a value of type dtype
+        dpath is a list of keys/indices
+        If subpath is not given use self.source_data
+        If dtype is None check for any value
+        If it is not found return default or if dtype is set to
+        a string, list or dict, an empty one
+        """
+        if self.is_data_value(dpath, dtype, subpath):
+            if isinstance(dpath, (str, unicode, int)):
+                dpath = [dpath]
+
+            if subpath == None:
+                subpath = self.source_data
+
+            for d in dpath:
+                subpath = subpath[d]
+
+        else:
+            subpath = None
+
+        if subpath == None:
+            if default != None:
+                return default
+
+            elif dtype in (str, unicode):
+                return ""
+
+            elif dtype == dict:
+                return {}
+
+            elif dtype in (list, tuple):
+                return []
+
+        return subpath
+
     def get_genre(self, values):
         """Sub process for link_values"""
         genre = ''
@@ -3258,100 +3130,6 @@ class FetchData(Thread):
 
         return (genre.strip(), subgenre.strip())
 
-    # Helper functions
-    def is_data_value(self, dpath, dtype = None, subpath = None):
-        """
-        Follow dpath through the datatree in subpath
-        and report if there exists a value of type dtype
-        dpath is a list of keys/indices
-        If subpath is not given use self.source_data
-        If dtype is None check for any value
-        """
-        pval = (dpath, dtype, subpath)
-        if isinstance(dpath, (str, unicode, int)):
-            dpath = [dpath]
-
-        if not isinstance(dpath, (list, tuple)):
-            return False
-
-        if subpath == None:
-            subpath = self.source_data
-
-        for d in dpath:
-            #~ if not isinstance(subpath, dict):
-                #~ return False
-
-            #~ if not d in subpath.keys():
-                #~ return False
-
-            if isinstance(subpath, dict):
-                if not d in subpath.keys():
-                    return False
-
-            elif isinstance(subpath, list):
-                if (not isinstance(d, int) or d >= len(subpath)):
-                    return False
-
-            else:
-                return False
-
-            subpath = subpath[d]
-
-        if subpath in (None, "", {}, []):
-            return False
-
-        if dtype == None:
-            return True
-
-        if dtype == float:
-            return bool(isinstance(subpath, (float, int)))
-
-        if dtype in (str, unicode):
-            return bool(isinstance(subpath, (str, unicode)))
-
-        if dtype in (list, tuple):
-            return bool(isinstance(subpath, (list, tuple)))
-
-        return bool(isinstance(subpath, dtype))
-
-    def data_value(self, dpath, dtype = None, subpath = None, default = None):
-        """
-        Follow dpath through the datatree in subpath
-        and return if it exists a value of type dtype
-        dpath is a list of keys/indices
-        If subpath is not given use self.source_data
-        If dtype is None check for any value
-        If it is not found return default or if dtype is set to
-        a string, list or dict, an empty one
-        """
-        if self.is_data_value(dpath, dtype, subpath):
-            if isinstance(dpath, (str, unicode, int)):
-                dpath = [dpath]
-
-            if subpath == None:
-                subpath = self.source_data
-
-            for d in dpath:
-                subpath = subpath[d]
-
-        else:
-            subpath = None
-
-        if subpath == None:
-            if default != None:
-                return default
-
-            elif dtype in (str, unicode):
-                return ""
-
-            elif dtype == dict:
-                return {}
-
-            elif dtype in (list, tuple):
-                return []
-
-        return subpath
-
     def check_title_name(self, program):
         """
         Process Title names on Grouping issues and apply the rename table
@@ -3387,6 +3165,14 @@ class FetchData(Thread):
                 if (ptitle[-1] == ':') or (ptitle[-1] == '-'):
                     ptitle = ptitle[0:(len(ptitle) - 1)].strip()
 
+            # It also happens that the title is both and the subtitle only the title
+            elif psubtitle.lower().strip() == ptitle[:lentitle].lower().strip():
+                p = psubtitle
+                psubtitle = ptitle[lentitle:].lower().strip()
+                ptitle = p
+                if (psubtitle[0] == ':') or (psubtitle[0] == '-'):
+                    psubtitle = psubtitle[1:].strip()
+
         # And the other way around
         elif  (psubtitle != '') and (len(ptitle) < len(psubtitle)):
             lentitle = len(ptitle.strip())
@@ -3404,151 +3190,15 @@ class FetchData(Thread):
             ptitle = self.config.titlerename[ptitle.lower()]
 
         program['name'] = ptitle
-        if psubtitle != '':
+        if psubtitle == '':
+            if 'episode title'in program.keys():
+                del(program['episode title'])
+
+        else:
             program['episode title'] = psubtitle
 
         return program
 
-    def filter_description(self,ETitem, ETfind, tdict):
-        """
-        Filter the description as found on the detailpages for relevant info
-        and return the adapted program dict
-        """
-        alinea = []
-        atype = []
-        aheader = []
-
-        def format_text(text):
-            newtext = self.functions.empersant(text.strip())
-            newtext = re.sub('\n','', newtext)
-            newtext = re.sub(' +?',' ', newtext)
-            return newtext
-
-        pcount = 0
-        # We scan every alinea of the description
-        for p in ETitem.findall(ETfind):
-            aheader.append('')
-            atype.append('')
-            # Check if it has a class like 'summary'
-            if p.get('class') == None:
-                atype[pcount] = u''
-
-            else:
-                atype[pcount] = self.functions.empersant(p.get('class')).strip()
-                if self.config.write_info_files:
-                    self.config.infofiles.addto_detail_list(u'%s descriptionattribute => class: %s' % (self.source, p.get('class').strip()))
-
-            content = ''
-            # Add the alinea text
-            if (p.text != None) and (p.text != ''):
-                content = format_text(p.text) + u' '
-
-            # Check for further tags like <i>talic and their following text
-            for d in list(p.iter()):
-                if d.tag == 'span' and atype[pcount] == 'summary':
-                    # On tvgids.nl, this is the genre
-                    pass
-
-                elif d.tag in ('br', 'img'):
-                    # Linebreaks don't contain text and images we ignore and don't count
-                    # But we want the tail text
-                    pass
-
-                elif (d.tag == 'p') or (d.text != None and 'gesponsorde link' in d.text.lower()):
-                    # We don't want those
-                    continue
-
-                elif (d.text != None) and (d.text != ''):
-                    if d.tag == 'strong':
-                        # The first is an alineaheader
-                        # or if it's the first alinea the subgenre or something like it
-                        if content.strip() == '':
-                            aheader[pcount] = format_text(d.text)
-                        else:
-                            aheader[pcount] = u''
-                            content = content + format_text(d.text) + u' '
-
-                    elif d.tag in ('i', 'em', 'a', 'b'):
-                        content = content + format_text(d.text) + u' '
-
-                    else:
-                        # Unknown tag we just check for text
-                        content = content + format_text(d.text) + u' '
-                        if self.config.write_info_files:
-                            self.config.infofiles.addto_detail_list(unicode('new '+ self.source+' descriptiontag => ' + \
-                                                    unicode(d.tag.strip()) + ': ' + unicode(d.text.strip())))
-
-                # and we add the text inbetween the tags
-                if (d.tail != None) and d.tail != '' :
-                    content = content + format_text(d.tail) + u' '
-
-            content = content.strip()
-
-            if re.search('geen detailgegevens be(?:kend|schikbaar)', content.lower()) \
-              or (content.lower() == '') or (content.lower() == 'none'):
-                # No text so unless it's the first alinea, we ignore it
-                if pcount == 0:
-                    alinea.append('')
-                    pcount +=1
-                else:
-                    continue
-
-            else:
-                alinea.append(content)
-                pcount +=1
-
-        # Now we decide what to return
-        if len(alinea) > 0:
-            for i, v in atype.items():
-                if v == 'summary' and alinea[i] != '':
-                    # We just go for the summary
-                    description = alinea[i]
-                    break
-
-            else:
-                if len(alinea) ==1:
-                    # Only ony alinea
-                    description = alinea[0]
-
-                elif len(alinea) == 2 and alinea[0] == '':
-                    # we go for the second alinea
-                    description = alinea[1]
-
-                # Now it gets tricky for most of the time one is general and the other is specific
-                # We check if one is contained in the other
-                elif len(alinea) == 2 and alinea[1] in alinea[0] :
-                     description = alinea[0]
-
-                elif len(alinea) == 2 and alinea[0] in alinea[1] :
-                     description = alinea[1]
-
-                # So we return everything
-                else:
-                    content = ''
-                    for p in alinea:
-                        if p != '':
-                            content = '%s%s ' % (content, p)
-                    description = content.strip()
-
-                    if self.config.write_info_files:
-                        strdesc = ''
-                        for p in alinea:
-                            strdesc = strdesc + '    <p>%s</p>\n' % p
-
-                        strdesc = '  <div start="' + tdict['start-time'].strftime('%d %b %H:%M') + \
-                                                    '" name="' + tdict['name'] + '">\n' + strdesc + '  </div>'
-                        if self.config.write_info_files:
-                            self.config.infofiles.addto_raw_string(strdesc)
-
-            # We check to not ovrwrite an already present longer description
-            if description > tdict['description']:
-                tdict['description'] = description
-
-            # use the first header as subgenre, if not already present
-            if tdict['subgenre'] == '' and aheader[0] != '':
-                tdict['subgenre']  = aheader[0]
-
-        return tdict
 
 # end FetchData()
 

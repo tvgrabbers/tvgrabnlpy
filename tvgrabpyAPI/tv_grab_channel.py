@@ -341,7 +341,6 @@ class Channel_Config(Thread):
         # copy the cached information, except the start/end times, rating and clumping,
         # these may have changed.
         # But first checkout the dict
-        #~ cached = self.config.fetch_func.checkout_program_dict(cached)
         try:
             clump  = tdict['clumpidx']
 
