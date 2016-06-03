@@ -434,6 +434,15 @@ class Functions():
 
                 dt = datetime.datetime.combine(data[0], data[1])
                 dt = self.config.in_utc(source.site_tz.localize(dt))
+                if len(data) > 3 and isinstance (data[3], datetime.time):
+                    # We check if this time is after the first and if so we assume a midnight passing
+                    dc = datetime.datetime.combine(data[0], data[3])
+                    dc = self.config.in_utc(source.site_tz.localize(dc))
+                    if dc > dt:
+                        data[0] += datetime.timedelta(days = 1)
+                        dt = datetime.datetime.combine(data[0], data[1])
+                        dt = self.config.in_utc(source.site_tz.localize(dt))
+
                 return dt.replace(second = 0, microsecond = 0)
 
             # Return True (or data[2]) if data[1] is present in data[0], else False (or data[3])
@@ -1965,8 +1974,8 @@ class FetchData(Thread):
                     if not 'length' in p.keys() or not isinstance(p['length'], datetime.timedelta):
                         p['length'] = p['stop-time'] - p['start-time']
 
-                    while p['length'] > datetime.timedelta(days = 1):
-                        p['length'] -= datetime.timedelta(days = 1)
+                    while p['length'] > tdd:
+                        p['length'] -= tdd
 
                     p['stop-time'] = p['start-time'] + p['length']
 
@@ -2032,6 +2041,7 @@ class FetchData(Thread):
         if len(self.channels) == 0  or not self.is_data_value(["base", "url"]):
             return
 
+        tdd = datetime.timedelta(days=1)
         self.day_loaded = {}
         self.day_loaded[0] = {}
         day_channels = {}
@@ -2476,10 +2486,6 @@ class FetchData(Thread):
                 elif "length" in values and isinstance(values['length'], datetime.timedelta) and 'stop-time' in tdict.keys():
                     tdict['start-time'] = tdict['stop-time'] - values['length']
                     tdict['start from length'] = True
-                elif "previous-start-time" in values and isinstance(values["previous-start-time"], datetime.datetime) \
-                  and "previous-length" in values and isinstance(values["previous-length"], datetime.timedelta):
-                    tdict['start-time'] = values['previous-start-time'] + values['previous-length']
-                    tdict['start from length'] = True
                 elif self.data_value(["base", "data-format"], str) == "text/html" and isinstance(last_stop, datetime.datetime):
                     tdict['start-time'] = last_stop
                 else:
@@ -2556,9 +2562,11 @@ class FetchData(Thread):
                                     if not item in tdict[self.config.roletrans[k]]:
                                         tdict[self.config.roletrans[k]].append(item)
 
-                gg = self.get_genre(values)
-                tdict['genre'] = gg[0]
-                tdict['subgenre'] = gg[1]
+                if 'genre' in values.keys() or 'subgenre' in values.keys() or 'genres' in values.keys():
+                    gg = self.get_genre(values)
+                    tdict['genre'] = gg[0]
+                    tdict['subgenre'] = gg[1]
+
                 if 'group' in values.keys() and not values['group'] in (None, ''):
                     self.groupitems[chanid] += 1
                     tdict['group'] = values['group']
@@ -3028,7 +3036,7 @@ class FetchData(Thread):
         return subpath
 
     def get_genre(self, values):
-        """Sub process for link_values"""
+        """Sub process for parse_basepage"""
         genre = ''
         subgenre = ''
         if 'genres'in values:
