@@ -1,12 +1,13 @@
 {"description":[
-	"Dit is het data bestand voor tv_grab_nl_py en wordt bij elke run gedownload",
-	"Vanaf versie 3.0.0.",
-	"Raise the version for any source to force downloading the corresponding file afresh.",
-	"Keep this number the same in the source file!",
-	"Raise if needed the data_version to send the users the warning_message with",
-	"the corresponing number, with the warning to run --configure to implement it.",
-	"This last is not needed for updates not needing --configure. (that do not influence ",
-	"the line-up)"],
+		"Dit is het data bestand voor tv_grab_nl_py en wordt bij elke run gedownload",
+		"Vanaf versie 3.0.0.",
+		"Raise the version for any source to force downloading the corresponding file afresh.",
+		"Keep this number the same in the source file!",
+		"Raise if needed the data_version to send the users the warning_message with",
+		"the corresponing number, with the warning to run --configure to implement it.",
+		"This last is not needed for updates not needing --configure. (that do not influence ",
+		"the line-up)",
+		"program_version and version_message are here as jet not used."],
 	"data_version":"0",
 	"program_version":"3.0.0",
 	"version_message":["\n",
@@ -20,7 +21,7 @@
 	"sources":{
 		"0":{
 			"json file":"source-tvgids.nl",
-			"version":0,
+			"version":1,
 			"cattrans type":1,
 			"cattransid":0},
 		"4":{
@@ -30,7 +31,7 @@
 			"cattransid":1},
 		"5":{
 			"json file":"source-horizon.tv",
-			"version":0,
+			"version":1,
 			"cattrans type":1,
 			"cattransid":2},
 		"6":{
@@ -545,7 +546,7 @@
 			"5-24443943185": "24443943185",
 			"5-24443943214": "24443943214",
 			"5-24443943216": "24443943216",
-			"5-123063846982": "123063846982",
+			"5-123063846982": "722568742989",
 			"5-330522663235": "330522663235",
 			"5-429332519213": "429332519213",
 			"5-457547303396": "457547303396",
@@ -1086,11 +1087,7 @@
 			"1-fox-sports-6", "1-sport-1-extra-1", "1-sport1-extra-2", "1-sport-1-2", "5-635928103346", 
 			"5-635928103347", "5-635928103348", "5-635928103349", "5-635928103351"],
 		"16":["0-24", "0-39", "0-107", "0-411", "0-430", "0-431", "0-432", "0-433"],
-		"17":["4-298", "7-893_radio_west", "7-r_omroep_brabant", "7-r_omroep_zeeland", 
-			"7-radio_gelderland", "7-radio_m_utrecht", "7-radio_noord", "7-radio_oost", 
-			"7-radio_rijnmond", "12-22", "12-23", "12-25", "12-28", "12-29", "12-35", "12-36", 
-			"12-37", "12-38", "12-39", "12-41", "12-43", "12-45", "12-46", "12-48", "12-52", 
-			"12-61", "12-65", "12-66", "12-67", "12-69", "12-70", "12-71"]},
+		"17":[]},
 	"logo_names":{
 		"0-1" : ["4", "npo1"],
 		"0-2" : ["4", "npo2"],
@@ -1325,7 +1322,9 @@
 			{"chanid": "0-34", "start": "18:00", "end": "4:00"},
 			{"chanid": "0-311", "start": "4:00", "end": "18:00"}],
 		"5-24443943080": ["0-301", "1-cbeebies"],
-		"1-veronica": [{"chanid": "0-34"}, {"chanid": "0-311", "slots": ["disney xd"]}],
+		"1-veronica": [
+			{"chanid": "0-34", "start": "18:00", "end": "4:00"}, 
+			{"chanid": "0-311", "start": "4:00", "end": "18:00", "slots": ["disney xd"]}],
 		"1-ketnet-canvas-2": ["8-ketnet", "8-eenplus"],
 		"1-nickelodeon": ["0-89", "0-467"]},
 	"merge_into":{
@@ -1353,6 +1352,7 @@
 		"kinderprogramma's",
 		"kinder-tv",
 		"pause",
+		"vacant",
 		"geen uitzending",
 		"geen info beschikbaar",
 		"programmabeschrijving niet beschikbaar",
