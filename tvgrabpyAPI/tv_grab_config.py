@@ -2108,6 +2108,7 @@ class Configure:
                 chan['scid'] = chan_scid
                 chan['cgroup'] = channel['group'] if 'group' in channel else 99
                 chan['name'] = channel['name']
+                chan['fgroup'] = channel['fetch_grp'] if 'fetch_grp' in channel else None
                 if 'HD' in channel:
                     chan['hd'] = channel['HD']
 

@@ -341,16 +341,16 @@ class Channel_Config(Thread):
         # copy the cached information, except the start/end times, rating and clumping,
         # these may have changed.
         # But first checkout the dict
-        try:
-            clump  = tdict['clumpidx']
+        #~ try:
+            #~ clump  = tdict['clumpidx']
 
-        except LookupError:
-            clump = False
+        #~ except LookupError:
+            #~ clump = False
 
         cached['start-time'] = tdict['start-time']
         cached['stop-time']  = tdict['stop-time']
-        if clump:
-            cached['clumpidx'] = clump
+        #~ if clump:
+            #~ cached['clumpidx'] = clump
 
         # Make sure we do not overwrite fresh info with cashed info
         if tdict['description'] > cached['description']:
@@ -2489,6 +2489,9 @@ class XMLoutput():
                 se = program.get_value('season')
                 ep = program.get_value('episode')
                 if se != 0 and ep != 0:
+                    if program.is_set("episodecount"):
+                        ep = '%s/%s' % (ep, program.get_value('episodecount'))
+
                     if se == 0:
                         text = ' . %d . '  % (ep - 1)
 

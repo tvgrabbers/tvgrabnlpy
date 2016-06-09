@@ -320,20 +320,12 @@ class Functions():
         return int(rd.toordinal() -  cd.toordinal())
     # end get_offset()
 
-    def get_weekstart(self, current_date = None, offset = 0, sow = None):
-        if sow == None:
-            return offset
-
-        if current_date == None:
-            current_date = datetime.datetime.now(pytz.utc).toordinal()
-
-        weekday = int(datetime.date.fromordinal(current_date + offset).strftime('%w'))
-        first_day = offset + sow - weekday
-        if weekday < sow:
-            first_day -= 7
-
-        return first_day
-    # end get_weekstart()
+    def get_fetchdate(self, date):
+        """Return the offset from today"""
+        cd = self.config.in_fetch_tz(datetime.datetime.now(pytz.utc))
+        rd = self.config.in_fetch_tz(date)
+        return rd.date()
+    # end get_fetchdate()
 
     def merge_date_time(self, date_ordinal, date_time, tzinfo = None, as_utc = True):
         if tzinfo == None:
@@ -427,7 +419,7 @@ class Functions():
                     return default
 
                 if not isinstance (data[0], datetime.date):
-                    data[0] = datetime.date.fromordinal(source.fetch_date)
+                    data[0] = datetime.date.fromordinal(source.fetch_ordinal)
 
                 if not isinstance (data[0], datetime.date):
                     return default
@@ -863,7 +855,7 @@ class Functions():
             udt = source.data_value([ptype, "url-date-type"], int, default=0)
             udm = source.data_value([ptype, "url-date-multiplier"], int, default=1)
             udf = source.data_value([ptype, "url-date-format"], str, default=None)
-            wds = source.data_value([ptype, "weekdays"], list)
+            wds = source.data_value([ptype, "url-weekdays"], list)
             offset = source.data_value('offset', int, data, default=0)
             start = source.data_value('start', int, data, default=self.config.opt_dict['offset'])
             days = source.data_value('days', int, data, default=self.config.opt_dict['days'])
@@ -893,62 +885,62 @@ class Functions():
             elif urlid == 11:
                 if udt == 0:
                     if udf not in (None, ''):
-                        return get_dtstring(source.current_date + offset)
+                        return get_dtstring(source.current_ordinal + offset)
 
                     else:
                         return unicode(offset)
 
                 elif udt == 1:
-                    return get_timestamp(source.current_date + offset)
+                    return get_timestamp(source.current_ordinal + offset)
 
                 elif udt == 2:
-                    return get_weekday(source.current_date + offset)
+                    return get_weekday(source.current_ordinal + offset)
 
             elif urlid == 12:
                 if udt == 0:
                     if udf not in (None, ''):
-                        return get_dtstring(source.current_date + start + days)
+                        return get_dtstring(source.current_ordinal + start + days)
 
                     else:
                         return unicode(start + days - 1)
 
                 elif udt == 1:
-                    return get_timestamp(source.current_date + start + days)
+                    return get_timestamp(source.current_ordinal + start + days)
 
                 elif udt == 2:
-                    return get_weekday(source.current_date + start + days)
+                    return get_weekday(source.current_ordinal + start + days)
 
             elif urlid == 13:
                 if udt == 0:
                     if udf not in (None, ''):
-                        return get_dtstring(source.current_date + start)
+                        return get_dtstring(source.current_ordinal + start)
 
                     else:
                         return unicode(-start)
 
                 elif udt == 1:
-                    return get_timestamp(source.current_date + start)
+                    return get_timestamp(source.current_ordinal + start)
 
                 elif udt == 2:
-                    return get_weekday(source.current_date + start)
+                    return get_weekday(source.current_ordinal + start)
 
             elif urlid == 14:
                 if udt == 0:
                     if udf not in (None, ''):
-                        st = get_dtstring(source.current_date + start)
-                        end = get_dtstring(source.current_date + start + days)
+                        st = get_dtstring(source.current_ordinal + start)
+                        end = get_dtstring(source.current_ordinal + start + days)
 
                     else:
                         st = unicode(start)
                         end = unicode(start + days - 1)
 
                 elif udt == 1:
-                    st = get_timestamp(source.current_date + start)
-                    end = get_timestamp(source.current_date + start + days)
+                    st = get_timestamp(source.current_ordinal + start)
+                    end = get_timestamp(source.current_ordinal + start + days)
 
                 elif udt == 2:
-                    st = get_weekday(source.current_date + start)
-                    end = get_weekday(source.current_date + start + days)
+                    st = get_weekday(source.current_ordinal + start)
+                    end = get_weekday(source.current_ordinal + start + days)
 
                 splitter = source.data_value([ptype, "date-range-splitter"], str, default='~')
                 return '%s%s%s' % (st, splitter, end )
@@ -1518,6 +1510,7 @@ class FetchData(Thread):
         self.chanids = {}
         self.channel_loaded = {}
         self.day_loaded = {}
+        self.page_loaded = {}
         self.program_data = {}
         self.chan_count = 0
         self.base_count = 0
@@ -1525,7 +1518,7 @@ class FetchData(Thread):
         self.fail_count = 0
         self.config.queues['source'][self.proc_id] = self.detail_request
         self.config.threads.append(self)
-        self.fetch_date = None
+        self.fetch_ordinal = None
         self.site_tz = self.config.utc_tz
         self.item_count = 0
         self.current_item_count = 0
@@ -1547,8 +1540,6 @@ class FetchData(Thread):
             self.source = self.data_value('name', str)
             self.is_virtual = self.data_value('is_virtual', bool, default = False)
             self.config.sourceid_by_name[self.source] = self.proc_id
-            self.detail_id = self.data_value('detail_id', str, default = '%s-ID' % self.source)
-            self.detail_url = self.data_value('detail_url', str, default = '%s-url' % self.source)
             self.detail_processor = self.data_value('detail_processor', bool, default = False)
             self.detail_check = self.data_value('detail_check', str)
             self.without_full_timings = self.data_value('without-full-timings', bool, default = False)
@@ -1570,6 +1561,8 @@ class FetchData(Thread):
             self.site_tz = pytz.timezone(self.data_value('site-timezone', str, default = 'utc'))
             self.night_date_switch = self.data_value('night-date-switch', int, default = 0)
             self.item_count = self.data_value(['base', 'default-item-count'], int, default=0)
+            self.provides = self.data_value(['detail', 'provides'], list)
+            self.provides2 = self.data_value(['detail2', 'provides'], list)
             if self.detail_processor:
                 if self.proc_id not in self.config.detail_sources:
                     self.detail_processor = False
@@ -1688,24 +1681,12 @@ class FetchData(Thread):
             # Check if the source is not deactivated and if so set them all loaded
             if self.proc_id in self.config.opt_dict['disable_source']:
                 for chanid in self.channels.keys():
-                    self.channel_loaded[chanid] = True
+                    self.set_loaded('channel', chanid)
                     self.config.channels[chanid].source_ready(self.proc_id).set()
 
                 self.ready = True
 
             else:
-                self.day_loaded[0] = {}
-                for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
-                    self.day_loaded[0][day] = False
-
-                for chanid in self.config.channels.keys():
-                    self.channel_loaded[chanid] = False
-                    self.day_loaded[chanid] ={}
-                    for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
-                        self.day_loaded[chanid][day] = False
-
-                    self.program_data[chanid] = []
-
                 self.init_channel_source_ids()
                 # Load and proccess al the program pages
                 self.load_pages()
@@ -1727,6 +1708,9 @@ class FetchData(Thread):
 
             self.ready = True
             return(98)
+
+        self.ready = True
+        return
 
         try:
             if self.detail_processor and  not self.proc_id in self.config.opt_dict['disable_detail_source']:
@@ -1853,9 +1837,10 @@ class FetchData(Thread):
     # The fetching functions
     def init_channel_source_ids(self):
         """Get the list of requested channels for this source from the channel configurations"""
-        current_date = self.config.in_tz(datetime.datetime.now(pytz.utc), self.site_tz)
-        self.current_hour = current_date.hour
-        self.current_date = current_date.toordinal()
+        self.current_date = datetime.datetime.now(pytz.utc)
+        self.current_sitedate = self.config.in_tz(self.current_date, self.site_tz)
+        self.current_fetchdate = self.config.in_fetch_tz(self.current_date)
+        self.current_ordinal = self.current_date.toordinal()
         for chanid, channel in self.config.channels.iteritems():
             self.groupitems[chanid] = 0
             self.program_data[chanid] = []
@@ -1866,7 +1851,7 @@ class FetchData(Thread):
                     # Unless it is in empty channels we add it else set it ready
                     #~ if channel.get_source_id(self.proc_id) in self.config.empty_channels[self.proc_id]:
                     if channel.get_source_id(self.proc_id) in self.config.channelsource[self.proc_id].empty_channels:
-                        self.channel_loaded[chanid] = True
+                        self.set_loaded('channel', chanid)
                         self.config.channels[chanid].source_ready(self.proc_id).set()
 
                     else:
@@ -1881,7 +1866,7 @@ class FetchData(Thread):
                             # Unless it is in empty channels we add and mark it as a child else set it ready
                             #~ if self.config.channels[c['chanid']].get_source_id(self.proc_id) in self.config.empty_channels[self.proc_id]:
                             if self.config.channels[c['chanid']].get_source_id(self.proc_id) in self.config.channelsource[self.proc_id].empty_channels:
-                                self.channel_loaded[c['chanid']] = True
+                                self.set_loaded('channel', chanid)
                                 self.config.channels[c['chanid']].source_ready(self.proc_id).set()
 
                             else:
@@ -1938,94 +1923,424 @@ class FetchData(Thread):
 
     def load_pages(self):
         """The code for the actual Grabbing and dataprocessing of the base pages"""
-        def do_final_processing(chanid):
-            self.program_data[chanid].sort(key=lambda program: (program['start-time']))
-            pp = []
-            # Some sanity Check
-            plen = len(self.program_data[chanid]) -1
-            for index in range(plen + 1):
-                p = self.program_data[chanid][index]
-                if not 'name' in p.keys() or not isinstance(p['name'], (unicode, str)) or p['name'] == u'':
-                    continue
+        def log_fetch():
+            log_array = []
+            if (url_type & 3) == 1:
+                log_array =['\n', self.config.text('sources', 13, \
+                    (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid , \
+                    (self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or ''), self.source))]
 
-                p['name'] = unicode(p['name'])
-                if index < plen:
-                    p2 = self.program_data[chanid][index + 1]
-                    if 'stop from length' in p.keys() and p['stop from length']:
-                        if p['stop-time'] > p2['start-time']:
+                if (url_type & 12) == 0:
+                    log_array.append(self.config.text('sources', 23, (channel_cnt, len(self.channels), offset, self.config.opt_dict['days'])))
+
+                elif (url_type & 12) == 4:
+                    log_array.append(self.config.text('sources', 34, (channel_cnt, len(self.channels), '6')))
+
+                elif (url_type & 12) == 8:
+                    log_array.append(self.config.text('sources', 17, (channel_cnt, len(self.channels), page_idx, len(fetch_range))))
+
+                elif (url_type & 12) == 12:
+                    log_array.append(self.config.text('sources', 14, (channel_cnt, len(self.channels), self.config.opt_dict['days'], base_count)))
+
+                self.config.log(log_array, 2)
+
+            elif url_type == 2:
+                self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
+                    self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
+
+            elif url_type == 6:
+                self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
+                    self.config.text('sources', 11, (self.config.opt_dict['days']))], 2)
+
+            elif url_type == 3:
+                self.config.log(['\n', self.config.text('sources', 47, (channelgrp, self.source)), \
+                    self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
+
+            elif url_type == 7:
+                return
+
+            elif url_type == 10:
+                return
+
+            elif url_type == 11:
+                return
+
+            elif url_type == 14:
+                return
+
+            elif url_type == 15:
+                return
+        # end log_fetch()
+
+        def log_fail():
+            if url_type == 1:
+                self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
+
+            elif url_type in (2, 3):
+                self.config.log(self.config.text('sources', 4, (offset, self.source)))
+
+            elif url_type == 5:
+                self.config.log(self.config.text('sources', 40, (self.config.channels[chanid].chan_name, self.source)))
+
+            elif url_type == 6:
+                self.config.log(self.config.text('sources', 12, (self.source, )))
+
+            elif url_type == 7:
+                pass
+
+            elif url_type == 9:
+                self.config.log(self.config.text('sources', 41, (self.config.channels[chanid].chan_name, self.source, page_idx)))
+
+            elif url_type == 10:
+                pass
+
+            elif url_type == 11:
+                pass
+
+            elif url_type == 13:
+                self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, base_count)))
+
+            elif url_type == 14:
+                pass
+
+            elif url_type == 15:
+                pass
+        # end log_fail()
+
+        def get_weekstart(ordinal = None, offset = 0, sow = None):
+            if sow == None:
+                return offset
+
+            if ordinal == None:
+                ordinal = self.current_ordinal
+
+            weekday = int(datetime.date.fromordinal(ordinal + offset).strftime('%w'))
+            first_day = offset + sow - weekday
+            if weekday < sow:
+                first_day -= 7
+
+            return first_day
+        # end get_weekstart()
+
+        def do_final_processing(chanid):
+            channelid = self.channels[chanid]
+            good_programs = []
+            pgaps = []
+            # Some sanity Check
+            if len(self.program_data[chanid]) > 0:
+                self.program_data[chanid].sort(key=lambda program: (program['start-time']))
+                plen = len(self.program_data[chanid])
+                last_stop = None
+                min_gap = datetime.timedelta(minutes = 30)
+                for index in range(plen):
+                    p = self.program_data[chanid][index]
+                    if not 'name' in p.keys() or not isinstance(p['name'], (unicode, str)) or p['name'] == u'':
+                        continue
+
+                    p['name'] = unicode(p['name'])
+                    if index < plen - 1:
+                        p2 = self.program_data[chanid][index + 1]
+                        if 'stop from length' in p.keys() and p['stop from length']:
+                            if p['stop-time'] > p2['start-time']:
+                                p['stop-time'] = copy(p2['start-time'])
+
+                        if not 'stop-time' in p.keys() or not isinstance(p['stop-time'], datetime.datetime):
                             p['stop-time'] = copy(p2['start-time'])
 
-                    if not 'stop-time' in p.keys() or not isinstance(p['stop-time'], datetime.datetime):
-                        p['stop-time'] = copy(p2['start-time'])
+                        if not 'length' in p.keys() or not isinstance(p['length'], datetime.timedelta):
+                            p['length'] = p['stop-time'] - p['start-time']
 
-                    if not 'length' in p.keys() or not isinstance(p['length'], datetime.timedelta):
+                        if 'last of the page' in p.keys():
+                            # Check for a program split by the day border
+                            if p[ 'name'].lower() == p2[ 'name'].lower() and p['stop-time'] >= p2['start-time'] \
+                              and ((not 'episode title' in p and not 'episode title' in p2) \
+                                or ('episode title' in p and 'episode title' in p2 \
+                                and p[ 'episode title'].lower() == p2[ 'episode title'].lower())):
+                                    p2['start-time'] = copy(p['start-time'])
+                                    continue
+
+                    elif index == plen - 1 and'stop-time' in p.keys() and isinstance(p['stop-time'], datetime.datetime):
+                        if not 'length' in p.keys() or not isinstance(p['length'], datetime.timedelta):
+                            p['length'] = p['stop-time'] - p['start-time']
+
+                        while p['length'] > tdd:
+                            p['length'] -= tdd
+
+                        p['stop-time'] = p['start-time'] + p['length']
+
+                    else:
+                        continue
+
+                    if p['stop-time'] <= p['start-time']:
+                        continue
+
+                    if last_stop != None and (p['start-time'] - last_stop) > min_gap:
+                        pgaps.append((last_stop, copy(p['start-time'], last_name, p['name'].lower())))
+
+                    last_stop = copy(p['stop-time'])
+                    last_name = p['name'].lower()
+                    good_programs.append(p)
+
+            # Retrieve what is in the cache
+            cache_range = range( first_day - 1 , min(max_days, last_day) +1)
+            self.config.queues['cache'].put({'task':'query', 'parent': self, 'sourceprograms': {'sourceid': self.proc_id, 'channelid': channelid, 'scandate': cache_range}})
+            cache_programs = self.cache_return.get(True)
+            # And add in the cached programs
+            if len(good_programs) > 0:
+                good_programs.sort(key=lambda program: (program['start-time']))
+                fetch_start = good_programs[0]['start-time']
+                fetch_end = good_programs[-1]['stop-time']
+                fetch_count = len(good_programs) - 1
+                cache_delete = []
+                cache_add = []
+                if len(cache_programs) > 0:
+                    # Retrieve those days from the cache
+                    for day in site_range:
+                        if cached[chanid][day] and not self.get_loaded('day', chanid, day):
+                            self.config.log('\nRetrieving day %s for channel %s source %s from the cache.\n' % (day, self.config.channels[chanid].chan_name, self.source))
+
+                    for p in cache_programs:
+                        p['source'] = self.source
+                        p['chanid'] = chanid
+                        p['channel']  = self.config.channels[chanid].chan_name
                         p['length'] = p['stop-time'] - p['start-time']
+                        if 'group' in p.keys() and not p['group'] in (None, ''):
+                            self.groupitems[chanid] += 1
 
-                    if 'last of the page' in p.keys():
-                        # Check for a program split by the day border
-                        if p[ 'name'].lower() == p2[ 'name'].lower() and p['stop-time'] >= p2['start-time'] \
-                          and ((not 'episode title' in p and not 'episode title' in p2) \
-                            or ('episode title' in p and 'episode title' in p2 \
-                            and p[ 'episode title'].lower() == p2[ 'episode title'].lower())):
-                                p2['start-time'] = copy(p['start-time'])
-                                continue
+                        if p['stop-time'] <= fetch_start or p['start-time'] >= fetch_end:
+                            cache_add.append(p)
+                            continue
 
-                elif index == plen and'stop-time' in p.keys() and isinstance(p['stop-time'], datetime.datetime):
-                    if not 'length' in p.keys() or not isinstance(p['length'], datetime.timedelta):
-                        p['length'] = p['stop-time'] - p['start-time']
+                        elif p['start-time'] <= fetch_start and (fetch_start - p['start-time']) > (p['stop-time'] - fetch_start) and p['name'].lower() != good_programs[0]['name'].lower():
+                            cache_add.append(p)
+                            continue
 
-                    while p['length'] > tdd:
-                        p['length'] -= tdd
+                        elif p['stop-time'] >= fetch_end and (fetch_end - p['start-time']) < (p['stop-time'] - fetch_end) and p['name'].lower() != good_programs[-1]['name'].lower():
+                            cache_add.append(p)
+                            continue
 
-                    p['stop-time'] = p['start-time'] + p['length']
+                        for pg in pgaps:
+                            if pg[0] <= p['start-time'] <= pg[1] and pg[0] <= p['stop-time'] <= pg[1]:
+                                cache_add.append(p)
+                                break
 
-                else:
-                    continue
+                            elif pg[0] <= p['start-time'] <= pg[1] and (pg[1] - p['start-time']) > (p['stop-time'] - pg[1]) and p['name'].lower() != pg[3]:
+                                cache_add.append(p)
+                                break
 
-                if p['stop-time'] <= p['start-time']:
-                    continue
+                            elif pg[0] <= p['stop-time'] <= pg[1] and (p['stop-time'] - pg[0]) > (pg[0] - p['start-time']) and p['name'].lower() != pg[2]:
+                                cache_add.append(p)
+                                break
 
-                pp.append(p)
+                        else:
+                            cache_delete.append(p['start-time'])
 
-            self.program_data[chanid] = pp
-            if self.groupitems[chanid] > 0:
-                group_start = False
-                for p in self.program_data[chanid][:]:
-                    if 'group' in p.keys():
-                        # Collecting the group
-                        if not group_start:
-                            group = []
-                            start = p['start-time']
-                            group_start = True
+                    # Delete the new fetched programs from the cache
+                    if len(cache_delete) > 0:
+                        self.config.queues['cache'].put({'task':'delete', 'parent': self, 'sourceprograms': {'sourceid': self.proc_id, 'channelid': channelid, 'start-time': cache_delete}})
 
-                        group.append(p.copy())
-                        group_duur = p['stop-time'] - start
+                # Update the cache
+                new_ranges= []
+                for day in site_range:
+                    if self.get_loaded('day', chanid, day):
+                        new_ranges.append(day)
 
-                    elif group_start:
-                        # Repeating the group
-                        group_start = False
-                        group_eind = p['start-time']
-                        group_length = group_eind - start
-                        if group_length > datetime.timedelta(days = 1):
-                            # Probably a week was not grabbed
-                            group_eind -= datetime.timedelta(days = int(group_length.days))
+                self.config.queues['cache'].put({'task':'add', 'parent': self, 'sourceprograms': deepcopy(good_programs)})
+                self.config.queues['cache'].put({'task':'add', 'parent': self, 'laststop': {'sourceid': self.proc_id, 'channelid': channelid, 'laststop': fetch_end}})
+                self.config.queues['cache'].put({'task':'add', 'parent': self, 'fetcheddays': {'sourceid': self.proc_id, 'channelid': channelid, 'scandate': new_ranges}})
+                good_programs.extend(cache_add)
 
-                        repeat = 0
-                        while True:
-                            repeat+= 1
-                            for g in group[:]:
-                                gdict = g.copy()
-                                gdict['prog_ID'] = ''
-                                gdict['rerun'] = True
-                                gdict['start-time'] += repeat*group_duur
-                                gdict['stop-time'] += repeat*group_duur
-                                if gdict['start-time'] < group_eind:
-                                    if gdict['stop-time'] > group_eind:
-                                        gdict['stop-time'] = group_eind
+            elif len(cache_programs) > 0:
+                for p in cache_programs:
+                    p['source'] = self.source
+                    p['chanid'] = chanid
+                    p['channel']  = self.config.channels[chanid].chan_name
+                    p['length'] = p['stop-time'] - p['start-time']
+                    if 'group' in p.keys() and not p['group'] in (None, ''):
+                        self.groupitems[chanid] += 1
 
-                                    self.program_data[chanid].append(gdict)
+                    good_programs.append(p)
+
+            # Add any repeat group
+            if len(good_programs) > 0:
+                good_programs.sort(key=lambda program: (program['start-time']))
+                if self.groupitems[chanid] > 0:
+                    group_start = False
+                    for p in good_programs[:]:
+                        if 'group' in p.keys():
+                            # Collecting the group
+                            if not group_start:
+                                group = []
+                                start = p['start-time']
+                                group_start = True
+
+                            group.append(p.copy())
+                            group_duur = p['stop-time'] - start
+
+                        elif group_start:
+                            # Repeating the group
+                            group_start = False
+                            group_eind = p['start-time']
+                            group_length = group_eind - start
+                            if group_length > datetime.timedelta(hours = 12):
+                                # Probably a week was not grabbed
+                                group_eind -= datetime.timedelta(days = int(group_length.days))
+
+                            repeat = 0
+                            while True:
+                                repeat+= 1
+                                for g in group[:]:
+                                    gdict = g.copy()
+                                    gdict['prog_ID'] = ''
+                                    gdict['rerun'] = True
+                                    gdict['start-time'] += repeat*group_duur
+                                    gdict['stop-time'] += repeat*group_duur
+                                    if gdict['start-time'] < group_eind:
+                                        if gdict['stop-time'] > group_eind:
+                                            gdict['stop-time'] = group_eind
+
+                                        good_programs.append(gdict)
+
+                                    else:
+                                        break
 
                                 else:
+                                    continue
+
+                                break
+
+            self.program_data[chanid] = good_programs
+            self.config.channels[chanid].source_ready(self.proc_id).set()
+            self.set_loaded('channel', chanid)
+            self.set_loaded('day', chanid)
+        # end do_final_processing()
+
+        if len(self.channels) == 0  or not self.is_data_value(["base", "url"]):
+            return
+
+        tdd = datetime.timedelta(days=1)
+        cached = {}
+        laststop = {}
+        first_day = self.config.opt_dict['offset']
+        last_day = first_day + self.config.opt_dict['days']
+        max_days = self.data_value(["base", "max days"], int, default = 14)
+        if first_day > max_days:
+            self.set_loaded('channel')
+            for chanid in self.channels.keys():
+                self.config.channels[chanid].source_ready(self.proc_id).set()
+
+            return
+
+        full_range = range( first_day, last_day)
+        site_range = range( first_day, min(max_days, last_day))
+        step_start = first_day
+        offset_step = 1
+        fetch_range = site_range
+        for chanid, channelid in self.channels.items():
+            self.program_data[chanid] = []
+            self.config.queues['cache'].put({'task':'query', 'parent': self, 'fetcheddays': {'sourceid': self.proc_id, 'channelid': channelid, 'scandate': list(full_range)}})
+            cached[chanid] = self.cache_return.get(True)
+            self.config.queues['cache'].put({'task':'query', 'parent': self, 'laststop': {'sourceid': self.proc_id, 'channelid': channelid}})
+            ls = self.cache_return.get(True)
+            laststop[chanid] = ls['laststop']  if isinstance(ls, dict) and isinstance(ls['laststop'], datetime.datetime) else None
+
+        url_type = self.data_value(["base", "url-type"], int, default = 2)
+        # Check which groups contain requested channels
+        if (url_type & 3) == 3:
+            if not self.is_data_value(["base", "url-channel-groups"], list):
+                return
+
+            changroups = self.data_value(["base", "url-channel-groups"], list)
+            fgroup = {}
+            for channelgrp in changroups:
+                self.config.queues['cache'].put({'task':'query', 'parent': self, 'chan_scid': {'sourceid': self.proc_id, 'fgroup': channelgrp}})
+                fgroup[channelgrp] = self.cache_return.get(True)
+                for chan in fgroup[channelgrp][:]:
+                    if not chan['chanid'] in self.channels.keys():
+                        fgroup[channelgrp].remove(chan)
+
+        # Check which days and up to what date are available in the cache
+        for chanid, channelid in self.channels.items():
+            self.program_data[chanid] = []
+            self.config.queues['cache'].put({'task':'query', 'parent': self, 'fetcheddays': {'sourceid': self.proc_id, 'channelid': channelid, 'scandate': list(full_range)}})
+            cached[chanid] = self.cache_return.get(True)
+            self.config.queues['cache'].put({'task':'query', 'parent': self, 'laststop': {'sourceid': self.proc_id, 'channelid': channelid}})
+            ls = self.cache_return.get(True)
+            laststop[chanid] = ls['laststop']  if isinstance(ls, dict) and isinstance(ls['laststop'], datetime.datetime) else None
+
+        # Determine which days to fetch
+        # We fetch every day separate
+        if (url_type & 12) == 0:
+            # vrt.be, tvgids.tv
+            if (url_type & 3) == 1:
+                fetch_range = {}
+                for chanid in self.channels.keys():
+                    fetch_range[chanid] = []
+                    for day in site_range:
+                        if day == 0 or cached[chanid][day] != True:
+                            fetch_range[chanid].append(day)
+
+            # tvgids.nl, npo.nl, vpro.nl, primo.eu, oorboekje.nl
+            elif (url_type & 3) == 2:
+                fetch_range = []
+                for day in site_range:
+                    for chanid in self.channels.keys():
+                        if day == 0 or cached[chanid][day] != True:
+                            fetch_range.append(day)
+                            break
+
+            #humo.be
+            elif (url_type & 3) == 3:
+                fetch_range = {}
+                for channelgrp in changroups:
+                    fetch_range[channelgrp] = []
+                    for day in site_range:
+                        for chan in fgroup[channelgrp]:
+                            if day == 0 or cached[chan['chanid']][day] != True:
+                                fetch_range[channelgrp].append(day)
+                                break
+
+        # We fetch all days in one
+        elif (url_type & 12) == 4:
+            if (url_type & 3) == 1:
+                fetch_range = {}
+                for chanid in self.channels.keys():
+                    fetch_range[chanid] = ['all']
+
+            # rtl.nl
+            elif (url_type & 3) == 2:
+                fetch_range = ['all']
+
+            elif (url_type & 3) == 3:
+                # ToDo
+                return
+
+        # We fetch a set number of  days in one
+        elif (url_type & 12) == 8:
+            if not self.is_data_value(["base", "url-date-range"]):
+                return
+
+            if self.data_value(["base", "url-date-range"]) == 'week':
+                sow = self.data_value(["base", "url-date-week-start"], int, default = 1)
+                offset_step = 7
+                step_start = get_weekstart(self.current_ordinal, first_day, sow)
+                if (url_type & 3) == 1:
+                    fetch_range = {}
+                    for chanid in self.channels.keys():
+                        fetch_range[chanid] = []
+                        for daygroup in range(step_start, last_day, offset_step):
+                            for day in site_range:
+                                if day in site_range and (day == 0 or cached[chanid][day] != True):
+                                    fetch_range[chanid].append(daygroup)
+                                    break
+
+                elif (url_type & 3) == 2:
+                    fetch_range = []
+                    for daygroup in range(step_start, last_day, offset_step):
+                        for day in site_range:
+                            for chanid in self.channels.keys():
+                                if day in site_range and (day == 0 or cached[chanid][day] != True):
+                                    fetch_range.append(daygroup)
                                     break
 
                             else:
@@ -2033,76 +2348,99 @@ class FetchData(Thread):
 
                             break
 
-            self.config.channels[chanid].source_ready(self.proc_id).set()
-            self.channel_loaded[chanid] = True
-            for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
-                self.day_loaded[chanid][day] = True
+                elif (url_type & 3) == 3:
+                    # ToDo
+                    return
 
-        if len(self.channels) == 0  or not self.is_data_value(["base", "url"]):
-            return
+            elif self.is_data_value(["base", "url-date-range"], int):
+                offset_step = self.data_value(["base", "url-date-range"])
+                # nieuwsblad.be
+                if (url_type & 3) == 1:
+                    fetch_range = {}
+                    for chanid in self.channels.keys():
+                        fetch_range[chanid] = []
+                        start = None
+                        for day in site_range:
+                            if day == 0 or cached[chanid][day] != True:
+                                if start == None or day > start + offset_step:
+                                    fetch_range[chanid].append(day)
+                                    start = day
 
-        tdd = datetime.timedelta(days=1)
-        self.day_loaded = {}
-        self.day_loaded[0] = {}
-        day_channels = {}
-        for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
-            day_channels[day] = []
-            self.day_loaded[0][day] = False
+                elif (url_type & 3) == 2:
+                    fetch_range = []
+                    start = None
+                    for day in site_range:
+                        for chanid in self.channels.keys():
+                            if day == 0 or cached[chanid][day] != True:
+                                if start == None or day > start + offset_step:
+                                    fetch_range.append(day)
+                                    start = day
+                                    break
 
-        self.page_loaded = {}
-        self.channel_loaded = {}
-        for chanid in self.config.channels.keys():
-            self.channel_loaded[chanid] = False
-            self.day_loaded[chanid] ={}
-            self.page_loaded[chanid] = {}
-            for day in range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days'])):
-                self.day_loaded[chanid][day] = False
+                elif (url_type & 3) == 3:
+                    # ToDo
+                    return
 
-            self.program_data[chanid] = []
-
-        try:
-            append_source = None
-            first_fetch = True
-            max_days = self.data_value(["base", "max days"], int, default = 14)
-            url_type = self.data_value(["base", "url-type"], int, default = 2)
-            if self.config.opt_dict['offset'] > max_days:
-                for chanid in self.channels.keys():
-                    self.channel_loaded[chanid] = True
-                    self.config.channels[chanid].source_ready(self.proc_id).set()
-
+            else:
                 return
 
-            if (url_type & 12) == 8:
-                # We fetch a set number of  days in one
-                if not self.is_data_value(["base", "url-date-range"]):
-                    return
-
-                if self.data_value(["base", "url-date-range"]) == 'week':
-                    sow = self.data_value(["base", "url-date-week-start"], int, default = 1)
-                    first_day = self.functions.get_weekstart(self.current_date, self.config.opt_dict['offset'], sow)
-                    offset_step = 7
-
-                elif self.is_data_value(["base", "url-date-range"], int):
-                    first_day = self.config.opt_dict['offset']
-                    offset_step = self.data_value(["base", "url-date-range"])
-
-                else:
-                    return
-
-                fetch_range = range(first_day, (self.config.opt_dict['offset'] + self.config.opt_dict['days']), offset_step)
+        # We fetch a set number of  records per page
+        elif (url_type & 12) == 12:
+            # horizon.nl
+            if (url_type & 3) == 1:
+                fetch_range = {}
                 for chanid in self.channels.keys():
-                    for r in range(len(fetch_range)):
-                        self.page_loaded[chanid][r] = False
+                    fetch_range[chanid] = []
+                    start = None
+                    days = 0
+                    for day in site_range:
+                        if day == 0 or cached[chanid][day] != True:
+                            days += 1
+                            if start == None:
+                                start = day
 
-            elif (url_type & 12) == 12:
-                udt = self.data_value(["base", "url-date-type"], int, default=0)
-                udd = self.data_value(['base', 'url-date-multiplier'], int, default=0)
-                fs = self.config.opt_dict['offset']
-                fe = min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days)
+                        elif start != None:
+                            fetch_range[chanid].append((start, days))
+                            start = None
+                            days = 0
 
-            for retry in (0, 1):
-                # We fetch every channel separate
-                if (url_type & 3) == 1:
+                    if start != None:
+                        fetch_range[chanid].append((start, days))
+
+            elif (url_type & 3) == 2:
+                fetch_range = []
+                start = None
+                days = 0
+                for day in site_range:
+                    for chanid in self.channels.keys():
+                        if day == 0 or cached[chanid][day] != True:
+                            days += 1
+                            if start == None:
+                                start = day
+
+                            break
+
+                    else:
+                        continue
+
+                    if start != None:
+                        fetch_range.append((start, days))
+                        start = None
+                        days = 0
+
+                if start != None:
+                    fetch_range.append((start, days))
+
+
+            elif (url_type & 3) == 3:
+                # ToDo
+                return
+
+        try:
+            first_fetch = True
+            # We fetch every channel separate
+            if (url_type & 3) == 1:
+                for retry in (0, 1):
                     channel_cnt = 0
                     for chanid in self.channels.keys():
                         channel_cnt += 1
@@ -2114,238 +2452,142 @@ class FetchData(Thread):
                             continue
 
                         channel = self.channels[chanid]
-                        # We fetch every day separate
-                        # tvgids.tv
-                        if (url_type & 12) == 0:
-                            ats = self.data_value(["base", "append_to_source"], unicode)
-                            if ats in self.config.sourceid_by_name.keys() and self.config.channels[chanid].opt_dict['append_tvgidstv']:
-                                # Start from the offset but skip the days allready fetched by tvgids.nl
-                                # Except when append_tvgidstv is False
-                                append_source = self.config.sourceid_by_name[ats]
-                                fetch_range = []
-                                for i in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days)):
-                                    if not chanid in self.config.channelsource[append_source].day_loaded \
-                                      or not self.config.channelsource[append_source].day_loaded[chanid][i]:
-                                        fetch_range.append(i)
-
-                            else:
-                                fetch_range = range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days))
-
-                            if len(fetch_range) == 0:
-                                self.channel_loaded[chanid] = True
-                                self.config.channels[chanid].source_ready(self.proc_id).set()
-                                continue
-
-                            for offset in fetch_range:
-                                # Check if it is allready loaded
-                                if self.quit:
-                                    return
-
-                                if self.day_loaded[chanid][offset] or \
-                                  (self.config.channels[chanid].opt_dict['append_tvgidstv'] and \
-                                  append_source != None and \
-                                  chanid in self.config.channelsource[append_source].day_loaded and \
-                                  self.config.channelsource[append_source].day_loaded[chanid][offset]):
-                                    self.day_loaded[chanid][offset] = True
-                                    continue
-
-                                self.config.log(['\n', self.config.text('sources', 13, \
-                                    (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid , \
-                                    (self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or ''), self.source)), \
-                                    self.config.text('sources', 23, (channel_cnt, len(self.channels), offset, self.config.opt_dict['days']))], 2)
-
-                                if not first_fetch:
-                                    # be nice to the source
-                                    time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-
-                                first_fetch = False
-                                strdata = self.get_page_data('base',{'channel': channel, 'offset': offset})
-                                if strdata == None:
-                                    if retry == 1:
-                                        self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, offset)))
-                                    failure_count += 1
-                                    self.fail_count += 1
-                                    continue
-
-                                self.day_loaded[chanid][offset] = True
-                                self.parse_basepage(strdata, {'offset': offset, 'channelid': channel})
-
-                        # We fetch all days in one
-                        elif (url_type & 12) == 4:
-                            if self.day_loaded[chanid][self.config.opt_dict['offset']]:
-                                continue
-
-                            self.config.log(['\n', self.config.text('sources', 13, \
-                                (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid , \
-                                (self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or ''), self.source)), \
-                                self.config.text('sources', 34, (channel_cnt, len(self.channels), '6'))], 2)
-
-                            if not first_fetch:
-                                # be nice to the source
-                                time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-
-                            first_fetch = False
-                            strdata = self.get_page_data('base',{'channel': channel,
-                                                                                    'start': self.config.opt_dict['offset'],
-                                                                                    'days': self.config.opt_dict['days']})
-                            if strdata == None:
-                                if retry == 1:
-                                    self.config.log(self.config.text('sources', 40, (self.config.channels[chanid].chan_name, self.source)))
-                                failure_count += 1
-                                self.fail_count += 1
-                                continue
-
-                            self.day_loaded[chanid][self.config.opt_dict['offset']]
-                            self.parse_basepage(strdata, {'channelid': channel})
-
-                        # We fetch a set number of  days in one
-                        # vrt.be, nieuwsblad.be
-                        elif (url_type & 12) == 8:
-                            for offset in range(len(fetch_range)):
-                                if self.quit:
-                                    return
-
-                                # Check if it is already loaded
-                                if self.page_loaded[chanid][offset]:
-                                    continue
-
-                                self.config.log(['\n', self.config.text('sources', 13, \
-                                    (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid , \
-                                    (self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or ''), self.source)), \
-                                    self.config.text('sources', 17, (channel_cnt, len(self.channels), offset, len(fetch_range)))], 2)
-
-                                if not first_fetch:
-                                    # be nice to the source
-                                    time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-
-                                first_fetch = False
-                                strdata = self.get_page_data('base',{'channel': channel, 'offset': fetch_range[offset]})
-                                if strdata == None:
-                                    if retry == 1:
-                                        self.config.log(self.config.text('sources', 41, (self.config.channels[chanid].chan_name, self.source, offset)))
-                                    failure_count += 1
-                                    self.fail_count += 1
-                                    continue
-
-                                self.parse_basepage(strdata, {'offset': offset, 'channelid': channel})
-                                self.page_loaded[chanid][offset] = True
-
-                        # We fetch a set number of  records in one
-                        # horizon.nl
-                        elif (url_type & 12) == 12:
+                        if (url_type & 12) == 12:
                             if self.item_count == 0:
                                 return
 
-                            self.current_item_count = self.item_count
-                            page_count = 0
-                            while self.current_item_count == self.item_count:
-                                if not page_count in self.page_loaded[chanid]:
-                                    self.page_loaded[chanid][page_count] = False
+                            base_count = 0
+                            for fset in fetch_range[chanid]:
+                                self.current_item_count = self.item_count
+                                page_count = 0
+                                while self.current_item_count == self.item_count:
+                                    if self.quit:
+                                        return
 
-                                if self.quit:
-                                    return
+                                    # Check if it is already loaded
+                                    if self.get_loaded('page', chanid, base_count):
+                                        page_count += 1
+                                        base_count += 1
+                                        continue
 
-                                # Check if it is already loaded
-                                if self.page_loaded[chanid][page_count]:
+                                    log_fetch()
+                                    if not first_fetch:
+                                        # be nice to the source
+                                        time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
+
+                                    first_fetch = False
+                                    strdata = self.get_page_data('base',{'channel': channel,
+                                                                                            'cnt-offset': page_count,
+                                                                                            'start': fset[0],
+                                                                                            'days': fset[1]})
+
+                                    if strdata == None:
+                                        if retry == 1:
+                                            log_fail()
+
+                                        failure_count += 1
+                                        self.fail_count += 1
+                                        base_count += 1
+                                        page_count += 1
+                                        if failure_count > 10:
+                                            break
+
+                                        continue
+
+                                    self.parse_basepage(strdata, {'url_type':url_type, 'channelid': channel})
+                                    self.set_loaded('page', chanid, base_count)
                                     page_count += 1
-                                    continue
+                                    base_count += 1
 
-                                self.config.log(['\n', self.config.text('sources', 13, \
-                                    (self.config.channels[chanid].chan_name, self.config.channels[chanid].xmltvid, \
-                                    (self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or ''), self.source)), \
-                                    self.config.text('sources', 14, \
-                                    ( channel_cnt, len(self.channels), self.config.opt_dict['days'], page_count))], 2)
+                                self.set_loaded('day', chanid, range(fset[0], fset[0] + fset[1]))
+
+                        else:
+                            page_idx = 0
+                            for offset in fetch_range[chanid]:
+                                page_idx += 1
+                                # Check if it is already loaded
+                                if (url_type & 12) == 8:
+                                    if self.get_loaded('page', chanid, offset):
+                                        continue
+
+                                else:
+                                    if self.get_loaded('day', chanid, offset):
+                                        continue
 
                                 if not first_fetch:
                                     # be nice to the source
                                     time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
 
                                 first_fetch = False
-                                strdata = self.get_page_data('base',{'channel': channel, 'cnt-offset': page_count})
+                                log_fetch()
+                                strdata = self.get_page_data('base',{'channel': channel,
+                                                                                        'offset': offset,
+                                                                                        'start': first_day,
+                                                                                        'days': self.config.opt_dict['days']})
                                 if strdata == None:
                                     if retry == 1:
-                                        self.config.log(self.config.text('sources', 20, (self.config.channels[chanid].chan_name, self.source, page_count)))
+                                        log_fail()
+
                                     failure_count += 1
                                     self.fail_count += 1
-                                    page_count += 1
-                                    if failure_count > 10:
-                                        break
-
                                     continue
 
-                                self.parse_basepage(strdata, {'channelid': channel})
-                                self.page_loaded[chanid][page_count] = True
-                                page_count += 1
+                                self.parse_basepage(strdata, {'url_type':url_type, 'offset': offset, 'channelid': channel})
+                                if (url_type & 12) == 0:
+                                    self.set_loaded('day', chanid, offset)
+
+                                elif (url_type & 12) == 4:
+                                    self.set_loaded('day', chanid)
+
+                                elif (url_type & 12) == 8:
+                                    self.set_loaded('day', chanid, range(offset, offset + offset_step))
+                                    self.set_loaded('page', chanid, offset)
+
 
                         if failure_count == 0 or retry == 1:
                             do_final_processing(chanid)
 
-                # We fetch all channels in one
-                if (url_type & 3) == 2:
+            # We fetch all channels in one
+            if (url_type & 3) == 2:
+                for retry in (0, 1):
                     failure_count = 0
                     if self.quit:
                         return
 
-                    if len(self.channels) == 0 :
+                    if (url_type & 12) == 8:
+                        # We fetch a set number of  days in one
                         return
 
-                    # We fetch every day separate
-                    # tvgids.nl, npo.nl, vpro.nl, primo.eu, oorboekje.nl
-                    if (url_type & 12) == 0:
-                        for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days)):
+                    elif (url_type & 12) == 12:
+                        # We fetch a set number of  records in one
+                        return
+
+                    else:
+                        for offset in fetch_range:
                             if self.quit:
                                 return
 
                             # Check if it is already loaded
-                            if self.day_loaded[0][offset]:
+                            if self.get_loaded('day', 0, offset):
                                 continue
-
-                            self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
-                                self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
 
                             if not first_fetch:
                                 # be nice to the source
                                 time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
 
                             first_fetch = False
+                            log_fetch()
                             strdata = self.get_page_data('base',{'offset': offset})
                             if strdata == None:
                                 if retry == 1:
-                                    self.config.log(self.config.text('sources', 4, (offset, self.source)))
+                                    log_fail()
+
                                 failure_count += 1
                                 self.fail_count += 1
                                 continue
 
-                            self.day_loaded[0][offset] = True
-                            self.parse_basepage(strdata, {'offset':offset})
-
-                    # We fetch all days in one
-                    # rtl.nl
-                    elif (url_type & 12) == 4:
-                        #~ self.print_searchtree = True
-                        #~ self.show_parsing = True
-                        #~ self.show_result = True
-                        self.config.log(['\n', self.config.text('sources', 2, (len(self.channels), self.source)), \
-                            self.config.text('sources', 11, (self.config.opt_dict['days']))], 2)
-                        # be nice to the source
-                        time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-                        strdata = self.get_page_data('base')
-                        if strdata == None:
-                            if retry == 1:
-                                self.config.log(self.config.text('sources', 12, (self.source, )))
-                            failure_count += 1
-                            self.fail_count += 1
-                            continue
-
-                        self.parse_basepage(strdata)
-
-                    elif (url_type & 12) == 8:
-                        # We fetch a set number of  days in one
-                        pass
-
-                    elif (url_type & 12) == 12:
-                        # We fetch a set number of  records in one
-                        pass
+                            self.set_loaded('day', 0, offset)
+                            self.parse_basepage(strdata, {'url_type':url_type, 'offset':offset})
 
                     if failure_count == 0 or retry == 1:
                         for chanid in self.channels.keys():
@@ -2353,62 +2595,61 @@ class FetchData(Thread):
 
                         break
 
-                # We fetch the channels in two or more groups
-                if (url_type & 3) == 3:
-                    if not self.is_data_value(["base", "url-channel-groups"], list):
-                        return
-
+            # We fetch the channels in two or more groups
+            if (url_type & 3) == 3:
+                for retry in (0, 1):
                     for channelgrp in self.data_value(["base", "url-channel-groups"], list):
                         failure_count = 0
                         if self.quit:
                             return
 
+                        if len(fgroup[channelgrp]) == 0:
+                            continue
+
                         # We fetch every day separate
                         #humo.be
                         if (url_type & 12) == 0:
-                            for offset in range(self.config.opt_dict['offset'], min((self.config.opt_dict['offset'] + self.config.opt_dict['days']), max_days)):
+                            for offset in fetch_range[channelgrp]:
                                 if self.quit:
                                     return
 
-                                # Check if all channels for the day are already loaded
-                                if len(day_channels[offset]) == len(self.channels):
-                                    continue
+                                for chan in fgroup[channelgrp]:
+                                    if not self.get_loaded('day', chan['chanid'], offset):
+                                        break
 
-                                self.config.log(['\n', self.config.text('sources', 47, (channelgrp, self.source)), \
-                                    self.config.text('sources', 3, (offset, self.config.opt_dict['days']))], 2)
+                                else:
+                                    continue
 
                                 if not first_fetch:
                                     # be nice to the source
                                     time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
 
                                 first_fetch = False
+                                log_fetch()
                                 strdata = self.get_page_data('base',{'channelgrp': channelgrp, 'offset': offset})
                                 if strdata == None:
                                     if retry == 1:
-                                        self.config.log(self.config.text('sources', 4, (self.source, offset)))
+                                        log_fail()
+
                                     failure_count += 1
                                     self.fail_count += 1
                                     continue
 
-                                chanids = self.parse_basepage(strdata, {'channelgrp': channelgrp, 'offset':offset})
+                                chanids = self.parse_basepage(strdata, {'url_type':url_type, 'channelgrp': channelgrp, 'offset':offset})
                                 if isinstance(chanids, list):
-                                    for chanid in chanids:
-                                        self.day_loaded[chanid][offset] = True
-                                        if not chanid in day_channels[offset]:
-                                            day_channels[offset].append(chanid)
-
+                                    self.set_loaded('day', chanids, offset)
 
                         elif (url_type & 12) == 4:
                             # We fetch all days in one
-                            pass
+                            return
 
                         elif (url_type & 12) == 8:
                             # We fetch a set number of  days in one
-                            pass
+                            return
 
                         elif (url_type & 12) == 12:
                             # We fetch a set number of  records in one
-                            pass
+                            return
 
 
                     if failure_count == 0 or retry == 1:
@@ -2419,8 +2660,8 @@ class FetchData(Thread):
 
         except:
             self.config.log([self.config.text('fetch', 13, (self.source,)), self.config.text('fetch', 14), traceback.format_exc()], 0)
+            self.set_loaded('channel')
             for chanid in self.channels.keys():
-                self.channel_loaded[chanid] = True
                 self.config.channels[chanid].source_ready(self.proc_id).set()
 
             return None
@@ -2464,8 +2705,11 @@ class FetchData(Thread):
                     values['prog_ID'] = ''
 
                 tdict = {}
+                tdict['sourceid'] = self.proc_id
                 tdict['source'] = self.source
-                tdict['channelid'] = chanid
+                tdict['channelid'] = channelid
+                tdict['chanid'] = chanid
+                tdict['prog_ID'] = ''
                 tdict['channel']  = self.config.channels[chanid].chan_name
                 if  not 'name' in values.keys() or values['name'] == None or values['name'] == '':
                     # Give it the Unknown Program Title Name, to mark it as a groupslot.
@@ -2512,6 +2756,7 @@ class FetchData(Thread):
                             tdict['stop-time'] += tdd
 
                 tdict['offset'] = self.functions.get_offset(tdict['start-time'])
+                tdict['scandate'] = self.functions.get_fetchdate(tdict['start-time'])
                 if self.data_value(["base", "data-format"], str) == "text/html":
                     if 'stop-time' in tdict.keys():
                         last_stop = tdict['stop-time']
@@ -2558,9 +2803,9 @@ class FetchData(Thread):
                                 if not self.config.roletrans[k2] in tdict.keys() or len(tdict[self.config.roletrans[k2]]) == 0:
                                     tdict[self.config.roletrans[k2]] = v2
 
-                                for item in v:
-                                    if not item in tdict[self.config.roletrans[k]]:
-                                        tdict[self.config.roletrans[k]].append(item)
+                                for item in v2:
+                                    if not item in tdict[self.config.roletrans[k2]]:
+                                        tdict[self.config.roletrans[k2]].append(item)
 
                 if 'genre' in values.keys() or 'subgenre' in values.keys() or 'genres' in values.keys():
                     gg = self.get_genre(values)
@@ -2570,10 +2815,6 @@ class FetchData(Thread):
                 if 'group' in values.keys() and not values['group'] in (None, ''):
                     self.groupitems[chanid] += 1
                     tdict['group'] = values['group']
-                    #~ if not values['group'] in self.groupitems[chanid].keys():
-                        #~ self.groupitems[chanid][values['group']] = []
-
-                    #~ self.groupitems[chanid][values['group']].append({'channel': channelid, 'start-time': tdict['start-time'], 'stop-time': tdict['stop-time'], 'program': dict})
 
                 tdict = self.check_title_name(tdict)
                 with self.source_lock:
@@ -2726,7 +2967,7 @@ class FetchData(Thread):
             searchtree.check_data_def(self.data_value(ptype, dict))
             if ptype in ('base', 'detail', 'detail2'):
                 # We load some values from the definition file into the tree
-                self.fetch_date = self.current_date + self.data_value('offset', int, pdata, default=0)
+                self.fetch_ordinal = self.current_ordinal + self.data_value('offset', int, pdata, default=0)
                 if not "channelid" in searchtree.value_filters.keys() or not isinstance(searchtree.value_filters["channelid"], list) :
                     searchtree.value_filters["channelid"] = []
 
@@ -2750,11 +2991,11 @@ class FetchData(Thread):
                     self.config.log(self.config.text('sources', 22))
                     return None
 
-                elif self.night_date_switch > 0 and self.current_hour < self.night_date_switch and (self.current_date - cd.toordinal()) == 1:
+                elif self.night_date_switch > 0 and self.current_fetchdate.hour < self.night_date_switch and (self.current_ordinal - cd.toordinal()) == 1:
                     # This page switches date at a later time so we allow
                     pass
 
-                elif cd.toordinal() != self.current_date:
+                elif cd.toordinal() != self.current_ordinal:
                     url_type = self.data_value(["base", "url-type"], int, default = 2)
                     if url_type == 1:
                         self.config.log(self.config.text('sources', 21, (pdata['channel'], self.source, pdata['offset'])))
@@ -3034,6 +3275,80 @@ class FetchData(Thread):
                 return []
 
         return subpath
+
+    def get_loaded(self, type='day', chanid = 0, day = None):
+        chanlist = list(self.channels.keys())
+        chanlist.append(0)
+        if type == 'day':
+            if chanid in self.day_loaded.keys():
+                if day in self.day_loaded[chanid].keys():
+                    return self.day_loaded[chanid][day]
+
+                elif day == 'all' and self.config.opt_dict['offset'] in self.day_loaded[chanid].keys():
+                    return self.day_loaded[chanid][self.config.opt_dict['offset']]
+
+            return False
+
+        if type == 'channel':
+            if chanid in self.self.channel_loaded.keys():
+                return self.self.channel_loaded[chanid]
+
+            return False
+
+        if type == 'page':
+            if chanid in self.page_loaded.keys() and day in self.page_loaded[chanid].keys():
+                return self.page_loaded[chanid][day]
+
+            return False
+
+
+    def set_loaded(self, type='day', chanid = None, day = None, value=True):
+        chanlist = list(self.channels.keys())
+        chanlist.append(0)
+        daylist = range( self.config.opt_dict['offset'], (self.config.opt_dict['offset'] + self.config.opt_dict['days']))
+        if isinstance(chanid, (list, tuple)):
+            chanlist = chanid
+
+        elif chanid not in (None, 'all', 0):
+            chanlist = [chanid]
+
+        if type == 'day':
+            if isinstance(day, (list, tuple)):
+                daylist = day
+
+            elif day not in (None, 'all'):
+                daylist = [day]
+
+            for chanid in chanlist:
+                if chanid in chanlist:
+                    if not chanid in self.day_loaded.keys():
+                        self.day_loaded[chanid] = {}
+
+                    for day in daylist:
+                        self.day_loaded[chanid][day] = value
+
+        if type == 'channel':
+            for chanid in chanlist:
+                if chanid in chanlist:
+                    self.channel_loaded[chanid] = value
+
+        if type == 'page':
+            if isinstance(day, (list, tuple)):
+                pagelist = day
+
+            elif isinstance(day, int):
+                pagelist = [day]
+
+            else:
+                return
+
+            for chanid in chanlist:
+                if chanid in chanlist:
+                    if not chanid in self.page_loaded.keys():
+                        self.page_loaded[chanid] = {}
+
+                    for day in daylist:
+                        self.page_loaded[chanid][day] = value
 
     def get_genre(self, values):
         """Sub process for parse_basepage"""

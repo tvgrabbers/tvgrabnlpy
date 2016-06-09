@@ -26,7 +26,7 @@
 			"cattransid":0},
 		"4":{
 			"json file":"source-npo.nl",
-			"version":0,
+			"version":1,
 			"cattrans type":1,
 			"cattransid":1},
 		"5":{
@@ -36,42 +36,42 @@
 			"cattransid":2},
 		"6":{
 			"json file":"source-humo.be",
-			"version":0,
+			"version":1,
 			"cattrans type":1,
 			"cattransid":3},
 		"7":{
 			"json file":"source-vpro.nl",
-			"version":0,
+			"version":2,
 			"cattrans type":1,
 			"cattransid":4},
 		"1":{
 			"json file":"source-tvgids.tv",
-			"version":0,
+			"version":1,
 			"cattrans type":2,
 			"cattransid":5},
 		"9":{
 			"json file":"source-primo.eu",
-			"version":0,
+			"version":1,
 			"cattrans type":1,
 			"cattransid":6},
 		"10":{
 			"json file":"source-vrt.be",
-			"version":0,
+			"version":1,
 			"cattrans type":1,
 			"cattransid":7},
 		"2":{
 			"json file":"source-rtl.nl",
-			"version":0,
+			"version":1,
 			"cattrans type":null,
 			"cattransid":null},
 		"8":{
 			"json file":"source-nieuwsblad.be",
-			"version":0,
+			"version":1,
 			"cattrans type":null,
 			"cattransid":null},
 		"12":{
 			"json file":"source-oorboekje.nl",
-			"version":0,
+			"version":1,
 			"cattrans type":null,
 			"cattransid":null},
 		"11":{
@@ -711,9 +711,6 @@
 			"0-21": "cartoon-network",
 			"0-26": "cnn",
 			"0-32": "trt-turk",
-			"0-34": "veronica",
-			"0-36": "sbs6",
-			"0-37": "net5",
 			"0-49": "vtm",
 			"0-59": "2be",
 			"0-60": "vier",
@@ -911,7 +908,6 @@
 			"12-61": "wild-fm",
 			"7-classic_fm": "classic-fm",
 			"12-65": "radio-nl",
-			"12-66": "radio-nl-friesland",
 			"12-67": "qmusic-limburg",
 			"12-69": "radio-nl-brabant",
 			"12-70": "ujala-radio",
@@ -1348,6 +1344,7 @@
 	"groupslot_names":[
 		"night gap/programs",
 		"ochtend- en dagprogramma's",
+		"ochtendprogramma's",
 		"nachtprogramma's",
 		"kinderprogramma's",
 		"kinder-tv",

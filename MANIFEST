@@ -5,6 +5,7 @@ sources/tv_grab_API.json
 sources/tv_grab_nl.json
 tvgrabpyAPI/__init__.py
 tvgrabpyAPI/tv_grab_IO.py
+tvgrabpyAPI/tv_grab_channel.py
 tvgrabpyAPI/tv_grab_config.py
 tvgrabpyAPI/tv_grab_fetch.py
 tvgrabpyAPI/texts/tv_grab_text.en
