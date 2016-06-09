@@ -2486,17 +2486,17 @@ class XMLoutput():
             # Only add season/episode if relevant. i.e. Season can be 0 if it is a pilot season, but episode never.
             # Also exclude Sports for MythTV will make it into a Series
             if program.is_set('season') and program.is_set('episode') and cat.lower() not in self.config.episode_exclude_genres:
-                se = program.get_value('season')
-                ep = program.get_value('episode')
-                if se != 0 and ep != 0:
+                se = program.get_value('season') -1
+                ep = program.get_value('episode') -1
+                if se >= 0 and ep >= 0:
                     if program.is_set("episodecount"):
                         ep = '%s/%s' % (ep, program.get_value('episodecount'))
 
                     if se == 0:
-                        text = ' . %d . '  % (ep - 1)
+                        text = ' . %s . '  % (ep)
 
                     else:
-                        text = '%d . %d . '  % (se - 1, ep - 1)
+                        text = '%s . %s . '  % (se, ep)
 
                     xml.append(self.add_starttag('episode-num', 4, 'system="xmltv_ns"', text,True))
 
