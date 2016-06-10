@@ -225,7 +225,7 @@ class Channel_Config(Thread):
                 self.statetext = 'processing details'
                 #~ print 'processing details for ', self.chanid
                 self.state = 4
-                self.get_details()
+                #~ self.get_details()
                 self.statetext = 'waiting for details'
                 self.state = 5
                 while not self.detail_data.is_set():
@@ -296,10 +296,6 @@ class Channel_Config(Thread):
 
             # a final check on the sanity of the data
             self.channel_node.check_lineup()
-            # Split titles with colon in it
-            # Note: this only takes place if all days retrieved are also grabbed with details (slowdays=days)
-            # otherwise this function might change some titles after a few grabs and thus may result in
-            # loss of programmed recordings for these programs.
             # Also check if a genric genre does aply
             for g, chlist in self.config.generic_channel_genres.items():
                 if self.chanid in chlist:
@@ -637,6 +633,7 @@ class ChannelNode():
             self.programs_by_stop = {}
             self.programs_by_name = {}
             self.programs_by_matchname = {}
+            self.programs_by_prog_ID = {}
             self.programs_with_no_genre = {}
             self.start = None
             self.stop = None
@@ -924,6 +921,7 @@ class ChannelNode():
             return
 
         with self.node_lock:
+            self.programs_by_prog_ID[source] = {}
             self.save_current_stats()
             self.init_merge_stats()
             if not self.get_adding_stats(programs):
@@ -960,7 +958,7 @@ class ChannelNode():
 
                     last_stop = pn.stop
                     previous_node = pn
-                    self.add_new_program(pn)
+                    self.add_new_program(pn, source)
 
                 self.last_node = previous_node
                 self.stop = last_stop
@@ -1013,15 +1011,24 @@ class ChannelNode():
                         mstart = programs[index]['start-time'] + datetime.timedelta(0, 0, 0, 0, check)
                         if mstart in self.programs_by_start.keys() and self.programs_by_start[mstart].match_title(programs[index]['mname']):
                             # ### Check on split episodes
-                            #~ l_diff = programs[index]['length'].total_seconds()/ self.programs_by_start[mstart].length.total_seconds()
+                            #~ l_diff = programs[index]['length'].total_seconds()/ pn.length.total_seconds()
                             #~ if l_diff >1.2 or l_diff < 1.2:
                                 #~ pass
 
-                            self.add_match_stat(4, self.programs_by_start[mstart], programs[index])
-                            if self.programs_by_start[mstart] in self.current_list:
-                                self.current_list.remove(self.programs_by_start[mstart])
+                            pn = self.programs_by_start[mstart]
+                            self.add_match_stat(4, pn, programs[index])
+                            if pn in self.current_list:
+                                self.current_list.remove(pn)
 
-                            self.programs_by_start[mstart].add_source_data(programs[index], source)
+                            pn.add_source_data(programs[index], source)
+                            if 'prog_ID' in programs[index].keys() and programs[index]['prog_ID'] not in (None, ''):
+                                prog_ID = programs[index]['prog_ID']
+                                if not prog_ID in self.programs_by_prog_ID[source].keys():
+                                    self.programs_by_prog_ID[source][prog_ID] = [pn]
+
+                                else:
+                                    self.programs_by_prog_ID[source][prog_ID].append(pn)
+
                             self.add_stat()
                             break
 
@@ -1037,12 +1044,12 @@ class ChannelNode():
 
                 # And add any program found new
                 for gs in self.group_slots[:]:
-                    self.fill_group(gs)
+                    self.fill_group(gs, source)
 
-                self.fill_group(add_to_start)
-                self.fill_group(add_to_end)
+                self.fill_group(add_to_start, source)
+                self.fill_group(add_to_end, source)
                 for pgap in self.program_gaps[:]:
-                    self.fill_group(pgap)
+                    self.fill_group(pgap, source)
 
                 self.add_stat('unmatched', len(unmatched))
                 # Finally we check if we can add any genres
@@ -1222,16 +1229,17 @@ class ChannelNode():
                     for check in self.checkrange:
                         mstart = programs[index].start + datetime.timedelta(0, 0, 0, 0, check)
                         if mstart in self.programs_by_start.keys() and self.programs_by_start[mstart].match_title(programs[index].match_name):
+                            pn = self.programs_by_start[mstart]
                             # ### Check on split episodes
-                            #~ l_diff = programs[index].length.total_seconds()/ self.programs_by_start[mstart].length.total_seconds()
+                            #~ l_diff = programs[index].length.total_seconds()/ pn.length.total_seconds()
                             #~ if l_diff >1.2 or l_diff < 1.2:
                                 #~ pass
 
-                            self.add_match_stat(4, self.programs_by_start[mstart], programs[index])
-                            if self.programs_by_start[mstart] in self.current_list:
-                                self.current_list.remove(self.programs_by_start[mstart])
+                            self.add_match_stat(4, pn, programs[index])
+                            if pn in self.current_list:
+                                self.current_list.remove(pn)
 
-                            self.programs_by_start[mstart].add_node_data(programs[index])
+                            pn.add_node_data(programs[index])
                             self.add_stat()
                             break
 
@@ -1323,7 +1331,7 @@ class ChannelNode():
                 gap = GapNode(self, node1, node2)
                 return gap
 
-    def fill_group(self, pgrp):
+    def fill_group(self, pgrp, source = None):
         with self.node_lock:
             if isinstance(pgrp, ProgramNode):
                 if len(pgrp.gs_detail) == 0:
@@ -1401,7 +1409,7 @@ class ChannelNode():
                     self.program_gaps.append(gap)
 
             for pn in gdetail:
-                self.add_new_program(pn)
+                self.add_new_program(pn, source)
 
             if start_gap != None:
                 self.program_gaps.append(start_gap)
@@ -1446,7 +1454,7 @@ class ChannelNode():
             if pgap in self.program_gaps:
                 self.program_gaps.remove(pgap)
 
-    def add_new_program(self,pn):
+    def add_new_program(self,pn, source = None):
         with self.node_lock:
             if not pn in self.programs:
                 self.programs.append(pn)
@@ -1479,6 +1487,17 @@ class ChannelNode():
 
                 else:
                     self.programs_with_no_genre[pn.match_name] = [pn]
+
+            prog_ID = pn.get_value('prog_ID', source)
+            if source in self.config.channelsource.keys() and prog_ID not in (None, ''):
+                if not source in  self.programs_by_prog_ID.keys():
+                    self.programs_by_prog_ID[source] = {}
+
+                if not prog_ID in self.programs_by_prog_ID[source].keys():
+                    self.programs_by_prog_ID[source][prog_ID] = [pn]
+
+                else:
+                    self.programs_by_prog_ID[source][prog_ID].append(pn)
 
     def check_on_missing_genres(self):
         # Check if we can match any program without genre to one similar named with genre
