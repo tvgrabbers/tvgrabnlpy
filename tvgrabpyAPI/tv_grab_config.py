@@ -276,7 +276,8 @@ class Configure:
         self.__DEFAULT_SECTIONS__ = {1: u'genre conversion table',
                                                              2: u'no title split list',
                                                              3: u'remove groupname list',
-                                                             4: u'rename title list'}
+                                                             4: u'rename title list',
+                                                             5: u'genres to get detail pages for'}
 
     # end Init()
 
@@ -1572,6 +1573,9 @@ class Configure:
                     elif type == 4:
                         self.titlerename = {}
 
+                    elif type == 5:
+                        self.detailed_genres = []
+
                     continue
 
                 # Unknown Section header, so ignore
@@ -1613,6 +1617,11 @@ class Configure:
                         continue
 
                     self.titlerename[a[0].lower().strip()] = a[1].strip()
+
+                elif type == 5:
+                    line = line.lower()
+                    if not line in self.detailed_genres:
+                        self.detailed_genres.append(line)
 
                 elif type in self.cattranstype[1].keys():
                     # split of the translation (if present) or supply an empty one
@@ -2015,6 +2024,7 @@ class Configure:
         self.groupnameremove = get_githubdata("groupnameremove")
         self.groupnameremove.sort(key=lambda p: len(p), reverse = True)
         self.episode_exclude_genres = get_githubdata("episode exclude genres")
+        self.detailed_genres = get_githubdata("detailed_genres")
         self.cattrans_unknown = get_githubdict("cattrans_unknown")
         cattrans = get_githubdict("cattrans")
         for k, v in cattrans.items():
@@ -2873,6 +2883,18 @@ class Configure:
         l.sort()
         for string in l:
             f.write(string)
+
+        f.write(u'\n')
+        f.write(u'# This is a list of genres to include for detail page lookups.\n')
+        f.write(u'# Any program without any of these genres are excluded from\n')
+        f.write(u'# detail-page fetching. Use the pre-cattrans genres!\n')
+        f.write(u'\n')
+        f.write(u'[%s]\n' % self.__DEFAULT_SECTIONS__[5])
+
+        l = []
+        self.detailed_genres.sort()
+        for dg in self.detailed_genres:
+             f.write(u'%s\n' % t)
 
         if len(self.cattranstype[1]) > 0:
             slist = u'# '
