@@ -165,7 +165,6 @@ class Configure:
         self.log_output = None
         self.httpencoding = 'iso-8859-15'
         self.file_encoding = 'utf-8'
-        self.do_clump = False
 
         # Create a category translation dictionary
         # Look in mythtv/themes/blue/ui.xml for all category names
@@ -246,6 +245,8 @@ class Configure:
         self.opt_dict['use_split_episodes'] = True
         self.opt_dict['kijkwijzerstijl'] = 'short'
 
+        self.detail_keys = {}
+        self.detail_keys['all'] = []
         self.texts = {}
         self.logging = None
         self.threads = []
@@ -1651,6 +1652,7 @@ class Configure:
                 continue
 
         f.close()
+        self.groupnameremove.sort(key=lambda p: len(p), reverse = True)
         return True
 
     #end read_defaults_list()
@@ -2011,6 +2013,7 @@ class Configure:
         self.rating = get_githubdict("rating")
         self.titlerename = get_githubdict("titlerename")
         self.groupnameremove = get_githubdata("groupnameremove")
+        self.groupnameremove.sort(key=lambda p: len(p), reverse = True)
         self.episode_exclude_genres = get_githubdata("episode exclude genres")
         self.cattrans_unknown = get_githubdict("cattrans_unknown")
         cattrans = get_githubdict("cattrans")
@@ -2853,7 +2856,7 @@ class Configure:
         f.write(u'\n')
         f.write(u'[%s]\n' % self.__DEFAULT_SECTIONS__[3])
 
-        self.groupnameremove.sort()
+        self.groupnameremove.sort(key=lambda p: len(p), reverse = True)
         for t in self.groupnameremove:
              f.write(u'%s\n' % t)
 

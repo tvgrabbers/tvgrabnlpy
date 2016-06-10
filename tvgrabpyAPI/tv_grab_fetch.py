@@ -1561,15 +1561,23 @@ class FetchData(Thread):
             self.site_tz = pytz.timezone(self.data_value('site-timezone', str, default = 'utc'))
             self.night_date_switch = self.data_value('night-date-switch', int, default = 0)
             self.item_count = self.data_value(['base', 'default-item-count'], int, default=0)
-            self.provides = self.data_value(['detail', 'provides'], list)
-            self.provides2 = self.data_value(['detail2', 'provides'], list)
             if self.detail_processor:
                 if self.proc_id not in self.config.detail_sources:
                     self.detail_processor = False
 
                 if self.is_data_value('detail', dict) or self.is_data_value('detail2', dict):
-                    self.detail_keys = list(self.data_value(['detail', 'values'], dict).keys())
-                    self.detail2_keys = list(self.data_value(['detail2', 'values'], dict).keys())
+                    self.config.detail_keys[self.proc_id] = {}
+                    self.detail_keys = self.data_value(['detail', 'provides'], list)
+                    self.config.detail_keys[self.proc_id]['detail'] = self.detail_keys
+                    for k in self.detail_keys:
+                        if k not in self.config.detail_keys['all']:
+                            self.config.detail_keys['all'].append(k)
+
+                    self.detail2_keys = self.data_value(['detail2', 'provides'], list)
+                    self.config.detail_keys[self.proc_id]['detail2'] = self.detail2_keys
+                    for k in self.detail2_keys:
+                        if k not in self.config.detail_keys['all']:
+                            self.config.detail_keys['all'].append(k)
 
                 else:
                     self.detail_processor = False
@@ -2084,7 +2092,7 @@ class FetchData(Thread):
                     last_name = p['name'].lower()
                     good_programs.append(p)
 
-            # Retrieve what is in the cache
+            # Retrieve what is in the cache with a day earlier and later added
             cache_range = range( first_day - 1 , min(max_days, last_day) +1)
             self.config.queues['cache'].put({'task':'query', 'parent': self, 'sourceprograms': {'sourceid': self.proc_id, 'channelid': channelid, 'scandate': cache_range}})
             cache_programs = self.cache_return.get(True)
