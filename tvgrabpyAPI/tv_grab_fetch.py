@@ -2040,11 +2040,14 @@ class FetchData(Thread):
                     p['name'] = unicode(p['name'])
                     if index < plen - 1:
                         p2 = self.program_data[chanid][index + 1]
-                        if 'stop from length' in p.keys() and p['stop from length']:
+                        if 'stop from length' in p.keys() and p['stop from length'] and not 'last of the page' in p.keys():
                             if p['stop-time'] > p2['start-time']:
                                 p['stop-time'] = copy(p2['start-time'])
 
                         if not 'stop-time' in p.keys() or not isinstance(p['stop-time'], datetime.datetime):
+                            if 'last of the page' in p.keys():
+                                continue
+
                             p['stop-time'] = copy(p2['start-time'])
 
                         if not 'length' in p.keys() or not isinstance(p['length'], datetime.timedelta):
@@ -2075,7 +2078,7 @@ class FetchData(Thread):
                         continue
 
                     if last_stop != None and (p['start-time'] - last_stop) > min_gap:
-                        pgaps.append((last_stop, copy(p['start-time'], last_name, p['name'].lower())))
+                        pgaps.append((last_stop, copy(p['start-time']), last_name, p['name'].lower()))
 
                     last_stop = copy(p['stop-time'])
                     last_name = p['name'].lower()
@@ -2104,6 +2107,7 @@ class FetchData(Thread):
                         p['chanid'] = chanid
                         p['channel']  = self.config.channels[chanid].chan_name
                         p['length'] = p['stop-time'] - p['start-time']
+                        p['from cache'] = True
                         if 'group' in p.keys() and not p['group'] in (None, ''):
                             self.groupitems[chanid] += 1
 
@@ -2156,6 +2160,7 @@ class FetchData(Thread):
                     p['chanid'] = chanid
                     p['channel']  = self.config.channels[chanid].chan_name
                     p['length'] = p['stop-time'] - p['start-time']
+                    p['from cache'] = True
                     if 'group' in p.keys() and not p['group'] in (None, ''):
                         self.groupitems[chanid] += 1
 
@@ -2209,7 +2214,12 @@ class FetchData(Thread):
 
                                 break
 
-            self.program_data[chanid] = good_programs
+            # And keep only the requested range
+            self.program_data[chanid] = []
+            for p in good_programs[:]:
+                if p['offset'] in full_range:
+                    self.program_data[chanid].append(p)
+
             self.config.channels[chanid].source_ready(self.proc_id).set()
             self.set_loaded('channel', chanid)
             self.set_loaded('day', chanid)
@@ -2711,6 +2721,7 @@ class FetchData(Thread):
                 tdict['chanid'] = chanid
                 tdict['prog_ID'] = ''
                 tdict['channel']  = self.config.channels[chanid].chan_name
+                tdict['from cache'] = False
                 if  not 'name' in values.keys() or values['name'] == None or values['name'] == '':
                     # Give it the Unknown Program Title Name, to mark it as a groupslot.
                     values['name'] = self.config.unknown_program_title
@@ -2765,7 +2776,7 @@ class FetchData(Thread):
 
                 # Add any known value that does not need further processing
                 for k, v in values.items():
-                    if k in ('channelid', 'video', 'genre', 'subgenre'):
+                    if k in ('channelid', 'video', 'genre', 'subgenre', 'start-time', 'stop-time'):
                         continue
 
                     if k in self.config.key_values['text'] and not v in (None, ''):
@@ -3347,7 +3358,7 @@ class FetchData(Thread):
                     if not chanid in self.page_loaded.keys():
                         self.page_loaded[chanid] = {}
 
-                    for day in daylist:
+                    for day in pagelist:
                         self.page_loaded[chanid][day] = value
 
     def get_genre(self, values):
@@ -3502,6 +3513,18 @@ class FetchData(Thread):
                 if (psubtitle[0:1] == ':') or (psubtitle[0:1] == '-'):
                     psubtitle = psubtitle[1:].strip()
 
+        # exclude certain programs
+        if  psubtitle in ('', None) and not (ptitle.lower() in self.config.notitlesplit) \
+          and not ('genre' in program and program['genre'].lower() in ['movies','film']):
+            # and do the title split test
+            p = ptitle.split(':')
+            if len(p) >1:
+                self.config.log(self.config.text('fetch', 67, (ptitle, )), 64)
+                ptitle = p[0].strip()
+                psubtitle = "".join(p[1:]).strip()
+                if self.config.write_info_files:
+                    self.config.infofiles.addto_detail_list(unicode('Name split = %s + %s' % (ptitle , psubtitle)))
+
         # Check the Title rename list
         if ptitle.lower() in self.config.titlerename:
             self.config.log(self.config.text('fetch', 21, (ptitle, self.config.titlerename[ptitle.lower()])), 64)
@@ -3519,7 +3542,6 @@ class FetchData(Thread):
             program['episode title'] = psubtitle
 
         return program
-
 
 # end FetchData()
 

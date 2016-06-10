@@ -310,7 +310,6 @@ class Channel_Config(Thread):
                 gen_genre = None
 
             for i, v in enumerate(self.all_programs):
-                self.all_programs[i] = self.title_split(v)
                 if gen_genre != None and self.all_programs[i]['genre'] in (u'overige', u''):
                     self.all_programs[i]['genre'] = gen_genre
 
@@ -529,37 +528,6 @@ class Channel_Config(Thread):
 
             else:
                 self.detail_data.set()
-
-    def title_split(self,program):
-        """
-        Some channels have the annoying habit of adding the subtitle to the title of a program.
-        This function attempts to fix this, by splitting the name at a ': '.
-        """
-        # Some programs (BBC3 when this happened) have no genre. If none, then set to a default
-        if program['genre'] is None:
-            program['genre'] = 'overige';
-
-        ptitle = program['name']
-        psubtitle = program['episode title']
-        if  ptitle == None or ptitle == '':
-            return program
-
-        # exclude certain programs
-        if  ('episode title' in program and psubtitle != '')  \
-          or ('genre' in program and program['genre'].lower() in ['movies','film']) \
-          or (ptitle.lower() in self.config.notitlesplit):
-            return program
-
-        # and do the title split test
-        p = ptitle.split(':')
-        if len(p) >1:
-            self.config.log(self.config.text('fetch', 67, (ptitle, )), 64)
-            program['name'] = p[0].strip()
-            program['episode title'] = "".join(p[1:]).strip()
-            if self.config.write_info_files:
-                self.config.infofiles.addto_detail_list(unicode('Name split = %s + %s' % (program['name'] , program['episode title'])))
-
-        return program
 
 # end Channel_Config
 
@@ -2012,7 +1980,7 @@ class ProgramNode():
                 vcnt = 0
                 for index in range(len(self.tdict[key]['values'])):
                     if self.tdict[key]['rank'][index] > vcnt:
-                        if key in ('season', 'episode') and self.tdict[key]['values'][index] == 0:
+                        if key in ('season', 'episode', 'episodecount') and self.tdict[key]['values'][index] == 0:
                             continue
 
                         #~ if key in ('title', 'genres') and self.tdict[key]['values'][index][1] == '':
@@ -2489,7 +2457,7 @@ class XMLoutput():
                 se = program.get_value('season') -1
                 ep = program.get_value('episode') -1
                 if se >= 0 and ep >= 0:
-                    if program.is_set("episodecount"):
+                    if program.is_set("episodecount") and program.get_value('episodecount') != 0:
                         ep = '%s/%s' % (ep, program.get_value('episodecount'))
 
                     if se == 0:

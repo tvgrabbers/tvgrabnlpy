@@ -671,6 +671,16 @@ class ProgramCache(Thread):
             self.load_db()
             return
 
+        elif os.path.isfile(self.filename +'.db.bak'):
+            # Check for a backup
+            try:
+                shutil.copy(self.filename + '.db.bak', self.filename + '.db')
+                self.load_db()
+                return
+
+            except:
+                pass
+
         # Check the directory
         if not os.path.exists(os.path.dirname(self.filename)):
             try:
@@ -1913,6 +1923,12 @@ class InfoFiles():
 
                 return '---'
 
+            if vname == 'from cache':
+                if 'from cache' in tdict and tdict['from cache']:
+                    return '*'
+
+                return ''
+
             if not vname in tdict.keys():
                 return '--- '
 
@@ -1949,10 +1965,13 @@ class InfoFiles():
 
                 pnode = programs.first_node
                 while isinstance(pnode, tv_grab_channel.ProgramNode):
-                    fstr += u'  %s: [%s][%s] %s\n' % (\
+                    fstr += u'  %s: [%s][%s] [%s:%s/%s] %s\n' % (\
                                     pnode.get_start_stop(), \
                                     pnode.get_value('ID').rjust(15), \
                                     pnode.get_value('genre')[0:10].rjust(10), \
+                                    pnode.get_value('season'), \
+                                    pnode.get_value('episode'), \
+                                    pnode.get_value('episodecount'), \
                                     pnode.get_title())
 
                     if pnode.next_gap != None:
@@ -1982,9 +2001,10 @@ class InfoFiles():
                     extra = value('rerun') + value('teletext') + value('new') + value('last-chance') + value('premiere')
                     extra2 = value('HD') + value('widescreen') + value('blackwhite')
 
-                    fstr += u'  %s-%s: [%s][%s] %s: %s\n' % (\
-                                    value('start-time'), value('stop-time'), \
+                    fstr += u'  %s%s - %s: [%s][%s] [%s:%s/%s] %s: %s\n' % (\
+                                     value('from cache'), value('start-time'), value('stop-time'), \
                                     value('ID').rjust(15), value('genre')[0:10].rjust(10), \
+                                    value('season'), value('episode'), value('episodecount'), \
                                     value('name'), value('episode title'))
 
                     #~ fstr += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
