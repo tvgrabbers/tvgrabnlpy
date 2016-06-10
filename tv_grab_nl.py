@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 14
-        self.patchdate = u'20160506'
+        self.patchdate = u'20160610'
         self.alfa = False
         self.beta = False
 
@@ -1815,12 +1815,13 @@ class Configure:
 
                     self.source_cattrans[source][s] = (g[0].strip(), u'')
 
-
             except:
                 log(['Error reading Defaults\n', traceback.format_exc()])
                 continue
 
         f.close()
+        self.groupnameremove.sort(key=lambda p: len(p), reverse = True)
+
         return True
 
     #end read_defaults_list()
@@ -14021,14 +14022,19 @@ class XMLoutput:
             # Process credits section if present.
             # This will generate director/actor/presenter info.
             if program['credits'] != {}:
-                xml.append(self.add_starttag('credits', 4))
+                start_added = False
                 for role in ('director', 'actor', 'writer', 'adapter', 'producer', 'composer', 'editor', 'presenter', 'commentator', 'guest'):
                     if role in program['credits']:
                         for name in program['credits'][role]:
                             if name != '':
+                                if not start_added:
+                                    xml.append(self.add_starttag('credits', 4))
+                                    start_added = True
+
                                 xml.append(self.add_starttag((role), 6, '', self.xmlescape(name),True))
 
-                xml.append(self.add_endtag('credits', 4))
+                if start_added:
+                    xml.append(self.add_endtag('credits', 4))
 
             # Original Air-Date
             if isinstance(program['airdate'], datetime.date):
