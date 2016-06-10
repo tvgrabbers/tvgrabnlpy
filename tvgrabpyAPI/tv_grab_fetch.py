@@ -1591,12 +1591,18 @@ class FetchData(Thread):
 
     def run(self):
         """The grabing thread"""
-        self.testlist = ((1, 0), (9, 0,), (1, 9))
+        #~ self.testlist = ((1, 0), (9, 0,), (1, 9))
+        detail_idx = self.config.detail_sources.index(self.proc_is)
+        self.testlist = []
+        for s1 in range(len(self.config.detail_sources) -1):
+            for s0 in range(len(self.config.detail_sources) -1), s1, -1):
+                self.testlist.append((self.config.detail_sources[s0], self.config.detail_sources[s1]))
+
         def check_queue():
             # If the queue is empty
             if self.detail_request.empty():
                 time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-                # and if we are not tvgids.nl we wait for followup requests from other failures failures
+                # and if we are not the last detail source we wait for followup requests from other sources failing
                 for q_no in self.testlist:
                     if (self.proc_id == q_no[0]) and self.config.channelsource[q_no[1]].is_alive():
                         return 0
@@ -1613,7 +1619,7 @@ class FetchData(Thread):
 
                 # OK we have been sitting idle for 30 minutes, So we tell all channels they won get anything more!
                 if (datetime.datetime.now() - self.lastrequest).total_seconds() > idle_timeout:
-                    if self.proc_id == 1:
+                    if self.proc_id == self.config.detail_sources[-1]:
                         for chanid, channel in self.config.channels.items():
                             if channel.is_alive() and not channel.detail_data.is_set():
                                 #~ print channel.statetext
@@ -1651,7 +1657,7 @@ class FetchData(Thread):
 
         def check_other_sources(tdict, cache_id, logstring, parent):
             cached_program = None
-            if (self.proc_id in (0, 9)) and (cache_id != None):
+            if (self.proc_id != self.config.detail_sources[-1]) and (cache_id != None):
                 # Check the cache again
                 self.config.queues['cache'].put({'task':'query', 'parent': self, 'pid': cache_id})
                 cached_program = self.cache_return.get(True)
@@ -1710,7 +1716,6 @@ class FetchData(Thread):
 
         self.ready = True
         return
-
         try:
             if self.detail_processor and  not self.proc_id in self.config.opt_dict['disable_detail_source']:
                 # We process detail requests, so we loop till we are finished
@@ -1723,20 +1728,26 @@ class FetchData(Thread):
 
                     queue_val = check_queue()
                     if queue_val == -1:
+                        # We Quit
                         break
 
                     if queue_val == 0 or not isinstance(queue_val, dict):
+                        # We check again
                         continue
 
                     tdict = queue_val
                     parent = tdict['parent']
                     # Is this the closing item for the channel?
                     if ('last_one' in tdict) and tdict['last_one']:
-                        if self.proc_id == 0 and self.functions.get_counter('queue', 9, parent.chanid) > 0:
-                            self.config.queues['source'][1].put(tdict)
+                        if self.proc_id != self.config.detail_sources[-1] and len(self.config.detail_sources) > 1:
+                            if self.functions.get_counter('queue', self.config.detail_sources[detail_idx + 1], parent.chanid) > 0:
+                                self.config.queues['source'][self.config.detail_sources[detail_idx + 1]].put(tdict)
 
-                        elif self.proc_id == 9 and self.functions.get_counter('queue', 1, parent.chanid) > 0:
-                            self.config.queues['source'][1].put(tdict)
+                        #~ if self.proc_id == 0 and self.functions.get_counter('queue', 9, parent.chanid) > 0:
+                            #~ self.config.queues['source'][1].put(tdict)
+
+                        #~ elif self.proc_id == 9 and self.functions.get_counter('queue', 1, parent.chanid) > 0:
+                            #~ self.config.queues['source'][1].put(tdict)
 
                         elif self.functions.get_counter('queue', -2, parent.chanid) > 0 and not (self.config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']):
                             self.config.queues['ttvdb'].put({'task': 'last_one', 'parent': parent})
@@ -1767,7 +1778,7 @@ class FetchData(Thread):
                     else:
                         detailed_program = None
 
-                    # It failed! If this is tvgids.nl we check the json page
+                    # It failed! If this is tvgids.nl we check the json page (Check for detail2 presence!)
                     if detailed_program == None and (self.proc_id == 0):
                         try:
                             detailed_program = self.load_json_detailpage(tdict)
@@ -1782,7 +1793,7 @@ class FetchData(Thread):
                     # It failed!
                     if detailed_program == None:
                         # If this is tvgids.nl and there is an url we'll try tvgids.tv, but first check the cache again
-                        if self.proc_id == 1:
+                        if self.proc_id == self.config.detail_sources[-1]:
                             self.config.log(self.config.text('fetch', 17, (parent.chan_name, parent.get_counter(), logstring)), 8, 1)
                             #~ self.functions.update_counter('fail', self.proc_id, parent.chanid)
                             #~ parent.update_counter('fetch', self.proc_id, False)
