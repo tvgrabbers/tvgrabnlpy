@@ -8,7 +8,7 @@ from __future__ import unicode_literals
 import re, sys, traceback, difflib
 import time, datetime, pytz, random
 import requests, httplib, socket, json
-import tv_grab_IO, DataTreeGrab
+import DataTreeGrab
 from threading import Thread, Lock, Semaphore, Event
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
@@ -1682,10 +1682,10 @@ class FetchData(Thread):
                     return 0
 
         # First some generic initiation that couldn't be done earlier in __init__
-        # Specifics can be done in init_channels and init_json which are called here
         tdict = {}
         idle_timeout = 1800
         try:
+            self.init_channel_source_ids()
             # Check if the source is not deactivated and if so set them all loaded
             if self.proc_id in self.config.opt_dict['disable_source']:
                 for chanid in self.channels.keys():
@@ -1695,20 +1695,11 @@ class FetchData(Thread):
                 self.ready = True
 
             else:
-                self.init_channel_source_ids()
                 # Load and proccess al the program pages
                 self.load_pages()
 
-                # if this is the prefered description source set the value
-                with self.source_lock:
-                    for chanid in self.channels.keys():
-                        if self.config.channels[chanid].opt_dict['prefered_description'] == self.proc_id:
-                            for i in range(len(self.program_data[chanid])):
-                                self.program_data[chanid][i]['prefered description'] = self.program_data[chanid][i]['description']
-
             if self.config.write_info_files:
                 self.config.infofiles.check_new_channels(self, self.config.source_channels)
-
 
         except:
             self.config.queues['log'].put({'fatal': ['While fetching the base pages\n', \
@@ -1857,7 +1848,6 @@ class FetchData(Thread):
                 # Is there a sourceid for this channel
                 if channel.get_source_id(self.proc_id) != '':
                     # Unless it is in empty channels we add it else set it ready
-                    #~ if channel.get_source_id(self.proc_id) in self.config.empty_channels[self.proc_id]:
                     if channel.get_source_id(self.proc_id) in self.config.channelsource[self.proc_id].empty_channels:
                         self.set_loaded('channel', chanid)
                         self.config.channels[chanid].source_ready(self.proc_id).set()
@@ -1884,28 +1874,31 @@ class FetchData(Thread):
         for chanid, channelid in self.channels.items():
             self.chanids[channelid] = chanid
 
-    def get_channels(self):
+    def get_channels(self, data_list = None):
         """The code for the retreiving a list of supported channels"""
         self.all_channels ={}
-        ptype = "channels"
-        if not self.is_data_value([ptype], dict):
-            ptype = "base-channels"
+        if data_list == None:
+            ptype = "channels"
             if not self.is_data_value([ptype], dict):
+                ptype = "base-channels"
+                if not self.is_data_value([ptype], dict):
+                    return
+
+            if not self.is_data_value([ptype, "data"]):
                 return
 
-        if not self.is_data_value([ptype, "data"]):
-            return
+            if not self.is_data_value([ptype, "url"]):
+                # The channels are defined in the datafile
+                self.all_channels = self.data_value([ptype, "data"], dict)
+                return
 
-        if not self.is_data_value([ptype, "url"]):
-            # The channels are defined in the datafile
-            self.all_channels = self.data_value([ptype, "data"], dict)
-            return
+            #extract the data
+            channel_list = self.get_page_data(ptype)
 
-        #extract the data
-        channel_list = self.get_page_data(ptype)
-        if channel_list == None:
-            self.config.log(self.config.text('sources', 1, (self.source, )))
-            return 69
+        else:
+            # The list is extracted from a base page
+            ptype = "base-channels"
+            channel_list = data_list
 
         if isinstance(channel_list, list):
             for channel in channel_list:
@@ -3028,10 +3021,11 @@ class FetchData(Thread):
 
             searchtree.print_searchtree = self.print_searchtree
             searchtree.extract_datalist()
+            data = searchtree.result
             if self.show_result:
                 #~ self.test_output.write(searchtree.result)
                 #~ self.test_output.write('\n')
-                for p in searchtree.result:
+                for p in data:
                     if isinstance(p[0], (str, unicode)):
                         print p[0].encode('utf-8', 'replace')
                     else:
@@ -3042,7 +3036,13 @@ class FetchData(Thread):
                         else:
                             print '    ', p[v]
 
-            return searchtree.result
+            if self.config.write_info_files and ptype == 'base' and self.is_data_value("base-channels", dict) and len(self.all_channels) == 0:
+                searchtree.check_data_def(self.data_value("base-channels", dict))
+                searchtree.find_start_node()
+                searchtree.extract_datalist()
+                self.get_channels(searchtree.result)
+
+            return data
 
         except:
             self.config.log([self.config.text('fetch', 71, (ptype, self.source)), traceback.format_exc()], 1)
