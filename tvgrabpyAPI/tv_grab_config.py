@@ -2888,13 +2888,15 @@ class Configure:
         f.write(u'# This is a list of genres to include for detail page lookups.\n')
         f.write(u'# Any program without any of these genres are excluded from\n')
         f.write(u'# detail-page fetching. Use the pre-cattrans genres!\n')
+        f.write(u'# Add "all" to this list to include all programs\n')
+        f.write(u'# Add "none" to include programs without genre info\n')
         f.write(u'\n')
         f.write(u'[%s]\n' % self.__DEFAULT_SECTIONS__[5])
 
         l = []
         self.detailed_genres.sort()
         for dg in self.detailed_genres:
-             f.write(u'%s\n' % t)
+             f.write(u'%s\n' % dg)
 
         if len(self.cattranstype[1]) > 0:
             slist = u'# '

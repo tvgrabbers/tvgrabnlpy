@@ -606,7 +606,7 @@ class ProgramCache(Thread):
                         qanswer = None
 
                     else:
-                        for t in ('laststop', 'fetcheddays', 'sourceprograms',
+                        for t in ('laststop', 'fetcheddays', 'sourceprograms', 'programdetails',
                                     'icon', 'chan_group', 'chan_scid',
                                     'ttvdb', 'ttvdb_aliasses', 'ttvdb_langs',
                                     'ep_by_id', 'ep_by_title'):
@@ -624,7 +624,7 @@ class ProgramCache(Thread):
                     continue
 
                 if crequest['task'] == 'add':
-                    for t in ('laststop', 'fetcheddays', 'sourceprograms',
+                    for t in ('laststop', 'fetcheddays', 'sourceprograms', 'programdetails',
                                 'channelsource', 'channel', 'icon',
                                 'ttvdb', 'ttvdb_alias', 'ttvdb_lang', 'episode'):
                         if t in crequest:
@@ -632,7 +632,7 @@ class ProgramCache(Thread):
                             continue
 
                 if crequest['task'] == 'delete':
-                    for t in ('sourceprograms', 'ttvdb'):
+                    for t in ('sourceprograms', 'programdetails', 'ttvdb'):
                         if t in crequest:
                             self.delete(t, crequest[t])
                             continue
@@ -791,6 +791,7 @@ class ProgramCache(Thread):
             self.config.opt_dict['disable_ttvdb'] = True
 
     def create_table(self, table):
+        print 'creating table', table
         if table == 'fetcheddays':
             create_string = u"CREATE TABLE IF NOT EXISTS %s (`sourceid` INTEGER, `channelid` TEXT, `scandate` date, `stored` boolean DEFAULT 'True'" % table
             create_string += u", PRIMARY KEY (`sourceid`, `channelid`, `scandate`) ON CONFLICT REPLACE)"
@@ -969,6 +970,7 @@ class ProgramCache(Thread):
             try:
                 with self.pconn:
                     self.pconn.execute(u"ALTER TABLE %s ADD %s" % (table, collumn))
+                    print 'adding collumn', collumn, 'to', table
 
             except:
                 self.functions.log(self.config.text('IO', 14, (table, collumn)))
@@ -1041,7 +1043,7 @@ class ProgramCache(Thread):
 
         elif table == 'programdetails':
             for c in ('sourceid', 'channelid', 'prog_ID'):
-                if c not in clist.keys():
+                if c.lower() not in clist.keys():
                     drop_table(table)
                     self.create_table(table)
                     return
@@ -1410,8 +1412,11 @@ class ProgramCache(Thread):
                         if not isinstance(sd, (str, unicode)):
                             continue
 
-                        pcursor.execute(u"SELECT * FROM programdetails WHERE `sourceid` = ? AND `channelid` = ? AND `prog_ID` = ?", (item['sourceid'], item['channelid'], sd))
-                        programs.extend(pcursor.fetchone())
+                        pcursor.execute(u"SELECT * FROM programdetails WHERE `sourceid` = ? AND `channelid` = ? AND `prog_ID` = ?", \
+                            (item['sourceid'], item['channelid'], sd))
+                        p = pcursor.fetchone()
+                        if p != None:
+                            programs.append(p)
 
             elif "start-time" in item.keys():
                 if isinstance(item["start-time"], datetime.datetime):
@@ -1422,11 +1427,14 @@ class ProgramCache(Thread):
                         if not isinstance(st, datetime.datetime):
                             continue
 
-                        pcursor.execute(u"SELECT * FROM programdetails WHERE `sourceid` = ? AND `channelid` = ? AND `start-time` = ?", (item['sourceid'], item['channelid'], st))
-                        programs.extend(pcursor.fetchall())
+                        pcursor.execute(u"SELECT * FROM programdetails WHERE `sourceid` = ? AND `channelid` = ? AND `start-time` = ?", \
+                            (item['sourceid'], item['channelid'], st))
+                        p = pcursor.fetchone()
+                        if p != None:
+                            programs.append(p)
 
             else:
-                pcursor.execute(u"SELECT * FROM sourceprograms WHERE `sourceid` = ? AND `channelid` = ?", (item['sourceid'], item['channelid']))
+                pcursor.execute(u"SELECT * FROM programdetails WHERE `sourceid` = ? AND `channelid` = ?", (item['sourceid'], item['channelid']))
                 programs = pcursor.fetchall()
 
             programs2 = []
@@ -1774,8 +1782,9 @@ class ProgramCache(Thread):
             sql_flds = u"INSERT INTO programdetails (`sourceid`, `channelid`, `prog_ID`, `start-time`, `stop-time`, `name`, `genre`"
             sql_cnt = u"VALUES (?, ?, ?, ?, ?, ?, ?"
             for f in self.config.detail_keys['all']:
-                sql_flds = u"%s, `%s`" % (sql_flds, f)
-                sql_cnt = u"%s, ?" % (sql_cnt)
+                if f in self.field_list:
+                    sql_flds = u"%s, `%s`" % (sql_flds, f)
+                    sql_cnt = u"%s, ?" % (sql_cnt)
 
             add_string = u"%s) %s)" % (sql_flds, sql_cnt)
             add_string2 = u"INSERT INTO creditdetails (`sourceid`, `channelid`, `prog_ID`, `start-time`, `title`, `name`, `role`) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -1791,12 +1800,13 @@ class ProgramCache(Thread):
                     else:
                         sql_vals.append(None)
 
-                for f in self.field_list:
-                    if f in p.keys():
-                        sql_vals.append(p[f])
+                for f in self.config.detail_keys['all']:
+                    if f in self.field_list:
+                        if f in p.keys():
+                            sql_vals.append(p[f])
 
-                    else:
-                        sql_vals.append(None)
+                        else:
+                            sql_vals.append(None)
 
                 rec.append(tuple(sql_vals))
                 for f in self.config.key_values['credits']:
@@ -2248,7 +2258,7 @@ class InfoFiles():
                     extra2 = value('HD') + value('widescreen') + value('blackwhite')
 
                     fstr += u'  %s%s - %s: [%s][%s] [%s:%s/%s] %s: %s\n' % (\
-                                     value('from cache'), value('start-time'), value('stop-time'), \
+                                    value('from cache'), value('start-time'), value('stop-time'), \
                                     value('ID').rjust(15), value('genre')[0:10].rjust(10), \
                                     value('season'), value('episode'), value('episodecount'), \
                                     value('name'), value('episode title'))

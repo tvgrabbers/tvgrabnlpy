@@ -167,7 +167,8 @@ class Channel_Config(Thread):
                         break
 
                 if self.source_ready(index).is_set():
-                    if len(self.config.channelsource[index].program_data[self.chanid]) == 0:
+                    if not self.chanid in self.config.channelsource[index].program_data.keys() \
+                      or len(self.config.channelsource[index].program_data[self.chanid]) == 0:
                         # Nothing was returned. We log unless it is a virtual source
                         if not self.config.channelsource[index].is_virtual:
                             self.config.log(self.config.text('fetch', 51, (self.config.channelsource[index].source, self.chan_name)))
@@ -215,25 +216,49 @@ class Channel_Config(Thread):
                 #~ self.ready = True
 
             # And get the detailpages
-            #~ elif not isinstance(self.channel_node, ChannelNode) or self.channel_node.program_count() == 0:
-            elif len(self.all_programs) == 0:
+            elif not isinstance(self.channel_node, ChannelNode) or self.channel_node.program_count() == 0:
                 self.statetext = ''
                 self.state = None
                 self.detail_data.set()
 
             else:
                 self.statetext = 'processing details'
-                #~ print 'processing details for ', self.chanid
                 self.state = 4
-                #~ self.get_details()
+                self.channel_node.merge_type = 8
+                self.get_details()
                 self.statetext = 'waiting for details'
                 self.state = 5
                 while not self.detail_data.is_set():
-                    #~ print 'waiting for details for ', self.chanid
-                    self.detail_data.wait(5)
                     if self.quit:
                         self.ready = True
                         return
+
+                    if self.cache_return.empty():
+                        self.detail_data.wait(1)
+
+                    else:
+                        # We are getting back a detail fetch
+                        fetched_detail = self.cache_return.get(True)
+                        if fetched_detail =='quit':
+                            self.ready = True
+                            return
+
+                        if not isinstance(fetched_detail, dict) or not 'data' in fetched_detail.keys():
+                            continue
+
+                        # We add it to the program
+                        src_id = fetched_detail['source']
+                        prog_ID = fetched_detail['data']['prog_ID']
+                        dn = self.channel_node.programs_by_prog_ID[src_id][prog_ID]
+                        print len(dn)
+                        for pn in dn:
+                            pn.add_detail_data(fetched_detail, src_id)
+
+                        # and to the cache
+                        self.config.queues['cache'].put({'task':'add', 'parent': self, 'programdetails': fetched_detail['data']})
+
+                        # and do a ttvdb check
+
 
                     # Check if the sources are still alive
                     s_cnt = 0
@@ -255,7 +280,7 @@ class Channel_Config(Thread):
                         self.detail_data.set()
                         self.config.log([self.config.text('fetch', 52, (log_string, )), self.config.text('fetch', 53, (self.chan_name,))])
 
-                self.all_programs = self.detailed_programs
+                self.channel_node.merge_type = None
 
             if self.is_child:
                 #~ print 'setting active child_data for', self.chanid
@@ -268,6 +293,8 @@ class Channel_Config(Thread):
 
             log_array = ['\n', self.config.text('fetch', 54, (self.chan_name, counter, self.config.chan_count))]
             log_array.append( self.config.text('fetch',55, (self.functions.get_counter('detail', -1, self.chanid), )))
+            log_array.append(u'%6.0f excluded by genre\n'% (self.functions.get_counter('exclude', -1, self.chanid)))
+
             if self.opt_dict['fast']:
                 log_array.append(self.config.text('fetch', 56, (self.functions.get_counter('fail', -1, self.chanid), )))
                 log_array.append('\n')
@@ -332,56 +359,10 @@ class Channel_Config(Thread):
             self.ready = True
             return(97)
 
-    def use_cache(self, tdict, cached):
-        # copy the cached information, except the start/end times, rating and clumping,
-        # these may have changed.
-        # But first checkout the dict
-        #~ try:
-            #~ clump  = tdict['clumpidx']
-
-        #~ except LookupError:
-            #~ clump = False
-
-        cached['start-time'] = tdict['start-time']
-        cached['stop-time']  = tdict['stop-time']
-        #~ if clump:
-            #~ cached['clumpidx'] = clump
-
-        # Make sure we do not overwrite fresh info with cashed info
-        if tdict['description'] > cached['description']:
-            cached['description'] = tdict['description']
-
-        if not 'prefered description' in cached.keys():
-            cached['prefered description'] = tdict['prefered description']
-
-        elif tdict['prefered description'] > cached['prefered description']:
-            cached['prefered description'] = tdict['prefered description']
-
-        for fld in ('name', 'episode title', 'originaltitle', 'premiere year', 'airdate', 'country', 'star-rating', 'broadcaster'):
-            if tdict[fld] != '':
-                cached[fld] = tdict[fld]
-
-        if re.sub('[-,. ]', '', cached['name']) == re.sub('[-,. ]', '', cached['episode title']):
-            cached['episode title'] = ''
-
-        for fld in ('season', 'episode'):
-            if tdict[fld] != 0:
-                cached[fld] = int(tdict[fld])
-
-        if tdict['rerun'] == True:
-            cached['rerun'] = True
-
-        if len(tdict['rating']) > 0:
-            for item in tdict['rating']:
-                if not item in cached['rating']:
-                    cached['rating'].append(item)
-
-        return cached
-
     def get_counter(self):
         with self.channel_lock:
             self.fetch_counter += 1
-            return 100*float(self.fetch_counter)/float(self.nprograms)
+            return 100*float(self.fetch_counter)/float(self.channel_node.program_count())
 
     def get_source_id(self, source):
         if source in self.source_id.keys():
@@ -400,116 +381,113 @@ class Channel_Config(Thread):
         Given a list of programs, from the several sources, retrieve program details
         """
         # Check if there is data
-        self.detailed_programs = []
-        if len(self.all_programs) == 0:
+        if self.channel_node.program_count() == 0:
             return
-
-        programs = self.all_programs[:]
 
         if self.opt_dict['fast']:
             self.config.log(['\n', self.config.text('fetch', 63, \
-                (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and self.config.compat_text or ''))), \
+                (self.channel_node.program_count(), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and self.config.compat_text or ''))), \
                 self.config.text('fetch', 64, (self.counter, self.config.chan_count, self.config.opt_dict['days']))], 2)
 
         else:
             self.config.log(['\n', self.config.text('fetch', 65, \
-                (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and self.config.compat_text or ''))), \
+                (self.channel_node.program_count(), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and self.config.compat_text or ''))), \
                 self.config.text('fetch', 64, (self.counter, self.config.chan_count, self.config.opt_dict['days']))], 2)
 
         # randomize detail requests
         self.fetch_counter = 0
-        self.nprograms = len(programs)
-        fetch_order = list(range(0,self.nprograms))
+        fetch_order = list(range(self.channel_node.program_count()))
         random.shuffle(fetch_order)
-
         for i in fetch_order:
             if self.quit:
                 self.ready = True
                 return
 
-            try:
-                if programs[i] == None:
+            pn = self.channel_node.programs[i]
+            without_details = True
+            counter = self.get_counter()
+            if not isinstance(pn, ProgramNode) or pn.is_groupslot:
+                self.functions.update_counter('exclude', -1, self.chanid)
+                continue
+
+            logstring = u'%s: %s' % \
+                                (self.channel_node.get_start_stop(pn), pn.get_value('name'))
+
+            # We only fetch when we are in slow mode and slowdays is not set to tight
+            no_fetch = (self.opt_dict['fast'] or pn.get_value('offset') >= (self.config.opt_dict['offset'] + self.opt_dict['slowdays']))
+            sources = {}
+            # Check the database and gather potiential detail fetches
+            for src_id in self.config.detail_sources:
+                channelid = self.get_source_id(src_id)
+                detailids = pn.get_detailsources(src_id)
+                if detailids == None:
                     continue
 
-            except:
-                self.config.log(traceback.format_exc())
-                if self.config.write_info_files:
-                    self.config.infofiles.write_raw_string('Error: %s with index %s\n' % (sys.exc_info()[1], i))
+                detailids['channelid'] = channelid
+                if 'prog_ID'in detailids and detailids['prog_ID'] not in ('', None):
+                    self.config.queues['cache'].put({'task':'query', 'parent': self, \
+                                'programdetails': {'sourceid': src_id, 'channelid': channelid, 'prog_ID': detailids['prog_ID']}})
+                    cache_detail = self.cache_return.get(True)
+                    if cache_detail =='quit':
+                        self.ready = True
+                        return
+
+                    elif len(cache_detail) > 0:
+                        # Add it to the program(s)
+                        without_details = False
+                        self.functions.update_counter('detail', -1, self.chanid)
+                        self.config.log(self.config.text('fetch', 18, (self.chan_name, counter, logstring)), 8, 1)
+                        dn = self.channel_node.programs_by_prog_ID[src_id][detailids['prog_ID']]
+                        print len(dn)
+                        for pn in dn:
+                            pn.add_detail_data(cache_detail[0], src_id)
+
+                        continue
+
+                if 'detail_url'in detailids and detailids['detail_url'] not in ('', None):
+                    # check if this source could add anything
+                    for key in self.config.channelsource[src_id].detail_keys:
+                        if not pn.is_set(key):
+                            # Add it to the requests
+                            sources[src_id] = detailids
+                            break
+
+                    else:
+                        if self.opt_dict['prefered_description'] == src_id:
+                            # Add it to the requests
+                            sources[src_id] = detailids
+
+            pngenre = pn.get_value('genre').lower()
+            if not ('all' in self.config.detailed_genres \
+                or pngenre in self.config.detailed_genres \
+                or ('none' in self.config.detailed_genres \
+                    and not pn.is_set('genre'))):
+                self.functions.update_counter('exclude', -1, self.chanid)
+                # Check ttvdb
+                #~ if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
+                    #~ if p['genre'].lower() == u'serie/soap' and p['episode title'] != '' and p['season'] == 0:
+                        #~ self.functions.update_counter('queue', -2, self.chanid)
+                        #~ self.config.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
 
                 continue
 
-            p = programs[i]
-            logstring = u'%s-%s: %s' % \
-                                (p['start-time'].strftime('%d %b %H:%M'), \
-                                p['stop-time'].strftime('%H:%M'), \
-                                p['name'])
+            if no_fetch or len(sources) == 0:
+                if without_details:
+                    self.functions.update_counter('fail', -1, self.chanid)
+                    self.config.log(self.config.text('fetch', 66, (self.chan_name, counter, logstring)), 8, 1)
 
-            # We only fetch when we are in slow mode and slowdays is not set to tight
-            no_fetch = (self.opt_dict['fast'] or p['offset'] >= (self.config.opt_dict['offset'] + self.opt_dict['slowdays']))
-            no_fetch = True
-
-            # check the cache for this program's ID
-            # If not found, check the various ID's and (if found) make it the prime one
-            self.config.program_cache.cache_request.put({'task':'query_id', 'parent': self, 'program': p})
-            cache_id = self.cache_return.get(True)
-            if cache_id =='quit':
-                self.ready = True
-                return
-
-            if cache_id != None:
-                self.config.program_cache.cache_request.put({'task':'query', 'parent': self, 'pid': cache_id})
-                cached_program = self.cache_return.get(True)
-                if cached_program =='quit':
-                    self.ready = True
-                    return
-
-                # check if it contains detail info from tvgids.nl or (if no nl-url known, or in no_fetch mode) tvgids.tv
-                if cached_program != None and \
-                    (no_fetch or \
-                        cached_program[self.config.channelsource[0].detail_check] or \
-                        (p['detail_url'][0] == '' and \
-                            (cached_program[self.config.channelsource[9].detail_check] or \
-                                (p['detail_url'][9] == '' and \
-                                cached_program[self.config.channelsource[1].detail_check])))):
-                        self.config.log(self.config.text('fetch', 18, (self.chan_name, self.get_counter(), logstring)), 8, 1)
-                        self.functions.update_counter('detail', -1, self.chanid)
-                        p = self.use_cache(p, cached_program)
-                        if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
-                            if p['genre'].lower() == u'serie/soap' and p['episode title'] != '' and p['season'] == 0:
-                                #~ self.update_counter('fetch', -1)
-                                self.functions.update_counter('queue', -2, self.chanid)
-                                self.config.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
-                                continue
-
-                        self.detailed_programs.append(p)
-                        continue
-
-            # Either we are fast-mode, outside slowdays or there is no url. So we continue
-            no_detail_fetch = (no_fetch or ((p['detail_url'][0] == '') and \
-                                                                (p['detail_url'][9] == '') and \
-                                                                (p['detail_url'][1] == '')))
-
-            if no_detail_fetch:
-                self.config.log(self.config.text('fetch', 66, (self.chan_name, self.get_counter(), logstring)), 8, 1)
-                self.functions.update_counter('fail', -1, self.chanid)
-                if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
-                    if p['genre'].lower() == u'serie/soap' and p['episode title'] != '' and p['season'] == 0:
-                        #~ self.update_counter('fetch', -1)
-                        self.functions.update_counter('queue', -2, self.chanid)
-                        self.config.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
-                        continue
-
-                self.detailed_programs.append(p)
+                # Check ttvdb
+                #~ if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
+                    #~ if p['genre'].lower() == u'serie/soap' and p['episode title'] != '' and p['season'] == 0:
+                        #~ self.functions.update_counter('queue', -2, self.chanid)
+                        #~ self.config.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
 
                 continue
 
             for src_id in self.config.detail_sources:
-                if src_id not in self.config.opt_dict['disable_detail_source'] and \
-                  src_id not in self.opt_dict['disable_detail_source'] and \
-                  p['detail_url'][src_id] != '':
-                    #~ self.update_counter('fetch', src_id)
+                if src_id in sources.keys():
                     self.functions.update_counter('queue',src_id, self.chanid)
-                    self.config.channelsource[src_id].detail_request.put({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
+                    self.config.channelsource[src_id].detail_request.put({'detail_ids': sources, 'logstring': logstring, 'counter': counter, 'parent': self})
                     break
 
         # Place terminator items in the queue
@@ -519,10 +497,10 @@ class Channel_Config(Thread):
                 break
 
         else:
-            if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
-                self.config.ttvdb.detail_request.put({'task': 'last_one', 'parent': self})
+            #~ if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
+                #~ self.config.ttvdb.detail_request.put({'task': 'last_one', 'parent': self})
 
-            else:
+            #~ else:
                 self.detail_data.set()
 
 # end Channel_Config
@@ -812,6 +790,7 @@ class ChannelNode():
             # merge_types
             # 0/1 adding/merging
             # 0/2/4 source/filtered channel/unfiltered channel
+            # 8 detail adding
             self.merge_stats['new'] -= self.merge_stats['groupslot']
             if self.merge_type & 1:
                 mtype = self.config.text('IO', 2, type = 'stats')
@@ -1555,7 +1534,10 @@ class ChannelNode():
             else:
                 return
 
-            if printable and title[1] == '':
+            if printable and not isinstance(title, (list, tuple)):
+                return '%s:---' % title
+
+            if printable and len(title) == 1 or title[1] == '':
                 return '%s:---' % title[0]
 
             if printable:
@@ -1875,6 +1857,16 @@ class ProgramNode():
 
             self.first_source = False
 
+    def add_detail_data(self, data, source):
+        if not source in self.config.channelsource.keys() or not isinstance(data, dict):
+            return
+
+        with self.node_lock:
+            print source, self.get_start_stop(), data
+            for key, value in data.items():
+                if value not in (None, '') and (key in self.config.channelsource[source].detail_keys or key in self.config.key_values['credits']):
+                    self.set_value(key, value, source)
+
     def init_key_value(self, key):
         if not self.is_set(key):
             self.tdict[key] = {}
@@ -2127,14 +2119,17 @@ class ProgramNode():
             return "---"
 
         if key in self.tdict:
-            if source in self.tdict[key]['sources']:
+            if source == None:
+                v = self.tdict[key]['prime']
+
+            elif source in self.tdict[key]['sources']:
                 v = self.tdict[key]['sources'][source]
 
             elif source in self.tdict[key]['channels']:
                 v = self.tdict[key]['channels'][source]
 
             else:
-                v = self.tdict[key]['prime']
+                v = None
 
             if key == 'country' and isinstance(v, list):
                 if len(v) > 0:
@@ -2143,7 +2138,8 @@ class ProgramNode():
                 else:
                     return u''
 
-            return v
+            if v != None:
+                return v
 
         # Set the return values on empty
         if key == 'genre':
@@ -2163,6 +2159,30 @@ class ProgramNode():
 
         else:
             return u''
+
+    def get_detailsources(self, source = None):
+        rval = {}
+        with self.node_lock:
+            if self.is_set("detail_url"):
+                if source != None:
+                    if source in self.channel_config.merge_order:
+                        rval['detail_url'] = self.get_value('detail_url', source)
+                        rval['prog_ID'] = self.get_value('prog_ID', source)
+                        rval['gen_ID'] = self.get_value('gen_ID', source)
+
+                        return rval
+
+                    else:
+                        return
+
+                for source in self.config.detail_sources:
+                    if source in self.channel_config.merge_order:
+                        rval[source] = {}
+                        rval[source]['detail_url'] = self.get_value('detail_url', source)
+                        rval[source]['prog_ID'] = self.get_value('prog_ID', source)
+                        rval[source]['gen_ID'] = self.get_value('gen_ID', source)
+
+                return rval
 
     def get_start_stop(self, printable=True):
         return self.channode.get_start_stop(self, printable)
@@ -2287,7 +2307,6 @@ class XMLoutput():
         # Thes will contain the seperate XML strings
         self.xml_channels = {}
         self.xml_programs = {}
-        self.progress_counter = 0
 
         # We have several sources of logos, the first provides the nice ones, but is not
         # complete. We use the tvgids logos to fill the missing bits.
@@ -2297,11 +2316,6 @@ class XMLoutput():
         self.output_lock = Lock()
         self.cache_return = Queue()
 
-        self.cache_count = 0
-        self.fetch_count = 0
-        self.fail_count = 0
-        self.ttvdb_count = 0
-        self.ttvdb_fail_count = 0
         self.program_count = 0
 
     def xmlescape(self, s):
@@ -2390,16 +2404,16 @@ class XMLoutput():
         '''
         Create all the program strings
         '''
+        channel_node = self.config.channels[chanid].channel_node
         if add_HD == True:
             xmltvid = '%s-hd' % self.config.channels[chanid].xmltvid
 
         else:
             xmltvid = self.config.channels[chanid].xmltvid
             with self.output_lock:
-                self.program_count += len(self.config.channels[chanid].all_programs)
+                self.program_count += channel_node.program_count()
 
         self.xml_programs[xmltvid] = []
-        channel_node = self.config.channels[chanid].channel_node
         if not isinstance(channel_node, ChannelNode):
             return
         program = channel_node.first_node
