@@ -280,14 +280,17 @@ class Logging(Thread):
 
                     for t in self.config.threads:
                         if t.is_alive():
-                            if t.thread_type in ('ttvdb', 'source'):
-                                t.detail_request.put({'task': 'quit'})
-
                             if t.thread_type == 'cache':
                                 t.cache_request.put({'task': 'quit'})
 
-                            if t.thread_type in ('source', 'channel'):
+                            if t.thread_type in ('ttvdb', 'source', 'channel'):
                                 t.cache_return.put('quit')
+
+                            if t.thread_type in ('ttvdb', 'source'):
+                                t.detail_request.put({'task': 'quit'})
+
+                            if t.thread_type == 'channel':
+                                t.detail_return.put('quit')
 
                             t.quit = True
 
@@ -430,6 +433,7 @@ class ProgramCache(Thread):
         """
         Create a new ProgramCache object, optionally from file
         """
+        self. print_data_structure = False
         self.config = config
         self.functions = self.config.IO_func
         self.current_date = self.config.in_fetch_tz(datetime.datetime.now(pytz.utc))
@@ -451,14 +455,199 @@ class ProgramCache(Thread):
         sqlite3.register_converter(str('datetime'), self.convert_datetime)
         sqlite3.register_adapter(datetime.date, self.adapt_date)
         sqlite3.register_converter(str('date'), self.convert_date)
+        self.table_defenitions = {
+            "channels": {"name": "channels", "no rowid": True,
+                "fields":{"chanid": {"type": "TEXT", "default": ""},
+                                   "name": {"type": "TEXT", "default": ""},
+                                   "cgroup": {"type": "INTEGER", "default": 99}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["chanid"]},
+                    "cgroup": {"fields": ["cgroup"]},
+                    "chan_name": {"fields": ["name"]}}},
+            "channelsource": {"name": "channelsource", "no rowid": True,
+                "fields":{"chanid": {"type": "TEXT", "default": ""},
+                                   "sourceid": {"type": "INTEGER", "default": 0},
+                                   "scid": {"type": "TEXT", "default": ""},
+                                   "name": {"type": "TEXT", "default": ""},
+                                   "fgroup": {"type": "TEXT", "null": True},
+                                   "hd": {"type": "boolean", "default": "False"},
+                                   "emptycount": {"type": "INTEGER", "default": 0}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["chanid", "sourceid"]},
+                    "scid": {"unique": True, "fields": ["sourceid", "scid"]},
+                    "fgroup": {"fields": ["sourceid", "fgroup"]}}},
+            "iconsource": {"name": "iconsource", "no rowid": True,
+                "fields":{"chanid": {"type": "TEXT", "default": ""},
+                                   "sourceid": {"type": "INTEGER", "default": 0},
+                                   "icon": {"type": "TEXT", "null": True}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["chanid", "sourceid"]}}},
+            "fetcheddays": {"name": "fetcheddays", "no rowid": True,
+                "fields":{"sourceid": {"type": "INTEGER", "default": 0},
+                                   "channelid": {"type": "TEXT", "default": ""},
+                                   "scandate": {"type": "date", "default": 0},
+                                   "stored": {"type": "boolean", "default": "True"}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["sourceid", "channelid", "scandate"]}}},
+            "fetcheddata": {"name": "fetcheddata", "no rowid": True,
+                "fields":{"sourceid": {"type": "INTEGER", "default": 0},
+                                   "channelid": {"type": "TEXT", "default": ""},
+                                   "laststop": {"type": "datetime", "null": True}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["sourceid", "channelid"]}}},
+            "sourceprograms": {"name": "sourceprograms", "no rowid": True,
+                "fields":{"sourceid": {"type": "INTEGER", "default": 0},
+                                   "channelid": {"type": "TEXT", "default": ""},
+                                   "scandate": {"type": "date", "default": 0},
+                                   "start-time": {"type": "datetime", "default": 0},
+                                   "stop-time": {"type": "datetime", "default": 0},
+                                   "name": {"type": "TEXT", "default": ""},
+                                   "prog_ID": {"type": "TEXT", "null": True},
+                                   "gen_ID": {"type": "TEXT", "null": True},
+                                   "episode title": {"type": "TEXT", "null": True},
+                                   "genre": {"type": "TEXT", "null": True},
+                                   "season": {"type": "INTEGER", "null": True},
+                                   "episode": {"type": "INTEGER", "null": True}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["sourceid", "channelid", "start-time"]},
+                    "scandate": {"fields": ["sourceid", "channelid", "scandate"]},
+                    "progid": {"fields": ["sourceid", "channelid", "prog_ID"]},
+                    "stoptime": {"fields": ["sourceid", "channelid", "stop-time"]},
+                    "name": {"fields": ["sourceid", "channelid", "name", "episode title"]},
+                    "episode": {"fields": ["sourceid", "channelid", "season", "episode"]}}},
+            "credits": {"name": "credits", "no rowid": True,
+                "fields":{"sourceid": {"type": "INTEGER", "default": 0},
+                                   "channelid": {"type": "TEXT", "default": ""},
+                                   "scandate": {"type": "date", "default": 0},
+                                   "prog_ID": {"type": "TEXT", "null": True},
+                                   "start-time": {"type": "datetime", "default": 0},
+                                   "stop-time": {"type": "datetime", "default": 0},
+                                   "title": {"type": "TEXT", "default": ""},
+                                   "name": {"type": "TEXT", "default": ""},
+                                   "role": {"type": "TEXT", "null": True}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["sourceid", "channelid", "start-time", "title", "name"]},
+                    "scandate": {"fields": ["sourceid", "channelid", "scandate"]},
+                    "progid": {"fields": ["sourceid", "channelid", "prog_ID"]},
+                    "stoptime": {"fields": ["sourceid", "channelid", "stop-time"]}}},
+            "programdetails": {"name": "programdetails", "no rowid": True,
+                "fields":{"sourceid": {"type": "INTEGER", "default": 0},
+                                   "channelid": {"type": "TEXT", "default": ""},
+                                   "prog_ID": {"type": "TEXT", "default": ""},
+                                   "start-time": {"type": "datetime", "default": 0},
+                                   "stop-time": {"type": "datetime", "default": 0},
+                                   "name": {"type": "TEXT", "default": ""},
+                                   "genre": {"type": "TEXT", "null": True}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["sourceid", "channelid", "prog_ID"]},
+                    "starttime": {"fields": ["sourceid", "channelid", "start-time"]},
+                    "stoptime": {"fields": ["sourceid", "channelid", "stop-time"]},
+                    "name": {"fields": ["sourceid", "channelid", "name"]}}},
+            "creditdetails": {"name": "creditdetails", "no rowid": True,
+                "fields":{"sourceid": {"type": "INTEGER", "default": 0},
+                                   "channelid": {"type": "TEXT", "default": ""},
+                                   "prog_ID": {"type": "TEXT", "default": ""},
+                                   "start-time": {"type": "datetime", "default": 0},
+                                   "stop-time": {"type": "datetime", "default": 0},
+                                   "title": {"type": "TEXT", "default": ""},
+                                   "name": {"type": "TEXT", "default": ""},
+                                   "role": {"type": "TEXT", "null": True}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["sourceid", "channelid", "prog_ID", "title", "name"]},
+                    "starttime": {"fields": ["sourceid", "channelid", "start-time"]},
+                    "stoptime": {"fields": ["sourceid", "channelid", "stop-time"]}}},
+            "ttvdb": {"name": "ttvdb", "no rowid": True,
+                "fields":{"title": {"type": "TEXT", "default": ""},
+                                   "tid": {"type": "INTEGER", "default": 0},
+                                   "langs": {"type": "listing", "default": ""},
+                                   "tdate": {"type": "date", "default": 0}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["title"]},
+                    "ttvdbtid": {"unique": True, "fields": ["tid"]}}},
+            "ttvdb_alias": {"name": "ttvdb_alias", "no rowid": True,
+                "fields":{ "alias": {"type": "TEXT", "default": ""},
+                                   "title": {"type": "TEXT", "default": ""}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["alias"]}}},
+            "episodes": {"name": "episodes", "no rowid": True,
+                "fields":{"tid": {"type": "INTEGER", "default": 0},
+                                   "sid": {"type": "INTEGER", "default": 0},
+                                   "eid": {"type": "INTEGER", "default": 0},
+                                   "lang": {"type": "TEXT", "default": ""},
+                                   "title": {"type": "TEXT", "default": ""},
+                                   "description": {"type": "TEXT", "null": True},
+                                   "airdate": {"type": "date", "null": True}},
+                "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
+                                    "fields": ["tid", "sid", "eid", "lang"]},
+                    "eptitle": {"fields": ["title"]}}}}
+
+        for key in self.config.key_values['text']:
+            if key not in self.table_defenitions["sourceprograms"]["fields"].keys():
+                self.table_defenitions["sourceprograms"]["fields"][key] = {"type": "TEXT", "null": True}
+
+            if key in self.config.detail_keys['all'] and key not in self.table_defenitions["programdetails"]["fields"].keys():
+                self.table_defenitions["programdetails"]["fields"][key] = {"type": "TEXT", "null": True}
+
+        for key in self.config.key_values['date']:
+            if key not in self.table_defenitions["sourceprograms"]["fields"].keys():
+                self.table_defenitions["sourceprograms"]["fields"][key] = {"type": "date", "null": True}
+
+            if key in self.config.detail_keys['all'] and key not in self.table_defenitions["programdetails"]["fields"].keys():
+                self.table_defenitions["programdetails"]["fields"][key] = {"type": "date", "null": True}
+
+        for key in self.config.key_values['datetime']:
+            if key not in self.table_defenitions["sourceprograms"]["fields"].keys():
+                self.table_defenitions["sourceprograms"]["fields"][key] = {"type": "datetime", "null": True}
+
+            if key in self.config.detail_keys['all'] and key not in self.table_defenitions["programdetails"]["fields"].keys():
+                self.table_defenitions["programdetails"]["fields"][key] = {"type": "datetime", "null": True}
+
+        for key in self.config.key_values['bool']:
+            if key not in self.table_defenitions["sourceprograms"]["fields"].keys():
+                self.table_defenitions["sourceprograms"]["fields"][key] = {"type": "boolean", "null": True}
+
+            if key in self.config.detail_keys['all'] and key not in self.table_defenitions["programdetails"]["fields"].keys():
+                self.table_defenitions["programdetails"]["fields"][key] = {"type": "boolean", "null": True}
+
+        for key in self.config.key_values['video']:
+            if key not in self.table_defenitions["sourceprograms"]["fields"].keys():
+                self.table_defenitions["sourceprograms"]["fields"][key] = {"type": "boolean", "null": True}
+
+            if key in self.config.detail_keys['all'] and key not in self.table_defenitions["programdetails"]["fields"].keys():
+                self.table_defenitions["programdetails"]["fields"][key] = {"type": "boolean", "null": True}
+
+        for key in self.config.key_values['int']:
+            if key not in self.table_defenitions["sourceprograms"]["fields"].keys():
+                self.table_defenitions["sourceprograms"]["fields"][key] = {"type": "INTEGER", "null": True}
+
+            if key in self.config.detail_keys['all'] and key not in self.table_defenitions["programdetails"]["fields"].keys():
+                self.table_defenitions["programdetails"]["fields"][key] = {"type": "INTEGER", "null": True}
+
+        for key in self.config.key_values['list']:
+            if key not in self.table_defenitions["sourceprograms"]["fields"].keys():
+                self.table_defenitions["sourceprograms"]["fields"][key] = {"type": "listing", "null": True}
+
+            if key in self.config.detail_keys['all'] and key not in self.table_defenitions["programdetails"]["fields"].keys():
+                self.table_defenitions["programdetails"]["fields"][key] = {"type": "listing", "null": True}
 
         # where we store our info
         self.filename  = filename
         self.quit = False
-        self.thread_type = 'cache'
         self.cache_request = Queue()
-        self.config.threads.append(self)
         self.config.queues['cache'] = self.cache_request
+        self.thread_type = 'cache'
+        self.config.threads.append(self)
+        self.request_list = {}
+        self.request_list['query_id'] = ('chan_group', 'ttvdb', 'ttvdb_alias', 'tdate')
+        self.request_list['query'] = ('icon', 'chan_group', 'chan_scid',
+                                    'laststop', 'fetcheddays', 'sourceprograms', 'programdetails',
+                                    'ttvdb', 'ttvdb_aliasses', 'ttvdb_langs',
+                                    'ep_by_id', 'ep_by_title')
+        self.request_list['add'] = ('channelsource', 'channel', 'icon',
+                                    'laststop', 'fetcheddays', 'sourceprograms', 'programdetails',
+                                    'ttvdb', 'ttvdb_alias', 'ttvdb_lang', 'episode')
+        self.request_list['delete'] = ('sourceprograms', 'programdetails', 'ttvdb')
+        self.request_list['clear'] = ('fetcheddays', 'fetcheddata', 'sourceprograms', 'credits', 'programdetails', 'creditdetails')
 
     def offset_to_date(self, val):
         return (self.current_date + datetime.timedelta(days=val)).date()
@@ -562,104 +751,78 @@ class ProgramCache(Thread):
         except:
             return None
 
-    def run(self):
-        self.open_db()
-        try:
-            while True:
-                if self.quit and self.cache_request.empty():
-                    self.pconn.close()
-                    break
+    def get_tprop(self, table, tprop, default = None):
+        if table in self.table_defenitions.keys():
+            if tprop in self.table_defenitions[table].keys():
+                return self.table_defenitions[table][tprop]
 
-                try:
-                    crequest = self.cache_request.get(True, 5)
+        return default
 
-                except Empty:
-                    continue
+    def get_fields(self, table):
+        if table in self.table_defenitions.keys():
+            if 'fields' in self.table_defenitions[table].keys():
+                return list(self.table_defenitions[table]['fields'].keys())
 
-                if (not isinstance(crequest, dict)) or (not 'task' in crequest):
-                    continue
+        return []
 
-                if crequest['task'] == 'query_id':
-                    if not 'parent' in crequest:
-                        continue
+    def get_fprop(self, table, field, fprop, default = None):
+        if table in self.table_defenitions.keys():
+            if 'fields' in self.table_defenitions[table].keys():
+                if field in self.table_defenitions[table]['fields'].keys():
+                    if fprop in self.table_defenitions[table]['fields'][field].keys():
+                        return self.table_defenitions[table]['fields'][field][fprop]
 
-                    if self.filename == None:
-                        qanswer = None
+        return default
 
-                    else:
-                        for t in ('program', 'ttvdb', 'ttvdb_alias', 'tdate'):
-                            if t in crequest:
-                                qanswer = self.query_id(t, crequest[t])
-                                break
+    def get_column_string(self, table, field):
+        ftype = self.get_fprop(table, field, 'type', 'TEXT')
+        fdefault =  self.get_fprop(table, field, 'default')
+        fnullable = self.get_fprop(table, field, 'null', False)
+        dstring = u""
+        if fdefault != None:
+            if ftype.upper() in ('INTEGER', 'DATE', 'DATETIME'):
+                if isinstance(fdefault, int):
+                    dstring = " DEFAULT %s" % (fdefault)
 
-                            else:
-                                qanswer = None
+                else:
+                    try:
+                        fdefault = int(fdefault)
 
-                    crequest['parent'].cache_return.put(qanswer)
-                    continue
+                    except:
+                        fdefault = 0
 
-                if crequest['task'] == 'query':
-                    if not 'parent' in crequest:
-                        continue
+                    dstring = " DEFAULT %s" % (fdefault)
 
-                    if self.filename == None:
-                        qanswer = None
+            elif isinstance(fdefault, (str,unicode)):
+                dstring = " DEFAULT '%s'" % (fdefault)
 
-                    else:
-                        for t in ('laststop', 'fetcheddays', 'sourceprograms', 'programdetails',
-                                    'icon', 'chan_group', 'chan_scid',
-                                    'ttvdb', 'ttvdb_aliasses', 'ttvdb_langs',
-                                    'ep_by_id', 'ep_by_title'):
-                            if t in crequest:
-                                qanswer = self.query(t, crequest[t])
-                                break
+        nstring = u"" if fnullable else " NOT NULL"
+        return u"`%s` %s%s%s" % (field, ftype, nstring, dstring)
 
-                            else:
-                                qanswer = None
+    def get_indexes(self, table):
+        if table in self.table_defenitions.keys():
+            if 'indexes' in self.table_defenitions[table].keys():
+                return list(self.table_defenitions[table]['indexes'].keys())
 
-                    crequest['parent'].cache_return.put(qanswer)
-                    continue
+        return []
 
-                if self.filename == None:
-                    continue
+    def get_iprop(self, table, index, iprop, default = None):
+        if table in self.table_defenitions.keys():
+            if 'indexes' in self.table_defenitions[table].keys():
+                if index in self.table_defenitions[table]['indexes'].keys():
+                    if iprop in self.table_defenitions[table]['indexes'][index].keys():
+                        return self.table_defenitions[table]['indexes'][index][iprop]
 
-                if crequest['task'] == 'add':
-                    for t in ('laststop', 'fetcheddays', 'sourceprograms', 'programdetails',
-                                'channelsource', 'channel', 'icon',
-                                'ttvdb', 'ttvdb_alias', 'ttvdb_lang', 'episode'):
-                        if t in crequest:
-                            self.add(t, crequest[t])
-                            continue
+        return default
 
-                if crequest['task'] == 'delete':
-                    for t in ('sourceprograms', 'programdetails', 'ttvdb'):
-                        if t in crequest:
-                            self.delete(t, crequest[t])
-                            continue
+    def get_ifields(self, table, index):
+        if table in self.table_defenitions.keys():
+            if 'indexes' in self.table_defenitions[table].keys():
+                if index in self.table_defenitions[table]['indexes'].keys():
+                    if 'fields' in self.table_defenitions[table]['indexes'][index].keys():
+                        return self.table_defenitions[table]['indexes'][index]['fields']
 
-                if crequest['task'] == 'clear':
-                    if 'table' in crequest:
-                        for t in crequest['table']:
-                            self.clear(t)
-
-                    else:
-                        self.clear('programs')
-                        self.clear('credits')
-
-                    continue
-
-                if crequest['task'] == 'clean':
-                    self.clean()
-                    continue
-
-                if crequest['task'] == 'quit':
-                    self.quit = True
-                    continue
-
-        except:
-            self.config.queues['log'].put({'fatal': [traceback.format_exc(), '\n'], 'name': 'ProgramCache'})
-            self.ready = True
-            return(98)
+        return []
 
     def open_db(self):
         if self.filename == None:
@@ -757,12 +920,11 @@ class ProgramCache(Thread):
         try:
             pcursor.execute("PRAGMA main.synchronous = OFF")
             pcursor.execute("PRAGMA main.temp_store = MEMORY")
-            # We Check all Tables, Collumns and Indices
-            for t in ('fetcheddays', 'fetcheddata',
-                    'sourceprograms',  'credits',
-                    'programdetails',  'creditdetails',
-                    'channels', 'channelsource', 'iconsource',
-                    'ttvdb', 'ttvdb_alias', 'episodes'):
+            # We Check all Tables, Columns and Indices
+            for t in self.table_defenitions.keys():
+                if self. print_data_structure:
+                    print t
+
                 # (cid, Name, Type, Nullable = 0, Default, Pri_key index)
                 pcursor.execute("PRAGMA main.table_info('%s')" % (t,))
                 trows = pcursor.fetchall()
@@ -775,8 +937,10 @@ class ProgramCache(Thread):
                     clist = {}
                     for r in trows:
                         clist[r[1].lower()] = r
+                        if self. print_data_structure:
+                            print '  ', r
 
-                    self.check_collumns(t, clist)
+                    self.check_columns(t, clist)
 
                 self.check_indexes(t)
 
@@ -791,464 +955,182 @@ class ProgramCache(Thread):
             self.config.opt_dict['disable_ttvdb'] = True
 
     def create_table(self, table):
-        print 'creating table', table
-        if table == 'fetcheddays':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s (`sourceid` INTEGER, `channelid` TEXT, `scandate` date, `stored` boolean DEFAULT 'True'" % table
-            create_string += u", PRIMARY KEY (`sourceid`, `channelid`, `scandate`) ON CONFLICT REPLACE)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-        elif table == 'fetcheddata':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s (`sourceid` INTEGER, `channelid` TEXT, `laststop` datetime DEFAULT NULL" % table
-            create_string += u", PRIMARY KEY (`sourceid`, `channelid`) ON CONFLICT REPLACE)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-        elif table == 'sourceprograms':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s (`sourceid` INTEGER, `channelid` TEXT, `scandate` date" % table
-            create_string += u", `genre` TEXT DEFAULT NULL"
-
-            for key in self.config.key_values['text']:
-                create_string = u"%s, `%s` TEXT DEFAULT NULL" % (create_string, key)
-
-            for key in self.config.key_values['datetime']:
-                create_string = u"%s, `%s` datetime" % (create_string, key)
-
-            for key in self.config.key_values['date']:
-                create_string = u"%s, `%s` date DEFAULT NULL" % (create_string, key)
-
-            for key in self.config.key_values['bool']:
-                create_string = u"%s, `%s` boolean DEFAULT NULL" % (create_string, key)
-
-            for key in self.config.key_values['int']:
-                create_string = u"%s, `%s` INTEGER DEFAULT NULL" % (create_string, key)
-
-            for key in self.config.key_values['video']:
-                create_string = u"%s, `%s` boolean DEFAULT NULL" % (create_string, key)
-
-            for key in self.config.key_values['list']:
-                create_string = u"%s, `%s` rating DEFAULT NULL" % (create_string, key)
-
-            create_string += u", PRIMARY KEY (`sourceid`, `channelid`, `start-time`) ON CONFLICT REPLACE)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-        elif table == 'credits':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
-            create_string += u"(`sourceid` INTEGER"
-            create_string += u", `channelid` TEXT"
-            create_string += u", `scandate` date"
-            create_string += u", `prog_ID` TEXT"
-            create_string += u", `start-time` datetime"
-            create_string += u", `stop-time` datetime"
-            create_string += u", `title` TEXT"
-            create_string += u", `name` TEXT"
-            create_string += u", `role` TEXT DEFAULT NULL"
-            create_string += u", PRIMARY KEY (`sourceid`, `channelid`, `start-time`, `title`, `name`) ON CONFLICT REPLACE)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-        elif table == 'programdetails':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s (`sourceid` INTEGER, `channelid` TEXT, `prog_ID` TEXT" % table
-            create_string += u", `start-time` datetime"
-            create_string += u", `stop-time` datetime"
-            create_string += u", `name` TEXT"
-            create_string += u", `genre` TEXT DEFAULT NULL"
-            for key in self.config.detail_keys['all']:
-                if key in self.config.key_values['text']:
-                    create_string = u"%s, `%s` TEXT DEFAULT NULL" % (create_string, key)
-
-                if key in self.config.key_values['datetime']:
-                    create_string = u"%s, `%s` datetime" % (create_string, key)
-
-                if key in self.config.key_values['date']:
-                    create_string = u"%s, `%s` date DEFAULT NULL" % (create_string, key)
-
-                if key in self.config.key_values['bool']:
-                    create_string = u"%s, `%s` boolean DEFAULT NULL" % (create_string, key)
-
-                if key in self.config.key_values['int']:
-                    create_string = u"%s, `%s` INTEGER DEFAULT NULL" % (create_string, key)
-
-                if key in self.config.key_values['video']:
-                    create_string = u"%s, `%s` boolean DEFAULT NULL" % (create_string, key)
-
-                if key in self.config.key_values['list']:
-                    create_string = u"%s, `%s` rating DEFAULT NULL" % (create_string, key)
-
-            create_string += u", PRIMARY KEY (`sourceid`, `channelid`, `prog_ID`) ON CONFLICT REPLACE)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-        elif table == 'creditdetails':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
-            create_string += u"(`sourceid` INTEGER"
-            create_string += u", `channelid` TEXT"
-            create_string += u", `prog_ID` TEXT"
-            create_string += u", `start-time` datetime"
-            create_string += u", `stop-time` datetime"
-            create_string += u", `title` TEXT"
-            create_string += u", `name` TEXT"
-            create_string += u", `role` TEXT DEFAULT NULL"
-            create_string += u", PRIMARY KEY (`sourceid`, `channelid`, `prog_ID`) ON CONFLICT REPLACE)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-        elif table == 'ttvdb':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s "  % table
-            create_string += u"(`title` TEXT PRIMARY KEY ON CONFLICT REPLACE"
-            create_string += u", `tid` INTEGER"
-            create_string += u", `langs` listing"
-            create_string += u", `tdate` date)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-
-        elif table == 'ttvdb_alias':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s "  % table
-            create_string += u"(`alias` TEXT PRIMARY KEY ON CONFLICT REPLACE"
-            create_string += u", `title` TEXT)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-        elif table == 'episodes':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s "  % table
-            create_string += u"(`tid` INTEGER"
-            create_string += u", `sid` INTEGER"
-            create_string += u", `eid` INTEGER"
-            create_string += u", `lang` TEXT DEFAULT 'nl'"
-            create_string += u", `title` TEXT"
-            create_string += u", `description` TEXT"
-            create_string += u", `airdate` date"
-            create_string += u", PRIMARY KEY (`tid`, `sid`, `eid`, `lang`) ON CONFLICT REPLACE)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-
-        elif table == 'channels':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
-            create_string += u"(`chanid` TEXT PRIMARY KEY ON CONFLICT REPLACE"
-            create_string += u", `cgroup` INTEGER DEFAULT 99"
-            create_string += u", `name` TEXT)"
-
-        elif table == 'channelsource':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
-            create_string += u"( `chanid` TEXT"
-            create_string += u", `sourceid` INTEGER"
-            create_string += u", `scid` TEXT"
-            create_string += u", `name` TEXT"
-            create_string += u", `fgroup` TEXT DEFAULT NULL"
-            create_string += u", `hd` boolean DEFAULT 'False'"
-            create_string += u", `emptycount` INTEGER DEFAULT 0"
-            create_string += u", PRIMARY KEY (`chanid`, `sourceid`) ON CONFLICT REPLACE)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-
-        elif table == 'iconsource':
-            create_string = u"CREATE TABLE IF NOT EXISTS %s " % table
-            create_string += u"(`chanid` TEXT"
-            create_string += u", `sourceid` INTEGER"
-            create_string += u", `icon` TEXT"
-            create_string += u", PRIMARY KEY (`chanid`, `sourceid`) ON CONFLICT REPLACE)"
-            if (sqlite3.sqlite_version_info >= (3, 8, 2)):
-                create_string += u" WITHOUT ROWID"
-
-        else:
+        if not table in self.table_defenitions.keys():
             return
 
-        with self.pconn:
-            try:
-                self.pconn.execute(create_string)
-                #~ self.functions.log([create_string])
+        if self. print_data_structure:
+            print 'creating table', table
 
-            except:
-                self.functions.log([self.config.text('IO', 13, (table, )), traceback.format_exc(), create_string])
+        create_string = u"CREATE TABLE IF NOT EXISTS %s" % table
+        psplit = u" ("
+        for fld in self.get_fields(table):
+            create_string = u"%s%s%s" % (create_string, psplit, self.get_column_string(table, fld))
+            psplit = u", "
 
-    def check_collumns(self, table, clist):
-        def add_collumn(table, collumn):
-            try:
-                with self.pconn:
-                    self.pconn.execute(u"ALTER TABLE %s ADD %s" % (table, collumn))
-                    print 'adding collumn', collumn, 'to', table
+        pkfields = self.get_ifields(table, 'PRIMARY')
+        pkstring = u")"
+        if len(pkfields) > 0:
+            pkstring = u", PRIMARY KEY"
+            psplit = u" ("
+            for fld in pkfields:
+                if not fld in self.get_fields(table):
+                    continue
 
-            except:
-                self.functions.log(self.config.text('IO', 14, (table, collumn)))
+                pkstring += u"%s`%s`"% (psplit, fld)
+                psplit = u", "
 
-        def drop_table(table):
-            with self.pconn:
-                self.pconn.execute(u"DROP TABLE IF EXISTS %s" % (table,))
+            pkstring += u") ON CONFLICT REPLACE)" if self.get_iprop(table, 'PRIMARY', "replace on conflict", False) else u"))"
 
-        if table == 'fetcheddays':
-            for c in ('sourceid', 'channelid', 'scandate', 'stored'):
-                if c.lower() not in clist.keys():
-                    drop_table(table)
+        create_string = u"%s%s"% (create_string, pkstring)
+        if self.get_tprop(table, "no rowid") and sqlite3.sqlite_version_info >= (3, 8, 2):
+            create_string += u" WITHOUT ROWID"
+
+        self.execute(create_string)
+        self.check_indexes(table)
+
+    def check_columns(self, table, clist):
+        if not table in self.table_defenitions.keys():
+            return
+
+        for fld in self.get_fields(table):
+            if fld.lower() not in clist.keys():
+                if fld in self.get_ifields(table, 'PRIMARY'):
+                    if self. print_data_structure:
+                        print 'dropping table', table
+
+                    self.execute(u"DROP TABLE IF EXISTS %s" % (table,))
                     self.create_table(table)
                     return
 
-        elif table == 'fetcheddata':
-            for c in ('sourceid', 'channelid'):
-                if c.lower() not in clist.keys():
-                    drop_table(table)
-                    self.create_table(table)
-                    return
+                else:
+                    if self. print_data_structure:
+                        print '  adding field',  fld, 'to', table
 
-            if 'laststop' not in clist.keys():
-                add_collumn(table, u"`laststop` datetime DEFAULT NULL")
-
-        elif table == 'sourceprograms':
-            for c in ('sourceid', 'channelid', 'scandate'):
-                if c not in clist.keys():
-                    drop_table(table)
-                    self.create_table(table)
-                    return
-
-            if 'genre' not in clist.keys():
-                add_collumn(table, u"`genre` TEXT DEFAULT NULL")
-
-            for c in self.config.key_values['text']:
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` TEXT DEFAULT NULL" % c)
-
-            for c in self.config.key_values['datetime']:
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` datetime" % c)
-
-            for c in self.config.key_values['date']:
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` date DEFAULT NULL" % c)
-
-            for c in self.config.key_values['bool']:
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` boolean DEFAULT NULL" % c)
-
-            for c in self.config.key_values['int']:
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` INTEGER DEFAULT NULL" % c)
-
-            for c in self.config.key_values['video']:
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` boolean DEFAULT NULL" % c)
-
-            for c in self.config.key_values['list']:
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` rating DEFAULT NULL" % c)
-
-        elif table == 'credits':
-            for c in ('sourceid', 'channelid', 'scandate', 'prog_ID', 'start-time', 'stop-time', 'title', 'name', 'role'):
-                if c.lower() not in clist.keys():
-                    drop_table(table)
-                    self.create_table(table)
-                    return
-
-        elif table == 'programdetails':
-            for c in ('sourceid', 'channelid', 'prog_ID'):
-                if c.lower() not in clist.keys():
-                    drop_table(table)
-                    self.create_table(table)
-                    return
-
-            for c in ('start-time', 'stop-time'):
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` datetime" % c)
-
-            for c in ('genre', 'name'):
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` TEXT DEFAULT NULL" % c)
-
-            for c in self.config.detail_keys['all']:
-                if c in self.config.key_values['text'] and c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` TEXT DEFAULT NULL" % c)
-
-                if c in self.config.key_values['datetime'] and c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` datetime" % c)
-
-                if c in self.config.key_values['date'] and c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` date DEFAULT NULL" % c)
-
-                if c in self.config.key_values['bool'] and c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` boolean DEFAULT NULL" % c)
-
-                if c in self.config.key_values['int'] and c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` INTEGER DEFAULT NULL" % c)
-
-                if c in self.config.key_values['video'] and c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` boolean DEFAULT NULL" % c)
-
-                if c in self.config.key_values['list'] and c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` rating DEFAULT NULL" % c)
-
-        elif table == 'creditdetails':
-            for c in ('sourceid', 'channelid', 'prog_ID', 'start-time', 'stop-time', 'title', 'name', 'role'):
-                if c.lower() not in clist.keys():
-                    drop_table(table)
-                    self.create_table(table)
-                    return
-
-        elif table == 'ttvdb':
-            for c in ('title', ):
-                if c.lower() not in clist.keys():
-                    drop_table(table)
-                    self.create_table(table)
-                    drop_table('episodes')
-                    self.create_table('episodes')
-                    return
-
-            if 'tid' not in clist.keys():
-                add_collumn(table, u"`tid` INTEGER")
-
-            if 'langs' not in clist.keys():
-                add_collumn(table, u"`langs` listing")
-
-            if 'tdate' not in clist.keys():
-                add_collumn(table, u"`tdate` date")
-
-        elif table == 'ttvdb_alias':
-            for c in ('alias', ):
-                if c.lower() not in clist.keys():
-                    drop_table(table)
-                    self.create_table(table)
-                    return
-
-            if 'title' not in clist.keys():
-                add_collumn(table, u"`title` TEXT")
-
-        elif table == 'episodes':
-            for c in ('tid', 'sid', 'eid', 'lang'):
-                if c.lower() not in clist.keys():
-                    drop_table(table)
-                    self.create_table(table)
-                    return
-
-            for c in ('title', 'description'):
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` TEXT" % c)
-
-            if 'airdate' not in clist.keys():
-                add_collumn(table, u"`airdate` date")
-
-        elif table == 'channels':
-            if 'chanid' not in clist.keys():
-                drop_table(table)
-                self.create_table(table)
-                return
-
-            if 'cgroup' not in clist.keys():
-                add_collumn(table, u"`cgroup` INTEGER DEFAULT 99")
-
-            if 'name' not in clist.keys():
-                add_collumn(table, u"`name` TEXT")
-
-        elif table == 'channelsource':
-            for c in ('chanid', 'sourceid'):
-                if c.lower() not in clist.keys():
-                    drop_table(table)
-                    self.create_table(table)
-                    return
-
-            for c in ('scid', 'name'):
-                if c.lower() not in clist.keys():
-                    add_collumn(table, u"`%s` TEXT" % c)
-
-            if 'fgroup' not in clist.keys():
-                add_collumn(table, u"`fgroup` TEXT DEFAULT NULL")
-
-            if 'hd' not in clist.keys():
-                add_collumn(table, u"`hd` boolean DEFAULT 'False'")
-
-            if 'emptycount' not in clist.keys():
-                add_collumn(table, u"`emptycount` INTEGER DEFAULT 0")
-
-        elif table == 'iconsource':
-            for c in ('chanid', 'sourceid'):
-                if c.lower() not in clist.keys():
-                    drop_table(table)
-                    self.create_table(table)
-                    return
-
-            if 'icon' not in clist.keys():
-                add_collumn(table, u"`icon` TEXT")
+                    self.execute(u"ALTER TABLE %s ADD %s" % (table, self.get_column_string(table, fld)))
 
     def check_indexes(self, table):
-        def add_index(table, i, clist):
-            try:
-                with self.pconn:
-                    self.pconn.execute(u"CREATE INDEX IF NOT EXISTS '%s' ON %s %s" % (i, table, clist))
-
-            except:
-                self.functions.log(self.config.text('IO', 15, (table, i)))
-
         pcursor = self.pconn.cursor()
-        # (id, Name, Type, Nullable = 0, Default, Pri_key index)
+        # (id, name, UNIQUE, c(reate)/u(nique)/p(rimary)k(ey), Partial)
         pcursor.execute("PRAGMA main.index_list(%s)" % (table,))
         ilist = {}
         for r in pcursor.fetchall():
-            ilist[r[1].lower()] = r
+            if r[3].lower() == 'pk':
+                ilist['%s_primary' % table.lower()] = r
 
-        if table == 'sourceprograms':
-            if 'scandate' not in ilist:
-                add_index( table, 'scandate', "('sourceid', 'channelid', 'scandate')")
+            else:
+                ilist[r[1].lower()] = r
 
-            if 'progid' not in ilist:
-                add_index( table, 'progid', "('sourceid', 'channelid', 'prog_ID')")
+        for index in self.get_indexes(table):
+            iname = '%s_%s' % (table.lower(), index.lower())
+            if iname not in ilist.keys():
+                self.add_index(table, index)
 
-            if 'stoptime' not in ilist:
-                add_index( table, 'stoptime', "('sourceid', 'channelid', 'stop-time')")
+            else:
+                # Adding Index field test
+                if self. print_data_structure:
+                    print '    ', ilist[iname]
+                    pcursor.execute("PRAGMA main.index_info(%s)" % (ilist[iname][1],))
+                    iflds = {}
+                    for r in pcursor.fetchall():
+                        print '      ', r
 
-            if 'name' not in ilist:
-                add_index( table, 'name', "('sourceid', 'channelid', 'name', 'episode title')")
+    def add_index(self, table, index):
+        if not index in self.get_indexes(table):
+            return
 
-            if 'episode' not in ilist:
-                add_index( table, 'episode', "('sourceid', 'channelid', 'season', 'episode')")
+        if self. print_data_structure:
+            print '    adding index',  index, 'to', table
 
-        elif table == 'credits':
-            if 'stoptime' not in ilist:
-                add_index( table, 'stoptime', "('sourceid', 'channelid', 'stop-time')")
+        iname = '%s_%s' % (table.lower(), index.lower())
+        ustring =u" UNIQUE" if self.get_iprop(table, index, "unique", False) else ""
+        istring = u"CREATE%s INDEX IF NOT EXISTS '%s' ON %s" % (ustring, iname, table)
+        psplit = u" ("
+        for fld in self.get_ifields(table, index):
+            istring += u"%s`%s`"% (psplit, fld)
+            psplit = u", "
 
-            if 'scandate' not in ilist:
-                add_index( table, 'scandate', "('sourceid', 'channelid', 'scandate')")
+        self.execute(u"%s)" % (istring))
 
-            if 'progid' not in ilist:
-                add_index( table, 'progid', "('sourceid', 'channelid', 'prog_ID')")
+    def run(self):
+        self.open_db()
+        try:
+            while True:
+                if self.quit and self.cache_request.empty():
+                    self.pconn.close()
+                    break
 
-        if table == 'programdetails':
-            if 'starttime' not in ilist:
-                add_index( table, 'starttime', "('sourceid', 'channelid', 'start-time')")
+                try:
+                    crequest = self.cache_request.get(True, 5)
 
-            if 'stoptime' not in ilist:
-                add_index( table, 'stoptime', "('sourceid', 'channelid', 'stop-time')")
+                except Empty:
+                    continue
 
-            if 'name' not in ilist:
-                add_index( table, 'name', "('sourceid', 'channelid', 'name')")
+                if (not isinstance(crequest, dict)) or (not 'task' in crequest):
+                    continue
 
-        elif table == 'creditdetails':
-            if 'starttime' not in ilist:
-                add_index( table, 'starttime', "('sourceid', 'channelid', 'start-time')")
+                if crequest['task'] in ('query', 'query_id'):
+                    if not 'parent' in crequest:
+                        continue
 
-            if 'stoptime' not in ilist:
-                add_index( table, 'stoptime', "('sourceid', 'channelid', 'stop-time')")
+                    if self.filename == None:
+                        # there is no cache, but we have to return something
+                        qanswer = None
 
-        elif table == 'ttvdb':
-            if 'ttvdbtid' not in ilist:
-                add_index( table, 'ttvdbtid', "('tid')")
+                    else:
+                        for t in self.request_list[crequest['task']]:
+                            if t in crequest:
+                                if crequest['task'] == 'query':
+                                    qanswer = self.query(t, crequest[t])
 
-        elif table == 'episodes':
-            if 'eptitle' not in ilist:
-                add_index( table, 'eptitle', "('title')")
+                                if crequest['task'] == 'query_id':
+                                    qanswer = self.query_id(t, crequest[t])
 
-        elif table == 'channels':
-            if 'cgroup' not in ilist:
-                add_index( table, 'cgroup', "('cgroup')")
+                                # Because of queue count integrety you can do only one query per call
+                                break
 
-            if 'chan_name' not in ilist:
-                add_index( table, 'chan_name', "('name')")
+                            else:
+                                qanswer = None
 
-        elif table == 'channelsource':
-            if 'scid' not in ilist:
-                add_index( table, 'scid', "('sourceid', 'scid')")
+                    crequest['parent'].cache_return.put(qanswer)
+                    continue
 
-            if 'fgroup' not in ilist:
-                add_index( table, 'fgroup', "('sourceid', 'fgroup')")
+                if self.filename == None:
+                    # There is no cache
+                    continue
+
+                if crequest['task'] == 'add':
+                    for t in self.request_list[crequest['task']]:
+                        if t in crequest:
+                            self.add(t, crequest[t])
+
+                if crequest['task'] == 'delete':
+                    for t in self.request_list[crequest['task']]:
+                        if t in crequest:
+                            self.delete(t, crequest[t])
+
+                if crequest['task'] == 'clear':
+                    if 'table' in crequest:
+                        for t in crequest['table']:
+                            self.clear(t)
+
+                    else:
+                        for t in self.request_list[crequest['task']]:
+                            self.clear(t)
+
+                    continue
+
+                if crequest['task'] == 'clean':
+                    self.clean()
+                    continue
+
+                if crequest['task'] == 'quit':
+                    self.quit = True
+                    continue
+
+        except:
+            self.config.queues['log'].put({'fatal': [traceback.format_exc(), '\n'], 'name': 'ProgramCache'})
+            self.ready = True
+            return(98)
 
     def query(self, table='sourceprograms', item=None):
         """
