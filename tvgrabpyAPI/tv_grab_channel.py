@@ -427,6 +427,7 @@ class Channel_Config(Thread):
                     continue
 
                 detailids['channelid'] = channelid
+                detailids['chanid'] = self.chanid
                 if 'prog_ID'in detailids and detailids['prog_ID'] not in ('', None):
                     self.config.queues['cache'].put({'task':'query', 'parent': self, \
                                 'programdetails': {'sourceid': src_id, 'channelid': channelid, 'prog_ID': detailids['prog_ID']}})

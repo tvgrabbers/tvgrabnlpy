@@ -1769,7 +1769,6 @@ class FetchData(Thread):
                     detailed_program['prog_ID'] = detail_ids[self.proc_id]['prog_ID']
                     detailed_program['gen_ID'] = detail_ids[self.proc_id]['gen_ID']
                     parent.detail_return.put({'source': self.proc_id, 'data': detailed_program, 'counter': tdict['counter']})
-                    self.functions.update_counter('detail', self.proc_id, parent.chanid)
                     self.functions.update_counter('queue', self.proc_id,  parent.chanid, False)
 
             else:
@@ -2823,9 +2822,10 @@ class FetchData(Thread):
         if tdict['detail_url'] in (None, ''):
             return
 
-        ddata = {'channel': tdict['channelid'], 'detailid': tdict['detail_url']}
+        ddata = {'channel': tdict['chanid'], 'detailid': tdict['detail_url']}
         strdata = self.get_page_data(ptype, ddata)
         if not isinstance(strdata, (list,tuple)) or len(strdata) == 0:
+            #~ self.functions.update_counter('fail', self.proc_id, tdict['chanid'])
             self.config.log(self.config.text('sources', 8, (tdict['detail_url'], )), 1)
             return
 
