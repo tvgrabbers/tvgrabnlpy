@@ -445,8 +445,6 @@ class ProgramCache(Thread):
         self.field_list.extend(self.config.key_values['video'])
         self.field_list.extend(self.config.key_values['int'])
         self.field_list.extend(self.config.key_values['list'])
-        sqlite3.register_adapter(list, self.adapt_kw)
-        sqlite3.register_converter(str('rating'), self.convert_kw)
         sqlite3.register_adapter(list, self.adapt_list)
         sqlite3.register_converter(str('listing'), self.convert_list)
         sqlite3.register_adapter(bool, self.adapt_bool)
@@ -660,20 +658,6 @@ class ProgramCache(Thread):
         if isinstance(val, datetime.date):
             return int(val.toordinal() - self.current_date.toordinal())
 
-    def adapt_kw(self, val):
-        ret_val = ''
-        for k in val:
-            ret_val += k
-
-        return ret_val
-
-    def convert_kw(self, val):
-        ret_val = []
-        for k in val:
-            ret_val.append(k)
-
-        return ret_val
-
     def adapt_list(self, val):
         if isinstance(val, (str, unicode)):
             return val
@@ -727,7 +711,7 @@ class ProgramCache(Thread):
             if int(val) == 0 or val == '':
                 return None
 
-            if len(val) < 10:
+            if len(str((val)) < 10:
                 return datetime.date.fromordinal(int(val))
 
             return datetime.datetime.fromtimestamp(int(val), self.config.utc_tz)

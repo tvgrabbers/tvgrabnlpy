@@ -691,7 +691,9 @@ class Functions():
                     return rlist
 
                 if isinstance(data[0], (str,unicode)):
-                    if len(data) > 1 and data[1] == 'as_list':
+                    #~ if len(data) > 1 and data[1] == 'as_list':
+                    # We treat a string as a list of items with a maximaum length
+                    if source.data_value(1, str, data) == 'as_list':
                         item_length = source.data_value(2, int, data, 1)
                         unique_added = False
                         for index in range(len(data[0])):
