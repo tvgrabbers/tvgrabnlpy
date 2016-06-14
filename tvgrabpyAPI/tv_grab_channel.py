@@ -27,14 +27,19 @@ class Channel_Config(Thread):
         self.quit = False
         self.state = None
         self.statetext = ''
-        self.thread_type = 'channel'
 
-        # Flags to indicate the data is in
         self.source_data = {}
+        # Flags to indicate the data is in
         self.detail_data = Event()
         self.child_data = Event()
-        self.cache_return = Queue()
         self.channel_lock = Lock()
+        # The queue to receive answers on database queries
+        self.cache_return = Queue()
+        # The queue to receive answers on detail requests
+        self.detail_return = Queue()
+        self.config.queues['channel'][chanid] = self.detail_return
+        self.thread_type = 'channel'
+        self.config.threads.append(self)
 
         # Flag to indicate all data is processed
         self.ready = False
@@ -77,7 +82,6 @@ class Channel_Config(Thread):
         self.opt_dict['cattrans'] = self.config.opt_dict['cattrans']
         self.opt_dict['mark_hd'] = self.config.opt_dict['mark_hd']
         self.opt_dict['add_hd_id'] = False
-        self.config.threads.append(self)
 
     def validate_settings(self):
 
@@ -233,12 +237,12 @@ class Channel_Config(Thread):
                         self.ready = True
                         return
 
-                    if self.cache_return.empty():
+                    if self.detail_return.empty():
                         self.detail_data.wait(1)
 
                     else:
                         # We are getting back a detail fetch
-                        fetched_detail = self.cache_return.get(True)
+                        fetched_detail = self.detail_return.get(True)
                         if fetched_detail =='quit':
                             self.ready = True
                             return
@@ -250,7 +254,6 @@ class Channel_Config(Thread):
                         src_id = fetched_detail['source']
                         prog_ID = fetched_detail['data']['prog_ID']
                         dn = self.channel_node.programs_by_prog_ID[src_id][prog_ID]
-                        print len(dn)
                         for pn in dn:
                             pn.add_detail_data(fetched_detail, src_id)
 
@@ -438,7 +441,6 @@ class Channel_Config(Thread):
                         self.functions.update_counter('detail', -1, self.chanid)
                         self.config.log(self.config.text('fetch', 18, (self.chan_name, counter, logstring)), 8, 1)
                         dn = self.channel_node.programs_by_prog_ID[src_id][detailids['prog_ID']]
-                        print len(dn)
                         for pn in dn:
                             pn.add_detail_data(cache_detail[0], src_id)
 
@@ -1862,7 +1864,6 @@ class ProgramNode():
             return
 
         with self.node_lock:
-            print source, self.get_start_stop(), data
             for key, value in data.items():
                 if value not in (None, '') and (key in self.config.channelsource[source].detail_keys or key in self.config.key_values['credits']):
                     self.set_value(key, value, source)

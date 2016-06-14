@@ -1048,15 +1048,17 @@ class theTVDB(Thread):
         Thread.__init__(self)
         self.config = config
         self.functions = self.config.fetch_func
-        self.thread_type = 'ttvdb'
         self.quit = False
         self.ready = False
         self.active = True
         self.api_key = "0629B785CE550C8D"
-        self.detail_request = Queue()
-        self.cache_return = Queue()
         self.source_lock = Lock()
+        # The queue to receive answers on database queries
+        self.cache_return = Queue()
+        # The queue to receive requests for detail fetches
+        self.detail_request = Queue()
         self.config.queues['ttvdb'] = self.detail_request
+        self.thread_type = 'ttvdb'
         self.config.threads.append(self)
 
     def run(self):
@@ -1494,18 +1496,22 @@ class FetchData(Thread):
     """
     def __init__(self, config, proc_id, source_data, cattrans_type = None):
         Thread.__init__(self)
-        # Flag to stop the thread
         self.config = config
         self.functions = self.config.fetch_func
-        self.thread_type = 'source'
+        # Flag to stop the thread
         self.quit = False
         self.ready = False
         self.active = True
         # The ID of the source
         self.proc_id = proc_id
-        self.detail_request = Queue()
-        self.cache_return = Queue()
         self.source_lock = Lock()
+        # The queue to receive answers on database queries
+        self.cache_return = Queue()
+        # The queue to receive requests for detail fetches
+        self.detail_request = Queue()
+        self.config.queues['source'][self.proc_id] = self.detail_request
+        self.thread_type = 'source'
+        self.config.threads.append(self)
 
         self.all_channels = {}
         self.channels = {}
@@ -1515,8 +1521,6 @@ class FetchData(Thread):
         self.page_loaded = {}
         self.program_data = {}
         self.chan_count = 0
-        self.config.queues['source'][self.proc_id] = self.detail_request
-        self.config.threads.append(self)
         self.fetch_ordinal = None
         self.site_tz = self.config.utc_tz
         self.item_count = 0
@@ -1677,7 +1681,7 @@ class FetchData(Thread):
 
         try:
             if self.detail_processor and  not self.proc_id in self.config.opt_dict['disable_detail_source']:
-                #~ if self.proc_id == 0:
+                #~ if self.proc_id == 9:
                     #~ self.print_tags = True
                     #~ self.print_roottree = True
                     #~ self.show_parsing = True
@@ -1764,7 +1768,7 @@ class FetchData(Thread):
                     detailed_program['channelid'] = detail_ids[self.proc_id]['channelid']
                     detailed_program['prog_ID'] = detail_ids[self.proc_id]['prog_ID']
                     detailed_program['gen_ID'] = detail_ids[self.proc_id]['gen_ID']
-                    parent.cache_return.put({'source': self.proc_id, 'data': detailed_program, 'counter': tdict['counter']})
+                    parent.detail_return.put({'source': self.proc_id, 'data': detailed_program, 'counter': tdict['counter']})
                     self.functions.update_counter('detail', self.proc_id, parent.chanid)
                     self.functions.update_counter('queue', self.proc_id,  parent.chanid, False)
 
@@ -2745,8 +2749,8 @@ class FetchData(Thread):
                         tdict[k] = v
 
                     elif k in self.config.key_values['int'] and isinstance(v, int):
-                        if k == 'episode' and v > 1000:
-                            continue
+                        #~ if k == 'episode' and v > 1000:
+                            #~ continue
 
                         tdict[k] = v
 
@@ -2820,9 +2824,6 @@ class FetchData(Thread):
             return
 
         ddata = {'channel': tdict['channelid'], 'detailid': tdict['detail_url']}
-        if self.show_result:
-            print ddata
-
         strdata = self.get_page_data(ptype, ddata)
         if not isinstance(strdata, (list,tuple)) or len(strdata) == 0:
             self.config.log(self.config.text('sources', 8, (tdict['detail_url'], )), 1)
@@ -3460,7 +3461,7 @@ class FetchData(Thread):
                     ptitle = "".join(p[1:]).strip()
 
         # Fixing subtitle both named and added to the title
-        if ptitle.lower() == psubtitle.lower() and program['genre'] != 'serie/soap':
+        if ptitle.lower() == psubtitle.lower() and not ('genre'in program and program['genre'] == 'serie/soap'):
             psubtitle = ''
         if  (psubtitle != '') and (len(ptitle) > len(psubtitle)):
             lentitle = len(ptitle) - len(psubtitle)

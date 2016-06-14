@@ -261,6 +261,7 @@ class Configure:
 
         self.queues['log'] = self.logging.log_queue
         self.queues['source'] = {}
+        self.queues['channel'] = {}
         self.channels = {}
         self.chan_count = 0
 
