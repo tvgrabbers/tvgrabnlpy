@@ -41,7 +41,7 @@ class Functions():
     # end init()
 
     def update_counter(self, cnt_type, source_id=-1, chanid=None, cnt_add=True, cnt_change=1):
-        #source_id: -1 = cache, -2 = ttvdb, -3 = jsondata
+        #source_id: -99 = cache, -98 = jsondata, -1 = ttvdb
         if not isinstance(cnt_change, int) or cnt_change == 0:
             return
 
@@ -66,7 +66,6 @@ class Functions():
                     self.channel_counters[chanid][cnt_type][source_id] = 0
 
                 self.channel_counters[chanid][cnt_type][source_id] += cnt_change
-                #~ return
 
             if not source_id in self.source_counters.keys():
                 self.source_counters[source_id] = {}
@@ -75,7 +74,7 @@ class Functions():
                 self.source_counters[source_id][cnt_type] = 0
 
             self.source_counters[source_id][cnt_type] += cnt_change
-            if isinstance(source_id, int) and (source_id >= 0 or source_id == -3):
+            if isinstance(source_id, int) and (source_id >= 0 or source_id == -98):
                 if cnt_type in self.source_counters['total'].keys():
                     self.source_counters['total'][cnt_type] += cnt_change
 
@@ -136,9 +135,7 @@ class Functions():
 
             fu.start()
             fu.join(self.config.opt_dict['global_timeout']+1)
-            #~ print fu.url_text.encode('ascii', 'replace')
             page = fu.result
-            #~ print page.encode('ascii', 'replace')
             self.max_fetches.release()
             if (page == None) or (page =={}) or (isinstance(page, (str, unicode)) and ((re.sub('\n','', page) == '') or (re.sub('\n','', page) =='{}'))):
                 if isinstance(counter,(list, tuple)):
@@ -169,7 +166,7 @@ class Functions():
             return None
     # end get_page()
 
-    def get_json_data(self, name, version = None, source = -3, url = None, fpath = None):
+    def get_json_data(self, name, version = None, source = -98, url = None, fpath = None):
         self.raw_json[name] = ''
         local_name = '%s.json' % (name)
         # Try to find the source files locally
@@ -344,6 +341,90 @@ class Functions():
             return None
     # end merge_date_time()
 
+    def is_data_value(self, dpath, dtype = None, subpath = None):
+        """
+        Follow dpath through the datatree in subpath
+        and report if there exists a value of type dtype
+        dpath is a list of keys/indices
+        If dtype is None check for any value
+        """
+        pval = (dpath, dtype, subpath)
+        if isinstance(dpath, (str, unicode, int)):
+            dpath = [dpath]
+
+        if not isinstance(dpath, (list, tuple)):
+            return False
+
+        if subpath == None:
+            return False
+
+        for d in dpath:
+            if isinstance(subpath, dict):
+                if not d in subpath.keys():
+                    return False
+
+            elif isinstance(subpath, list):
+                if (not isinstance(d, int) or d >= len(subpath)):
+                    return False
+
+            else:
+                return False
+
+            subpath = subpath[d]
+
+        if subpath in (None, "", {}, []):
+            return False
+
+        if dtype == None:
+            return True
+
+        if dtype == float:
+            return bool(isinstance(subpath, (float, int)))
+
+        if dtype in (str, unicode):
+            return bool(isinstance(subpath, (str, unicode)))
+
+        if dtype in (list, tuple):
+            return bool(isinstance(subpath, (list, tuple)))
+
+        return bool(isinstance(subpath, dtype))
+    # end is_data_value()
+
+    def data_value(self, dpath, dtype = None, subpath = None, default = None):
+        """
+        Follow dpath through the datatree in subpath
+        and return if it exists a value of type dtype
+        dpath is a list of keys/indices
+        If dtype is None check for any value
+        If it is not found return default or if dtype is set to
+        a string, list or dict, an empty one
+        """
+        if self.is_data_value(dpath, dtype, subpath):
+            if isinstance(dpath, (str, unicode, int)):
+                dpath = [dpath]
+
+            for d in dpath:
+                subpath = subpath[d]
+
+        else:
+            subpath = None
+
+        if subpath == None:
+            if default != None:
+                return default
+
+            elif dtype in (str, unicode):
+                return ""
+
+            elif dtype == dict:
+                return {}
+
+            elif dtype in (list, tuple):
+                return []
+
+        return subpath
+    # end data_value()
+
     def link_functions(self, fid, data=[], source = None, default = None):
         def split_kommastring(dstring):
 
@@ -371,30 +452,17 @@ class Functions():
         try:
             # strip data[1] from the end of data[0] if present and make sure it's unicode
             if fid == 0:
-                if len(data) == 0:
+                if not self.is_data_value(0, str, data):
                     if default != None:
                         return default
 
                     return u''
 
-                if len(data) == 1:
-                    return unicode(data[0]).strip()
-
-                if data[0].strip().lower()[-len(data[1]):] == data[1].lower():
+                if self.is_data_value(1, str, data) and data[0].strip().lower()[-len(data[1]):] == data[1].lower():
                     return unicode(data[0][:-len(data[1])]).strip()
 
                 else:
                     return unicode(data[0]).strip()
-
-            # split logo name and logo provider
-            if fid == 1:
-                if len(data)< 1 or data[0] == None:
-                    return ('',-1)
-
-                d = data[0].split('?')[0]
-                for k, v in self.config.xml_output.logo_provider.items():
-                    if d[0:len(v)] == v:
-                        return (d[len(v):], k)
 
             # concatenate stringparts and make sure it's unicode
             if fid == 2:
@@ -411,26 +479,26 @@ class Functions():
 
             # Strip a channelid or prog_ID from a path
             if fid == 3:
-                if len(data)< 2 or not isinstance(data[1], int) or data[0] in ('', None):
-                    return default
+                if self.is_data_value(0, str, data) and self.is_data_value(1, int, data):
+                    dd = data[0].split('/')
+                    if data[1] < len(dd):
+                        return dd[data[1]]
 
-                #~ for index in range(1, len(data)):
-                return data[0].split('/')[data[1]]
+                return default
 
             # Combine a date and time value
             if fid == 4:
-                if len(data)< 3 or not isinstance (data[1], datetime.time) or not isinstance(data[2], int):
-                    return default
-
-                if not isinstance (data[0], datetime.date):
+                if not self.is_data_value(0, datetime.date, data):
                     data[0] = datetime.date.fromordinal(source.fetch_ordinal)
 
-                if not isinstance (data[0], datetime.date):
+                if not(self.is_data_value(0, datetime.date, data) \
+                    and self.is_data_value(1, datetime.time, data) \
+                    and self.is_data_value(2, int, data)):
                     return default
 
                 dt = datetime.datetime.combine(data[0], data[1])
                 dt = self.config.in_utc(source.site_tz.localize(dt))
-                if len(data) > 3 and isinstance (data[3], datetime.time):
+                if self.is_data_value(3, datetime.time, data):
                     # We check if this time is after the first and if so we assume a midnight passing
                     dc = datetime.datetime.combine(data[0], data[3])
                     dc = self.config.in_utc(source.site_tz.localize(dc))
@@ -443,81 +511,52 @@ class Functions():
 
             # Return True (or data[2]) if data[1] is present in data[0], else False (or data[3])
             if fid == 12:
-                if len(data) < 2 or not isinstance(data[0], (str,unicode)) or not isinstance(data[1], (str,unicode)):
-                    return False
+                if self.is_data_value(0, str, data) and self.is_data_value(1, str, data):
+                    if data[1].lower() in data[0].lower():
+                        if self.is_data_value(2, None, data):
+                            return data[2]
 
-                if data[1].lower() in data[0].lower():
-                    if len(data) > 2:
-                        return data[2]
+                        else:
+                            return True
 
-                    else:
-                        return True
+                    elif self.is_data_value(3, None, data):
+                        return data[3]
 
-                elif len(data) > 3:
-                    return data[3]
+                return False
 
-                else:
-                    return False
             # Compare the values 1 and 2 returning 3 (or True) if equal, 4 (or False) if unequal and 5 (or None) if one of them is None
             if fid == 15:
-                if len(data) < 2:
-                    return None
-
-                if data[0] in (None, '') or data[1] in (None, ''):
-                    if len(data) > 4:
-                        rval = data[4]
-
-                    else:
-                        rval = None
+                if not self.is_data_value(0, None, data) or data[0] in (None, '') \
+                  or not self.is_data_value(1, None, data) or data[1] in (None, ''):
+                    return self.data_value(4, None, data, None)
 
                 elif data[0] == data[1]:
-                    if len(data) > 2:
-                        rval = data[2]
+                    return self.data_value(2, None, data, True)
 
-                    else:
-                        rval = True
-
-                else:
-                    if len(data) > 3:
-                        rval = data[3]
-
-                    else:
-                        rval = False
-
-                return rval
+                return self.data_value(3, None, data, False)
 
             # Return a string on value True
             if fid == 7:
-                if len(data) < 2 or not isinstance(data[0], bool):
-                    return default
+                if self.is_data_value(0, bool, data):
+                    if data[0] and self.is_data_value(1, None, data):
+                        return data[1]
 
-                if data[0]:
-                    return data[1]
+                    elif self.is_data_value(2, None, data):
+                        return data[2]
 
-                elif len(data) > 2:
-                    return data[2]
-
-                else:
-                    return default
+                return default
 
             # Return the longest not empty text value
             if fid == 8:
-                if default == None:
-                    text = u''
-                else:
-                    text = default
+                text = default if isinstance(default, (str, unicode)) else u''
+                for item in range(len(data)):
+                    if self.is_data_value(item, str, data):
+                        if len(data[item]) > len(text):
+                            text = unicode(data[item].strip())
 
-                if len(data) == 0:
-                    return text
-
-                for item in data:
-                    if isinstance(item, (str, unicode)) and item != '':
-                        if len(item) > len(text):
-                            text = unicode(item.strip())
-
-                    if isinstance(item, (list, tuple, dict)) and len(item) > 0:
-                        if len(item) > len(text):
-                            text = item
+                    #~ if isinstance(item, (list, tuple, dict)) and len(item) > 0:
+                        #~ if len(item) > len(text):
+                            #~ text = item
 
                 return text
 
@@ -557,24 +596,40 @@ class Functions():
 
             # look for item 1 in the keys from dict 0 and return the coresponding value
             if fid == 14:
-                if len(data) < 2 or not isinstance(data[0], (list, tuple)):
+                if len(data) < 2:
                     return default
 
-                if not isinstance(data[1], (list,tuple)):
+                if self.is_data_value(0, dict, data):
+                    data[0] =[data[0]]
+
+                if not self.is_data_value(1, list, data):
                     data[1] = [data[1]]
 
-                for item in data[1]:
-                    for sitem in data[0]:
-                        if item.lower() in sitem.keys():
-                            if isinstance(sitem[item.lower()], (list, tuple)) and len(sitem[item.lower()]) == 0:
-                                continue
+                if self.is_data_value(0, list, data):
+                    for item in data[1]:
+                        for sitem in data[0]:
+                            if isinstance(sitem, dict):
+                                if item.lower() in sitem.keys():
+                                    if isinstance(sitem[item.lower()], (list, tuple)) and len(sitem[item.lower()]) == 0:
+                                        continue
 
-                            if isinstance(sitem[item.lower()], (list, tuple)) and len(sitem[item.lower()]) == 1:
-                                return sitem[item.lower()][0]
+                                    if isinstance(sitem[item.lower()], (list, tuple)) and len(sitem[item.lower()]) == 1:
+                                        return sitem[item.lower()][0]
 
-                            return sitem[item.lower()]
+                                    return sitem[item.lower()]
 
                 return default
+
+            # #
+            # split logo name and logo provider
+            if fid == 1:
+                if self.is_data_value(0, str, data):
+                    d = data[0].split('?')[0]
+                    for k, v in self.config.xml_output.logo_provider.items():
+                        if d[0:len(v)] == v:
+                            return (d[len(v):], k)
+
+                return ('',-1)
 
             # Extract roles from a set of lists or named dicts
             if fid == 5:
@@ -687,14 +742,10 @@ class Functions():
             # Process a rating item
             if fid == 9:
                 rlist = []
-                if len(data) == 0:
-                    return rlist
-
-                if isinstance(data[0], (str,unicode)):
-                    #~ if len(data) > 1 and data[1] == 'as_list':
+                if self.is_data_value(0, str, data):
                     # We treat a string as a list of items with a maximaum length
-                    if source.data_value(1, str, data) == 'as_list':
-                        item_length = source.data_value(2, int, data, 1)
+                    if self.data_value(1, str, data) == 'as_list':
+                        item_length = self.data_value(2, int, data, 1)
                         unique_added = False
                         for index in range(len(data[0])):
                             code = None
@@ -733,7 +784,8 @@ class Functions():
                         elif self.config.write_info_files:
                             self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (source.source, data[0]))
 
-                elif isinstance(data[0], (list,tuple)):
+                elif self.is_data_value(0, list, data):
+                #~ elif isinstance(data[0], (list,tuple)):
                     unique_added = False
                     for item in data[0]:
                         if item.lower() in source.rating.keys():
@@ -1096,15 +1148,15 @@ class theTVDB(Thread):
                         with crequest['parent'].channel_lock:
                             crequest['parent'].detailed_programs.append(qanswer)
 
-                    #~ crequest['parent'].update_counter('fetch', -1, False)
-                    self.functions.update_counter('queue', -2,  crequest['parent'].chanid, False)
+                    #~ crequest['parent'].update_counter('fetch', -99, False)
+                    self.functions.update_counter('queue', -1,  crequest['parent'].chanid, False)
                     continue
 
                 if crequest['task'] == 'last_one':
                     if not 'parent' in crequest:
                         continue
 
-                    crequest['parent'].detail_data.set()
+                    #~ crequest['parent'].detail_data.set()
 
                 if crequest['task'] == 'quit':
                     self.quit = True
@@ -1149,7 +1201,7 @@ class theTVDB(Thread):
         else:
             return
 
-        counter = ['detail', -2, chanid]
+        counter = ['detail', -1, chanid]
         data = self.functions.get_page(url, 'utf-8', None, txtdata, counter)
         # be nice to the source site
         time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
@@ -1312,7 +1364,7 @@ class theTVDB(Thread):
 
         if tid == None or tid == 0:
             if parent != None:
-                self.functions.update_counter('lookup_fail', -2, parent.chanid)
+                self.functions.update_counter('lookup_fail', -1, parent.chanid)
 
             self.config.log(self.config.text('fetch', 8, (data['name'], data['channel'])), 128)
             return data
@@ -1328,7 +1380,7 @@ class theTVDB(Thread):
 
         if eid != None:
             if parent != None:
-                self.functions.update_counter('lookup', -2, parent.chanid)
+                self.functions.update_counter('lookup', -1, parent.chanid)
 
             data['season'] = eid['sid']
             data['episode'] = eid['eid']
@@ -1355,7 +1407,7 @@ class theTVDB(Thread):
             ep_dict[s] = {'sid': ep['sid'], 'eid': ep['eid'], 'airdate': ep['airdate'], 'title': ep['title']}
             if s == subt:
                 if parent != None:
-                    self.functions.update_counter('lookup', -2, parent.chanid)
+                    self.functions.update_counter('lookup', -1, parent.chanid)
 
                 data['episode title'] = ep['title']
                 data['season'] = ep['sid']
@@ -1370,7 +1422,7 @@ class theTVDB(Thread):
         match_list = difflib.get_close_matches(subt, ep_list, 1, 0.7)
         if len(match_list) > 0:
             if parent != None:
-                self.functions.update_counter('lookup', -2, parent.chanid)
+                self.functions.update_counter('lookup', -1, parent.chanid)
 
             ep = ep_dict[match_list[0]]
             data['episode title'] = ep['title']
@@ -1383,7 +1435,7 @@ class theTVDB(Thread):
             return data
 
         if parent != None:
-            self.functions.update_counter('lookup_fail', -2, parent.chanid)
+            self.functions.update_counter('lookup_fail', -1, parent.chanid)
 
         self.config.log(self.config.text('fetch', 10, (data['name'], data['episode title'], data['channel'])), 128)
         return data
@@ -1607,7 +1659,7 @@ class FetchData(Thread):
 
                 # Check if all channels are ready
                 for channel in self.config.channels.values():
-                    if channel.is_alive() and not channel.detail_data.is_set():
+                    if channel.is_alive() and not channel.ready:
                         break
 
                 # All channels are ready, so if there is nothing in the queue
@@ -1619,13 +1671,12 @@ class FetchData(Thread):
                 if (datetime.datetime.now() - self.lastrequest).total_seconds() > idle_timeout:
                     if self.proc_id == self.config.detail_sources[-1]:
                         for chanid, channel in self.config.channels.items():
-                            if channel.is_alive() and not channel.detail_data.is_set():
-                                #~ print channel.statetext
+                            if channel.is_alive() and not channel.ready:
                                 d = 0
                                 for s in self.config.detail_sources:
                                     d += self.functions.get_counter('queue', s, chanid)
 
-                                channel.detail_data.set()
+                                channel.detail_return.put({'source': self.proc_id,'last_one': True})
                                 self.config.log([self.config.text('fetch', 11, (channel.chan_name, d, self.source)), self.config.text('fetch', 12)])
 
                     self.ready = True
@@ -1646,8 +1697,8 @@ class FetchData(Thread):
             if not (self.config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']) and \
               tdict['genre'].lower() == u'serie/soap' and tdict['episode title'] != '' and tdict['season'] == 0:
                 # We do a ttvdb lookup
-                #~ parent.update_counter('fetch', -1)
-                self.functions.update_counter('queue', -2,  parent.chanid, False)
+                #~ parent.update_counter('fetch', -99)
+                self.functions.update_counter('queue', -1,  parent.chanid, False)
                 self.config.queues['ttvdb'].put({'tdict':tdict, 'parent': parent, 'task': 'update_ep_info'})
 
             else:
@@ -1683,7 +1734,7 @@ class FetchData(Thread):
 
         try:
             if self.detail_processor and  not self.proc_id in self.config.opt_dict['disable_detail_source']:
-                #~ if self.proc_id == 9:
+                #~ if self.proc_id == 0:
                     #~ self.print_tags = True
                     #~ self.print_roottree = True
                     #~ self.show_parsing = True
@@ -1724,11 +1775,8 @@ class FetchData(Thread):
                                 self.config.queues['source'][q_no[0]].put(tdict)
                                 break
 
-                        #~ elif self.functions.get_counter('queue', -2, parent.chanid) > 0 and not (self.config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']):
-                            #~ self.config.queues['ttvdb'].put({'task': 'last_one', 'parent': parent})
-
                         else:
-                            parent.detail_data.set()
+                            parent.detail_return.put({'source': self.proc_id,'last_one': True})
 
                         continue
 
@@ -1737,19 +1785,19 @@ class FetchData(Thread):
                     # be nice to the source site
                     time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
                     try:
-                        detailed_program = self.load_detailpage('detail', detail_ids[self.proc_id])
+                        detailed_program = self.load_detailpage('detail', detail_ids[self.proc_id], parent)
 
                     except:
                         detailed_program = None
                         #~ self.config.log([self.config.text('fetch', 15, (tdict['detail_url'][self.proc_id], )), traceback.format_exc()], 1)
 
                     # It failed! Check for a detail2 page
-                    if detailed_program == None and self.is_data_value('detail2', dict):
-                        try:
-                            detailed_program = self.load_detailpage('detail2', detail_ids[self.proc_id])
+                    #~ if detailed_program == None and self.is_data_value('detail2', dict):
+                        #~ try:
+                            #~ detailed_program = self.load_detailpage('detail2', detail_ids[self.proc_id], parent)
 
-                        except:
-                            detailed_program = None
+                        #~ except:
+                            #~ detailed_program = None
                             #~ self.config.log([self.config.text('fetch', 16, (tdict['prog_ID'][self.proc_id][3:], )), traceback.format_exc()], 1)
 
                     # It failed! We check for alternative detail sources
@@ -1818,7 +1866,6 @@ class FetchData(Thread):
                         if c['chanid'] in self.config.channels.keys() and self.config.channels[c['chanid']].get_source_id(self.proc_id) != '' \
                           and not self.proc_id in self.config.channels[c['chanid']].opt_dict['disable_source']:
                             # Unless it is in empty channels we add and mark it as a child else set it ready
-                            #~ if self.config.channels[c['chanid']].get_source_id(self.proc_id) in self.config.empty_channels[self.proc_id]:
                             if self.config.channels[c['chanid']].get_source_id(self.proc_id) in self.config.channelsource[self.proc_id].empty_channels:
                                 self.set_loaded('channel', chanid)
                                 self.config.channels[c['chanid']].source_ready(self.proc_id).set()
@@ -2054,7 +2101,6 @@ class FetchData(Thread):
                 good_programs.sort(key=lambda program: (program['start-time']))
                 fetch_start = good_programs[0]['start-time']
                 fetch_end = good_programs[-1]['stop-time']
-                #~ fetch_count = len(good_programs) - 1
                 cache_delete = []
                 cache_add = []
                 if len(cache_programs) > 0:
@@ -2069,6 +2115,12 @@ class FetchData(Thread):
                         p['channel']  = self.config.channels[chanid].chan_name
                         p['length'] = p['stop-time'] - p['start-time']
                         p['from cache'] = True
+                        gn = '' if not 'group name' in p or p['group name'] == None else p['group name']
+                        et = '' if not 'episode title' in p or p['episode title'] == None else p['episode title']
+                        p['title'] = (gn, p['name'], et)
+                        g = '' if not 'genre' in p or p['genre'] == None else p['genre']
+                        sg = '' if not 'subgenre' in p or p['subgenre'] == None else p['subgenre']
+                        p['genres'] = (g, sg)
                         if 'group' in p.keys() and not p['group'] in (None, ''):
                             self.groupitems[chanid] += 1
 
@@ -2460,7 +2512,6 @@ class FetchData(Thread):
                                             log_fail()
 
                                         failure_count += 1
-                                        #~ self.fail_count += 1
                                         base_count += 1
                                         page_count += 1
                                         if failure_count > 10:
@@ -2503,7 +2554,6 @@ class FetchData(Thread):
                                         log_fail()
 
                                     failure_count += 1
-                                    #~ self.fail_count += 1
                                     continue
 
                                 self.parse_basepage(strdata, {'url_type':url_type, 'offset': offset, 'channelid': channel})
@@ -2557,7 +2607,6 @@ class FetchData(Thread):
                                     log_fail()
 
                                 failure_count += 1
-                                #~ self.fail_count += 1
                                 continue
 
                             self.set_loaded('day', 0, offset)
@@ -2606,7 +2655,6 @@ class FetchData(Thread):
                                         log_fail()
 
                                     failure_count += 1
-                                    #~ self.fail_count += 1
                                     continue
 
                                 chanids = self.parse_basepage(strdata, {'url_type':url_type, 'channelgrp': channelgrp, 'offset':offset})
@@ -2739,59 +2787,16 @@ class FetchData(Thread):
                         last_stop = None
 
                 # Add any known value that does not need further processing
-                for k, v in values.items():
-                    if k in ('channelid', 'video', 'genre', 'subgenre', 'start-time', 'stop-time'):
+                for k, v in self.process_values(values).items():
+                    if k in ('channelid', 'video', 'start-time', 'stop-time'):
                         continue
 
-                    if k in self.config.key_values['text'] and not v in (None, ''):
-                        tdict[k] = v
-
-                    elif (k in self.config.key_values['bool'] or k in self.config.key_values['video']) and  isinstance(v, bool):
-                        tdict[k] = v
-
-                    elif k in self.config.key_values['int'] and isinstance(v, int):
-                        #~ if k == 'episode' and v > 1000:
-                            #~ continue
-
-                        tdict[k] = v
-
-                    elif k in self.config.key_values['list'] and isinstance(v, list) and len(v) > 0:
-                        tdict[k] = v
-
-                    elif k in self.config.key_values['timedelta'] and isinstance(v, datetime.timedelta):
-                        tdict[k] = v
-
-                    elif k in self.config.key_values['date'] and isinstance(v, datetime.date):
-                        tdict[k] = v
-
-                    elif k in self.config.roletrans.keys() and isinstance(v, (list, tuple)) and len(v) > 0:
-                        if not self.config.roletrans[k] in tdict.keys() or len(tdict[self.config.roletrans[k]]) == 0:
-                            tdict[self.config.roletrans[k]] = v
-
-                        for item in v:
-                            if not item in tdict[self.config.roletrans[k]]:
-                                tdict[self.config.roletrans[k]].append(item)
-
-                    elif k in self.config.credit_keys and isinstance(v, dict):
-                        for k2, v2 in v.items():
-                            if k2 in self.config.roletrans.keys() and isinstance(v2, (list, tuple)) and len(v2) > 0:
-                                if not self.config.roletrans[k2] in tdict.keys() or len(tdict[self.config.roletrans[k2]]) == 0:
-                                    tdict[self.config.roletrans[k2]] = v2
-
-                                for item in v2:
-                                    if not item in tdict[self.config.roletrans[k2]]:
-                                        tdict[self.config.roletrans[k2]].append(item)
-
-                if 'genre' in values.keys() or 'subgenre' in values.keys() or 'genres' in values.keys():
-                    gg = self.get_genre(values)
-                    tdict['genre'] = gg[0]
-                    tdict['subgenre'] = gg[1]
+                    tdict[k] = v
 
                 if 'group' in values.keys() and not values['group'] in (None, ''):
                     self.groupitems[chanid] += 1
                     tdict['group'] = values['group']
 
-                tdict = self.check_title_name(tdict)
                 with self.source_lock:
                     self.program_data[chanid].append(tdict)
 
@@ -2806,12 +2811,6 @@ class FetchData(Thread):
                         else:
                             print '        ', k, v
 
-        #~ if self.show_result:
-            #~ for name, item in self.groupitems[chanid].items():
-                #~ print name
-                #~ for p in item:
-                    #~ print '  ',p['channel'] , p['start-time'], p['stop-time']
-
             if len(chanids) > 0:
                 for chanid in chanids:
                     if len(self.program_data[chanid]) > 0:
@@ -2819,7 +2818,7 @@ class FetchData(Thread):
 
         return chanids
 
-    def load_detailpage(self, ptype, tdict):
+    def load_detailpage(self, ptype, tdict, parent):
         """The code for retreiving and processing a detail page"""
         if tdict['detail_url'] in (None, ''):
             return
@@ -2832,17 +2831,37 @@ class FetchData(Thread):
             return
 
         values = self.link_values(ptype, strdata[0])
+        if not isinstance(values, dict):
+            return
+
+        if not 'genre' in values.keys() and 'org-genre' in tdict.keys():
+            values['genre'] = tdict['org-genre']
+
+        if not 'subgenre' in values.keys() and 'org-subgenre' in tdict.keys():
+            values['subgenre'] = tdict['org-subgenre']
+
+        #~ print
+        #~ print 'Resulting values'
+        #~ for k, v in values.items():
+            #~ if isinstance(v, (str, unicode)):
+                #~ vv = ': "%s"' % v
+                #~ print '        ', k, vv.encode('utf-8', 'replace')
+            #~ else:
+                #~ print '        ', k, ': ', v
+
+        tdict = self.process_values(values)
         if self.show_result:
+        #~ if True:
             print
-            print 'Resulting values'
-            for k, v in values.items():
+            print 'Resulting tdict'
+            for k, v in tdict.items():
                 if isinstance(v, (str, unicode)):
                     vv = ': "%s"' % v
                     print '        ', k, vv.encode('utf-8', 'replace')
                 else:
                     print '        ', k, ': ', v
 
-        return values
+        return tdict
 
     def get_url(self, ptype, udata):
         """return the several url's for ordinairy, detail and channel info as defined in the data-file"""
@@ -2918,19 +2937,14 @@ class FetchData(Thread):
 
             is_json = url[5]
             if self.print_searchtree:
-                #~ self.test_output.write(url)
-                #~ self.test_output.write('\n')
                 print url
+
             page = self.functions.get_page(url)
-            #~ print page.encode('ascii', 'replace')
             if page == None:
                 self.config.log([self.config.text('fetch', 71, (ptype, self.source))], 1)
                 if self.print_searchtree:
                     print 'No Data'
                 return None
-
-            #~ if ptype in ('detail', 'detail2') and self.proc_id in (0, 1, 9):
-                #~ return page
 
             if is_json:
                 searchtree = DataTreeGrab.JSONtree(page, self.test_output)
@@ -2990,8 +3004,6 @@ class FetchData(Thread):
             searchtree.extract_datalist()
             data = searchtree.result
             if self.show_result:
-                #~ self.test_output.write(searchtree.result)
-                #~ self.test_output.write('\n')
                 for p in data:
                     if isinstance(p[0], (str, unicode)):
                         print p[0].encode('utf-8', 'replace')
@@ -3030,30 +3042,23 @@ class FetchData(Thread):
               or (isinstance(linkdata, dict) and varid in linkdata.keys())):
                 return
 
-            d = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else unicode(linkdata[varid]).strip()
-            if min_length > 0 and len(d) < min_length:
+            value = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else unicode(linkdata[varid]).strip()
+            if min_length > 0 and len(value) < min_length:
                 return
 
-            if max_length > 0 and len(d) > max_length:
+            if max_length > 0 and len(value) > max_length:
                 return
 
             if self.is_data_value('regex', str, vdef):
-                search_regex = self.data_value('regex', str, vdef, None)
-                try:
-                    dd = re.search(search_regex, d, re.DOTALL)
-                    if dd.group(1) not in ('', None):
-                        d = dd.group(1)
-
-                    else:
-                        return
-
-                except:
-                    return
+                value = get_regex(vdef, value)
 
             if self.is_data_value('type', str, vdef):
-                d = check_type(v, d)
+                value = check_type(vdef, value)
 
-            return d
+            if self.is_data_value('calc', dict, vdef):
+                value = calc_value(vdef['calc'], value)
+
+            return value
 
         def process_link_function(vdef):
             funcid = self.data_value("funcid", int, vdef)
@@ -3076,7 +3081,33 @@ class FetchData(Thread):
                     else:
                         data.append(fd)
 
-                return self.functions.link_functions(funcid, data, self, default)
+                value = self.functions.link_functions(funcid, data, self, default)
+                if value in (None, '', '-'):
+                    return
+
+                if self.is_data_value('regex', str, vdef):
+                    value = get_regex(vdef, value)
+
+                if self.is_data_value('type', str, vdef):
+                    value = check_type(vdef, value)
+
+                if self.is_data_value('calc', dict, vdef):
+                    value = calc_value(vdef['calc'], value)
+
+                return value
+
+        def get_regex(vdef, value):
+            search_regex = self.data_value('regex', str, vdef, None)
+            try:
+                dd = re.search(search_regex, value, re.DOTALL)
+                if dd.group(1) not in ('', None):
+                    return dd.group(1)
+
+                else:
+                    return
+
+            except:
+                return
 
         def check_type(vdef, value):
             dtype = self.data_value('type', str, vdef)
@@ -3143,20 +3174,7 @@ class FetchData(Thread):
                 elif self.is_data_value("funcid", int, v):
                     cval = process_link_function(v)
                     if cval not in (None, '', '-'):
-                        if self.is_data_value('type', str, v):
-                            cval = check_type(v, cval)
-
-                        if self.is_data_value('calc', dict, v):
-                            cval = calc_value(v['calc'], cval)
-
-                        if v["funcid"] == 1:
-                            if len(cval) > 1:
-                                values[k] = cval[0]
-                                values['icongrp'] = cval[1]
-
-                        else:
-                            values[k] = cval
-
+                        values[k] = cval
                         continue
 
                 elif self.is_data_value("value", None, v):
@@ -3170,97 +3188,16 @@ class FetchData(Thread):
 
     # Helper functions
     def is_data_value(self, dpath, dtype = None, subpath = None):
-        """
-        Follow dpath through the datatree in subpath
-        and report if there exists a value of type dtype
-        dpath is a list of keys/indices
-        If subpath is not given use self.source_data
-        If dtype is None check for any value
-        """
-        pval = (dpath, dtype, subpath)
-        if isinstance(dpath, (str, unicode, int)):
-            dpath = [dpath]
-
-        if not isinstance(dpath, (list, tuple)):
-            return False
-
         if subpath == None:
             subpath = self.source_data
 
-        for d in dpath:
-            #~ if not isinstance(subpath, dict):
-                #~ return False
-
-            #~ if not d in subpath.keys():
-                #~ return False
-
-            if isinstance(subpath, dict):
-                if not d in subpath.keys():
-                    return False
-
-            elif isinstance(subpath, list):
-                if (not isinstance(d, int) or d >= len(subpath)):
-                    return False
-
-            else:
-                return False
-
-            subpath = subpath[d]
-
-        if subpath in (None, "", {}, []):
-            return False
-
-        if dtype == None:
-            return True
-
-        if dtype == float:
-            return bool(isinstance(subpath, (float, int)))
-
-        if dtype in (str, unicode):
-            return bool(isinstance(subpath, (str, unicode)))
-
-        if dtype in (list, tuple):
-            return bool(isinstance(subpath, (list, tuple)))
-
-        return bool(isinstance(subpath, dtype))
+        return self.config.fetch_func.is_data_value(dpath, dtype, subpath)
 
     def data_value(self, dpath, dtype = None, subpath = None, default = None):
-        """
-        Follow dpath through the datatree in subpath
-        and return if it exists a value of type dtype
-        dpath is a list of keys/indices
-        If subpath is not given use self.source_data
-        If dtype is None check for any value
-        If it is not found return default or if dtype is set to
-        a string, list or dict, an empty one
-        """
-        if self.is_data_value(dpath, dtype, subpath):
-            if isinstance(dpath, (str, unicode, int)):
-                dpath = [dpath]
-
-            if subpath == None:
-                subpath = self.source_data
-
-            for d in dpath:
-                subpath = subpath[d]
-
-        else:
-            subpath = None
-
         if subpath == None:
-            if default != None:
-                return default
+            subpath = self.source_data
 
-            elif dtype in (str, unicode):
-                return ""
-
-            elif dtype == dict:
-                return {}
-
-            elif dtype in (list, tuple):
-                return []
-
-        return subpath
+        return self.config.fetch_func.data_value(dpath, dtype, subpath, default)
 
     def get_loaded(self, type='day', chanid = 0, day = None):
         chanlist = list(self.channels.keys())
@@ -3336,6 +3273,69 @@ class FetchData(Thread):
                     for day in pagelist:
                         self.page_loaded[chanid][day] = value
 
+    def process_values(self, values):
+        tdict = {}
+        # Add any known value that does not need further processing
+        for k, v in values.items():
+            if k in ('video', 'genre', 'subgenre'):
+                continue
+
+            if k in self.config.key_values['text'] and not v in (None, ''):
+                tdict[k] = v
+
+            elif (k in self.config.key_values['bool'] or k in self.config.key_values['video']) and  isinstance(v, bool):
+                tdict[k] = v
+
+            elif k in self.config.key_values['int'] and isinstance(v, int):
+                #~ if k == 'episode' and v > 1000:
+                    #~ continue
+
+                tdict[k] = v
+
+            elif k in self.config.key_values['list'] and isinstance(v, list) and len(v) > 0:
+                tdict[k] = v
+
+            elif k in self.config.key_values['timedelta'] and isinstance(v, datetime.timedelta):
+                tdict[k] = v
+
+            elif k in self.config.key_values['datetime'] and isinstance(v, datetime.datetime):
+                tdict[k] = v
+
+            elif k in self.config.key_values['date'] and isinstance(v, datetime.date):
+                tdict[k] = v
+
+            elif k in self.config.roletrans.keys() and isinstance(v, (list, tuple)) and len(v) > 0:
+                if not self.config.roletrans[k] in tdict.keys() or len(tdict[self.config.roletrans[k]]) == 0:
+                    tdict[self.config.roletrans[k]] = v
+
+                for item in v:
+                    if not item in tdict[self.config.roletrans[k]]:
+                        tdict[self.config.roletrans[k]].append(item)
+
+            elif k in self.config.credit_keys and isinstance(v, dict):
+                for k2, v2 in v.items():
+                    if k2 in self.config.roletrans.keys() and isinstance(v2, (list, tuple)) and len(v2) > 0:
+                        if not self.config.roletrans[k2] in tdict.keys() or len(tdict[self.config.roletrans[k2]]) == 0:
+                            tdict[self.config.roletrans[k2]] = v2
+
+                        for item in v2:
+                            if not item in tdict[self.config.roletrans[k2]]:
+                                tdict[self.config.roletrans[k2]].append(item)
+
+        if 'genre' in values.keys() or 'subgenre' in values.keys() or 'genres' in values.keys():
+            gg = self.get_genre(values)
+            tdict['genre'] = gg[0]
+            tdict['subgenre'] = gg[1]
+            tdict['genres'] =(gg[0], gg[1])
+            if len(gg) > 2:
+                tdict['org-genre'] = gg[2]
+
+            if len(gg) > 3:
+                tdict['org-subgenre'] = gg[3]
+
+        tdict = self.check_title_name(tdict)
+        return tdict
+
     def get_genre(self, values):
         """Sub process for parse_basepage"""
         genre = ''
@@ -3364,37 +3364,34 @@ class FetchData(Thread):
                 elif isinstance(values['genre'], list):
                     gg = values['genre']
 
-                gg0 = gg[0].lower().strip()
-                gg1 = u''
+                gs0 =gg[0].strip()
+                gs1 = u''
+                gg0 = gs0.lower()
+                if len(gg) > 1:
+                    gs1 = gg[1].strip()
+
+                elif 'subgenre' in values and values['subgenre'] not in (None, ''):
+                    gs1 = values['subgenre'].strip()
+
+                gg1 = gs1.lower()
                 if gg0 in self.cattrans.keys():
-                    if len(gg) > 1:
-                        gg1 = gg[1].lower().strip()
-                        if gg1 in self.cattrans[gg0].keys():
-                            genre = self.cattrans[gg0][gg1][0]
-                            subgenre = self.cattrans[gg0][gg1][1]
+                    if gg1 in self.cattrans[gg0].keys():
+                        genre = self.cattrans[gg0][gg1][0].strip()
+                        subgenre = self.cattrans[gg0][gg1][1].strip()
 
-                    elif 'subgenre' in values and values['subgenre'] not in (None, ''):
-                        if values['subgenre'].lower().strip() in self.cattrans[gg0].keys():
-                            genre = self.cattrans[gg0][values['subgenre'].lower().strip()][0]
-                            subgenre = self.cattrans[gg0][values['subgenre'].lower().strip()][1]
-
-                        else:
-                            genre = self.cattrans[gg0]['default'][0]
-                            subgenre = values['subgenre']
-                            self.new_cattrans[(gg0, values['subgenre'].strip().lower())] = (self.cattrans[gg0]['default'][0].strip().lower(), values['subgenre'].strip().lower())
+                    elif gg1 not in (None, ''):
+                        genre = self.cattrans[gg0]['default'][0].strip()
+                        subgenre = gs1
+                        self.new_cattrans[(gg0, gg1)] = (self.cattrans[gg0]['default'][0].strip().lower(), gg1)
 
                     else:
-                        genre = self.cattrans[gg0]['default'][0]
-                        subgenre = self.cattrans[gg0]['default'][1]
-                        if len(gg) > 1:
-                            self.new_cattrans[(gg0,gg1)] = (self.cattrans[gg0]['default'][0].strip().lower(), self.cattrans[gg0]['default'][1].strip().lower())
+                        genre = self.cattrans[gg0]['default'][0].strip()
+                        subgenre = self.cattrans[gg0]['default'][1].strip()
+                        self.new_cattrans[(gg0,gg1)] = (self.cattrans[gg0]['default'][0].strip().lower(), self.cattrans[gg0]['default'][1].strip().lower())
 
                 elif gg0 not in (None, ''):
-                    if len(gg) > 1 and gg1 not in (None, ''):
+                    if gg1 not in (None, ''):
                         self.new_cattrans[(gg0,gg1)] = [self.config.cattrans_unknown.lower().strip(),'']
-
-                    elif 'subgenre' in values and values['subgenre'] not in (None, ''):
-                        self.new_cattrans[(gg0,values['subgenre'].strip().lower())] = [self.config.cattrans_unknown.lower().strip(),'']
 
                     else:
                         self.new_cattrans[(gg0,'')] = [self.config.cattrans_unknown.lower().strip(),'']
@@ -3405,6 +3402,8 @@ class FetchData(Thread):
 
                         else:
                             self.config.infofiles.addto_detail_list(u'unknown %s genre => %s' % (self.source, values['genre']))
+
+                return (genre, subgenre, gs0, gs1)
 
         elif self.cattrans_type == 2:
             if self.new_cattrans == None:
@@ -3417,7 +3416,7 @@ class FetchData(Thread):
                 else:
                     for k, v in self.cattrans_keywords.items():
                         if k.lower() in values['subgenre'].lower():
-                            genre = v
+                            genre = v.strip()
                             subgenre = values['subgenre'].strip()
                             self.new_cattrans.append((values['subgenre'].lower().strip(), tdict['genre'].strip().lower()))
                             break
@@ -3430,75 +3429,76 @@ class FetchData(Thread):
 
         else:
             if 'genre' in values.keys():
-                genre = values['genre']
+                genre = values['genre'].strip()
 
             if 'subgenre' in values.keys():
-                subgenre = values['subgenre']
+                subgenre = values['subgenre'].strip()
 
-        return (genre.strip(), subgenre.strip())
+        return (genre, subgenre)
 
-    def check_title_name(self, program):
+    def check_title_name(self, values):
         """
         Process Title names on Grouping issues and apply the rename table
         Return the updated Progam dict
         """
-        ptitle = program['name']
-        psubtitle = '' if not 'episode title'in program.keys() else program['episode title']
+        pgroup = ''
+        ptitle = values['name'].strip()
+        psubtitle = '' if not 'episode title'in values.keys() else values['episode title'].strip()
         if  ptitle == None or ptitle == '':
-            return program
+            return values
 
-        if re.sub('[-,. ]', '', ptitle) == re.sub('[-,. ]', '', psubtitle):
-            program['episode title'] = ''
+        if re.sub('[-,. ]', '', ptitle).lower() == re.sub('[-,. ]', '', psubtitle).lower():
+            del(values['episode title'])
             psubtitle = ''
 
         # Remove a groupname if in the list
         for group in self.config.groupnameremove:
             if (len(ptitle) > len(group) + 3) and (ptitle[0:len(group)].lower() == group):
-                p = ptitle.split(':')
+                p = ptitle.split(':', 1)
                 if len(p) >1:
                     self.config.log(self.config.text('fetch', 20,  (group, ptitle)), 64)
                     if self.config.write_info_files:
                         self.config.infofiles.addto_detail_list(unicode('Group removing = \"%s\" from \"%s\"' %  (group, ptitle)))
 
-                    ptitle = "".join(p[1:]).strip()
+                    ptitle = p[1].strip()
 
-        # Fixing subtitle both named and added to the title
-        if ptitle.lower() == psubtitle.lower() and not ('genre'in program and program['genre'] == 'serie/soap'):
+        if ptitle.lower() == psubtitle.lower() and not ('genre'in values and values['genre'] == 'serie/soap'):
             psubtitle = ''
-        if  (psubtitle != '') and (len(ptitle) > len(psubtitle)):
-            lentitle = len(ptitle) - len(psubtitle)
-            if psubtitle.lower().strip() == ptitle[lentitle:].lower().strip():
-                ptitle = ptitle[0:lentitle].strip()
-                if (ptitle[-1] == ':') or (ptitle[-1] == '-'):
-                    ptitle = ptitle[0:(len(ptitle) - 1)].strip()
 
-            # It also happens that the title is both and the subtitle only the title
-            elif psubtitle.lower().strip() == ptitle[:lentitle].lower().strip():
-                p = psubtitle
-                psubtitle = ptitle[lentitle:].lower().strip()
-                ptitle = p
-                if (psubtitle[0] == ':') or (psubtitle[0] == '-'):
-                    psubtitle = psubtitle[1:].strip()
+        lent = len(ptitle)
+        lenst = len(psubtitle)
+        lendif = abs(lent - lenst)
+        # Fixing subtitle both named and added to the title
+        if  0 < lenst < lent and psubtitle.lower() == ptitle[lendif:].lower().strip():
+            ptitle = ptitle[:lendif].strip()
+            if (ptitle[-1] == ':') or (ptitle[-1] == '-'):
+                ptitle = ptitle[:-1].strip()
+
+        # It also happens that the title is both and the subtitle only the title
+        elif 0 < lenst < lent and psubtitle.lower() == ptitle[:lendif].lower():
+            p = psubtitle
+            psubtitle = ptitle[lendif:].lower().strip()
+            ptitle = p
+            if (psubtitle[0] == ':') or (psubtitle[0] == '-'):
+                psubtitle = psubtitle[1:].strip()
 
         # And the other way around
-        elif  (psubtitle != '') and (len(ptitle) < len(psubtitle)):
-            lentitle = len(ptitle.strip())
-            if ptitle.lower().strip() == psubtitle[0:lentitle].lower().strip():
-                psubtitle = psubtitle[lentitle:].strip()
-                if (psubtitle[0:1] == ':') or (psubtitle[0:1] == '-'):
-                    psubtitle = psubtitle[1:].strip()
+        elif  lent < lenst and ptitle.lower() == psubtitle[:lent].lower():
+            psubtitle = psubtitle[lent:].strip()
+            if (psubtitle[1] == ':') or (psubtitle[1] == '-'):
+                psubtitle = psubtitle[1:].strip()
 
         # exclude certain programs
-        if  psubtitle in ('', None) and not (ptitle.lower() in self.config.notitlesplit) \
-          and not ('genre' in program and program['genre'].lower() in ['movies','film']):
+        if  not (ptitle.lower() in self.config.notitlesplit) and not ('genre' in values and values['genre'].lower() in ['movies','film']):
             # and do the title split test
-            p = ptitle.split(':')
+            p = ptitle.split(':', 1)
             if len(p) >1:
                 self.config.log(self.config.text('fetch', 67, (ptitle, )), 64)
-                ptitle = p[0].strip()
-                psubtitle = "".join(p[1:]).strip()
+                # We for now put the first part in 'group name' to compare with other sources
+                pgroup = p[0].strip()
+                ptitle = p[1].strip()
                 if self.config.write_info_files:
-                    self.config.infofiles.addto_detail_list(unicode('Name split = %s + %s' % (ptitle , psubtitle)))
+                    self.config.infofiles.addto_detail_list(unicode('Name split = %s + %s' % (pgroup, ptitle)))
 
         # Check the Title rename list
         if ptitle.lower() in self.config.titlerename:
@@ -3508,15 +3508,25 @@ class FetchData(Thread):
 
             ptitle = self.config.titlerename[ptitle.lower()]
 
-        program['name'] = ptitle
-        if psubtitle == '':
-            if 'episode title'in program.keys():
-                del(program['episode title'])
+        if ptitle.lower() in self.config.titlerename:
+            self.config.log(self.config.text('fetch', 21, (ptitle, self.config.titlerename[ptitle.lower()])), 64)
+            if self.config.write_info_files:
+                self.config.infofiles.addto_detail_list(unicode('Title renaming %s to %s\n' % (ptitle, self.config.titlerename[ptitle.lower()])))
 
-        else:
-            program['episode title'] = psubtitle
+            ptitle = self.config.titlerename[ptitle.lower()]
 
-        return program
+        values['name'] = ptitle
+        values['title'] = (pgroup, ptitle, psubtitle)
+        if pgroup != '':
+            values['group name'] = pgroup
+
+        if psubtitle != '':
+            values['episode title'] = psubtitle
+
+        elif 'episode title' in values.keys():
+            del(values['episode title'])
+
+        return values
 
 # end FetchData()
 

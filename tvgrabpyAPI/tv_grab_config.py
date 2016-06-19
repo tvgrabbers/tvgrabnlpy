@@ -116,7 +116,7 @@ api_name = u'tv_grab_py_API'
 api_major = 1
 api_minor = 0
 api_patch = 0
-api_patchdate = u'20160528'
+api_patchdate = u'20160619'
 api_alfa = True
 api_beta = True
 
@@ -768,7 +768,6 @@ class Configure:
                 and not (self.prime_source_groups[channel.group] in self.opt_dict['disable_source'] \
                 or self.prime_source_groups[channel.group] in channel.opt_dict['disable_source'] \
                 or channel.get_source_id(self.prime_source_groups[channel.group]) in self.channelsource[self.prime_source_groups[channel.group]].no_genric_matching):
-                #~ or channel.get_source_id(self.prime_source_groups[channel.group]) in self.no_genric_matching[self.prime_source_groups[channel.group]]):
                     # A group default in sourcematching.json
                     def_value = self.prime_source_groups[channel.group]
 
@@ -777,7 +776,6 @@ class Configure:
                     if channel.get_source_id(s) != '' \
                         and not (s in self.opt_dict['disable_source'] or s in channel.opt_dict['disable_source'] \
                         or channel.get_source_id(s) in self.channelsource[s].no_genric_matching):
-                        #~ or channel.get_source_id(s) in self.no_genric_matching[s]):
                             # The first available not set in no_genric_matching
                             def_value = s
                             break
@@ -810,7 +808,6 @@ class Configure:
 
             if self.opt_dict['always_use_json']:
                 for v in (json_value, custom_value):
-                    #~ if v != None and not channel.get_source_id(v) in self.no_genric_matching[v]:
                     if v != None and not channel.get_source_id(v) in self.channelsource[v].no_genric_matching:
                         value = v
                         break
@@ -820,7 +817,6 @@ class Configure:
 
             else:
                 for v in (custom_value, json_value):
-                    #~ if v != None and not channel.get_source_id(v) in self.no_genric_matching[v]:
                     if v != None and not channel.get_source_id(v) in self.channelsource[v].no_genric_matching:
                         value = v
                         break
@@ -946,13 +942,8 @@ class Configure:
                     self.log(self.text('config', 15, (cache_dir, )))
                     os.mkdir(cache_dir)
 
-                if os.access(self.opt_dict['cache_file'], os.F_OK and os.W_OK):
-                    pass
-
-                elif not os.path.isfile(self.opt_dict['cache_file']) and os.access(cache_dir, os.W_OK):
-                    pass
-
-                else:
+                if not (os.access(self.opt_dict['cache_file'], os.F_OK and os.W_OK) \
+                    or (not os.path.isfile(self.opt_dict['cache_file']) and os.access(cache_dir, os.W_OK))):
                     self.log(self.text('config', 20, (self.opt_dict['cache_file'], )))
                     return(2)
 
@@ -1414,8 +1405,6 @@ class Configure:
                         if i in self.channels[chanid].opt_dict.keys() and not i in ('disable_source', 'disable_detail_source'):
                             self.channels[chanid].opt_dict[i] = v
 
-                    # set the default prime_source
-                    #~ self.validate_option('prime_source', self.channels[chanid], -1)
                     # Set active if not remarked out
                     self.channels[chanid].active = active
                     if active:
@@ -1761,6 +1750,7 @@ class Configure:
 
         # Read in the tables needed for normal grabbing
         self.key_values = get_githubdict("data_keys")
+        self.tuple_values = get_githubdict("tuple_values")
         self.xml_output.logo_provider = {}
         logo_provider = get_githubdict("logo_provider", 1)
         if isinstance(logo_provider, list):
@@ -2026,7 +2016,10 @@ class Configure:
         self.groupnameremove.sort(key=lambda p: len(p), reverse = True)
         self.episode_exclude_genres = get_githubdata("episode exclude genres")
         self.detailed_genres = get_githubdata("detailed_genres")
-        self.cattrans_unknown = get_githubdict("cattrans_unknown")
+        self.series_genres = get_githubdata("series_genres")
+        self.movie_genres = get_githubdata("movie_genres")
+        self.sports_genres = get_githubdata("sports_genres")
+        self.cattrans_unknown = get_githubdata("cattrans_unknown").lower().strip()
         cattrans = get_githubdict("cattrans")
         for k, v in cattrans.items():
             for item in v:
@@ -2085,7 +2078,6 @@ class Configure:
                     return 69
 
             if self.write_info_files:
-                #~ self.infofiles.check_new_channels(self.channelsource[index], self.source_channels, self.empty_channels)
                 self.infofiles.check_new_channels(self.channelsource[index], self.source_channels)
 
             # a dict with coresponding source, id and chanid
@@ -2100,7 +2092,6 @@ class Configure:
                 reverse_channels[index][v]['chan_scid'] = unicode(i[1])
 
             for chan_scid in self.channelsource[index].all_channels.keys():
-                #~ if not (chan_scid in self.empty_channels[index]):
                 if not (chan_scid in self.channelsource[index].empty_channels):
                     source_keys[index].append(chan_scid)
 
@@ -2133,13 +2124,11 @@ class Configure:
                     chan['hd'] = False
 
                 # These channels are for show, but we like the icons from source 2, 6 and 5!
-                #~ if (chan_scid in self.empty_channels[index]):
                 if (chan_scid in self.channelsource[index].empty_channels):
                     chan['scid'] = ''
                     chan_scid = ''
 
                 if not chanid in self.channels:
-                    #~ if (chan_scid in self.empty_channels[index]):
                     if (chan_scid in self.channelsource[index].empty_channels):
                         continue
 
@@ -2280,7 +2269,6 @@ class Configure:
 
             src_id = chan_def.opt_dict['prime_source']
             log_array.append(u'  prime_source = %s (%s)\n' % (src_id, self.channelsource[src_id].source))
-            #~ log_array.append(u'  prime_source = %s \n' % (src_id))
             if not self.opt_dict['always_use_json'] and chan_def.chanid in self.prime_source and self.prime_source[chan_def.chanid] != src_id:
                 log_array.append(self.text('config', 67 ,(self.prime_source[chan_def.chanid], self.channelsource[self.prime_source[chan_def.chanid]].source)))
 
@@ -3044,13 +3032,13 @@ class Configure:
         fetch_fail = self.fetch_func.get_counter('fail', 'total') \
                             + self.fetch_func.get_counter('failjson', 'total')
         log_array.append( self.text('config', 77, (fetch_count, fetch_fail)))
-        log_array.append(self.text('config', 78, (self.fetch_func.get_counter('detail', -1), )))
-        log_array.append(self.text('config', 79, (self.fetch_func.get_counter('lookup', -2), )))
-        log_array.append(self.text('config', 80, (self.fetch_func.get_counter('lookup_fail', -2), )))
+        log_array.append(self.text('config', 78, (self.fetch_func.get_counter('detail', -99), )))
+        log_array.append(self.text('config', 79, (self.fetch_func.get_counter('lookup', -1), )))
+        log_array.append(self.text('config', 80, (self.fetch_func.get_counter('lookup_fail', -1), )))
         if fetch_count > 0:
             log_array.extend([self.text('config', 81, ((end - start).total_seconds()/fetch_count, )), '\n'])
-        log_array.append(self.text('config', 82, (self.fetch_func.get_counter('detail', -2), )))
-        log_array.extend([self.text('config', 83, (self.fetch_func.get_counter('fail', -2), )), '\n'])
+        log_array.append(self.text('config', 82, (self.fetch_func.get_counter('detail', -1), )))
+        log_array.extend([self.text('config', 83, (self.fetch_func.get_counter('fail', -1), )), '\n'])
         for s, source in self.channelsource.items():
             if source.detail_processor:
                 log_array.append(self.text('config', 84, (self.fetch_func.get_counter('base', s), source.source)))

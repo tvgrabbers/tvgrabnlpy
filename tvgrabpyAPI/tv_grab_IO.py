@@ -437,7 +437,7 @@ class ProgramCache(Thread):
         self.config = config
         self.functions = self.config.IO_func
         self.current_date = self.config.in_fetch_tz(datetime.datetime.now(pytz.utc))
-        self.field_list = ['genre']
+        self.field_list = []
         self.field_list.extend(self.config.key_values['text'])
         self.field_list.extend(self.config.key_values['date'])
         self.field_list.extend(self.config.key_values['datetime'])
@@ -499,11 +499,14 @@ class ProgramCache(Thread):
                                    "scandate": {"type": "date", "default": 0},
                                    "start-time": {"type": "datetime", "default": 0},
                                    "stop-time": {"type": "datetime", "default": 0},
-                                   "name": {"type": "TEXT", "default": ""},
                                    "prog_ID": {"type": "TEXT", "null": True},
                                    "gen_ID": {"type": "TEXT", "null": True},
+                                   "group name": {"type": "TEXT", "null": True},
+                                   "name": {"type": "TEXT", "default": ""},
                                    "episode title": {"type": "TEXT", "null": True},
                                    "genre": {"type": "TEXT", "null": True},
+                                   "org-genre": {"type": "TEXT", "null": True},
+                                   "org-subgenre": {"type": "TEXT", "null": True},
                                    "season": {"type": "INTEGER", "null": True},
                                    "episode": {"type": "INTEGER", "null": True}},
                 "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
@@ -534,6 +537,7 @@ class ProgramCache(Thread):
                                    "prog_ID": {"type": "TEXT", "default": ""},
                                    "start-time": {"type": "datetime", "default": 0},
                                    "stop-time": {"type": "datetime", "default": 0},
+                                   "group name": {"type": "TEXT", "null": True},
                                    "name": {"type": "TEXT", "default": ""},
                                    "genre": {"type": "TEXT", "null": True}},
                 "indexes":{"PRIMARY": {"unique": True, "replace on conflict": True,
@@ -711,7 +715,7 @@ class ProgramCache(Thread):
             if int(val) == 0 or val == '':
                 return None
 
-            if len(str((val)) < 10:
+            if len(str(val)) < 10:
                 return datetime.date.fromordinal(int(val))
 
             return datetime.datetime.fromtimestamp(int(val), self.config.utc_tz)
@@ -1132,7 +1136,6 @@ class ProgramCache(Thread):
                     offset = self.date_to_offset(r[str('scandate')])
                     rval[offset] = r[str('stored')]
 
-                #~ print rval
                 return rval
 
             if isinstance(item["scandate"], (datetime.date, int)):
@@ -1158,7 +1161,6 @@ class ProgramCache(Thread):
                     else:
                         rval[offset] = r[str('stored')]
 
-                #~ print rval
                 return rval
 
         elif table == 'laststop':
@@ -1248,6 +1250,16 @@ class ProgramCache(Thread):
                         pp[unicode(key)] = p[key]
 
                 pp['offset'] = self.date_to_offset(pp['scandate'])
+                #~ for tk, tv in self.config.tuple_values.items():
+                    #~ tl = []
+                    #~ for sk in tv:
+                        #~ if sk in pp.keys():
+                            #~ tl .append(pp[sk])
+
+                        #~ else:
+                            #~ tl.append('')
+
+                    #~ pp[tk] = tuple(tl)
 
                 pcursor.execute(u"SELECT * FROM credits WHERE `sourceid` = ? AND `channelid` = ? AND `start-time` = ?", (item['sourceid'], item['channelid'], pp['start-time']))
                 for r in pcursor.fetchall():
@@ -1971,16 +1983,13 @@ class InfoFiles():
             source.get_channels()
 
         for chan_scid, channel in source.all_channels.items():
-            #~ if not (chan_scid in source_channels[source.proc_id].values() or chan_scid in empty_channels[source.proc_id]):
             if not (chan_scid in source_channels[source.proc_id].values() or chan_scid in source.empty_channels):
                 self.lineup_changes.append( u'New channel on %s => %s (%s)\n' % (source.source, chan_scid, channel['name']))
 
         for chanid, chan_scid in source_channels[source.proc_id].items():
-            #~ if not (chan_scid in source.all_channels.keys() or chan_scid in empty_channels[source.proc_id]):
             if not (chan_scid in source.all_channels.keys() or chan_scid in source.empty_channels):
                 self.lineup_changes.append( u'Removed channel on %s => %s (%s)\n' % (source.source, chan_scid, chanid))
 
-        #~ for chan_scid in empty_channels[source.proc_id]:
         for chan_scid in source.empty_channels:
             if not chan_scid in source.all_channels.keys():
                 self.lineup_changes.append( u"Empty channelID %s on %s doesn't exist\n" % (chan_scid, source.source))
@@ -2087,21 +2096,21 @@ class InfoFiles():
 
                 pnode = programs.first_node
                 while isinstance(pnode, tv_grab_channel.ProgramNode):
-                    fstr += u'  %s: [%s][%s] [%s:%s/%s] %s\n' % (\
+                    fstr += u'  %s: [%s][%s] [%s:%s/%s] %s; %s %s\n' % (\
                                     pnode.get_start_stop(), \
                                     pnode.get_value('ID').rjust(15), \
                                     pnode.get_value('genre')[0:10].rjust(10), \
                                     pnode.get_value('season'), \
                                     pnode.get_value('episode'), \
                                     pnode.get_value('episodecount'), \
-                                    pnode.get_title())
+                                    pnode.get_title(), \
+                                    pnode.get_value('country'), \
+                                    pnode.get_value('rating'))
 
                     if pnode.next_gap != None:
                         fstr += u'  %s: GAP\n' % pnode.next_gap.get_start_stop()
 
                     pnode = pnode.next
-
-                #~ fstr += u'#\n'
 
             else:
                 plist = deepcopy(programs)
@@ -2123,18 +2132,12 @@ class InfoFiles():
                     extra = value('rerun') + value('teletext') + value('new') + value('last-chance') + value('premiere')
                     extra2 = value('HD') + value('widescreen') + value('blackwhite')
 
-                    fstr += u'  %s%s - %s: [%s][%s] [%s:%s/%s] %s: %s\n' % (\
+                    fstr += u'  %s%s - %s: [%s][%s] [%s:%s/%s] %s: %s; %s %s\n' % (\
                                     value('from cache'), value('start-time'), value('stop-time'), \
                                     value('ID').rjust(15), value('genre')[0:10].rjust(10), \
                                     value('season'), value('episode'), value('episodecount'), \
-                                    value('name'), value('episode title'))
-
-                    #~ fstr += u'  %s-%s: [%s][%s] %s: %s [%s/%s]\n' % (\
-                                    #~ self.config.output_tz.normalize(tdict['start-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
-                                    #~ self.config.output_tz.normalize(tdict['stop-time'].astimezone(self.config.output_tz)).strftime('%d %b %H:%M'), \
-                                    #~ psid.rjust(15), tdict['genre'][0:10].rjust(10), \
-                                    #~ tdict['name'], tdict['episode title'], \
-                                    #~ tdict['season'], tdict['episode'])
+                                    value('name'), value('episode title'), \
+                                    value('country'), value('rating'))
 
             if not chanid in  self.fetch_strings:
                  self.fetch_strings[chanid] = {}
