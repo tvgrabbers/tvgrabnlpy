@@ -104,13 +104,13 @@
 from __future__ import unicode_literals
 # from __future__ import print_function
 
-import os, re, sys, argparse, traceback, datetime, codecs, pickle, json
+import os, re, sys, argparse, traceback, datetime, time, codecs, pickle
 import tv_grab_IO, tv_grab_fetch, tv_grab_channel, pytz
+from DataTreeGrab import is_data_value, data_value
 try:
     unichr(42)
 except NameError:
     unichr = chr    # Python 3
-
 
 api_name = u'tv_grab_py_API'
 api_major = 1
@@ -122,6 +122,68 @@ api_beta = True
 
 def version():
     return (api_name, api_major, api_minor, api_patch, api_patchdate, api_beta, api_alfa)
+
+def grabber_main(config):
+    # We want to handle unexpected errors nicely. With a message to the log
+    try:
+        if not isinstance(config, Configure):
+            return( -2)
+
+        # Get the options, channels and other configuration
+        start_time = datetime.datetime.now()
+        x = config.validate_commandline()
+        if x != None:
+            return(x)
+
+        config.log("The Netherlands: %s\n" % config.version(True), 1, 1)
+        config.log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
+
+        # Start the seperate fetching threads
+        for source in config.channelsource.values():
+            x = source.start()
+            if x != None:
+                return(x)
+
+        # Start the Channel threads, but wait a second so the sources have properly initialized any child channel
+        time.sleep(1)
+        counter = 0
+        channel_threads = []
+        for channel in config.channels.values():
+            if not (channel.active or channel.is_child):
+                continue
+
+            counter += 1
+            channel.counter = counter
+            x = channel.start()
+            if x != None:
+                return(x)
+
+            channel_threads.append(channel)
+
+        # Synchronize
+        for index in config.detail_sources:
+            config.channelsource[index].join()
+
+        for channel in channel_threads:
+            if channel.is_alive():
+                channel.join()
+
+        # produce the results and wrap-up
+        config.write_defaults_list()
+        config.xml_output.print_string()
+
+        # Create a report
+        end_time = datetime.datetime.now()
+        config.write_statistics(start_time, end_time)
+
+    except:
+        #~ traceback.print_exc()
+        config.logging.log_queue.put({'fatal': [traceback.format_exc(), '\n'], 'name': None})
+        return(99)
+
+    # and return success
+    return(0)
+# end grabber_main()
 
 class Configure:
 
@@ -182,7 +244,10 @@ class Configure:
         self.opt_dict['home_dir'] = ''
         self.opt_dict['etc_dir'] = u'/etc/tvgrabpyAPI'
         self.opt_dict['var_dir'] = u'/var/lib/tvgrabpyAPI'
-        self.source_url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master'
+        self.api_source_url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master'
+        self.api_update_url = 'https://github.com/tvgrabbers/tvgrabnlpy/releases/latest'
+        self.source_url = self.api_source_url
+        self.update_url = self.api_update_url
         self.source_dir =  self.opt_dict['var_dir']
         if 'HOME' in os.environ:
             self.opt_dict['home_dir'] = os.environ['HOME']
@@ -498,7 +563,7 @@ class Configure:
         if x != None:
             return(x)
 
-        x = self.get_sourcematching_file(self.args.configure)
+        x = self.get_json_datafiles(self.args.configure)
         if x != None:
             return(x)
 
@@ -699,7 +764,7 @@ class Configure:
 
                 return tdict
         elif option == 'show_logo_sources':
-            self.get_sourcematching_file(show_info=False)
+            self.get_json_datafiles(show_info=False)
             if stdoutput:
                 print(self.text('config', 3, type='other'))
                 for k, v in self.xml_output.logo_provider.items():
@@ -1656,55 +1721,33 @@ class Configure:
 
     #end read_defaults_list()
 
-    def get_sourcematching_file(self, configuring = False, show_info = True):
+    def get_json_datafiles(self, configuring = False, show_info = True):
         # This gets grabed after reading the config
-        def get_githubdict(gvar, intlevels = 0):
-            lvar = {}
-            try:
-                if not gvar in githubdata:
-                    return lvar.copy()
+        def is_gitdata_value(searchpath, dtype = None):
+            return is_data_value(searchpath, githubdata, dtype, True)
 
-                if intlevels == 0:
-                    return githubdata[gvar]
+        def gitdata_value(searchpath, dtype = None, default = None):
+            return data_value(searchpath, githubdata, dtype, default)
 
-                for s, v in githubdata[gvar].items():
-                    if intlevels == 1:
-                        lvar[int(s)] = v
+        def gitdata_dict(gvar, intlevels = 0):
+            def get_int_keys(ivar, level):
+                if not isinstance(ivar, dict) or level < 1:
+                    return ivar
 
-                    elif intlevels == 2:
-                        lvar[int(s)] = {}
-                        for g, clist in v.items():
-                            lvar[int(s)][int(g)] = clist
+                lvar = {}
+                for k, v in ivar.items():
+                    try:
+                        lvar[int(k)] = get_int_keys(v, level -1)
 
-                return lvar.copy()
+                    except:
+                        lvar[k] = get_int_keys(v, level -1)
 
-            except:
-                self.log(self.text('config', 42, (gvar,)))
-                return lvar.copy()
+                return lvar
 
-        def get_githubdata(gvar, default = []):
-            try:
-                if not gvar in githubdata:
-                    if isinstance(default,(list, tuple)):
-                        return list(default)[:]
+            if not is_gitdata_value(gvar, dict):
+                return {}
 
-                    else:
-                        return default
-
-                if isinstance(githubdata[gvar],list):
-                    lvar = default[:]
-                    for t in githubdata[gvar]:
-                        if not t in default:
-                            lvar.append(t)
-
-                    return lvar[:]
-
-                else:
-                    return githubdata[gvar]
-
-            except:
-                self.log(self.text('config', 42, (gvar,)))
-                return default
+            return get_int_keys( githubdata[gvar], intlevels)
 
         def log_failure():
             self.log([self.text('config', 43), traceback.format_exc()], 0)
@@ -1725,21 +1768,20 @@ class Configure:
                 return 2
 
             # Check on program updates
-            nv = githubdata["program_version"]
-            pv = u'%s.%s.%s' % (self.api_major+2, self.api_minor, self.api_patch)
+            nv = gitdata_value("program_version", str, '1.0.0')
+            pv = u'%s.%s.%s' % (self.api_major, self.api_minor, self.api_patch)
             if not "data_version" in self.opt_dict:
                 self.opt_dict["data_version"] = 0
 
             if pv < nv or (pv == nv and (self.alfa or self.beta)):
-                loglist = ['There is a newer stable release available on github!\n']
-                if "version_message" in githubdata:
-                    if isinstance(githubdata["version_message"], (str, unicode)):
-                        loglist.append(githubdata["version_message"])
+                loglist = ['There is a newer stable API release available on github!\n']
+                if is_gitdata_value("version_message", str):
+                    loglist.append(githubdata["version_message"])
 
-                    elif isinstance(githubdata["version_message"], list):
-                        loglist.extend(githubdata["version_message"])
+                elif is_gitdata_value("version_message", list):
+                    loglist.extend(githubdata["version_message"])
 
-                loglist.append("Goto: https://github.com/tvgrabbers/tvgrabnlpy/releases/latest\n")
+                loglist.append("Goto: %s\n" % self.api_update_url)
                 if show_info:
                     self.log(loglist, 0)
 
@@ -1749,45 +1791,53 @@ class Configure:
             return 2
 
         # Read in the tables needed for normal grabbing
-        self.key_values = get_githubdict("data_keys")
-        self.tuple_values = get_githubdict("tuple_values")
-        self.xml_output.logo_provider = {}
-        logo_provider = get_githubdict("logo_provider", 1)
-        if isinstance(logo_provider, list):
-            i=0
-            for lp in logo_provider:
-                self.xml_output.logo_provider[i] =lp
-                i+=1
-        else:
-            self.xml_output.logo_provider = logo_provider
-        self.xml_output.logo_source_preference = get_githubdata("logo_source_preference")
-        self.ttvdb_aliasses = get_githubdict("ttvdb_aliasses")
-        self.coutrytrans = get_githubdict("coutrytrans")
-        self.notitlesplit = get_githubdata("notitlesplit")
-        self.user_agents = get_githubdata("user_agents", self.user_agents)
+        self.key_values = gitdata_dict("data_keys")
+        self.tuple_values = gitdata_dict("tuple_values")
+        self.xml_output.logo_provider = gitdata_dict("logo_provider", 1)
+        self.xml_output.logo_source_preference = gitdata_value("logo_source_preference", list)
+        self.ttvdb_aliasses = gitdata_dict("ttvdb_aliasses")
+        self.coutrytrans = gitdata_dict("coutrytrans")
+        self.notitlesplit = gitdata_value("notitlesplit", list)
+        self.user_agents = gitdata_value("user_agents", list, self.user_agents)
         for k in self.xml_output.logo_provider.keys():
             if k not in self.xml_output.logo_source_preference:
                 self.xml_output.logo_source_preference.append(k)
 
-
         try:
-            githubdata = self.fetch_func.get_json_data(self.datafile)
+            githubdata = self.fetch_func.get_json_data(self.datafile, url = self.source_url)
             if not isinstance(githubdata, dict):
                 log_failure()
                 return 2
 
             # Check on data updates
-            dv = int(githubdata["data_version"])
-            if dv > self.opt_dict["data_version"]:
-                loglist = ['The channel/source matching data on github is newer!\n']
-                if "warning_message" in githubdata:
-                    for v, tekst in githubdata["warning_message"].items():
-                        if int(v) > self.opt_dict["data_version"]:
-                            if isinstance(tekst, (str, unicode)):
-                                loglist.append(tekst)
+            nv = gitdata_value("program_version", str, '1.0.0')
+            pv = u'%s.%s.%s' % (self.major, self.minor, self.patch)
+            dv = gitdata_value("data_version", int, 0)
+            if not "data_version" in self.opt_dict:
+                self.opt_dict["data_version"] = 0
 
-                            elif isinstance(tekst, list):
-                                loglist.extend(tekst)
+            if pv < nv or (pv == nv and (self.alfa or self.beta)):
+                loglist = ['There is a newer stable frontend release available!\n']
+                if is_gitdata_value("version_message", str):
+                    loglist.append(githubdata["version_message"])
+
+                elif is_gitdata_value("version_message", list):
+                    loglist.extend(githubdata["version_message"])
+
+                loglist.append("Goto: %s\n" % self.update_url)
+                if show_info:
+                    self.log(loglist, 0)
+
+            elif dv > self.opt_dict["data_version"]:
+                loglist = ['The channel/source matching data is newer!\n']
+                if is_gitdata_value("warning_message", dict):
+                    for v in githubdata["warning_message"].keys():
+                        if int(v) > self.opt_dict["data_version"]:
+                            if is_gitdata_value(["warning_message", v], str):
+                                loglist.append(gitdata_value(["warning_message", v], str))
+
+                            elif is_gitdata_value(["warning_message", v], list):
+                                loglist.extend(gitdata_value(["warning_message", v], list))
 
                 if not configuring:
                     loglist.append("Run with '--configure' to implement it\n")
@@ -1800,19 +1850,19 @@ class Configure:
             #~ traceback.print_exc()
             return 2
 
-        source_url = get_githubdata("source-url", self.source_url)
+        source_url = gitdata_value("source-url", str, self.source_url)
         if source_url in (None, ''):
             self.source_url = u'%s/sources' % self.source_url
 
         else:
             self.source_url = source_url
 
-        self.sources = get_githubdict("sources", 1)
+        self.sources = gitdata_dict("sources", 1)
         self.source_count = max(self.sources.keys()) + 1
         # Check on disabled sources
-        active_sources = get_githubdata("active_sources")
-        self.sourceid_order = get_githubdata("sourceid_order")
-        self.detail_sources = get_githubdata("detail_sources")
+        active_sources = gitdata_value("active_sources", list)
+        self.sourceid_order = gitdata_value("sourceid_order", list)
+        self.detail_sources = gitdata_value("detail_sources", list)
         for c in self.sources.keys():
             if c not in active_sources:
                 self.validate_option('disable_source', value = c)
@@ -1824,33 +1874,33 @@ class Configure:
                 self.source_order.remove(s)
 
         # Remove any source that's not (jet) there
-        self.prime_source_order = get_githubdata("prime_source_order")
+        self.prime_source_order = gitdata_value("prime_source_order", list)
         for s in self.prime_source_order[:]:
             if not s in self.sources.keys():
                 self.prime_source_order.remove(s)
 
-        self.fetch_tz = get_githubdata("fetch-timezone", 'UTC')
-        self.xml_language = get_githubdata("language")
+        self.fetch_tz = gitdata_value("fetch-timezone", str, 'UTC')
+        self.xml_language = gitdata_value("language", str, 'en')
         try:
             self.fetch_tz = pytz.timezone(self.fetch_tz)
         except:
             self.fetch_tz = pytz.utc
 
-        self.source_channels = get_githubdict("source_channels", 1)
-        self.prime_source = get_githubdict("prime_source")
+        self.source_channels = gitdata_dict("source_channels", 1)
+        self.prime_source = gitdata_dict("prime_source")
         # Remove any source that's not (jet) there
         for c, s in self.prime_source.items():
             if s not in self.sources.keys():
                 del self.prime_source[c]
 
-        self.prime_source_groups = get_githubdict("prime_source_groups", 1)
+        self.prime_source_groups = gitdata_dict("prime_source_groups", 1)
         # Remove any source that's not (jet) there
         for g, s in self.prime_source_groups.items():
             if s not in self.sources.keys():
                 del self.prime_source_groups[g]
-        self.channel_rename = get_githubdict("channel_rename")
-        self.chan_groups = get_githubdict("channel_groups", 1)
-        self.group_order = get_githubdata("group_order")
+        self.channel_rename = gitdata_dict("channel_rename")
+        self.chan_groups = gitdata_dict("channel_groups", 1)
+        self.group_order = gitdata_value("group_order", list)
         for g in self.chan_groups.keys():
             if g not in self.group_order[:]:
                 self.group_order.append(g)
@@ -1859,27 +1909,20 @@ class Configure:
             if g not in self.chan_groups.keys():
                 self.chan_groups[g] = 'Channel groep %s' % g
 
-        self.ttvdb_disabled_groups = get_githubdata("ttvdb disable groups")
-        self.channel_grouping = get_githubdict("channel_grouping", 1)
-        self.xml_output.logo_names = get_githubdict("logo_names")
+        self.ttvdb_disabled_groups = gitdata_value("ttvdb disable groups", list)
+        self.channel_grouping = gitdata_dict("channel_grouping", 1)
+        self.xml_output.logo_names = gitdata_dict("logo_names")
         for icon in self.xml_output.logo_names.values():
-            if icon[1][-4:] not in ('.png', '.jpg', '.gif'):
-                if icon[0] in ('0', '1'):
-                    icon[1] = icon[1] + '.gif'
+            if len(icon[1].split('.')) == 1:
+                icon[1] = icon[1] + '.png'
 
-                elif icon[0] in ('2', '6'):
-                    icon[1] = icon[1] + '.jpg'
-
-                elif icon[0] in ('3', '4', '5', '7', '8', '10', '11'):
-                    icon[1] = icon[1] + '.png'
-
-        self.combined_channels_tz = get_githubdata("combined-channels-tz", 'UTC')
+        self.combined_channels_tz = gitdata_value("combined-channels-tz", str, 'UTC')
         try:
             self.combined_channels_tz = pytz.timezone(self.combined_channels_tz)
         except:
             self.combined_channels_tz = pytz.utc
 
-        combined_channels = get_githubdict("combined_channels")
+        combined_channels = gitdata_dict("combined_channels")
         self.combined_channels = {}
         for chanid, chanlist in combined_channels.items():
             if chanid == "--description--":
@@ -1927,7 +1970,7 @@ class Configure:
             #~ self.opt_dict["data_version"] = dv
 
         logarray = []
-        self.merge_into = get_githubdict("merge_into")
+        self.merge_into = gitdata_dict("merge_into")
         for newch, oldch  in self.merge_into.items():
             if newch == "--description--":
                 continue
@@ -1992,35 +2035,35 @@ class Configure:
 
             self.log(logarray, 0)
 
-        self.generic_channel_genres = get_githubdict("generic_channel_genres")
-        self.groupslot_names = get_githubdata("groupslot_names")
+        self.generic_channel_genres = gitdata_dict("generic_channel_genres")
+        self.groupslot_names = gitdata_value("groupslot_names", list)
         for index in range(len(self.groupslot_names)):
             self.groupslot_names[index] = re.sub('[-,. ]', '', self.fetch_func.remove_accents(self.groupslot_names[index]).lower().strip())
 
-        self.unknown_program_title = get_githubdata("unknown_program_title")
+        self.unknown_program_title = gitdata_value("unknown_program_title", str)
         self.groupslot_names.append(re.sub('[-,. ]', '', self.fetch_func.remove_accents(self.unknown_program_title).lower().strip()))
-        self.compat_text = get_githubdata("compat_text")
-        self.channelprogram_rename = get_githubdict("channelprogram_rename")
-        self.language_texts = get_githubdict("language_texts")
+        self.compat_text = gitdata_value("compat_text", str)
+        self.channelprogram_rename = gitdata_dict("channelprogram_rename")
+        self.language_texts = gitdata_dict("language_texts")
         self.language_texts['and'] = ' %s ' % (self.language_texts['and'].strip().lower())
-        roletrans = get_githubdict("roletrans")
+        roletrans = gitdata_dict("roletrans")
         self.roletrans = {}
         self.credit_keys = ['credits']
         for k,v in roletrans.items():
             for item in v:
                 self.roletrans[item] = k
                 self.credit_keys.append(item)
-        self.rating = get_githubdict("rating")
-        self.titlerename = get_githubdict("titlerename")
-        self.groupnameremove = get_githubdata("groupnameremove")
+        self.rating = gitdata_dict("rating")
+        self.titlerename = gitdata_dict("titlerename")
+        self.groupnameremove = gitdata_value("groupnameremove", list)
         self.groupnameremove.sort(key=lambda p: len(p), reverse = True)
-        self.episode_exclude_genres = get_githubdata("episode exclude genres")
-        self.detailed_genres = get_githubdata("detailed_genres")
-        self.series_genres = get_githubdata("series_genres")
-        self.movie_genres = get_githubdata("movie_genres")
-        self.sports_genres = get_githubdata("sports_genres")
-        self.cattrans_unknown = get_githubdata("cattrans_unknown").lower().strip()
-        cattrans = get_githubdict("cattrans")
+        self.episode_exclude_genres = gitdata_value("episode exclude genres", list)
+        self.detailed_genres = gitdata_value("detailed_genres", list)
+        self.series_genres = gitdata_value("series_genres", list)
+        self.movie_genres = gitdata_value("movie_genres", list)
+        self.sports_genres = gitdata_value("sports_genres", list)
+        self.cattrans_unknown = gitdata_value("cattrans_unknown", str).lower().strip()
+        cattrans = gitdata_dict("cattrans")
         for k, v in cattrans.items():
             for item in v:
                 if isinstance(item, (str, unicode)):
@@ -2035,7 +2078,7 @@ class Configure:
                 else:
                     self.cattrans[(item[0].lower().strip(), item[1].lower().strip())] = k
 
-    # get_sourcematching_file()
+    # get_json_datafiles()
 
     def get_channels(self):
         """

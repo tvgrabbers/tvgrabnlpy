@@ -105,9 +105,7 @@ from __future__ import unicode_literals
 # from __future__ import print_function
 
 # Modules we need
-import sys, locale, traceback, json
-import time, datetime, pytz
-import tvgrabpyAPI
+import sys, locale, tvgrabpyAPI
 
 try:
     unichr(42)
@@ -132,85 +130,27 @@ class Configure(tvgrabpyAPI.Configure):
     def __init__(self):
         self.name ='tv_grab_nl3_py'
         self.datafile = 'tv_grab_nl'
-        self.source_url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master'
         tvgrabpyAPI.Configure.__init__(self)
-        # Version info as returned by the version function
+        # Version info from the frontend as returned by the version function
         self.country = 'The Netherlands'
         self.description = 'Dutch/Flemish grabber combining multiple sources.'
         self.major = 3
         self.minor = 0
         self.patch = 0
-        self.patchdate = u'20160528'
+        self.patchdate = u'20160619'
         self.alfa = True
         self.beta = True
         # The default timezone to use in the xmltv output file
         self.opt_dict['output_tz'] = 'Europe/Amsterdam'
-        self.output_tz = pytz.timezone(self.opt_dict['output_tz'])
+        # Where to get the json datafile and updates (if different from the API location)
+        self.source_url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master'
+        self.update_url = 'https://github.com/tvgrabbers/tvgrabnlpy/releases/latest'
 
 # end Configure()
-config = Configure()
-
-def main():
-    # We want to handle unexpected errors nicely. With a message to the log
-    try:
-        # Get the options, channels and other configuration
-        start_time = datetime.datetime.now()
-        x = config.validate_commandline()
-        if x != None:
-            return(x)
-
-        config.log("The Netherlands: %s\n" % config.version(True), 1, 1)
-        config.log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
-
-        # Start the seperate fetching threads
-        for source in config.channelsource.values():
-            x = source.start()
-            if x != None:
-                return(x)
-
-        # Start the Channel threads, but wait a second so the sources have properly initialized any child channel
-        time.sleep(1)
-        counter = 0
-        channel_threads = []
-        for channel in config.channels.values():
-            if not (channel.active or channel.is_child):
-                continue
-
-            counter += 1
-            channel.counter = counter
-            x = channel.start()
-            if x != None:
-                return(x)
-
-            channel_threads.append(channel)
-
-        # Synchronize
-        for index in config.detail_sources:
-            config.channelsource[index].join()
-
-        for channel in channel_threads:
-            if channel.is_alive():
-                channel.join()
-
-        # produce the results and wrap-up
-        config.write_defaults_list()
-        config.xml_output.print_string()
-
-        # Create a report
-        end_time = datetime.datetime.now()
-        config.write_statistics(start_time, end_time)
-
-    except:
-        #~ traceback.print_exc()
-        config.logging.log_queue.put({'fatal': [traceback.format_exc(), '\n'], 'name': None})
-        return(99)
-
-    # and return success
-    return(0)
-# end main()
 
 # allow this to be a module
 if __name__ == '__main__':
-    x = main()
+    config = Configure()
+    x = tvgrabpyAPI.grabber_main(config)
     config.close()
     sys.exit(x)

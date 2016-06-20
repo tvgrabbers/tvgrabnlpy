@@ -8,7 +8,7 @@ from __future__ import unicode_literals
 import re, sys, traceback, difflib
 import time, datetime, pytz, random
 import requests, httplib, socket, json
-import DataTreeGrab
+from DataTreeGrab import HTMLtree, JSONtree, is_data_value, data_value
 from threading import Thread, Lock, Semaphore, Event
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
@@ -180,7 +180,7 @@ class Functions():
                         return json.load(fle)
 
             except:
-                #~ traceback.print_exc()
+                traceback.print_exc()
                 pass
 
             # And then in the library location if that is not the same
@@ -200,7 +200,7 @@ class Functions():
                               'User-Agent' : self.config.user_agents[random.randint(0, len(self.config.user_agents)-1)] }
 
                 if url in (None, u''):
-                    url = self.config.source_url
+                    url = self.config.api_source_url
 
                 url = '%s/%s.json' % (url, name)
                 self.config.log(self.config.text('fetch', 1,(name, ), 'other'), 2)
@@ -341,90 +341,6 @@ class Functions():
             return None
     # end merge_date_time()
 
-    def is_data_value(self, dpath, dtype = None, subpath = None):
-        """
-        Follow dpath through the datatree in subpath
-        and report if there exists a value of type dtype
-        dpath is a list of keys/indices
-        If dtype is None check for any value
-        """
-        pval = (dpath, dtype, subpath)
-        if isinstance(dpath, (str, unicode, int)):
-            dpath = [dpath]
-
-        if not isinstance(dpath, (list, tuple)):
-            return False
-
-        if subpath == None:
-            return False
-
-        for d in dpath:
-            if isinstance(subpath, dict):
-                if not d in subpath.keys():
-                    return False
-
-            elif isinstance(subpath, list):
-                if (not isinstance(d, int) or d >= len(subpath)):
-                    return False
-
-            else:
-                return False
-
-            subpath = subpath[d]
-
-        if subpath in (None, "", {}, []):
-            return False
-
-        if dtype == None:
-            return True
-
-        if dtype == float:
-            return bool(isinstance(subpath, (float, int)))
-
-        if dtype in (str, unicode):
-            return bool(isinstance(subpath, (str, unicode)))
-
-        if dtype in (list, tuple):
-            return bool(isinstance(subpath, (list, tuple)))
-
-        return bool(isinstance(subpath, dtype))
-    # end is_data_value()
-
-    def data_value(self, dpath, dtype = None, subpath = None, default = None):
-        """
-        Follow dpath through the datatree in subpath
-        and return if it exists a value of type dtype
-        dpath is a list of keys/indices
-        If dtype is None check for any value
-        If it is not found return default or if dtype is set to
-        a string, list or dict, an empty one
-        """
-        if self.is_data_value(dpath, dtype, subpath):
-            if isinstance(dpath, (str, unicode, int)):
-                dpath = [dpath]
-
-            for d in dpath:
-                subpath = subpath[d]
-
-        else:
-            subpath = None
-
-        if subpath == None:
-            if default != None:
-                return default
-
-            elif dtype in (str, unicode):
-                return ""
-
-            elif dtype == dict:
-                return {}
-
-            elif dtype in (list, tuple):
-                return []
-
-        return subpath
-    # end data_value()
-
     def link_functions(self, fid, data=[], source = None, default = None):
         def split_kommastring(dstring):
 
@@ -452,13 +368,13 @@ class Functions():
         try:
             # strip data[1] from the end of data[0] if present and make sure it's unicode
             if fid == 0:
-                if not self.is_data_value(0, str, data):
+                if not is_data_value(0, data, str):
                     if default != None:
                         return default
 
                     return u''
 
-                if self.is_data_value(1, str, data) and data[0].strip().lower()[-len(data[1]):] == data[1].lower():
+                if is_data_value(1, data, str) and data[0].strip().lower()[-len(data[1]):] == data[1].lower():
                     return unicode(data[0][:-len(data[1])]).strip()
 
                 else:
@@ -479,7 +395,7 @@ class Functions():
 
             # Strip a channelid or prog_ID from a path
             if fid == 3:
-                if self.is_data_value(0, str, data) and self.is_data_value(1, int, data):
+                if is_data_value(0, data, str) and is_data_value(1, data, int):
                     dd = data[0].split('/')
                     if data[1] < len(dd):
                         return dd[data[1]]
@@ -488,17 +404,17 @@ class Functions():
 
             # Combine a date and time value
             if fid == 4:
-                if not self.is_data_value(0, datetime.date, data):
+                if not is_data_value(0, data, datetime.date):
                     data[0] = datetime.date.fromordinal(source.fetch_ordinal)
 
-                if not(self.is_data_value(0, datetime.date, data) \
-                    and self.is_data_value(1, datetime.time, data) \
-                    and self.is_data_value(2, int, data)):
+                if not(is_data_value(0, data, datetime.date) \
+                    and is_data_value(1, data, datetime.time) \
+                    and is_data_value(2, data, int)):
                     return default
 
                 dt = datetime.datetime.combine(data[0], data[1])
                 dt = self.config.in_utc(source.site_tz.localize(dt))
-                if self.is_data_value(3, datetime.time, data):
+                if is_data_value(3, data, datetime.time):
                     # We check if this time is after the first and if so we assume a midnight passing
                     dc = datetime.datetime.combine(data[0], data[3])
                     dc = self.config.in_utc(source.site_tz.localize(dc))
@@ -511,37 +427,37 @@ class Functions():
 
             # Return True (or data[2]) if data[1] is present in data[0], else False (or data[3])
             if fid == 12:
-                if self.is_data_value(0, str, data) and self.is_data_value(1, str, data):
+                if is_data_value(0, data, str) and is_data_value(1, data, str):
                     if data[1].lower() in data[0].lower():
-                        if self.is_data_value(2, None, data):
+                        if is_data_value(2, data):
                             return data[2]
 
                         else:
                             return True
 
-                    elif self.is_data_value(3, None, data):
+                    elif is_data_value(3, data):
                         return data[3]
 
                 return False
 
             # Compare the values 1 and 2 returning 3 (or True) if equal, 4 (or False) if unequal and 5 (or None) if one of them is None
             if fid == 15:
-                if not self.is_data_value(0, None, data) or data[0] in (None, '') \
-                  or not self.is_data_value(1, None, data) or data[1] in (None, ''):
-                    return self.data_value(4, None, data, None)
+                if not is_data_value(0, data) or data[0] in (None, '') \
+                  or not is_data_value(1, data) or data[1] in (None, ''):
+                    return data_value(4, data, default = None)
 
                 elif data[0] == data[1]:
-                    return self.data_value(2, None, data, True)
+                    return data_value(2, data, default = True)
 
-                return self.data_value(3, None, data, False)
+                return data_value(3, data, default = False)
 
             # Return a string on value True
             if fid == 7:
-                if self.is_data_value(0, bool, data):
-                    if data[0] and self.is_data_value(1, None, data):
+                if is_data_value(0, data, bool):
+                    if data[0] and is_data_value(1, data):
                         return data[1]
 
-                    elif self.is_data_value(2, None, data):
+                    elif is_data_value(2, data):
                         return data[2]
 
                 return default
@@ -550,7 +466,7 @@ class Functions():
             if fid == 8:
                 text = default if isinstance(default, (str, unicode)) else u''
                 for item in range(len(data)):
-                    if self.is_data_value(item, str, data):
+                    if is_data_value(item, data, str):
                         if len(data[item]) > len(text):
                             text = unicode(data[item].strip())
 
@@ -599,13 +515,13 @@ class Functions():
                 if len(data) < 2:
                     return default
 
-                if self.is_data_value(0, dict, data):
+                if is_data_value(0, data, dict):
                     data[0] =[data[0]]
 
-                if not self.is_data_value(1, list, data):
+                if not is_data_value(1, data, list):
                     data[1] = [data[1]]
 
-                if self.is_data_value(0, list, data):
+                if is_data_value(0, data, list):
                     for item in data[1]:
                         for sitem in data[0]:
                             if isinstance(sitem, dict):
@@ -623,7 +539,7 @@ class Functions():
             # #
             # split logo name and logo provider
             if fid == 1:
-                if self.is_data_value(0, str, data):
+                if is_data_value(0, data, str):
                     d = data[0].split('?')[0]
                     for k, v in self.config.xml_output.logo_provider.items():
                         if d[0:len(v)] == v:
@@ -742,10 +658,10 @@ class Functions():
             # Process a rating item
             if fid == 9:
                 rlist = []
-                if self.is_data_value(0, str, data):
+                if is_data_value(0, data, str):
                     # We treat a string as a list of items with a maximaum length
-                    if self.data_value(1, str, data) == 'as_list':
-                        item_length = self.data_value(2, int, data, 1)
+                    if data_value(1, data, str) == 'as_list':
+                        item_length = data_value(2, data, int, 1)
                         unique_added = False
                         for index in range(len(data[0])):
                             code = None
@@ -784,7 +700,7 @@ class Functions():
                         elif self.config.write_info_files:
                             self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (source.source, data[0]))
 
-                elif self.is_data_value(0, list, data):
+                elif is_data_value(0, data, list):
                 #~ elif isinstance(data[0], (list,tuple)):
                     unique_added = False
                     for item in data[0]:
@@ -914,28 +830,28 @@ class Functions():
             udm = source.data_value([ptype, "url-date-multiplier"], int, default=1)
             udf = source.data_value([ptype, "url-date-format"], str, default=None)
             wds = source.data_value([ptype, "url-weekdays"], list)
-            offset = source.data_value('offset', int, data, default=0)
-            start = source.data_value('start', int, data, default=self.config.opt_dict['offset'])
-            days = source.data_value('days', int, data, default=self.config.opt_dict['days'])
+            offset = data_value('offset', data, int, default=0)
+            start = data_value('start', data, int, default=self.config.opt_dict['offset'])
+            days = data_value('days', data, int, default=self.config.opt_dict['days'])
             if urlid == 0:
-                return source.data_value('detailid', unicode, data)
+                return data_value('detailid', data, unicode)
 
             elif urlid == 1:
-                return source.data_value('channel', unicode, data)
+                return data_value('channel', data, unicode)
 
             elif urlid == 2:
                 cc = ''
-                for c in source.data_value('channels', dict, data).values():
+                for c in data_value('channels', data, dict).values():
                     cc = '%s,%s'% (cc, c)
 
                 return cc[1:]
 
             elif urlid == 3:
-                return source.data_value('channelgrp', unicode, data)
+                return data_value('channelgrp', data, unicode)
 
             elif urlid == 4:
-                cnt = source.data_value('count', int, data, default=source.item_count)
-                cnt_offset = source.data_value('cnt-offset', int, data, default=0)
+                cnt = data_value('count', data, int, default=source.item_count)
+                cnt_offset = data_value('cnt-offset', data, int, default=0)
                 cstep = cnt_offset * source.item_count
                 splitter = source.data_value([ptype, "item-range-splitter"], str, default='-')
                 return u'%s%s%s' % (cstep + 1, splitter, cstep  + cnt)
@@ -1010,7 +926,7 @@ class Functions():
             self.config.log([self.config.text('fetch', 69, ('url', urlid, data['source'])), traceback.format_exc()], 1)
             return ''
 
-    # end
+    # end url_functions()
 # end Functions()
 
 class FetchURL(Thread):
@@ -1734,14 +1650,6 @@ class FetchData(Thread):
 
         try:
             if self.detail_processor and  not self.proc_id in self.config.opt_dict['disable_detail_source']:
-                #~ if self.proc_id == 0:
-                    #~ self.print_tags = True
-                    #~ self.print_roottree = True
-                    #~ self.show_parsing = True
-                    #~ self.print_searchtree = True
-                    #~ self.show_result = True
-                    #~ self.test_output = sys.stdout
-                #~ testlist = ((1, 0), (9, 0,), (1, 9))
                 detail_idx = self.config.detail_sources.index(self.proc_id)
                 testlist = []
                 for s1 in range(len(self.config.detail_sources) -1):
@@ -2947,20 +2855,20 @@ class FetchData(Thread):
                 return None
 
             if is_json:
-                searchtree = DataTreeGrab.JSONtree(page, self.test_output)
+                searchtree = JSONtree(page, self.test_output)
 
             else:
                 autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
                 if self.data_value([ptype, "enclose-with-html-tag"], bool, default=False):
                     page = u'<html>%s</html>' % page
 
-                searchtree = DataTreeGrab.HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
+                searchtree = HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
 
             self.source_data[ptype]['timezone'] = self.data_value('site-timezone', str, default = 'utc')
             searchtree.check_data_def(self.data_value(ptype, dict))
             if ptype in ('base', 'detail', 'detail2'):
                 # We load some values from the definition file into the tree
-                self.fetch_ordinal = self.current_ordinal + self.data_value('offset', int, pdata, default=0)
+                self.fetch_ordinal = self.current_ordinal + data_value('offset', pdata, int, default=0)
                 if not "channelid" in searchtree.value_filters.keys() or not isinstance(searchtree.value_filters["channelid"], list) :
                     searchtree.value_filters["channelid"] = []
 
@@ -3035,9 +2943,9 @@ class FetchData(Thread):
         A dict is return
         """
         def get_variable(vdef):
-            max_length = self.data_value('max length', int, vdef, 0)
-            min_length = self.data_value('min length', int, vdef, 0)
-            varid = self.data_value("varid", int, vdef)
+            max_length = data_value('max length', vdef, int, 0)
+            min_length = data_value('min length', vdef, int, 0)
+            varid = data_value("varid", vdef, int)
             if not ((isinstance(linkdata, list) and (0 <= varid < len(linkdata))) \
               or (isinstance(linkdata, dict) and varid in linkdata.keys())):
                 return
@@ -3049,25 +2957,25 @@ class FetchData(Thread):
             if max_length > 0 and len(value) > max_length:
                 return
 
-            if self.is_data_value('regex', str, vdef):
+            if is_data_value('regex', vdef, str):
                 value = get_regex(vdef, value)
 
-            if self.is_data_value('type', str, vdef):
+            if is_data_value('type', vdef, str):
                 value = check_type(vdef, value)
 
-            if self.is_data_value('calc', dict, vdef):
+            if is_data_value('calc', vdef, dict):
                 value = calc_value(vdef['calc'], value)
 
             return value
 
         def process_link_function(vdef):
-            funcid = self.data_value("funcid", int, vdef)
-            default = self.data_value("default", None, vdef)
+            funcid = data_value("funcid", vdef, int)
+            default = data_value("default", vdef)
             if funcid != None:
-                funcdata = self.data_value("data", list, vdef)
+                funcdata = data_value("data", vdef, list)
                 data = []
                 for fd in funcdata:
-                    if self.is_data_value("varid", int, fd):
+                    if is_data_value("varid", fd, int):
                         dvar = get_variable(fd)
                         if dvar == None:
                             data.append('')
@@ -3075,7 +2983,7 @@ class FetchData(Thread):
                         else:
                             data.append(dvar)
 
-                    elif self.is_data_value("funcid", int, fd):
+                    elif is_data_value("funcid", fd, int):
                         data.append(process_link_function(fd))
 
                     else:
@@ -3085,19 +2993,19 @@ class FetchData(Thread):
                 if value in (None, '', '-'):
                     return
 
-                if self.is_data_value('regex', str, vdef):
+                if is_data_value('regex', vdef, str):
                     value = get_regex(vdef, value)
 
-                if self.is_data_value('type', str, vdef):
+                if is_data_value('type', vdef, str):
                     value = check_type(vdef, value)
 
-                if self.is_data_value('calc', dict, vdef):
+                if is_data_value('calc', vdef, dict):
                     value = calc_value(vdef['calc'], value)
 
                 return value
 
         def get_regex(vdef, value):
-            search_regex = self.data_value('regex', str, vdef, None)
+            search_regex = data_value('regex', vdef, str, None)
             try:
                 dd = re.search(search_regex, value, re.DOTALL)
                 if dd.group(1) not in ('', None):
@@ -3110,7 +3018,7 @@ class FetchData(Thread):
                 return
 
         def check_type(vdef, value):
-            dtype = self.data_value('type', str, vdef)
+            dtype = data_value('type', vdef, str)
             try:
                 if dtype == 'string':
                     return unicode(value)
@@ -3140,7 +3048,7 @@ class FetchData(Thread):
                 return None
 
         def calc_value(vdef, value):
-            if self.is_data_value('multiplier', float, vdef):
+            if is_data_value('multiplier', vdef, float):
                 try:
                     if not isinstance(value, (int, float)):
                         value = float(value)
@@ -3150,7 +3058,7 @@ class FetchData(Thread):
                     #~ traceback.print_exc()
                     pass
 
-            if self.is_data_value('devider', float, vdef):
+            if is_data_value('devider', vdef, float):
                 try:
                     if not isinstance(value, (int, float)):
                         value = float(value)
@@ -3165,39 +3073,39 @@ class FetchData(Thread):
         values = {}
         if isinstance(linkdata, (list, tuple, dict)):
             for k, v in self.data_value([ptype,"values"], dict).items():
-                if self.is_data_value("varid", int, v):
+                if is_data_value("varid", v, int):
                     vv = get_variable(v)
                     if vv not in (None, '', '-'):
                         values[k] = vv
                         continue
 
-                elif self.is_data_value("funcid", int, v):
+                elif is_data_value("funcid", v, int):
                     cval = process_link_function(v)
                     if cval not in (None, '', '-'):
                         values[k] = cval
                         continue
 
-                elif self.is_data_value("value", None, v):
-                    values[k] = self.data_value("value", None, v)
+                elif is_data_value("value", v):
+                    values[k] = data_value("value", v)
                     continue
 
-                if self.is_data_value('default', None, v):
+                if is_data_value('default', v):
                     values[k] = v['default']
 
         return values
 
     # Helper functions
-    def is_data_value(self, dpath, dtype = None, subpath = None):
-        if subpath == None:
-            subpath = self.source_data
+    def is_data_value(self, searchpath, dtype = None, searchtree = None):
+        if searchtree == None:
+            searchtree = self.source_data
 
-        return self.config.fetch_func.is_data_value(dpath, dtype, subpath)
+        return is_data_value(searchpath, searchtree, dtype, True)
 
-    def data_value(self, dpath, dtype = None, subpath = None, default = None):
-        if subpath == None:
-            subpath = self.source_data
+    def data_value(self, searchpath, dtype = None, searchtree = None, default = None):
+        if searchtree == None:
+            searchtree = self.source_data
 
-        return self.config.fetch_func.data_value(dpath, dtype, subpath, default)
+        return data_value(searchpath, searchtree, dtype, default)
 
     def get_loaded(self, type='day', chanid = 0, day = None):
         chanlist = list(self.channels.keys())

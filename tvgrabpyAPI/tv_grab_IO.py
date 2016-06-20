@@ -1250,18 +1250,8 @@ class ProgramCache(Thread):
                         pp[unicode(key)] = p[key]
 
                 pp['offset'] = self.date_to_offset(pp['scandate'])
-                #~ for tk, tv in self.config.tuple_values.items():
-                    #~ tl = []
-                    #~ for sk in tv:
-                        #~ if sk in pp.keys():
-                            #~ tl .append(pp[sk])
-
-                        #~ else:
-                            #~ tl.append('')
-
-                    #~ pp[tk] = tuple(tl)
-
-                pcursor.execute(u"SELECT * FROM credits WHERE `sourceid` = ? AND `channelid` = ? AND `start-time` = ?", (item['sourceid'], item['channelid'], pp['start-time']))
+                pcursor.execute(u"SELECT * FROM credits WHERE `sourceid` = ? AND `channelid` = ? AND `start-time` = ?", \
+                    (item['sourceid'], item['channelid'], pp['start-time']))
                 for r in pcursor.fetchall():
                     if not r[str('title')] in pp.keys():
                         pp[r[str('title')]] = []
