@@ -8,8 +8,9 @@ from __future__ import unicode_literals
 import re, sys, traceback, difflib
 import time, datetime, pytz, random
 import requests, httplib, socket, json
-from DataTreeGrab import HTMLtree, JSONtree, is_data_value, data_value
-from threading import Thread, Lock, Semaphore, Event
+from DataTreeGrab import DataTreeShell, is_data_value, data_value
+from tv_grab_channel import ProgramNode
+from threading import Thread, RLock, Semaphore, Event
 from xml.sax import saxutils
 from xml.etree import cElementTree as ET
 from Queue import Queue, Empty
@@ -30,12 +31,11 @@ class Functions():
     def __init__(self, config):
         self.config = config
         self.max_fetches = Semaphore(self.config.opt_dict['max_simultaneous_fetches'])
-        self.count_lock = Lock()
+        self.count_lock = RLock()
         self.progress_counter = 0
         self.channel_counters = {}
         self.source_counters = {}
         self.source_counters['total'] = {}
-        self.fetch_string_parts = re.compile("(.*?[.?!:]+ |.*?\Z)")
         self.raw_json = {}
 
     # end init()
@@ -114,8 +114,7 @@ class Functions():
                 encoding = url[1] if len(url) > 1 else None
                 accept_header = url[2] if len(url) > 2 else None
                 txtdata = url[3] if len(url) > 3 else None
-                counter = url[4] if len(url) > 4 else None
-                is_json = url[5] if len(url) > 5 else False
+                is_json = url[4] if len(url) >4 else False
                 url = url[0]
 
             txtheaders = {'Keep-Alive' : '300',
@@ -265,52 +264,6 @@ class Functions():
         return name
     # end remove_accents()
 
-    def get_string_parts(self, sstring, header_items = None):
-        if not isinstance(header_items, (list, tuple)):
-            header_items = []
-
-        test_items = []
-        for hi in header_items:
-            if isinstance(hi, (str, unicode)):
-                test_items.append((hi.lower(), hi))
-
-            elif isinstance(hi, (list, tuple)):
-                if len(hi) > 0 and isinstance(hi[0], (str, unicode)):
-                    hi0 = hi[0].lower()
-                    if len(hi) > 1 and isinstance(hi[1], (str, unicode)):
-                        hi1 = hi[1]
-
-                    else:
-                        hi1 = hi[0]
-
-                    test_items.append((hi0, hi1))
-
-        string_parts = self.fetch_string_parts.findall(sstring)
-        string_items = {}
-        act_item = 'start'
-        string_items[act_item] = []
-        for dp in string_parts:
-            if dp.strip() == '':
-                continue
-
-            if dp.strip()[-1] == ':':
-                act_item = dp.strip()[0:-1].lower()
-                string_items[act_item] = []
-
-            else:
-                for ti in test_items:
-                    if dp.strip().lower()[0:len(ti[0])] == ti[0]:
-                        act_item = ti[1]
-                        string_items[act_item] = []
-                        string_items[act_item].append(dp[len(ti[0]):].strip())
-                        break
-
-                else:
-                    string_items[act_item].append(dp.strip())
-
-        return string_items
-    # end get_string_parts()
-
     def get_offset(self, date):
         """Return the offset from today"""
         cd = self.config.in_fetch_tz(datetime.datetime.now(pytz.utc))
@@ -340,593 +293,6 @@ class Functions():
         except:
             return None
     # end merge_date_time()
-
-    def link_functions(self, fid, data=[], source = None, default = None):
-        def split_kommastring(dstring):
-
-            return re.sub('\) ([A-Z])', '), \g<1>', \
-                re.sub(self.config.language_texts['and'], ', ', \
-                re.sub(self.config.language_texts['and others'], '', dstring))).split(',')
-
-        def add_person(prole, pname, palias = None):
-            if pname in ('', None):
-                return
-
-            if pname[-1] in '\.,:;-':
-                pname = pname[:-1].strip()
-
-            if not prole in credits:
-                credits[prole] = []
-
-            if prole in ('actor', 'guest'):
-                p = {'name': pname, 'role': palias}
-                credits[prole].append(p)
-
-            else:
-                credits[prole].append(pname)
-
-        try:
-            # strip data[1] from the end of data[0] if present and make sure it's unicode
-            if fid == 0:
-                if not is_data_value(0, data, str):
-                    if default != None:
-                        return default
-
-                    return u''
-
-                if is_data_value(1, data, str) and data[0].strip().lower()[-len(data[1]):] == data[1].lower():
-                    return unicode(data[0][:-len(data[1])]).strip()
-
-                else:
-                    return unicode(data[0]).strip()
-
-            # concatenate stringparts and make sure it's unicode
-            if fid == 2:
-                dd = u''
-                for d in data:
-                    if d != None:
-                        try:
-                            dd += unicode(d)
-
-                        except:
-                            continue
-
-                return dd
-
-            # Strip a channelid or prog_ID from a path
-            if fid == 3:
-                if is_data_value(0, data, str) and is_data_value(1, data, int):
-                    dd = data[0].split('/')
-                    if data[1] < len(dd):
-                        return dd[data[1]]
-
-                return default
-
-            # Combine a date and time value
-            if fid == 4:
-                if not is_data_value(0, data, datetime.date):
-                    data[0] = datetime.date.fromordinal(source.fetch_ordinal)
-
-                if not(is_data_value(0, data, datetime.date) \
-                    and is_data_value(1, data, datetime.time) \
-                    and is_data_value(2, data, int)):
-                    return default
-
-                dt = datetime.datetime.combine(data[0], data[1])
-                dt = self.config.in_utc(source.site_tz.localize(dt))
-                if is_data_value(3, data, datetime.time):
-                    # We check if this time is after the first and if so we assume a midnight passing
-                    dc = datetime.datetime.combine(data[0], data[3])
-                    dc = self.config.in_utc(source.site_tz.localize(dc))
-                    if dc > dt:
-                        data[0] += datetime.timedelta(days = 1)
-                        dt = datetime.datetime.combine(data[0], data[1])
-                        dt = self.config.in_utc(source.site_tz.localize(dt))
-
-                return dt.replace(second = 0, microsecond = 0)
-
-            # Return True (or data[2]) if data[1] is present in data[0], else False (or data[3])
-            if fid == 12:
-                if is_data_value(0, data, str) and is_data_value(1, data, str):
-                    if data[1].lower() in data[0].lower():
-                        if is_data_value(2, data):
-                            return data[2]
-
-                        else:
-                            return True
-
-                    elif is_data_value(3, data):
-                        return data[3]
-
-                return False
-
-            # Compare the values 1 and 2 returning 3 (or True) if equal, 4 (or False) if unequal and 5 (or None) if one of them is None
-            if fid == 15:
-                if not is_data_value(0, data) or data[0] in (None, '') \
-                  or not is_data_value(1, data) or data[1] in (None, ''):
-                    return data_value(4, data, default = None)
-
-                elif data[0] == data[1]:
-                    return data_value(2, data, default = True)
-
-                return data_value(3, data, default = False)
-
-            # Return a string on value True
-            if fid == 7:
-                if is_data_value(0, data, bool):
-                    if data[0] and is_data_value(1, data):
-                        return data[1]
-
-                    elif is_data_value(2, data):
-                        return data[2]
-
-                return default
-
-            # Return the longest not empty text value
-            if fid == 8:
-                text = default if isinstance(default, (str, unicode)) else u''
-                for item in range(len(data)):
-                    if is_data_value(item, data, str):
-                        if len(data[item]) > len(text):
-                            text = unicode(data[item].strip())
-
-                    #~ if isinstance(item, (list, tuple, dict)) and len(item) > 0:
-                        #~ if len(item) > len(text):
-                            #~ text = item
-
-                return text
-
-            # Return the first not empty value
-            if fid == 13:
-                if len(data) == 0:
-                    return default
-
-                for item in data:
-                    if (isinstance(item, (str, unicode, list, tuple, dict)) and len(item) > 0) or \
-                      (not isinstance(item, (str, unicode, list, tuple, dict)) and item != None):
-                        return item
-
-            # look for item 2 in list 0 and return the coresponding value in list1, If not found return item 3 (or None)
-            if fid == 10:
-                if len(data) < 3 :
-                    return default
-
-                if not isinstance(data[0], (list,tuple)):
-                    data[0] = [data[0]]
-
-                for index in range(len(data[0])):
-                    data[0][index] = data[0][index].lower().strip()
-
-                if not isinstance(data[1], (list,tuple)):
-                    data[1] = [data[1]]
-
-                if data[2].lower().strip() in data[0]:
-                    index = data[0].index(data[2].lower().strip())
-                    if index < len(data[1]):
-                        return data[1][index]
-
-                if len(data) > 3 :
-                    return data[3]
-
-                return default
-
-            # look for item 1 in the keys from dict 0 and return the coresponding value
-            if fid == 14:
-                if len(data) < 2:
-                    return default
-
-                if is_data_value(0, data, dict):
-                    data[0] =[data[0]]
-
-                if not is_data_value(1, data, list):
-                    data[1] = [data[1]]
-
-                if is_data_value(0, data, list):
-                    for item in data[1]:
-                        for sitem in data[0]:
-                            if isinstance(sitem, dict):
-                                if item.lower() in sitem.keys():
-                                    if isinstance(sitem[item.lower()], (list, tuple)) and len(sitem[item.lower()]) == 0:
-                                        continue
-
-                                    if isinstance(sitem[item.lower()], (list, tuple)) and len(sitem[item.lower()]) == 1:
-                                        return sitem[item.lower()][0]
-
-                                    return sitem[item.lower()]
-
-                return default
-
-            # #
-            # split logo name and logo provider
-            if fid == 1:
-                if is_data_value(0, data, str):
-                    d = data[0].split('?')[0]
-                    for k, v in self.config.xml_output.logo_provider.items():
-                        if d[0:len(v)] == v:
-                            return (d[len(v):], k)
-
-                return ('',-1)
-
-            # Extract roles from a set of lists or named dicts
-            if fid == 5:
-                credits = {}
-                if len(data) == 0:
-                    return default
-
-                if len(data) == 1 and isinstance(data[0], (list,tuple)):
-                    for item in data[0]:
-                        if not isinstance(item, dict):
-                            continue
-
-                        for k, v in item.items():
-                            if k.lower() in self.config.roletrans.keys():
-                                role = self.config.roletrans[k.lower()]
-                                for pp in v:
-                                    pp = pp.split(',')
-                                    for p in pp:
-                                        cn = p.split('(')
-                                        if len(cn) > 1:
-                                            add_person(role, cn[0].strip(), cn[1].split(')')[0].strip())
-
-                                        else:
-                                            add_person(role, cn[0].strip())
-
-                    return credits
-
-                if len(data) < 2:
-                    return default
-
-                if isinstance(data[1], (list,tuple)):
-                    for item in range(len(data[0])):
-                        if item >= len(data[1]):
-                            continue
-
-                        if data[1][item].lower() in self.config.roletrans.keys():
-                            role = self.config.roletrans[data[1][item].lower()]
-                            if isinstance(data[0][item], (str, unicode)):
-                                cast = split_kommastring(data[0][item])
-
-                            else:
-                                cast = data[0][item]
-
-                            if isinstance(cast, (list, tuple)):
-                                for person in cast:
-                                    if len(data) > 2 and isinstance(data[2],(list, tuple)) and len(data[2]) > item:
-                                        add_person(role, person.strip(), data[2][item])
-
-                                    else:
-                                        add_person(role, person.strip())
-
-                elif isinstance(data[1], (str,unicode)) and data[1].lower() in self.config.roletrans.keys():
-                    role = self.config.roletrans[data[1].lower()]
-
-                    if isinstance(data[0], (str, unicode)):
-                        cast = split_kommastring(data[0])
-
-                    else:
-                        cast = data[0]
-
-                    if isinstance(cast, (list, tuple)):
-                        for item in range(len(cast)):
-                            if len(data) > 2 and isinstance(data[2],(list, tuple)) and len(data[2]) > item:
-                                add_person(role, cast[item].strip(), data[2][item])
-
-                            else:
-                                add_person(role, cast[item].strip())
-
-                return credits
-
-            # Extract roles from a string
-            if fid == 6:
-                if len(data) == 0 or data[0] == None:
-                    return {}
-
-                if isinstance(data[0], (str, unicode)) and len(data[0]) > 0:
-                    tstr = unicode(data[0])
-                elif isinstance(data[0], list) and len(data[0]) > 0:
-                    tstr = unicode(data[0][0])
-                    for index in range(1, len(data[0])):
-                        tstr = u'%s %s' % (tstr, unicode(data[0][index]))
-                else:
-                    return {}
-
-                if len(data) == 1:
-                    cast_items = self.get_string_parts(tstr)
-
-                else:
-                    cast_items = self.get_string_parts(tstr, data[1])
-
-                credits = {}
-                for crole, cast in cast_items.items():
-                    if len(cast) == 0:
-                        continue
-
-                    elif crole.lower() in self.config.roletrans.keys():
-                        role = self.config.roletrans[crole.lower()]
-                        cast = split_kommastring(cast[0])
-
-                        for cn in cast:
-                            cn = cn.split('(')
-                            if len(cn) > 1:
-                                add_person(role, cn[0].strip(), cn[1].split(')')[0].strip())
-
-                            else:
-                                add_person(role, cn[0].strip())
-
-                return credits
-
-            # Process a rating item
-            if fid == 9:
-                rlist = []
-                if is_data_value(0, data, str):
-                    # We treat a string as a list of items with a maximaum length
-                    if data_value(1, data, str) == 'as_list':
-                        item_length = data_value(2, data, int, 1)
-                        unique_added = False
-                        for index in range(len(data[0])):
-                            code = None
-                            for cl in range(item_length):
-                                if index + cl >= len(data[0]):
-                                    continue
-
-                                tval = data[0][index: index + cl + 1]
-                                if tval in source.rating.keys():
-                                    code = source.rating[tval]
-                                    break
-
-                            if code != None:
-                                if code in self.config.rating["unique_codes"].keys():
-                                    if unique_added:
-                                        continue
-
-                                    rlist.append(code)
-                                    unique_added = True
-
-                                elif source.rating[code] in self.config.rating["addon_codes"].keys():
-                                    rlist.append(code)
-
-                            elif self.config.write_info_files:
-                                self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (source.source, code))
-
-                    else:
-                        if data[0].lower() in source.rating.keys():
-                            v = source.rating[data[0].lower()]
-                            if v in self.config.rating["unique_codes"].keys():
-                                rlist.append(v)
-
-                            elif v in self.config.rating["addon_codes"].keys():
-                                rlist.append(v)
-
-                        elif self.config.write_info_files:
-                            self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (source.source, data[0]))
-
-                elif is_data_value(0, data, list):
-                #~ elif isinstance(data[0], (list,tuple)):
-                    unique_added = False
-                    for item in data[0]:
-                        if item.lower() in source.rating.keys():
-                            v = source.rating[item.lower()]
-                            if v in self.config.rating["unique_codes"].keys():
-                                if unique_added:
-                                    continue
-
-                                rlist.append(v)
-                                unique_added = True
-
-                            elif v in self.config.rating["addon_codes"].keys():
-                                rlist.append(v)
-
-                        elif self.config.write_info_files:
-                            self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (source.source, data[0]))
-
-                return rlist
-
-            # Check the text in data[1] for the presence of keywords to determine genre
-            if fid == 17:
-                if len(data) < 2 or not isinstance(data[0], dict):
-                    return default
-
-                for k, v in data[0].items():
-                    for i in range(1, len(data)):
-                        if isinstance(data[i], (str, unicode)) and k in data[i]:
-                            return v
-
-            # split a genre code in a geniric part of known length and a specific part
-            if fid == 18:
-                if len(data) == 0 or not isinstance(data[0],(str, unicode, list)):
-                    return []
-
-                if len(data) == 1:
-                    if isinstance(data[0], list):
-                        return data[0]
-
-                    else:
-                        return [data[0]]
-
-
-                if isinstance(data[0], list):
-                    if len(data[0]) == 0:
-                        return []
-
-                    data[0] = data[0][0]
-
-                if not isinstance(data[1], int) or len(data[0]) <= data[1]:
-                    return [data[0]]
-
-                return [data[0][:data[1]], data[0][data[1]:]]
-
-            # Return unlisted values to infofiles in a fid 14 dict
-            if fid == 16:
-                if len(data) < 2 or not isinstance(data[0], (list, tuple)):
-                    return default
-
-                if not isinstance(data[1], (list,tuple)):
-                    data[1] = [data[1]]
-
-                for index in range(len(data[1])):
-                    data[1][index] = data[1][index].lower().strip()
-
-                for sitem in data[0]:
-                    for k, v in sitem.items():
-                        if k.lower().strip() in data[1]:
-                            continue
-
-                        if k.lower().strip() in self.config.roletrans.keys():
-                            continue
-
-                        if self.config.write_info_files:
-                            self.config.infofiles.addto_detail_list(u'new %s dataitem %s => %s' % (source.source, k, v))
-
-            # Return unlisted values to infofiles in a fid 10 list set
-            if fid == 11:
-                if not self.config.write_info_files:
-                    return
-
-                if len(data) < 3 or not isinstance(data[0], (list,tuple)) or not isinstance(data[1], (list,tuple)) or not isinstance(data[2], (list,tuple)):
-                    return
-
-                for index in range(len(data[2])):
-                    data[2][index] = data[2][index].lower().strip()
-
-                for index in range(len(data[0])):
-                    data[0][index] = data[0][index].lower().strip()
-
-                for index in range(len(data[0])):
-                    if data[0][index].lower() in data[2]:
-                        continue
-
-                    if data[0][index].lower() in self.config.roletrans.keys():
-                        continue
-
-                    if index >= len(data[1]):
-                        self.config.infofiles.addto_detail_list(u'new %s dataitem %s' % (source.source, data[0][index]))
-
-                    else:
-                        self.config.infofiles.addto_detail_list(u'new %s dataitem %s => %s' % (source.source, data[0][index], data[1][index]))
-
-        except:
-            self.config.log([self.config.text('fetch', 69, ('link', fid, source.source)), traceback.format_exc()], 1)
-            #~ self.config.log([self.config.text('fetch', 69, ('link', fid, source.source)), self.config.text('fetch', 70, (data,)), traceback.format_exc()], 1)
-            return default
-
-    # end link_functions()
-
-    def url_functions(self, source, ptype, urlid, data={}):
-        def get_dtstring(dtordinal):
-            return datetime.date.fromordinal(dtordinal).strftime(udf)
-
-        def get_timestamp(dtordinal):
-            return int(time.mktime(datetime.date.fromordinal(dtordinal).timetuple())) * udm
-
-        def get_weekday(dtordinal):
-            wd = datetime.date.fromordinal(dtordinal).weekday()
-            if len(wds) == 7:
-                return unicode(wds[wd])
-
-            return unicode(wd)
-
-        try:
-            udt = source.data_value([ptype, "url-date-type"], int, default=0)
-            udm = source.data_value([ptype, "url-date-multiplier"], int, default=1)
-            udf = source.data_value([ptype, "url-date-format"], str, default=None)
-            wds = source.data_value([ptype, "url-weekdays"], list)
-            offset = data_value('offset', data, int, default=0)
-            start = data_value('start', data, int, default=self.config.opt_dict['offset'])
-            days = data_value('days', data, int, default=self.config.opt_dict['days'])
-            if urlid == 0:
-                return data_value('detailid', data, unicode)
-
-            elif urlid == 1:
-                return data_value('channel', data, unicode)
-
-            elif urlid == 2:
-                cc = ''
-                for c in data_value('channels', data, dict).values():
-                    cc = '%s,%s'% (cc, c)
-
-                return cc[1:]
-
-            elif urlid == 3:
-                return data_value('channelgrp', data, unicode)
-
-            elif urlid == 4:
-                cnt = data_value('count', data, int, default=source.item_count)
-                cnt_offset = data_value('cnt-offset', data, int, default=0)
-                cstep = cnt_offset * source.item_count
-                splitter = source.data_value([ptype, "item-range-splitter"], str, default='-')
-                return u'%s%s%s' % (cstep + 1, splitter, cstep  + cnt)
-
-            elif urlid == 11:
-                if udt == 0:
-                    if udf not in (None, ''):
-                        return get_dtstring(source.current_ordinal + offset)
-
-                    else:
-                        return unicode(offset)
-
-                elif udt == 1:
-                    return get_timestamp(source.current_ordinal + offset)
-
-                elif udt == 2:
-                    return get_weekday(source.current_ordinal + offset)
-
-            elif urlid == 12:
-                if udt == 0:
-                    if udf not in (None, ''):
-                        return get_dtstring(source.current_ordinal + start + days)
-
-                    else:
-                        return unicode(start + days - 1)
-
-                elif udt == 1:
-                    return get_timestamp(source.current_ordinal + start + days)
-
-                elif udt == 2:
-                    return get_weekday(source.current_ordinal + start + days)
-
-            elif urlid == 13:
-                if udt == 0:
-                    if udf not in (None, ''):
-                        return get_dtstring(source.current_ordinal + start)
-
-                    else:
-                        return unicode(-start)
-
-                elif udt == 1:
-                    return get_timestamp(source.current_ordinal + start)
-
-                elif udt == 2:
-                    return get_weekday(source.current_ordinal + start)
-
-            elif urlid == 14:
-                if udt == 0:
-                    if udf not in (None, ''):
-                        st = get_dtstring(source.current_ordinal + start)
-                        end = get_dtstring(source.current_ordinal + start + days)
-
-                    else:
-                        st = unicode(start)
-                        end = unicode(start + days - 1)
-
-                elif udt == 1:
-                    st = get_timestamp(source.current_ordinal + start)
-                    end = get_timestamp(source.current_ordinal + start + days)
-
-                elif udt == 2:
-                    st = get_weekday(source.current_ordinal + start)
-                    end = get_weekday(source.current_ordinal + start + days)
-
-                splitter = source.data_value([ptype, "date-range-splitter"], str, default='~')
-                return '%s%s%s' % (st, splitter, end )
-
-            else:
-                return None
-
-        except:
-            self.config.log([self.config.text('fetch', 69, ('url', urlid, data['source'])), traceback.format_exc()], 1)
-            return ''
-
-    # end url_functions()
 # end Functions()
 
 class FetchURL(Thread):
@@ -1013,23 +379,408 @@ class FetchURL(Thread):
 
 # end FetchURL
 
-class theTVDB(Thread):
-    def __init__(self, config):
+class DataTree(DataTreeShell):
+    def __init__(self, source, data_def, warnaction = "default"):
+        self.source = source
+        self.config = self.source.config
+        self.fetch_string_parts = re.compile("(.*?[.?!:]+ |.*?\Z)")
+        DataTreeShell.__init__(self, data_def, warnaction = warnaction, warngoal = self.config.logging.log_queue)
+        self.print_tags = source.print_tags
+        self.print_searchtree = source.print_searchtree
+        self.show_result = source.show_parsing
+        self.fle = source.test_output
+
+    def get_string_parts(self, sstring, header_items = None):
+        if not isinstance(header_items, (list, tuple)):
+            header_items = []
+
+        test_items = []
+        for hi in header_items:
+            if isinstance(hi, (str, unicode)):
+                test_items.append((hi.lower(), hi))
+
+            elif isinstance(hi, (list, tuple)):
+                if len(hi) > 0 and isinstance(hi[0], (str, unicode)):
+                    hi0 = hi[0].lower()
+                    if len(hi) > 1 and isinstance(hi[1], (str, unicode)):
+                        hi1 = hi[1]
+
+                    else:
+                        hi1 = hi[0]
+
+                    test_items.append((hi0, hi1))
+
+        string_parts = self.fetch_string_parts.findall(sstring)
+        string_items = {}
+        act_item = 'start'
+        string_items[act_item] = []
+        for dp in string_parts:
+            if dp.strip() == '':
+                continue
+
+            if dp.strip()[-1] == ':':
+                act_item = dp.strip()[0:-1].lower()
+                string_items[act_item] = []
+
+            else:
+                for ti in test_items:
+                    if dp.strip().lower()[0:len(ti[0])] == ti[0]:
+                        act_item = ti[1]
+                        string_items[act_item] = []
+                        string_items[act_item].append(dp[len(ti[0]):].strip())
+                        break
+
+                else:
+                    string_items[act_item].append(dp.strip())
+
+        return string_items
+
+    def add_on_link_functions(self, fid, data = None, default = None):
+        def split_kommastring(dstring):
+
+            return re.sub('\) ([A-Z])', '), \g<1>', \
+                re.sub(self.config.language_texts['and'], ', ', \
+                re.sub(self.config.language_texts['and others'], '', dstring))).split(',')
+
+        def add_person(prole, pname, palias = None):
+            if pname in ('', None):
+                return
+
+            if pname[-1] in '\.,:;-':
+                pname = pname[:-1].strip()
+
+            if not prole in credits:
+                credits[prole] = []
+
+            if prole in ('actor', 'guest'):
+                p = {'name': pname, 'role': palias}
+                credits[prole].append(p)
+
+            else:
+                credits[prole].append(pname)
+
+        try:
+            # split logo name and logo provider
+            if fid == 101:
+                if is_data_value(0, data, str):
+                    d = data[0].split('?')[0]
+                    for k, v in self.config.xml_output.logo_provider.items():
+                        if d[0:len(v)] == v:
+                            return (d[len(v):], k)
+
+                return ('',-1)
+
+            # Extract roles from a set of lists or named dicts
+            if fid == 102:
+                credits = {}
+                if len(data) == 0:
+                    return default
+
+                if len(data) == 1 and isinstance(data[0], (list,tuple)):
+                    for item in data[0]:
+                        if not isinstance(item, dict):
+                            continue
+
+                        for k, v in item.items():
+                            if k.lower() in self.config.roletrans.keys():
+                                role = self.config.roletrans[k.lower()]
+                                for pp in v:
+                                    pp = pp.split(',')
+                                    for p in pp:
+                                        cn = p.split('(')
+                                        if len(cn) > 1:
+                                            add_person(role, cn[0].strip(), cn[1].split(')')[0].strip())
+
+                                        else:
+                                            add_person(role, cn[0].strip())
+
+                    return credits
+
+                if len(data) < 2:
+                    return default
+
+                if isinstance(data[1], (list,tuple)):
+                    for item in range(len(data[0])):
+                        if item >= len(data[1]):
+                            continue
+
+                        if data[1][item].lower() in self.config.roletrans.keys():
+                            role = self.config.roletrans[data[1][item].lower()]
+                            if isinstance(data[0][item], (str, unicode)):
+                                cast = split_kommastring(data[0][item])
+
+                            else:
+                                cast = data[0][item]
+
+                            if isinstance(cast, (list, tuple)):
+                                for person in cast:
+                                    if len(data) > 2 and isinstance(data[2],(list, tuple)) and len(data[2]) > item:
+                                        add_person(role, person.strip(), data[2][item])
+
+                                    else:
+                                        add_person(role, person.strip())
+
+                elif isinstance(data[1], (str,unicode)) and data[1].lower() in self.config.roletrans.keys():
+                    role = self.config.roletrans[data[1].lower()]
+
+                    if isinstance(data[0], (str, unicode)):
+                        cast = split_kommastring(data[0])
+
+                    else:
+                        cast = data[0]
+
+                    if isinstance(cast, (list, tuple)):
+                        for item in range(len(cast)):
+                            if len(data) > 2 and isinstance(data[2],(list, tuple)) and len(data[2]) > item:
+                                add_person(role, cast[item].strip(), data[2][item])
+
+                            else:
+                                add_person(role, cast[item].strip())
+
+                return credits
+
+            # Extract roles from a string
+            if fid == 103:
+                if len(data) == 0 or data[0] == None:
+                    return {}
+
+                if isinstance(data[0], (str, unicode)) and len(data[0]) > 0:
+                    tstr = unicode(data[0])
+                elif isinstance(data[0], list) and len(data[0]) > 0:
+                    tstr = unicode(data[0][0])
+                    for index in range(1, len(data[0])):
+                        tstr = u'%s %s' % (tstr, unicode(data[0][index]))
+                else:
+                    return {}
+
+                if len(data) == 1:
+                    cast_items = self.get_string_parts(tstr)
+
+                else:
+                    cast_items = self.get_string_parts(tstr, data[1])
+
+                credits = {}
+                for crole, cast in cast_items.items():
+                    if len(cast) == 0:
+                        continue
+
+                    elif crole.lower() in self.config.roletrans.keys():
+                        role = self.config.roletrans[crole.lower()]
+                        cast = split_kommastring(cast[0])
+
+                        for cn in cast:
+                            cn = cn.split('(')
+                            if len(cn) > 1:
+                                add_person(role, cn[0].strip(), cn[1].split(')')[0].strip())
+
+                            else:
+                                add_person(role, cn[0].strip())
+
+                return credits
+
+            # Process a rating item
+            if fid == 104:
+                rlist = []
+                if is_data_value(0, data, str):
+                    # We treat a string as a list of items with a maximaum length
+                    if data_value(1, data, str) == 'as_list':
+                        item_length = data_value(2, data, int, 1)
+                        unique_added = False
+                        for index in range(len(data[0])):
+                            code = None
+                            for cl in range(item_length):
+                                if index + cl >= len(data[0]):
+                                    continue
+
+                                tval = data[0][index: index + cl + 1]
+                                if tval in self.source.rating.keys():
+                                    code = self.source.rating[tval]
+                                    break
+
+                            if code != None:
+                                if code in self.config.rating["unique_codes"].keys():
+                                    if unique_added:
+                                        continue
+
+                                    rlist.append(code)
+                                    unique_added = True
+
+                                elif self.source.rating[code] in self.config.rating["addon_codes"].keys():
+                                    rlist.append(code)
+
+                            elif self.config.write_info_files:
+                                self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (self.source.source, code))
+
+                    else:
+                        if data[0].lower() in self.source.rating.keys():
+                            v = self.source.rating[data[0].lower()]
+                            if v in self.config.rating["unique_codes"].keys():
+                                rlist.append(v)
+
+                            elif v in self.config.rating["addon_codes"].keys():
+                                rlist.append(v)
+
+                        elif self.config.write_info_files:
+                            self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (self.source.source, data[0]))
+
+                elif is_data_value(0, data, list):
+                #~ elif isinstance(data[0], (list,tuple)):
+                    unique_added = False
+                    for item in data[0]:
+                        if item.lower() in self.source.rating.keys():
+                            v = self.source.rating[item.lower()]
+                            if v in self.config.rating["unique_codes"].keys():
+                                if unique_added:
+                                    continue
+
+                                rlist.append(v)
+                                unique_added = True
+
+                            elif v in self.config.rating["addon_codes"].keys():
+                                rlist.append(v)
+
+                        elif self.config.write_info_files:
+                            self.config.infofiles.addto_detail_list(u'new %s rating => %s' % (self.source.source, data[0]))
+
+                return rlist
+
+            # Check the text in data[1] for the presence of keywords to determine genre
+            if fid == 105:
+                if len(data) < 2 or not isinstance(data[0], dict):
+                    return default
+
+                for k, v in data[0].items():
+                    for i in range(1, len(data)):
+                        if isinstance(data[i], (str, unicode)) and k in data[i]:
+                            return v
+
+            # split a genre code in a generic part of known length and a specific part
+            if fid == 106:
+                if len(data) == 0 or not isinstance(data[0],(str, unicode, list)):
+                    return []
+
+                if len(data) == 1:
+                    if isinstance(data[0], list):
+                        return data[0]
+
+                    else:
+                        return [data[0]]
+
+
+                if isinstance(data[0], list):
+                    if len(data[0]) == 0:
+                        return []
+
+                    data[0] = data[0][0]
+
+                if not isinstance(data[1], int) or len(data[0]) <= data[1]:
+                    return [data[0]]
+
+                return [data[0][:data[1]], data[0][data[1]:]]
+
+            # Return unlisted values to infofiles in a fid 11 dict
+            if fid == 107:
+                if len(data) < 2 or not isinstance(data[0], (list, tuple)):
+                    return default
+
+                if not isinstance(data[1], (list,tuple)):
+                    data[1] = [data[1]]
+
+                for index in range(len(data[1])):
+                    data[1][index] = data[1][index].lower().strip()
+
+                for sitem in data[0]:
+                    for k, v in sitem.items():
+                        if k.lower().strip() in data[1]:
+                            continue
+
+                        if k.lower().strip() in self.config.roletrans.keys():
+                            continue
+
+                        if self.config.write_info_files:
+                            self.config.infofiles.addto_detail_list(u'new %s dataitem %s => %s' % (self.source.source, k, v))
+
+            # Return unlisted values to infofiles in a fid 10 list set
+            if fid == 108:
+                if not self.config.write_info_files:
+                    return
+
+                if len(data) < 3 or not isinstance(data[0], (list,tuple)) or not isinstance(data[1], (list,tuple)) or not isinstance(data[2], (list,tuple)):
+                    return
+
+                for index in range(len(data[2])):
+                    data[2][index] = data[2][index].lower().strip()
+
+                for index in range(len(data[0])):
+                    data[0][index] = data[0][index].lower().strip()
+
+                for index in range(len(data[0])):
+                    if data[0][index].lower() in data[2]:
+                        continue
+
+                    if data[0][index].lower() in self.config.roletrans.keys():
+                        continue
+
+                    if index >= len(data[1]):
+                        self.config.infofiles.addto_detail_list(u'new %s dataitem %s' % (self.source.source, data[0][index]))
+
+                    else:
+                        self.config.infofiles.addto_detail_list(u'new %s dataitem %s => %s' % (self.source.source, data[0][index], data[1][index]))
+
+        except:
+            self.config.log([self.config.text('fetch', 69, ('link', fid, self.source.source)), traceback.format_exc()], 1)
+            #~ self.config.log([self.config.text('fetch', 69, ('link', fid, source.source)), self.config.text('fetch', 70, (data,)), traceback.format_exc()], 1)
+            return default
+
+# end DataTree()
+
+class theTVDB_v1(Thread):
+    def __init__(self, config, source_data):
         Thread.__init__(self)
         self.config = config
         self.functions = self.config.fetch_func
         self.quit = False
         self.ready = False
         self.active = True
-        self.api_key = "0629B785CE550C8D"
-        self.source_lock = Lock()
+        self.api_key = "0BB856A59C51D607"
+        self.source_lock = RLock()
         # The queue to receive answers on database queries
         self.cache_return = Queue()
         # The queue to receive requests for detail fetches
         self.detail_request = Queue()
         self.config.queues['ttvdb'] = self.detail_request
         self.thread_type = 'ttvdb'
+        self.test_output = sys.stdout
+        self.print_tags = False
+        self.print_roottree = False
+        self.print_searchtree = False
+        self.show_parsing = False
+        self.show_result = False
         self.config.threads.append(self)
+        try:
+            self.source_data = source_data
+            self.source = self.data_value('name', str)
+            self.lang_list = self.data_value('lang-list', list)
+            self.detail_keys = {}
+            self.detail_keys['series'] = list(self.data_value(["seriesname", "values"], dict).keys())
+            self.detail_keys['episodes'] = list(self.data_value(["episodes", "values"], dict).keys())
+            self.config.detail_keys['ttvdb'] = self.detail_keys['series']
+            self.config.detail_keys['episodes'] = self.detail_keys['episodes']
+            self.site_tz = pytz.timezone(self.data_value('site-timezone', str, default = 'utc'))
+            self.datatrees = {}
+            for ptype in ("seriesid", "seriesname", "episodes"):
+                if not self.is_data_value([ptype, 'timezone'], str):
+                    self.source_data[ptype]['timezone'] = self.data_value('site-timezone', str, default = 'utc')
+
+                if self.config.opt_dict['log_level'] & 65536:
+                    self.datatrees[ptype] = DataTree(self, self.data_value(ptype, dict), 'always')
+
+                else:
+                    self.datatrees[ptype] = DataTree(self, self.data_value(ptype, dict), 'ignore')
+
+        except:
+            self.config.opt_dict['disable_ttvdb'] = True
+            traceback.print_exc()
 
     def run(self):
         if self.config.opt_dict['disable_ttvdb']:
@@ -1052,27 +803,20 @@ class theTVDB(Thread):
                     if not 'parent' in crequest:
                         continue
 
-                    if 'tdict' in crequest:
-                        qanswer = self.get_season_episode(crequest['parent'], crequest['tdict'])
+                    if 'pn' in crequest:
+                        qanswer = self.get_season_episode(crequest['parent'], crequest['pn'])
                         if qanswer == -1:
+                            crequest['parent'].detail_return.put('quit')
                             self.quit = True
                             continue
 
-                        if qanswer['ID'] != '':
-                            self.config.queues['cache'].put({'task':'add', 'program': qanswer})
+                        crequest['parent'].detail_return.put({'source': -1, 'data': qanswer, 'pn': crequest['pn']})
 
-                        with crequest['parent'].channel_lock:
-                            crequest['parent'].detailed_programs.append(qanswer)
-
-                    #~ crequest['parent'].update_counter('fetch', -99, False)
                     self.functions.update_counter('queue', -1,  crequest['parent'].chanid, False)
                     continue
 
                 if crequest['task'] == 'last_one':
-                    if not 'parent' in crequest:
-                        continue
-
-                    #~ crequest['parent'].detail_data.set()
+                    crequest['parent'].detail_data.set()
 
                 if crequest['task'] == 'quit':
                     self.quit = True
@@ -1083,321 +827,370 @@ class theTVDB(Thread):
             self.ready = True
             return(98)
 
-    def query_ttvdb(self, ftype='seriesid', title=None, lang='nl', chanid=None):
-        if title == None:
+    def query_ttvdb(self, ptype, pdata, chanid = None):
+        if not ptype in self.datatrees.keys() or not isinstance(pdata, dict):
             return
 
-        base_url = "http://www.thetvdb.com"
-        api_key = '0BB856A59C51D607'
-        if isinstance(title, (int, str)):
-            title = unicode(title)
+        if 'ttvdbid' in pdata:
+            if isinstance(pdata['ttvdbid'], (int, str)):
+                pdata['ttvdbid'] = unicode(pdata['ttvdbid'])
 
-        #~ title = urllib.quote(title.encode("utf-8"))
-        if ftype == 'seriesid':
-            if not lang in ('all', 'cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
-                                'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
-                lang = 'en'
-
-            #~ data = self.functions.get_page('%s/api/GetSeries.php?seriesname=%s&language=%s' % (base_url, title, lang), 'utf-8')
-            txtdata = {'seriesname': title, 'language': lang}
-            url = '%s/api/GetSeries.php' % base_url
-
-        elif ftype == 'episodes':
-            if not lang in ('cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
-                                'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
-                lang = 'en'
-
-            txtdata = None
-            url = "%s/api/%s/series/%s/all/%s.xml" % (base_url, api_key, title, lang)
-
-        elif ftype == 'seriesname':
-            txtdata = None
-            url = "%s/api/%s/series/%s/en.xml" % (base_url, api_key, title)
+        elif 'name' in pdata:
+            if isinstance(pdata['name'], (int, str)):
+                pdata['name'] = unicode(pdata['name'])
 
         else:
             return
 
-        counter = ['detail', -1, chanid]
-        data = self.functions.get_page(url, 'utf-8', None, txtdata, counter)
+        pdata['api-key'] = self.api_key
+        if (not pdata['lang'] in self.lang_list) and not (pdata['lang'] == 'all' and ptype == 'seriesid'):
+             pdata['lang']  = 'en'
+
+        url = self.datatrees[ptype].get_url(pdata)
+        if self.print_searchtree:
+            print '(url, encoding, accept_header, url_data, is_json)'
+            print url
+
+
+        page = self.functions.get_page(url, counter=['detail', -1, chanid])
+        if page == None:
+            return None
+
+        self.datatrees[ptype].init_data(page)
+        self.datatrees[ptype].extract_datalist()
+        data = self.datatrees[ptype].result
+        if len(data) == 0:
+            return None
+
+        if self.show_result:
+            for p in self.datatrees[ptype].searchtree.result:
+                if isinstance(p[0], (str, unicode)):
+                    print p[0].encode('utf-8', 'replace')
+                else:
+                    print p[0]
+                for v in range(1,len(p)):
+                    if isinstance(p[v], (str, unicode)):
+                        print '    ', p[v].encode('utf-8', 'replace')
+                    else:
+                        print '    ', p[v]
+
+            #~ for p in data:
+                #~ for k, v in p.item():
+                    #~ if isinstance(v, (str, unicode)):
+                        #~ print '    %s = %s'.encode('utf-8', 'replace') % (k, v)
+                    #~ else:
+                        #~ print '    %s = %s' % (k, v))
+
         # be nice to the source site
         time.sleep(random.randint(self.config.opt_dict['nice_time'][0], self.config.opt_dict['nice_time'][1]))
-        if data != None:
-            return ET.fromstring(data.encode('utf-8'))
+        return data
 
-    def get_all_episodes(self, tid, lang='nl', chanid=None):
-        self.config.queues['cache'].put({'task':'query', 'parent': self, \
-                'ep_by_id': {'tid': int(tid), 'sid': 0, 'eid': 0}})
-        eps = self.cache_return.get(True)
-        if eps == 'quit':
+    def get_cache_return(self):
+        value = self.cache_return.get(True)
+        if value == 'quit':
             self.ready = True
             return -1
 
-        known_eps = {}
-        for e in eps:
-            if not (e['sid'],e['eid'],e['lang']) in known_eps.keys():
-                known_eps[(e['sid'],e['eid'],e['lang'])] = []
+        return value
 
-            known_eps[(e['sid'],e['eid'],e['lang'])].append((e['title'],e['description']))
-
-        try:
-            eps = []
-            langs = ('nl', 'en') if lang in ('nl', 'en') else (lang, 'nl', 'en')
-            for l in langs:
-                xmldata = self.query_ttvdb('episodes', tid, l, chanid)
-                if xmldata == None:
-                    # No data
-                    continue
-
-                for e in xmldata.findall('Episode'):
-                    sid = e.findtext('SeasonNumber')
-                    if sid == None or sid == '':
-                        continue
-
-                    eid = e.findtext('EpisodeNumber')
-                    if eid == None or eid == '':
-                        continue
-
-                    title = e.findtext('EpisodeName')
-                    if title == None or title == '':
-                        title = 'Episode %s' % eid
-
-                    airdate = e.findtext('FirstAired')
-
-                    desc = e.findtext('Overview')
-                    if desc == None:
-                        desc == ''
-
-                    if not (int(sid), int(eid), l) in known_eps.keys() or (title, desc) not in known_eps[(int(sid), int(eid), l)]:
-                        eps.append({'tid': int(tid), 'sid': int(sid), 'eid': int(eid), 'title': title, 'airdate': airdate, 'lang': l, 'description': desc})
-
-        except:
-            self.config.log([self.config.text('fetch', 6), traceback.format_exc()])
-            return
-
-        self.config.queues['cache'].put({'task':'add', 'episode': eps})
-
-    def get_ttvdb_id(self, title, lang='nl', search_db=True, chanid=None):
-        get_id = False
-        if search_db:
-            self.config.queues['cache'].put({'task':'query_id', 'parent': self, 'ttvdb': {'title': title}})
-            tid = self.cache_return.get(True)
-            if tid == 'quit':
-                self.ready = True
+    def get_ttvdb_id(self, name, lang='en', search_db=True, chanid=None):
+        def get_id_from_db():
+            self.config.queues['cache'].put({'task':'query_id', 'parent': self, 'ttvdb': {'name': name}})
+            data = self.get_cache_return()
+            if data == -1:
                 return -1
 
-            if tid != None:
-                if ((datetime.date.today() - tid['tdate']).days > 30):
-                    if (tid['tid'] == '' or int(tid['tid']) == 0):
-                        # we try again to get an ID
-                        get_id = True
+            tids = {}
+            tidcnt = 0
+            tid = 0
+            for index in range(len(data)):
+                rtdate = data_value([index, 'tdate'], data, datetime.date)
+                if self.last_updated == None or (rtdate != None and rtdate < self.last_updated):
+                    self.last_updated = rtdate
 
-                elif (tid['tid'] == '' or int(tid['tid']) == 0):
-                    # Return failure
-                    return 0
+                rtid = data_value([index, 'tid'], data, int, 0)
+                if not rtid in tids.keys() and rtid != 0:
+                    tids[rtid] = 1
 
                 else:
-                    # We'll  use the episode info in the database
-                    return tid
+                    tids[rtid] += 1
 
-            else:
-                # It's  not jet known
-                get_id = True
+                if tids[rtid] > tidcnt:
+                    tidcnt =  tids[rtid]
+                    tid = rtid
 
-        langs = ('nl', 'en') if lang in ('nl', 'en') else (lang, 'nl', 'en')
-        if get_id or not search_db:
-            # First we look for a known alias
-            self.config.queues['cache'].put({'task':'query_id', 'parent': self, 'ttvdb_alias': {'alias': title}})
-            alias = self.cache_return.get(True)
-            if alias == 'quit':
+            return tid
+
+        def check_alias():
+            self.config.queues['cache'].put({'task':'query_id', 'parent': self, 'ttvdb_alias': {'alias': name}})
+            alias = self.get_cache_return()
+            if alias == -1:
+                return -1
+
+            if alias == None:
+                return name
+
+            return alias
+
+        def get_id_from_ttvdb():
+            data = self.query_ttvdb('seriesid', {'name': series_name, 'lang': lang}, chanid)
+
+            tids = {}
+            tidcnt = 0
+            tid = 0
+            for index in range(len(data)):
+                rtdate = data_value([index, 'tdate'], data, datetime.date)
+                if self.last_updated == None or (rtdate != None and rtdate < self.last_updated):
+                    self.last_updated = rtdate
+
+                rtid = data_value([index, 'tid'], data, int, 0)
+                if not rtid in tids.keys() and rtid != 0:
+                    tids[rtid] = 1
+
+                else:
+                    tids[rtid] += 1
+
+                if tids[rtid] > tidcnt:
+                    tidcnt =  tids[rtid]
+                    tid = rtid
+
+            return tid
+
+        self.last_updated = None
+        if search_db:
+            tid = get_id_from_db()
+            if tid == -1:
                 self.ready = True
                 return -1
 
-            series_name = title if alias == None else alias['title']
-            try:
-                xmldata = self.query_ttvdb('seriesid', series_name, lang, chanid)
-                if xmldata == None:
-                    # No data
-                    self.config.queues['cache'].put({'task':'add', 'ttvdb': {'tid': 0, 'title': series_name, 'langs': langs}})
+            if isinstance(self.last_updated, datetime.date) and (datetime.date.today() - self.last_updated).days <= 30:
+                # The last check is less then 30 days old
+                # We'll  use the episode info in the database (or signal not found if tid == 0)
+                if tid == 0:
                     return 0
 
-                tid = xmldata.findtext('Series/seriesid')
-                if tid == None:
-                    # No data
-                    self.config.queues['cache'].put({'task':'add', 'ttvdb': {'tid': 0, 'title': series_name, 'langs': langs}})
-                    return 0
+                return {'tid': tid, 'tdate': self.last_updated, 'name': name}
 
-                self.config.queues['cache'].put({'task':'add', 'ttvdb': {'tid': int(tid), 'title': series_name, 'langs': langs}})
-                #We look for aliasses
-                xmldata = self.query_ttvdb('seriesid', series_name, 'all', chanid)
-                if xmldata!= None:
-                    alias_list = []
-                    for s in xmldata.findall('Series'):
-                        t = s.findtext('SeriesName')
-                        if s.findtext('seriesid') == tid and t.strip().lower()  != series_name.strip().lower() and t not in alias_list:
-                            alias_list.append(s.findtext('SeriesName'))
+            elif tid > 0 and isinstance(self.last_updated, datetime.date) and (datetime.date.today() - self.last_updated).days > 30:
+                data = self.query_ttvdb('seriesname', { 'ttvdbid': tid, 'lang': lang})
+                if is_data_value([0, 'last updated'], data, datetime.date) and \
+                    data_value([0, 'last updated'], data, datetime.date) < self.last_updated:
+                        # No updates on theTVDB
+                        return {'tid': tid, 'tdate': self.last_updated, 'name': name}
 
-                    if len(alias_list) > 1:
-                        self.config.queues['cache'].put({'task':'add', 'ttvdb_alias': {'title':series_name, 'alias': alias_list}})
+        # First we look for a known alias
+        series_name = check_alias()
+        langs = self.config.ttvdb_langs
+        if lang not in self.config.ttvdb_langs and lang in self.lang_list:
+            langs.append(lang)
 
-                    elif len(alias_list) == 1:
-                        self.config.queues['cache'].put({'task':'add', 'ttvdb_alias': {'title':series_name, 'alias': alias_list[0]}})
+        try:
+            if tid == 0:
+                tid = get_id_from_ttvdb()
 
-            except:
-                self.config.log([self.config.text('fetch', 7), traceback.format_exc()])
+            if tid == 0:
+                # No data
                 return 0
+
+            #We look for other languages
+            data = self.query_ttvdb('seriesid', {'name': series_name, 'lang': 'all'}, chanid)
+            db_update = []
+            if isinstance(data, list):
+                for index in range(len(data)):
+                    if data_value([index, 'tid'], data, int) == tid and data_value([index, 'lang'], data, str) in langs:
+                        db_update.append(data[index])
+
+                if len(db_update) > 0:
+                    self.config.queues['cache'].put({'task':'add', 'ttvdb': db_update})
+
+        except:
+            self.config.log([self.config.text('fetch', 7), traceback.format_exc()])
+            return 0
 
         # And we retreive the episodes
         if self.get_all_episodes(tid, lang, chanid) == -1:
             return -1
 
-        return {'tid': int(tid), 'tdate': datetime.date.today(), 'title': series_name}
+        return {'tid': int(tid), 'tdate': datetime.date.today(), 'name': series_name}
 
-    def get_season_episode(self, parent = None, data = None):
-        if self.config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']:
-            return data
+    def get_all_episodes(self, tid, lang='en', chanid=None):
+        try:
+            eps = []
+            langs = self.config.ttvdb_langs
+            if lang not in self.config.ttvdb_langs and lang in self.lang_list:
+                langs.append(lang)
 
-        if data == None:
+            for l in langs:
+                data = self.query_ttvdb('episodes', {'ttvdbid': tid, 'lang': l}, chanid)
+                if not isinstance(data, list):
+                    # No data
+                    continue
+
+                for ep in data:
+                    if not isinstance(ep, dict):
+                        continue
+
+                    sid = data_value('sid', ep, int, -1)
+                    eid = data_value('eid', ep, int, -1)
+                    if sid == -1 or eid == -1:
+                        continue
+
+                    title = data_value('episode title', ep, str, 'Episode %s' % eid)
+                    desc = data_value('description', ep, str, None)
+                    airdate = data_value('airdate', ep, datetime.date, None)
+                    rating = data_value('star-rating', ep, float, None)
+                    eps.append({'tid': int(tid),
+                                        'sid': int(sid),
+                                        'eid': int(eid),
+                                        'episode title': title,
+                                        'airdate': airdate,
+                                        'lang': l,
+                                        'star-rating': rating,
+                                        'description': desc})
+
+        except:
+            self.config.log([self.config.text('fetch', 6), traceback.format_exc()])
             return
 
-        if data['episode title'][0:27].lower() == 'geen informatie beschikbaar':
-            return data
+        self.config.queues['cache'].put({'task':'add', 'episodes': eps})
 
-        if parent != None and parent.group == 6:
-            # We do not lookup for regional channels
-            return data
+    def get_season_episode(self, parent = None, data = None):
+        def prepare_return(rdata, tid, lang):
+            if data_value('lang', rdata, str) != lang:
+                self.config.queues['cache'].put({'task':'query', 'parent': self, \
+                        'ep_by_id': {'tid': tid, 'sid': data_value('sid', rdata, int, 0), 'eid':data_value('eid', rdata, int, 0) , 'lang': lang}})
+                r = self.get_cache_return()
+                if r == -1:
+                    return -1
 
-        elif parent != None and parent.group == 4:
-            tid = self.get_ttvdb_id(data['name'], 'de', chanid = parent.chanid)
+                if is_data_value(0, r, dict):
+                    rdata = r[0]
 
-        elif parent != None and parent.group == 5:
-            tid = self.get_ttvdb_id(data['name'], 'fr', chanid = parent.chanid)
+            return {'season': data_value('sid', rdata, int, 0),
+                    'episode': data_value('eid', rdata, int, 0),
+                    'airdate': data_value('airdate', rdata, datetime.date, None),
+                    'episode title': data_value('episode title', rdata, str),
+                    'description': data_value('description', rdata, str),
+                    'star-rating': data_value('star-rating', rdata, float, None)}
 
-        else:
-            tid = self.get_ttvdb_id(data['name'], chanid = parent.chanid)
+        if self.config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb'] or not isinstance(data, ProgramNode):
+            return 0
 
+        if parent == None:
+            parent = data.channel_config
+
+        if parent.group in self.config.ttvdb_disabled_groups:
+            # We do not lookup for regional channels and radio
+            return 0
+
+        lang = self.config.group_language[parent.group]
+        tid = self.get_ttvdb_id(data.get_value('name'), lang, chanid = parent.chanid)
         if tid == -1:
             return -1
 
-        if tid == None or tid == 0:
-            if parent != None:
-                self.functions.update_counter('lookup_fail', -1, parent.chanid)
-
-            self.config.log(self.config.text('fetch', 8, (data['name'], data['channel'])), 128)
-            return data
+        if tid in (None, 0) or not isinstance(tid, dict):
+            self.functions.update_counter('lookup_fail', -1, parent.chanid)
+            self.config.log(self.config.text('fetch', 8, (data.get_value('name'), parent.chan_name)), 128)
+            return 0
 
         # First we just look for a matching subtitle
         tid = tid['tid']
         self.config.queues['cache'].put({'task':'query', 'parent': self, \
-                'ep_by_title': {'tid': tid, 'title': data['episode title']}})
-        eid = self.cache_return.get(True)
-        if eid == 'quit':
-            self.ready = True
+                'ep_by_title': {'tid': tid, 'episode title': data.get_value('episode title')}})
+        eid = self.get_cache_return()
+        if eid == -1:
             return -1
 
         if eid != None:
-            if parent != None:
-                self.functions.update_counter('lookup', -1, parent.chanid)
-
-            data['season'] = eid['sid']
-            data['episode'] = eid['eid']
-            if isinstance(eid['airdate'], (datetime.date)):
-                data['airdate'] = eid['airdate']
-
-            self.config.log(self.config.text('fetch', 9, (data['name'], data['episode title'])), 24)
-            return data
+            self.functions.update_counter('lookup', -1, parent.chanid)
+            self.config.log(self.config.text('fetch', 9, (data.get_value('name'), data.get_value('episode title'))), 24)
+            return prepare_return(eid, tid, lang)
 
         # Now we get a list of episodes matching what we already know and compare with confusing characters removed
         self.config.queues['cache'].put({'task':'query', 'parent': self, \
-                'ep_by_id': {'tid': tid, 'sid': data['season'], 'eid': data['episode']}})
-        eps = self.cache_return.get(True)
-        if eps == 'quit':
-            self.ready = True
+                'ep_by_id': {'tid': tid, 'sid': data.get_value('season'), 'eid': data.get_value('episode')}})
+        eps = self.get_cache_return()
+        if eps == -1:
             return -1
 
-        subt = re.sub('[-,. ]', '', self.functions.remove_accents(data['episode title']).lower())
+        subt = re.sub('[-,. ]', '', self.functions.remove_accents(data.get_value('episode title')).lower())
         ep_dict = {}
         ep_list = []
         for ep in eps:
-            s = re.sub('[-,. ]', '', self.functions.remove_accents(ep['title']).lower())
+            s = re.sub('[-,. ]', '', self.functions.remove_accents(ep['episode title']).lower())
             ep_list.append(s)
-            ep_dict[s] = {'sid': ep['sid'], 'eid': ep['eid'], 'airdate': ep['airdate'], 'title': ep['title']}
+            ep_dict[s] = ep
             if s == subt:
-                if parent != None:
-                    self.functions.update_counter('lookup', -1, parent.chanid)
-
-                data['episode title'] = ep['title']
-                data['season'] = ep['sid']
-                data['episode'] = ep['eid']
-                if isinstance(ep['airdate'], (datetime.date)):
-                    data['airdate'] = ep['airdate']
-
-                self.config.log(self.config.text('fetch', 9, (data['name'], data['episode title'])), 24)
-                return data
+                self.functions.update_counter('lookup', -1, parent.chanid)
+                self.config.log(self.config.text('fetch', 9, (data.get_value('name'), data.get_value('episode title'))), 24)
+                return prepare_return(ep, tid, lang)
 
         # And finally we try a difflib match
         match_list = difflib.get_close_matches(subt, ep_list, 1, 0.7)
         if len(match_list) > 0:
-            if parent != None:
-                self.functions.update_counter('lookup', -1, parent.chanid)
-
+            self.functions.update_counter('lookup', -1, parent.chanid)
             ep = ep_dict[match_list[0]]
-            data['episode title'] = ep['title']
-            data['season'] = ep['sid']
-            data['episode'] = ep['eid']
-            if isinstance(ep['airdate'], (datetime.date)):
-                data['airdate'] = ep['airdate']
+            self.config.log(self.config.text('fetch', 9, (data.get_value('name'), data.get_value('episode title'))), 24)
+            return prepare_return(ep, tid, lang)
 
-            self.config.log(self.config.text('fetch', 9, (data['name'], data['episode title'])), 24)
-            return data
+        self.functions.update_counter('lookup_fail', -1, parent.chanid)
+        self.config.log(self.config.text('fetch', 10, (data.get_value('name'), data.get_value('episode title'), parent.chan_name)), 128)
+        return 0
 
-        if parent != None:
-            self.functions.update_counter('lookup_fail', -1, parent.chanid)
-
-        self.config.log(self.config.text('fetch', 10, (data['name'], data['episode title'], data['channel'])), 128)
-        return data
-
-    def check_ttvdb_title(self, series_name, lang='nl'):
+    def check_ttvdb_title(self, series_name, lang=None):
         if self.config.opt_dict['disable_ttvdb']:
             return(-1)
 
-        langs = ['nl', 'en', 'de', 'fr']
-        if lang in ('cs', 'da', 'el', 'es', 'fi', 'he', 'hr', 'hu', 'it',
-                                'ja', 'ko', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
+        if lang == None:
+            lang = self.config.xml_language
+
+        langs = list(set(self.config.group_language.values()))
+        langs.extend(self.config.ttvdb_langs)
+        if not 'en' in langs:
+            langs.append('en')
+
+        if lang in self.lang_list and not lang in langs:
             langs.append(lang)
 
         # Check if a record exists
-        self.config.queues['cache'].put({'task':'query_id', 'parent': self, 'ttvdb': {'title': series_name}})
-        tid = self.cache_return.get(True)
-        if tid == 'quit':
-            self.ready = True
+        self.config.queues['cache'].put({'task':'query_id', 'parent': self, 'ttvdb': {'name': series_name}})
+        tid = self.get_cache_return()
+        if tid == -1:
             return(-1)
 
-        if tid != None:
-            print('The series "%s" is already saved under ttvdbID: %s -> %s' % (series_name,  tid['tid'], tid['title']))
-            print('    for the languages: %s\n' % tid['langs'])
-            old_tid = int(tid['tid'])
-            for l in tid['langs']:
-                if l not in langs:
-                    langs.append(lang)
+        if len(tid) > 0:
+            elangs = []
+            for ep in tid:
+                elangs.append(data_value('lang', ep, str))
+
+            elangs = list(set(elangs))
+            langlist = u''
+            for l in elangs:
+                langlist = u'%s, %s' % (langlist, l)
+            print('The series "%s" is already saved under ttvdbID: %s -> %s' % (series_name,  tid[0]['tid'], tid[0]['name']))
+            print('    for the languages: (%s)\n' % langlist[2:])
+            old_tid = int(tid[0]['tid'])
+            for l in elangs:
+                langs.append(l)
 
         else:
             print('The series "%s" is not jet known!\n' % (series_name))
             old_tid = -1
 
         try:
-            xmldata = self.query_ttvdb('seriesid', series_name, lang)
-            if xmldata == None or xmldata.find('Series') == None:
+            series_list = self.query_ttvdb('seriesid', {'name': series_name, 'lang': lang})
+            if not isinstance(series_list, list):
+                series_list = [series_list]
+
+            if not is_data_value([0, 'tid'], series_list, int):
                 print('No match for %s is found on theTVDB.com' % series_name)
                 return(0)
 
-            series_list = []
-            for s in xmldata.findall('Series'):
-                if not {'sid': s.findtext('seriesid'), 'name': s.findtext('SeriesName')} in series_list:
-                    series_list.append({'sid': s.findtext('seriesid'), 'name': s.findtext('SeriesName')})
-
             print("theTVDB Search Results:")
-            for index in range(len(series_list)):
-                print("%3.0f -> %9.0f: %s" % (index+1, int(series_list[index]['sid']), series_list[index]['name']))
+            for s in range(len(series_list)):
+                print("%3.0f -> %9.0f: (%s) %s" % (s+1, data_value([s, 'tid'], series_list, int), \
+                                                                        data_value([s, 'lang'], series_list, str), \
+                                                                        data_value([s, 'name'], series_list, str)))
 
             # Ask to select the right one
             while True:
@@ -1413,17 +1206,23 @@ class theTVDB(Thread):
                         return(0)
 
             tid = series_list[selected_id]
-            # Get the English name
-            xmldata = self.query_ttvdb('seriesname', tid['sid'])
-            ename = xmldata.findtext('Series/SeriesName')
-            if ename == None:
-                ename = tid['name']
+            clist = []
+            # Get the English name and those for other languages
+            langs = list(set(langs))
+            for l in langs:
+                #~ print {'ttvdbid': tid['tid'], 'lang': l}
+                data = self.query_ttvdb('seriesname', {'ttvdbid': tid['tid'], 'lang': l})
+                clist.extend(data)
+                if l == 'en':
+                    ename = data_value([0, 'name'], data, str)
+                    if ename in (None, ''):
+                        ename = tid['name']
 
-            if old_tid != int(tid['sid']):
+            if old_tid != int(tid['tid']):
                 print('Removing old instance')
                 self.config.queues['cache'].put({'task':'delete', 'ttvdb': {'tid': old_tid}})
 
-            self.config.queues['cache'].put({'task':'add', 'ttvdb': {'tid': int(tid['sid']), 'title': ename, 'langs': langs}})
+            self.config.queues['cache'].put({'task':'add', 'ttvdb': clist})
             aliasses = []
             if ename.lower() != tid['name'].lower():
                 aliasses.append(tid['name'])
@@ -1433,26 +1232,31 @@ class theTVDB(Thread):
 
             if len(aliasses) > 0:
                 # Add an alias record
-                self.config.queues['cache'].put({'task':'add', 'ttvdb_alias': {'tid': int(tid['sid']), 'title': ename, 'alias': aliasses}})
+                self.config.queues['cache'].put({'task':'add', 'ttvdb_alias': {'tid': int(tid['tid']), 'name': ename, 'alias': aliasses}})
                 if len(aliasses) == 2:
                     print('Adding "%s" under aliasses "%s" and "%s" as ttvdbID: %s to the database for lookups!' \
-                                % (ename, aliasses[0], aliasses[1],  tid['sid']))
+                                % (ename, aliasses[0], aliasses[1],  tid['tid']))
 
                 else:
                     print('Adding "%s" under alias "%s" as ttvdbID: %s to the database for lookups!' \
-                                % (ename, aliasses[0],  tid['sid']))
+                                % (ename, aliasses[0],  tid['tid']))
 
             else:
-                print('Adding "%s" ttvdbID: %s to the database for lookups!' % (ename,  tid['sid']))
+                print('Adding "%s" ttvdbID: %s to the database for lookups!' % (ename,  tid['tid']))
 
         except:
             traceback.print_exc()
             return(-1)
 
-        if self.get_all_episodes(int(tid['sid']), langs) == -1:
+        if self.get_all_episodes(int(tid['tid']), langs) == -1:
             return(-1)
 
         return(0)
+    def is_data_value(self, searchpath, dtype = None, empty_is_false = True):
+        return is_data_value(searchpath, self.source_data, dtype, empty_is_false)
+
+    def data_value(self, searchpath, dtype = None, default = None):
+        return data_value(searchpath, self.source_data, dtype, default)
 
 # end theTVDB
 
@@ -1474,7 +1278,7 @@ class FetchData(Thread):
         self.active = True
         # The ID of the source
         self.proc_id = proc_id
-        self.source_lock = Lock()
+        self.source_lock = RLock()
         # The queue to receive answers on database queries
         self.cache_return = Queue()
         # The queue to receive requests for detail fetches
@@ -1508,9 +1312,12 @@ class FetchData(Thread):
         self.new_cattrans = None
         self.cattrans_type = cattrans_type
 
+        self.datatrees = {}
+
         try:
             self.source_data = source_data
             self.source = self.data_value('name', str)
+            self.name = self.source
             self.is_virtual = self.data_value('is_virtual', bool, default = False)
             self.config.sourceid_by_name[self.source] = self.proc_id
             self.detail_processor = self.data_value('detail_processor', bool, default = False)
@@ -1560,7 +1367,7 @@ class FetchData(Thread):
 
         except:
             self.config.validate_option('disable_source', value = self.proc_id)
-            traceback.print_exc()
+            #~ traceback.print_exc()
 
     def run(self):
         """The grabing thread"""
@@ -1607,19 +1414,6 @@ class FetchData(Thread):
 
             except Empty:
                 return 0
-
-        def check_ttvdb(tdict, parent):
-            return
-            if not (self.config.opt_dict['disable_ttvdb'] or parent.opt_dict['disable_ttvdb']) and \
-              tdict['genre'].lower() == u'serie/soap' and tdict['episode title'] != '' and tdict['season'] == 0:
-                # We do a ttvdb lookup
-                #~ parent.update_counter('fetch', -99)
-                self.functions.update_counter('queue', -1,  parent.chanid, False)
-                self.config.queues['ttvdb'].put({'tdict':tdict, 'parent': parent, 'task': 'update_ep_info'})
-
-            else:
-                with parent.channel_lock:
-                    parent.detailed_programs.append(tdict)
 
         # First some generic initiation that couldn't be done earlier in __init__
         detail_ids = {}
@@ -1785,6 +1579,131 @@ class FetchData(Thread):
         for chanid, channelid in self.channels.items():
             self.chanids[channelid] = chanid
 
+        # To limit the output to the requested channels
+        if self.is_data_value(["base", "value-filters", "channelid"], list, False):
+            self.source_data["base"]["value-filters"]["channelid"].extend(list(self.chanids.keys()))
+            self.source_data["base"]["value-filters"]["channelid"].extend(list(self.alt_channels.keys()))
+
+    def get_page_data(self, ptype, pdata = None):
+        """
+        Here for every fetch, the url is gathered, the page retreived and
+        together with the data definition inserted in the DataTree module
+        The then by the DataTree extracted data is return
+        """
+        try:
+            if pdata == None:
+                pdata = {}
+
+            if not ptype in self.datatrees.keys() or not isinstance(self.datatrees[ptype], DataTreeShell):
+                if not self.is_data_value([ptype, 'timezone'], str):
+                    self.source_data[ptype]['timezone'] = self.data_value('site-timezone', str, default = 'utc')
+                    self.source_data[ptype]['empty-values'] = self.data_value('empty-values', list, default = [None, "", "-"])
+
+                if self.config.opt_dict['log_level'] & 256:
+                    self.datatrees[ptype] = DataTree(self, self.data_value(ptype, dict), 'always')
+
+                else:
+                    self.datatrees[ptype] = DataTree(self, self.data_value(ptype, dict), 'ignore')
+
+            # For the url we use the fetch timezone and not the site timezone
+            self.datatrees[ptype].set_timezone(self.config.fetch_tz)
+            self.datatrees[ptype].set_current_date(self.current_ordinal + data_value('offset', pdata, int, default=0))
+            # Set the counter for the statistics
+            if ptype in ('channels', 'base-channels'):
+                pdata['start'] = 0
+                pdata['end'] = 0
+                pdata[ 'offset'] = 0
+                counter = ['base', self.proc_id]
+
+            elif ptype in ('detail', 'detail2'):
+                counter = ['detail', self.proc_id, pdata['channel']]
+
+            else:
+                counter = ['base', self.proc_id]
+
+            url_type = self.datatrees[ptype].data_value(["url-type"], int, default = 2)
+            url = self.datatrees[ptype].get_url(pdata)
+            if url == None:
+                self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
+                return
+
+            if self.print_searchtree:
+                print '(url, encoding, accept_header, url_data, is_json)'
+                print url
+
+            page = self.functions.get_page(url, counter=counter)
+            if page == None:
+                self.config.log([self.config.text('fetch', 71, (ptype, self.source))], 1)
+                if self.print_searchtree:
+                    print 'No Data'
+                return None
+
+            self.datatrees[ptype].init_data(page)
+            if self.datatrees[ptype].searchtree == None:
+                self.config.log([self.config.text('fetch', 71, (ptype, self.source))], 1)
+                if self.print_searchtree:
+                    print 'No Data'
+                return None
+
+            # We reset the timezone
+            self.datatrees[ptype].set_timezone()
+            # We extract the current _item_count and the total_item_count
+            if (url_type & 12) == 12:
+                self.total_item_count = self.datatrees[ptype].searchtree.find_data_value(self.datatrees[ptype].data_value(['data',"total-item-count"],list))
+                self.current_item_count = self.datatrees[ptype].searchtree.find_data_value(self.datatrees[ptype].data_value(['data',"page-item-count"],list))
+
+            # We check on the right offset
+            if ptype == 'base' and self.datatrees[ptype].is_data_value(['data',"today"],list):
+                cd = self.datatrees[ptype].searchtree.find_data_value(self.datatrees[ptype].data_value(['data',"today"],list))
+                if not isinstance(cd, datetime.date):
+                    self.config.log([ 'on %s' % self.proc_id, cd, self.config.text('sources', 22),])
+                    #~ return None
+
+                elif self.night_date_switch > 0 and self.current_fetchdate.hour < self.night_date_switch and (self.current_ordinal - cd.toordinal()) == 1:
+                    # This page switches date at a later time so we allow
+                    pass
+
+                elif cd.toordinal() != self.current_ordinal:
+                    if url_type == 1:
+                        self.config.log(self.config.text('sources', 21, (pdata['channel'], self.source, pdata['offset'])))
+                    elif (url_type & 3) == 1:
+                        # chanid
+                        pass
+                    elif (url_type & 12) in (0, 8):
+                        # offset
+                        pass
+                    return None
+
+            self.datatrees[ptype].extract_datalist()
+            data = self.datatrees[ptype].result
+            if self.show_result:
+                for p in self.datatrees[ptype].searchtree.result:
+                    if isinstance(p[0], (str, unicode)):
+                        print p[0].encode('utf-8', 'replace')
+                    else:
+                        print p[0]
+                    for v in range(1,len(p)):
+                        if isinstance(p[v], (str, unicode)):
+                            print '    ', p[v].encode('utf-8', 'replace')
+                        else:
+                            print '    ', p[v]
+
+            # we extract a channel list if available
+            if ptype == 'base' and self.is_data_value("base-channels", dict) and len(self.all_channels) == 0:
+                self.datatrees[ptype].init_data_def(self.data_value("base-channels", dict))
+                self.datatrees[ptype].extract_datalist()
+                self.get_channels(self.datatrees[ptype].result)
+                self.datatrees[ptype].init_data_def(self.data_value("base", dict))
+
+            if len(data) == 0:
+                return None
+
+            return data
+
+        except:
+            self.config.log([self.config.text('fetch', 71, (ptype, self.source)), traceback.format_exc()], 1)
+            return None
+
     def get_channels(self, data_list = None):
         """The code for the retreiving a list of supported channels"""
         self.all_channels ={}
@@ -1814,20 +1733,19 @@ class FetchData(Thread):
         if isinstance(channel_list, list):
             for channel in channel_list:
                 # link the data to the right variable, doing any defined adjustments
-                values = self.link_values(ptype, channel)
-                if "inactive_channel" in values.keys() and values["inactive_channel"]:
+                if "inactive_channel" in channel.keys() and channel["inactive_channel"]:
                     continue
 
-                if "channelid" in values.keys():
-                    channelid = unicode(values["channelid"])
+                if "channelid" in channel.keys():
+                    channelid = unicode(channel["channelid"])
                     if channelid in self.alt_channels.keys():
-                        values['channelid'] = self.alt_channels[channelid][0]
-                        values['name'] = self.alt_channels[channelid][1]
-                        channelid = unicode(values['channelid'])
+                        channel['channelid'] = self.alt_channels[channelid][0]
+                        channel['name'] = self.alt_channels[channelid][1]
+                        channelid = unicode(channel['channelid'])
                     #~ if channelid in self.empty_channels:
                         #~ continue
 
-                    self.all_channels[channelid] = values
+                    self.all_channels[channelid] = channel
 
         else:
             self.config.log(self.config.text('sources', 1, (self.source, )))
@@ -2015,7 +1933,7 @@ class FetchData(Thread):
                     # Retrieve those days from the cache
                     for day in site_range:
                         if cached[chanid][day] and not self.get_loaded('day', chanid, day):
-                            self.config.log('\nRetrieving day %s for channel %s source %s from the cache.\n' % (day, self.config.channels[chanid].chan_name, self.source))
+                            self.config.log('\nRetrieving day %s for channel %s source %s from the cache.\n' % (day, self.config.channels[chanid].chan_name, self.source), 2)
 
                     for p in cache_programs:
                         p['source'] = self.source
@@ -2413,7 +2331,9 @@ class FetchData(Thread):
                                     strdata = self.get_page_data('base',{'channel': channel,
                                                                                             'cnt-offset': page_count,
                                                                                             'start': fset[0],
-                                                                                            'days': fset[1]})
+                                                                                            'end': fset[0] + fset[1],
+                                                                                            'back':-fset[0],
+                                                                                            'ahead': fset[0] +fset[1]-1})
 
                                     if strdata == None:
                                         if retry == 1:
@@ -2456,7 +2376,9 @@ class FetchData(Thread):
                                 strdata = self.get_page_data('base',{'channel': channel,
                                                                                         'offset': offset,
                                                                                         'start': first_day,
-                                                                                        'days': self.config.opt_dict['days']})
+                                                                                        'end': min(max_days, last_day),
+                                                                                        'back':-first_day,
+                                                                                        'ahead':min(max_days, last_day)-1})
                                 if strdata == None:
                                     if retry == 1:
                                         log_fail()
@@ -2509,7 +2431,12 @@ class FetchData(Thread):
 
                             first_fetch = False
                             log_fetch()
-                            strdata = self.get_page_data('base',{'offset': offset})
+                            strdata = self.get_page_data('base',{'channels': self.channels,
+                                                                                    'offset': offset,
+                                                                                    'start': first_day,
+                                                                                    'end': min(max_days, last_day),
+                                                                                    'back':-first_day,
+                                                                                    'ahead':min(max_days, last_day)-1})
                             if strdata == None:
                                 if retry == 1:
                                     log_fail()
@@ -2557,7 +2484,12 @@ class FetchData(Thread):
 
                                 first_fetch = False
                                 log_fetch()
-                                strdata = self.get_page_data('base',{'channelgrp': channelgrp, 'offset': offset})
+                                strdata = self.get_page_data('base',{'channelgrp': channelgrp,
+                                                                                        'offset': offset,
+                                                                                        'start': first_day,
+                                                                                        'end': min(max_days, last_day),
+                                                                                        'back':-first_day,
+                                                                                        'ahead':min(max_days, last_day)-1})
                                 if strdata == None:
                                     if retry == 1:
                                         log_fail()
@@ -2605,13 +2537,11 @@ class FetchData(Thread):
         if isinstance(fdata, list):
             last_stop = None
             for program in fdata:
-                # link the data to the right variable, doing any defined adjustments
-                values = self.link_values("base", program)
-                if 'channelid' in values.keys():
-                    channelid = unicode(values['channelid'])
+                if 'channelid' in program.keys():
+                    channelid = unicode(program['channelid'])
                     if channelid in self.alt_channels.keys():
-                        values['channelid'] = self.alt_channels[channelid][0]
-                        channelid = unicode(values['channelid'])
+                        program['channelid'] = self.alt_channels[channelid][0]
+                        channelid = unicode(program['channelid'])
 
                 elif 'channelid' in subset.keys():
                     channelid = subset['channelid']
@@ -2631,8 +2561,8 @@ class FetchData(Thread):
                     last_start[channelid] = None
 
                 chanid = self.chanids[channelid]
-                if not 'prog_ID' in values.keys():
-                    values['prog_ID'] = ''
+                if not 'prog_ID' in program.keys():
+                    program['prog_ID'] = ''
 
                 tdict = {}
                 tdict['sourceid'] = self.proc_id
@@ -2642,34 +2572,34 @@ class FetchData(Thread):
                 tdict['prog_ID'] = ''
                 tdict['channel']  = self.config.channels[chanid].chan_name
                 tdict['from cache'] = False
-                if  not 'name' in values.keys() or values['name'] == None or values['name'] == '':
+                if  not 'name' in program.keys() or program['name'] == None or program['name'] == '':
                     # Give it the Unknown Program Title Name, to mark it as a groupslot.
-                    values['name'] = self.config.unknown_program_title
+                    program['name'] = self.config.unknown_program_title
                     tdict['is_gap'] = True
-                    #~ self.config.log(self.config.text('sources', 6, (values['prog_ID'], self.config.channels[chanid].chan_name, self.source)))
+                    #~ self.config.log(self.config.text('sources', 6, (program['prog_ID'], self.config.channels[chanid].chan_name, self.source)))
                     #~ continue
 
-                if 'stop-time' in values.keys() and isinstance(values['stop-time'], datetime.datetime):
-                    tdict['stop-time'] = values['stop-time']
-                elif "alt-stop-time" in values and isinstance(values["alt-stop-time"], datetime.datetime):
-                    tdict['stop-time'] = values["alt-stop-time"]
+                if 'stop-time' in program.keys() and isinstance(program['stop-time'], datetime.datetime):
+                    tdict['stop-time'] = program['stop-time']
+                elif "alt-stop-time" in program and isinstance(program["alt-stop-time"], datetime.datetime):
+                    tdict['stop-time'] = program["alt-stop-time"]
 
-                if 'start-time' in values.keys() and isinstance(values['start-time'], datetime.datetime):
-                    tdict['start-time'] = values['start-time']
-                elif "alt-start-time" in values and isinstance(values["alt-start-time"], datetime.datetime):
-                    tdict['start-time'] = values["alt-start-time"]
-                elif "length" in values and isinstance(values['length'], datetime.timedelta) and 'stop-time' in tdict.keys():
-                    tdict['start-time'] = tdict['stop-time'] - values['length']
+                if 'start-time' in program.keys() and isinstance(program['start-time'], datetime.datetime):
+                    tdict['start-time'] = program['start-time']
+                elif "alt-start-time" in program and isinstance(program["alt-start-time"], datetime.datetime):
+                    tdict['start-time'] = program["alt-start-time"]
+                elif "length" in program and isinstance(program['length'], datetime.timedelta) and 'stop-time' in tdict.keys():
+                    tdict['start-time'] = tdict['stop-time'] - program['length']
                     tdict['start from length'] = True
                 elif self.data_value(["base", "data-format"], str) == "text/html" and isinstance(last_stop, datetime.datetime):
                     tdict['start-time'] = last_stop
                 else:
                     # Unable to determin a Start Time
-                    self.config.log(self.config.text('sources', 7, (values['name'], tdict['channel'], self.source)))
+                    self.config.log(self.config.text('sources', 7, (program['name'], tdict['channel'], self.source)))
                     continue
 
-                if not 'stop-time' in tdict.keys() and "length" in values and isinstance(values['length'], datetime.timedelta):
-                    tdict['stop-time'] = tdict['start-time'] + values['length']
+                if not 'stop-time' in tdict.keys() and "length" in program and isinstance(program['length'], datetime.timedelta):
+                    tdict['stop-time'] = tdict['start-time'] + program['length']
                     tdict['stop from length'] = True
 
                 if self.without_full_timings and self.data_value(["base", "data-format"], str) == "text/html":
@@ -2695,15 +2625,15 @@ class FetchData(Thread):
                         last_stop = None
 
                 # Add any known value that does not need further processing
-                for k, v in self.process_values(values).items():
+                for k, v in self.process_values(program).items():
                     if k in ('channelid', 'video', 'start-time', 'stop-time'):
                         continue
 
                     tdict[k] = v
 
-                if 'group' in values.keys() and not values['group'] in (None, ''):
+                if 'group' in program.keys() and not program['group'] in (None, ''):
                     self.groupitems[chanid] += 1
-                    tdict['group'] = values['group']
+                    tdict['group'] = program['group']
 
                 with self.source_lock:
                     self.program_data[chanid].append(tdict)
@@ -2726,7 +2656,7 @@ class FetchData(Thread):
 
         return chanids
 
-    def load_detailpage(self, ptype, tdict, parent):
+    def load_detailpage(self, ptype, tdict, parent = None):
         """The code for retreiving and processing a detail page"""
         if tdict['detail_url'] in (None, ''):
             return
@@ -2738,7 +2668,7 @@ class FetchData(Thread):
             self.config.log(self.config.text('sources', 8, (tdict['detail_url'], )), 1)
             return
 
-        values = self.link_values(ptype, strdata[0])
+        values = strdata[0]
         if not isinstance(values, dict):
             return
 
@@ -2771,341 +2701,12 @@ class FetchData(Thread):
 
         return tdict
 
-    def get_url(self, ptype, udata):
-        """return the several url's for ordinairy, detail and channel info as defined in the data-file"""
-        udata['source'] = self.source
-        udata['channels'] = self.channels
-        if not self.is_data_value([ptype, "url"]):
-            self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
-            return None
-
-        if self.is_data_value([ptype, "url"], list):
-            url = ''
-            for u_part in self.data_value([ptype, "url"], list):
-                if isinstance(u_part, (str, unicode)):
-                    url += u_part
-
-                elif isinstance(u_part, int):
-                    # get a variable
-                    uval = self.functions.url_functions(self, ptype, u_part, udata)
-                    if uval == None:
-                        self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
-                        return None
-
-                    else:
-                        url += unicode(uval)
-
-        else:
-            url = self.data_value([ptype, "url"])
-
-        is_json = bool('json' in self.data_value([ptype, "data-format"], str))
-        encoding = self.data_value([ptype, "encoding"])
-        accept_header = self.data_value([ptype, "accept-header"])
-        url_data = {}
-        for k, v in self.data_value([ptype, "url-data"], dict).items():
-            if isinstance(v, (str, unicode)):
-                url_data[k] = v
-
-            elif isinstance(v, int):
-                # get a variable
-                uval = self.functions.url_functions(self, ptype, v, udata)
-                if uval == None:
-                    self.config.log([self.config.text('fetch', 68, (ptype, self.source))], 1)
-                    return None
-
-                else:
-                    url_data[k] = uval
-
-        if ptype in ('detail', 'detail2'):
-            counter = ['detail', self.proc_id, udata['channel']]
-
-        else:
-            counter = ['base', self.proc_id]
-
-        return (url, encoding, accept_header, url_data, counter, is_json)
-
-    def get_page_data(self, ptype, pdata = None):
-        """
-        Here for every fetch, the url is gathered, the page retreived and
-        together with the data definition inserted in the DataTree module
-        The then by the DataTree extracted data is return
-        """
-        try:
-            if pdata == None:
-                pdata = {}
-
-            if ptype in ('channels', 'base-channels'):
-                pdata['start'] = 0
-                pdata['days'] = 0
-                pdata[ 'offset'] = 0
-
-            url = self. get_url(ptype, pdata)
-            if url == None:
-                return
-
-            is_json = url[5]
-            if self.print_searchtree:
-                print url
-
-            page = self.functions.get_page(url)
-            if page == None:
-                self.config.log([self.config.text('fetch', 71, (ptype, self.source))], 1)
-                if self.print_searchtree:
-                    print 'No Data'
-                return None
-
-            if is_json:
-                searchtree = JSONtree(page, self.test_output)
-
-            else:
-                autoclose_tags = self.data_value([ptype, "autoclose-tags"], list)
-                if self.data_value([ptype, "enclose-with-html-tag"], bool, default=False):
-                    page = u'<html>%s</html>' % page
-
-                searchtree = HTMLtree(page, autoclose_tags, self.print_tags, self.test_output)
-
-            self.source_data[ptype]['timezone'] = self.data_value('site-timezone', str, default = 'utc')
-            searchtree.check_data_def(self.data_value(ptype, dict))
-            if ptype in ('base', 'detail', 'detail2'):
-                # We load some values from the definition file into the tree
-                self.fetch_ordinal = self.current_ordinal + data_value('offset', pdata, int, default=0)
-                if not "channelid" in searchtree.value_filters.keys() or not isinstance(searchtree.value_filters["channelid"], list) :
-                    searchtree.value_filters["channelid"] = []
-
-                searchtree.value_filters["channelid"].extend(list(self.chanids.keys()))
-                searchtree.value_filters["channelid"].extend(list(self.alt_channels.keys()))
-
-            if self.is_data_value([ptype, "total-item-count"],list):
-                self.total_item_count = searchtree.find_data_value(self.data_value([ptype, "total-item-count"],list))
-
-            if self.is_data_value([ptype, "page-item-count"],list):
-                self.current_item_count = searchtree.find_data_value(self.data_value([ptype, "page-item-count"],list))
-
-            searchtree.show_result = self.show_parsing
-            searchtree.print_searchtree = self.print_roottree
-            searchtree.find_start_node()
-            if ptype == 'base' and self.is_data_value([ptype,'data',"today"],list):
-                # We check on the right offset
-                url_type = self.data_value([ptype, "url-type"], int, default = 2)
-                cd = searchtree.find_data_value(self.data_value([ptype,'data',"today"],list))
-                if not isinstance(cd, datetime.date):
-                    self.config.log(self.config.text('sources', 22))
-                    return None
-
-                elif self.night_date_switch > 0 and self.current_fetchdate.hour < self.night_date_switch and (self.current_ordinal - cd.toordinal()) == 1:
-                    # This page switches date at a later time so we allow
-                    pass
-
-                elif cd.toordinal() != self.current_ordinal:
-                    url_type = self.data_value(["base", "url-type"], int, default = 2)
-                    if url_type == 1:
-                        self.config.log(self.config.text('sources', 21, (pdata['channel'], self.source, pdata['offset'])))
-                    elif (url_type & 3) == 1:
-                        # chanid
-                        pass
-                    elif (url_type & 12) in (0, 8):
-                        # offset
-                        pass
-                    return None
-
-            searchtree.print_searchtree = self.print_searchtree
-            searchtree.extract_datalist()
-            data = searchtree.result
-            if self.show_result:
-                for p in data:
-                    if isinstance(p[0], (str, unicode)):
-                        print p[0].encode('utf-8', 'replace')
-                    else:
-                        print p[0]
-                    for v in range(1,len(p)):
-                        if isinstance(p[v], (str, unicode)):
-                            print '    ', p[v].encode('utf-8', 'replace')
-                        else:
-                            print '    ', p[v]
-
-            if self.config.write_info_files and ptype == 'base' and self.is_data_value("base-channels", dict) and len(self.all_channels) == 0:
-                searchtree.check_data_def(self.data_value("base-channels", dict))
-                searchtree.find_start_node()
-                searchtree.extract_datalist()
-                self.get_channels(searchtree.result)
-
-            return data
-
-        except:
-            self.config.log([self.config.text('fetch', 71, (ptype, self.source)), traceback.format_exc()], 1)
-            return None
-
-    def link_values(self, ptype, linkdata):
-        """
-        Following the definition in the values definition.
-        Her the data-list for every keyword (channel/program)
-        retreived with the DataTree module is validated and linked to keywords
-        A dict is return
-        """
-        def get_variable(vdef):
-            max_length = data_value('max length', vdef, int, 0)
-            min_length = data_value('min length', vdef, int, 0)
-            varid = data_value("varid", vdef, int)
-            if not ((isinstance(linkdata, list) and (0 <= varid < len(linkdata))) \
-              or (isinstance(linkdata, dict) and varid in linkdata.keys())):
-                return
-
-            value = linkdata[varid] if (not  isinstance(linkdata[varid], (unicode, str))) else unicode(linkdata[varid]).strip()
-            if min_length > 0 and len(value) < min_length:
-                return
-
-            if max_length > 0 and len(value) > max_length:
-                return
-
-            if is_data_value('regex', vdef, str):
-                value = get_regex(vdef, value)
-
-            if is_data_value('type', vdef, str):
-                value = check_type(vdef, value)
-
-            if is_data_value('calc', vdef, dict):
-                value = calc_value(vdef['calc'], value)
-
-            return value
-
-        def process_link_function(vdef):
-            funcid = data_value("funcid", vdef, int)
-            default = data_value("default", vdef)
-            if funcid != None:
-                funcdata = data_value("data", vdef, list)
-                data = []
-                for fd in funcdata:
-                    if is_data_value("varid", fd, int):
-                        dvar = get_variable(fd)
-                        if dvar == None:
-                            data.append('')
-
-                        else:
-                            data.append(dvar)
-
-                    elif is_data_value("funcid", fd, int):
-                        data.append(process_link_function(fd))
-
-                    else:
-                        data.append(fd)
-
-                value = self.functions.link_functions(funcid, data, self, default)
-                if value in (None, '', '-'):
-                    return
-
-                if is_data_value('regex', vdef, str):
-                    value = get_regex(vdef, value)
-
-                if is_data_value('type', vdef, str):
-                    value = check_type(vdef, value)
-
-                if is_data_value('calc', vdef, dict):
-                    value = calc_value(vdef['calc'], value)
-
-                return value
-
-        def get_regex(vdef, value):
-            search_regex = data_value('regex', vdef, str, None)
-            try:
-                dd = re.search(search_regex, value, re.DOTALL)
-                if dd.group(1) not in ('', None):
-                    return dd.group(1)
-
-                else:
-                    return
-
-            except:
-                return
-
-        def check_type(vdef, value):
-            dtype = data_value('type', vdef, str)
-            try:
-                if dtype == 'string':
-                    return unicode(value)
-
-                elif dtype == 'lower':
-                    return unicode(value).lower()
-
-                elif dtype == 'upper':
-                    return unicode(value).upper()
-
-                elif dtype == 'capitalize':
-                    return unicode(value).capitalize()
-
-                elif dtype == 'int':
-                    return int(value)
-
-                elif dtype == 'float':
-                    return float(value)
-
-                elif dtype == 'bool':
-                    return bool(value)
-
-                else:
-                    return value
-
-            except:
-                return None
-
-        def calc_value(vdef, value):
-            if is_data_value('multiplier', vdef, float):
-                try:
-                    if not isinstance(value, (int, float)):
-                        value = float(value)
-                    value = value * vdef['multiplier']
-
-                except:
-                    #~ traceback.print_exc()
-                    pass
-
-            if is_data_value('devider', vdef, float):
-                try:
-                    if not isinstance(value, (int, float)):
-                        value = float(value)
-                    value = value / vdef['devider']
-
-                except:
-                    #~ traceback.print_exc()
-                    pass
-
-            return value
-
-        values = {}
-        if isinstance(linkdata, (list, tuple, dict)):
-            for k, v in self.data_value([ptype,"values"], dict).items():
-                if is_data_value("varid", v, int):
-                    vv = get_variable(v)
-                    if vv not in (None, '', '-'):
-                        values[k] = vv
-                        continue
-
-                elif is_data_value("funcid", v, int):
-                    cval = process_link_function(v)
-                    if cval not in (None, '', '-'):
-                        values[k] = cval
-                        continue
-
-                elif is_data_value("value", v):
-                    values[k] = data_value("value", v)
-                    continue
-
-                if is_data_value('default', v):
-                    values[k] = v['default']
-
-        return values
-
     # Helper functions
-    def is_data_value(self, searchpath, dtype = None, searchtree = None):
-        if searchtree == None:
-            searchtree = self.source_data
+    def is_data_value(self, searchpath, dtype = None, empty_is_false = True):
+        return is_data_value(searchpath, self.source_data, dtype, empty_is_false)
 
-        return is_data_value(searchpath, searchtree, dtype, True)
-
-    def data_value(self, searchpath, dtype = None, searchtree = None, default = None):
-        if searchtree == None:
-            searchtree = self.source_data
-
-        return data_value(searchpath, searchtree, dtype, default)
+    def data_value(self, searchpath, dtype = None, default = None):
+        return data_value(searchpath, self.source_data, dtype, default)
 
     def get_loaded(self, type='day', chanid = 0, day = None):
         chanlist = list(self.channels.keys())
@@ -3326,7 +2927,7 @@ class FetchData(Thread):
                         if k.lower() in values['subgenre'].lower():
                             genre = v.strip()
                             subgenre = values['subgenre'].strip()
-                            self.new_cattrans.append((values['subgenre'].lower().strip(), tdict['genre'].strip().lower()))
+                            self.new_cattrans.append((subgenre.lower(), genre.lower()))
                             break
 
                     else:
@@ -3393,7 +2994,7 @@ class FetchData(Thread):
         # And the other way around
         elif  lent < lenst and ptitle.lower() == psubtitle[:lent].lower():
             psubtitle = psubtitle[lent:].strip()
-            if (psubtitle[1] == ':') or (psubtitle[1] == '-'):
+            if (psubtitle[0] == ':') or (psubtitle[0] == '-'):
                 psubtitle = psubtitle[1:].strip()
 
         # exclude certain programs

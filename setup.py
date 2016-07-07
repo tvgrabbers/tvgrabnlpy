@@ -4,7 +4,8 @@
 This Package contains an API for tv_grabbers Alle data is defined in JSON files
 Including where and how to get the tv data. Multiple source can be defined
 and the resulting data is integrated in to one XMLTV output file.
-The detailed behaviour is highly configurable. See our site for more details.'''
+The detailed behaviour is highly configurable. See our site for more details.
+'''
 
 from distutils.core import setup
 from os import environ, name
@@ -38,4 +39,13 @@ setup(
     maintainer_email = 'hikavdh at gmail dot com',
     license='GPL',
     url='https://github.com/tvgrabbers/tvgrabnlpy',
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Operating System :: Microsoft :: Windows',
+        'Operating System :: POSIX',
+        'Programming Language :: Python :: 2.7',
+        'Intended Audience :: Developers',
+        'Intended Audience :: End Users/Desktop',
+        'License :: Public Domain',
+        'Topic :: Internet :: WWW/HTTP :: Indexing/Search']
 )

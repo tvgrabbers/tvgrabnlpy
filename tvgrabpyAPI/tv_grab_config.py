@@ -107,6 +107,11 @@ from __future__ import unicode_literals
 import os, re, sys, argparse, traceback, datetime, time, codecs, pickle
 import tv_grab_IO, tv_grab_fetch, tv_grab_channel, pytz
 from DataTreeGrab import is_data_value, data_value
+from DataTreeGrab import version as dtversion
+if dtversion()[1:4] < (1,1,0):
+    sys.stderr.write("tv_grab_py_API requires DataTreeGrab 1.1.0 or higher\n")
+    sys.exit(2)
+
 try:
     unichr(42)
 except NameError:
@@ -116,7 +121,7 @@ api_name = u'tv_grab_py_API'
 api_major = 1
 api_minor = 0
 api_patch = 0
-api_patchdate = u'20160619'
+api_patchdate = u'20160707'
 api_alfa = True
 api_beta = True
 
@@ -274,6 +279,7 @@ class Configure:
         self.program_cache = None
         self.clean_cache = True
         self.clear_cache = False
+        self.output = None
 
         self.opt_dict['language'] = 'en'
         self.opt_dict['nice_time'] = [1, 2]
@@ -312,6 +318,8 @@ class Configure:
 
         self.detail_keys = {}
         self.detail_keys['all'] = []
+        #~ self.detail_keys['ttvdb'] = []
+        #~ self.detail_keys['episodes'] = []
         self.texts = {}
         self.logging = None
         self.threads = []
@@ -584,19 +592,16 @@ class Configure:
         if self.args.quiet != None:
             self.opt_dict['quiet'] = self.args.quiet
 
+        if self.args.disable_ttvdb != None:
+            self.opt_dict['disable_ttvdb'] = self.args.disable_ttvdb
+
+        self.validate_option('ttvdb', value = 'v1')
         #check for cache
         if self.validate_option('cache_file') != None:
             return(2)
 
         if self.args.clear_cache or self.args.clear_ttvdb:
             return(0)
-
-        if self.args.disable_ttvdb != None:
-            self.opt_dict['disable_ttvdb'] = self.args.disable_ttvdb
-
-        if self.opt_dict['disable_ttvdb'] == False:
-            self.ttvdb = tv_grab_fetch.theTVDB(self)
-            self.ttvdb.start()
 
         if self.args.ttvdb_title != None :
             return self.validate_option('check_ttvdb_title')
@@ -790,15 +795,14 @@ class Configure:
                 return(-2)
 
             series_title = unicode(self.args.ttvdb_title[0], 'utf-8')
-            lang = 'nl'
+            lang = self.xml_language
             if len(self.args.ttvdb_title) >1:
                 lang = unicode(self.args.ttvdb_title[1], 'utf-8')[:2]
                 if not lang in ('cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hr', 'hu', 'it',
                                         'ja', 'ko', 'nl', 'no', 'pl', 'pt', 'ru', 'sl', 'sv', 'tr', 'zh'):
                     self.log(self.text('config', 12, (lang,)))
 
-            if self.ttvdb.check_ttvdb_title(series_title, lang) == -1:
-                return -1
+            return self.ttvdb.check_ttvdb_title(series_title, lang)
 
         elif option == 'disable_source':
             if value in self.channelsource.keys():
@@ -1026,6 +1030,40 @@ class Configure:
 
             if self.args.clear_ttvdb:
                 self.program_cache.cache_request.put({'task':'clear', 'table':['ttvdb', 'episodes']})
+
+        elif option == 'ttvdb':
+            if self.opt_dict['disable_ttvdb'] or not is_data_value([value, 'json file'], self.ttvdb_json, str):
+                self.opt_dict['disable_ttvdb'] = True
+                return
+
+            jfile = data_value([value, 'json file'], self.ttvdb_json, str)
+            dversion = data_value([value, 'version'], self.ttvdb_json, int, 0)
+            jurl = data_value([value, 'json_url'], self.ttvdb_json, str, self.source_url)
+            sdata = self.fetch_func.get_json_data(jfile, dversion, -1, jurl, self.opt_dict['sources'])
+            if sdata == None:
+                self.opt_dict['disable_ttvdb'] = True
+                return
+
+            raw_json = self.fetch_func.raw_json[jfile]
+            if raw_json != '':
+                dv = data_value(["version"], sdata, int, 0)
+                # The file was downloaded. Check if it is already saved locally
+                fle = self.IO_func.open_file('%s/%s.%s.json' % (self.opt_dict['sources'], jfile, dv), 'w', 'utf-8')
+                if fle != None:
+                    fle.write(raw_json)
+                    fle.close()
+
+            if value == 'v1':
+                self.ttvdb = tv_grab_fetch.theTVDB_v1(self, sdata)
+
+            #~ elif value == 'v2':
+                #~ self.ttvdb = tv_grab_fetch.theTVDB_v2(self, sdata)
+
+            else:
+                self.opt_dict['disable_ttvdb'] = True
+                return
+
+            self.ttvdb.start()
 
         elif option == 'slowdays':
             if channel == None:
@@ -1799,6 +1837,7 @@ class Configure:
         self.coutrytrans = gitdata_dict("coutrytrans")
         self.notitlesplit = gitdata_value("notitlesplit", list)
         self.user_agents = gitdata_value("user_agents", list, self.user_agents)
+        self.ttvdb_json = gitdata_dict("ttvdb")
         for k in self.xml_output.logo_provider.keys():
             if k not in self.xml_output.logo_source_preference:
                 self.xml_output.logo_source_preference.append(k)
@@ -1880,7 +1919,7 @@ class Configure:
                 self.prime_source_order.remove(s)
 
         self.fetch_tz = gitdata_value("fetch-timezone", str, 'UTC')
-        self.xml_language = gitdata_value("language", str, 'en')
+        self.xml_language = gitdata_value("language", str, 'en').lower()
         try:
             self.fetch_tz = pytz.timezone(self.fetch_tz)
         except:
@@ -1898,9 +1937,20 @@ class Configure:
         for g, s in self.prime_source_groups.items():
             if s not in self.sources.keys():
                 del self.prime_source_groups[g]
+        logo_provider = gitdata_dict("logo_provider", 1)
+        for k, v in logo_provider.items():
+            if k > 100:
+                self.xml_output.logo_provider[k] = v
+                self.xml_output.logo_source_preference.append(k)
+
+        ttvdb_aliasses = gitdata_dict("ttvdb_aliasses")
+        for k, v in ttvdb_aliasses.items():
+            self.ttvdb_aliasses[k] = v
+
         self.channel_rename = gitdata_dict("channel_rename")
         self.chan_groups = gitdata_dict("channel_groups", 1)
         self.group_order = gitdata_value("group_order", list)
+        self.group_language = gitdata_dict("group language", 1)
         for g in self.chan_groups.keys():
             if g not in self.group_order[:]:
                 self.group_order.append(g)
@@ -1909,6 +1959,10 @@ class Configure:
             if g not in self.chan_groups.keys():
                 self.chan_groups[g] = 'Channel groep %s' % g
 
+            if g not in self.group_language.keys():
+                self.group_language[g] = 'en'
+
+        self.ttvdb_langs = gitdata_value("ttvdb langs", list, ['en'])
         self.ttvdb_disabled_groups = gitdata_value("ttvdb disable groups", list)
         self.channel_grouping = gitdata_dict("channel_grouping", 1)
         self.xml_output.logo_names = gitdata_dict("logo_names")
@@ -2202,12 +2256,19 @@ class Configure:
 
                 # Set the Icon
                 icon ={}
-                icon['sourceid'] = -1
                 icon['chanid'] = chanid
-                if 'icon' in channel and channel['icon'] != '':
+                if is_data_value('icon', channel, str, True):
                     icon['sourceid'] = index if 'icongrp' not in channel else channel['icongrp']
                     icon['icon'] = channel['icon']
                     db_icon.append(icon)
+
+                elif is_data_value('icon', channel, tuple, True) and is_data_value(['icon', 0], channel, str, True):
+                    icon['sourceid'] = channel['icon'][1]
+                    icon['icon'] = channel['icon'][0]
+                    db_icon.append(icon)
+
+                else:
+                    icon['sourceid'] = -1
 
                 for iconsource in self.xml_output.logo_source_preference:
                     if self.channels[chanid].icon_source == iconsource:
