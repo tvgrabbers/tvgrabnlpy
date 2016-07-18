@@ -69,7 +69,6 @@ class Channel_Config(Thread):
         self.opt_dict['prime_source'] = -1
         self.prevalidate_opt['prime_source'] = -1
         self.opt_dict['prefered_description'] = -1
-        self.opt_dict['append_tvgidstv'] = True
         self.opt_dict['fast'] = self.config.opt_dict['fast']
         self.opt_dict['slowdays'] = self.config.opt_dict['slowdays']
         self.opt_dict['compat'] = self.config.opt_dict['compat']
@@ -317,32 +316,32 @@ class Channel_Config(Thread):
                 self.functions.progress_counter+= 1
                 counter = self.functions.progress_counter
 
-            log_array = ['\n', self.config.text('fetch', 54, (self.chan_name, counter, self.config.chan_count))]
-            log_array.append( self.config.text('fetch',55, (self.functions.get_counter('detail', -99, self.chanid), )))
-            log_array.append(u'%6.0f excluded by genre\n'% (self.functions.get_counter('exclude', -99, self.chanid)))
+            log_array = ['\n', self.config.text('fetch', 1, (self.chan_name, counter, self.config.chan_count), type = 'stats')]
+            log_array.append( self.config.text('fetch',2, (self.functions.get_counter('detail', -99, self.chanid), ), type = 'stats'))
+            log_array.append( self.config.text('fetch',10, (self.functions.get_counter('exclude', -99, self.chanid), ), type = 'stats'))
 
             if self.opt_dict['fast']:
-                log_array.append(self.config.text('fetch', 56, (self.functions.get_counter('fail', -99, self.chanid), )))
+                log_array.append(self.config.text('fetch', 3, (self.functions.get_counter('fail', -99, self.chanid), ), type = 'stats'))
                 log_array.append('\n')
-                log_array.append(self.config.text('fetch', 57, (self.functions.get_counter('detail', -1, self.chanid), )))
-                log_array.append(self.config.text('fetch', 58, (self.functions.get_counter('fail', -1, self.chanid), )))
+                log_array.append(self.config.text('fetch', 4, (self.functions.get_counter('detail', -1, self.chanid), ), type = 'stats'))
+                log_array.append(self.config.text('fetch', 5, (self.functions.get_counter('fail', -1, self.chanid), ), type = 'stats'))
 
             else:
                 fail = 0
                 for source in self.config.detail_sources:
                     fail += self.functions.get_counter('fail', source, self.chanid)
-                    log_array.append(self.config.text('fetch', 59, \
-                        (self.functions.get_counter('detail', source, self.chanid), self.config.channelsource[source].source)))
+                    log_array.append(self.config.text('fetch', 6, \
+                        (self.functions.get_counter('detail', source, self.chanid), self.config.channelsource[source].source), type = 'stats'))
 
-                log_array.append(self.config.text('fetch', 60, (fail,)))
-                log_array.append(self.config.text('fetch', 61, (self.functions.get_counter('fail', -99, self.chanid), )))
+                log_array.append(self.config.text('fetch', 7, (fail,), type = 'stats'))
+                log_array.append(self.config.text('fetch', 8, (self.functions.get_counter('fail', -99, self.chanid), ), type = 'stats'))
                 log_array.append('\n')
-                log_array.append(self.config.text('fetch', 57, (self.functions.get_counter('lookup', -1, self.chanid), )))
-                log_array.append(self.config.text('fetch', 58, (self.functions.get_counter('lookup_fail', -1, self.chanid), )))
+                log_array.append(self.config.text('fetch', 4, (self.functions.get_counter('lookup', -1, self.chanid), ), type = 'stats'))
+                log_array.append(self.config.text('fetch', 5, (self.functions.get_counter('lookup_fail', -1, self.chanid), ), type = 'stats'))
                 log_array.append('\n')
                 for source in self.config.detail_sources:
-                    log_array.append(self.config.text('fetch', 62, \
-                        (self.config.channelsource[source].detail_request.qsize(), self.config.channelsource[source].source)))
+                    log_array.append(self.config.text('fetch', 9, \
+                        (self.config.channelsource[source].detail_request.qsize(), self.config.channelsource[source].source), type = 'stats'))
 
             log_array.append('\n')
             self.config.log(log_array, 4, 3)
@@ -403,14 +402,14 @@ class Channel_Config(Thread):
             return
 
         if self.opt_dict['fast']:
-            self.config.log(['\n', self.config.text('fetch', 63, \
-                (self.channel_node.program_count(), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and self.config.compat_text or ''))), \
-                self.config.text('fetch', 64, (self.counter, self.config.chan_count, self.config.opt_dict['days']))], 2)
+            self.config.log(['\n', self.config.text('fetch', 41 \
+                (self.channel_node.program_count(), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and self.config.compat_text or '')), type = 'report'), \
+                self.config.text('fetch', 43, (self.counter, self.config.chan_count, self.config.opt_dict['days']), type = 'report')], 2)
 
         else:
-            self.config.log(['\n', self.config.text('fetch', 65, \
-                (self.channel_node.program_count(), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and self.config.compat_text or ''))), \
-                self.config.text('fetch', 64, (self.counter, self.config.chan_count, self.config.opt_dict['days']))], 2)
+            self.config.log(['\n', self.config.text('fetch', 42, \
+                (self.channel_node.program_count(), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and self.config.compat_text or '')), type = 'report'), \
+                self.config.text('fetch', 43, (self.counter, self.config.chan_count, self.config.opt_dict['days']), type = 'report')], 2)
 
         # randomize detail requests
         self.fetch_counter = 0
@@ -455,7 +454,7 @@ class Channel_Config(Thread):
                         # Add it to the program(s)
                         without_details = False
                         self.functions.update_counter('detail', -99, self.chanid)
-                        self.config.log(self.config.text('fetch', 18, (self.chan_name, counter, logstring)), 8, 1)
+                        self.config.log(self.config.text('fetch', 33, (self.chan_name, counter, logstring), type = 'report'), 8, 1)
                         dn = self.channel_node.programs_by_prog_ID[src_id][detailids['prog_ID']]
                         p = cache_detail[0]
                         for pn in dn:
@@ -498,7 +497,7 @@ class Channel_Config(Thread):
             if no_fetch or len(sources) == 0:
                 if without_details:
                     self.functions.update_counter('fail', -99, self.chanid)
-                    self.config.log(self.config.text('fetch', 66, (self.chan_name, counter, logstring)), 8, 1)
+                    self.config.log(self.config.text('fetch', 34, (self.chan_name, counter, logstring), type = 'report'), 8, 1)
 
                 # Check ttvdb
                 if not (self.config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
@@ -791,41 +790,35 @@ class ChannelNode():
 
             # Added
             if type ==1:
-                #~ mstr = self.config.text('fetch', 48)
-                self.match_array.append(u'Added from %s:%s: %s Genre: %s.\n' % (self.adding_from.rjust(14), start_stop2, title2, genre2))
+                self.match_array.append(self.config.text('merge',31 ,(self.adding_from.rjust(14), start_stop2, title2, genre2) , type = 'stats'))
 
             # It was already there but not matched
             elif type == 33:
                 type = 1
-                #~ mstr = self.config.text('fetch', 46)
-                self.match_array.append(u'Kept unmatched:           %s: %s Genre: %s.\n' % (start_stop1, title1, genre1))
+                self.match_array.append(self.config.text('merge',32 ,(start_stop1, title1, genre1) , type = 'stats'))
 
             # Unmatched from the new source
             elif type == 2:
-                #~ mstr = self.config.text('fetch', 50)
-                self.match_array.append(u'Leftover in %s:%s: %s Genre: %s.\n' % (self.adding_from.rjust(13), start_stop2, title2, genre2))
+                self.match_array.append(self.config.text('merge',33 ,(self.adding_from.rjust(13), start_stop2, title2, genre2) , type = 'stats'))
 
             # Matched on title and time
             elif type == 4:
-                #~ mstr = self.config.text('fetch', 29)
-                self.match_array.append(u'Match from %s:%s: %s Genre: %s.\n' % (self.adding_from.rjust(14), start_stop2, title2, genre2))
-                self.match_array.append(u'     on time and title to:%s: %s Genre: %s.\n' % (start_stop1, title1, genre1))
+                self.match_array.append(self.config.text('merge',34 ,(self.adding_from.rjust(14), start_stop2, title2, genre2) , type = 'stats'))
+                self.match_array.append(self.config.text('merge',35 ,(start_stop1, title1, genre1) , type = 'stats'))
 
             elif type == 36:
                 # For furure generic matches on Genre
                 type = 4
-                #~ mstr = self.config.text('fetch', 30)
                 return
 
             # Added to a groupslot
             elif type == 8:
-                #~ mstr = self.config.text('fetch', 47)
-                self.match_array.append(u'      from %s:%s: %s Genre: %s.\n' % (self.adding_from.rjust(14), start_stop2, title2, genre2))
+                self.match_array.append(self.config.text('merge',36 ,(self.adding_from.rjust(14), start_stop2, title2, genre2) , type = 'stats'))
 
             # The groupslot
             elif type == 40:
                 type = 8
-                self.match_array.append(u'Added to groupslot:       %s: %s Genre: %s.\n' % (start_stop1, title1, genre1))
+                self.match_array.append(self.config.text('merge',37 ,(start_stop1, title1, genre1) , type = 'stats'))
 
     def log_merge_statistics(self, source):
         with self.node_lock:
@@ -835,41 +828,41 @@ class ChannelNode():
             # 8 detail adding
             self.merge_stats['new'] -= self.merge_stats['groupslot']
             if self.merge_type & 1:
-                mtype = self.config.text('IO', 2, type = 'stats')
+                mtype = self.config.text('merge', 2, type = 'stats')
 
             else:
-                mtype = self.config.text('IO', 1, type = 'stats')
+                mtype = self.config.text('merge', 1, type = 'stats')
 
             log_array = ['\n']
             if isinstance(source, ChannelNode):
                 addingid = source.chanid
                 addingname = source.shortname
-                stype = self.config.text('IO', 6, type = 'stats')
+                stype = self.config.text('merge', 6, type = 'stats')
                 sn = source.name
 
             else:
                 addingid = source
                 addingname = self.config.channelsource[source].source
-                stype = self.config.text('IO', 5, type = 'stats')
+                stype = self.config.text('merge', 5, type = 'stats')
                 sn = source
 
-            log_array.append(self.config.text('IO', 9, \
+            log_array.append(self.config.text('merge', 9, \
                 (mtype, self.name , self.channel_config.counter, self.config.chan_count, stype, addingname), 'stats'))
             if self.merge_type & 1:
-                log_array.append(self.config.text('IO', 10, \
+                log_array.append(self.config.text('merge', 10, \
                     (self.current_stats['count'], self.shortname.ljust(15), self.current_stats['start-str'], \
                     self.current_stats['stop-str'], self.current_stats['groups']), 'stats'))
-            log_array.append(self.config.text('IO', 11, \
+            log_array.append(self.config.text('merge', 11, \
                 (self.adding_stats['count'], addingname.ljust(15), self.adding_stats['start-str'], \
                 self.adding_stats['stop-str'], self.adding_stats['groups']), 'stats'))
             log_array.append('\n')
-            log_array.append(self.config.text('IO', 14, (self.merge_stats['matched'], ), 'stats'))
-            log_array.append(self.config.text('IO', 12, (self.merge_stats['new'], ), 'stats'))
-            log_array.append(self.config.text('IO', 15, (self.merge_stats['groupslot'], ), 'stats'))
-            log_array.append(self.config.text('IO', 13, (self.merge_stats['genre'], ), 'stats'))
-            log_array.append(self.config.text('IO', 16, (self.merge_stats['unmatched'], addingname), 'stats'))
-            log_array.append(self.config.text('IO', 17, (self.program_count(), len(self.group_slots)), 'stats'))
-            log_array.append(self.config.text('IO', 18, (len(self.programs_with_no_genre), ), 'stats'))
+            log_array.append(self.config.text('merge', 14, (self.merge_stats['matched'], ), 'stats'))
+            log_array.append(self.config.text('merge', 12, (self.merge_stats['new'], ), 'stats'))
+            log_array.append(self.config.text('merge', 15, (self.merge_stats['groupslot'], ), 'stats'))
+            log_array.append(self.config.text('merge', 13, (self.merge_stats['genre'], ), 'stats'))
+            log_array.append(self.config.text('merge', 16, (self.merge_stats['unmatched'], addingname), 'stats'))
+            log_array.append(self.config.text('merge', 17, (self.program_count(), len(self.group_slots)), 'stats'))
+            log_array.append(self.config.text('merge', 18, (len(self.programs_with_no_genre), ), 'stats'))
             log_array.append('\n')
             self.config.log(log_array, 4, 3)
             try:
@@ -903,8 +896,6 @@ class ChannelNode():
                     if not is_groupslot or len(gs.gs_detail) > 0:
                         add_to_list(gs.gs_detail, pp, is_groupslot)
 
-                    #~ else:
-                        #~ print is_groupslot, len(gs.gs_detail), self.chanid, source, pp['start-time'], '-', pp['stop-time']
                     break
 
             else:
@@ -952,9 +943,9 @@ class ChannelNode():
             # Is this the first source?
             if self.program_count() == 0:
                 self.prime_source = source
-                self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 3, type='stats'), \
+                self.config.log(['\n', self.config.text('merge', 7, (self.config.text('merge', 3, type='stats'), \
                     self.adding_stats['count'], self.config.channelsource[source].source, self.current_stats['count'], self.name), 'stats'), \
-                    self.config.text('IO', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+                    self.config.text('merge', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
 
                 self.merge_type = 0
                 last_stop = self.start
@@ -995,9 +986,9 @@ class ChannelNode():
                     pass
 
             else:
-                self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 4, type='stats'), \
+                self.config.log(['\n', self.config.text('merge', 7, (self.config.text('merge', 4, type='stats'), \
                     self.adding_stats['count'], self.config.channelsource[source].source, self.current_stats['count'], self.name), 'stats'), \
-                    self.config.text('IO', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+                    self.config.text('merge', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
 
                 self.merge_type = 1
                 group_slots = []
@@ -1226,9 +1217,9 @@ class ChannelNode():
 
             if self.program_count() == 0:
                 # We add
-                self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 3, type='stats'), \
+                self.config.log(['\n', self.config.text('merge', 7, (self.config.text('merge', 3, type='stats'), \
                     self.adding_stats['count'], channode.name, self.current_stats['count'], self.name), 'stats'), \
-                    self.config.text('IO', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+                    self.config.text('merge', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
 
                 programs.extend(group_slots)
                 programs.sort(key=lambda pnode: (pnode.start))
@@ -1248,9 +1239,9 @@ class ChannelNode():
                 self.log_merge_statistics(channode)
             else:
                 # Try matching on time and name or check if it falls into a groupslot, a gap or outside the range
-                self.config.log(['\n', self.config.text('IO', 7, (self.config.text('IO', 4, type='stats'), \
+                self.config.log(['\n', self.config.text('merge', 7, (self.config.text('merge', 4, type='stats'), \
                     self.adding_stats['count'], channode.name, self.current_stats['count'], self.name), 'stats'), \
-                    self.config.text('IO', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+                    self.config.text('merge', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
 
                 self.merge_type += 1
                 programs.sort(key=lambda pnode: (pnode.start))
@@ -2112,12 +2103,33 @@ class ProgramNode():
 
                     else:
                         for item in range(len(value)):
-                            if isinstance(value[item], str):
+                            if not isinstance(value[item], unicode):
                                 value[item] = unicode(value[item])
 
-                if isinstance(value, str):
+                if not isinstance(value, unicode):
                     value = unicode(value)
 
+                if key == 'premiere year':
+                    value = re.sub('[()]', '', value).strip()
+                    if isinstance(value, unicode) and len(value) == 4:
+                        try:
+                            x = int(value)
+                            add_value(value)
+
+                        except:
+                            return
+
+                    return
+
+                elif key == 'broadcaster':
+                    add_value(re.sub('[()]', '', value).strip())
+                    return
+
+                elif key == 'description':
+                    add_value(value)
+                    return
+
+            elif key in self.config.key_values['list']:
                 if key == 'country':
                     rlist = []
                     if isinstance(value, unicode):
@@ -2154,26 +2166,6 @@ class ProgramNode():
                     if len(rlist) > 0:
                         add_value(rlist)
 
-                    return
-
-                elif key == 'premiere year':
-                    value = re.sub('[()]', '', value).strip()
-                    if isinstance(value, unicode) and len(value) == 4:
-                        try:
-                            x = int(value)
-                            add_value(value)
-
-                        except:
-                            return
-
-                    return
-
-                elif key == 'broadcaster':
-                    add_value(re.sub('[()]', '', value).strip())
-                    return
-
-                elif key == 'description':
-                    add_value(value)
                     return
 
             elif key in self.config.key_values['datetime']:
@@ -2710,8 +2702,6 @@ class XMLoutput():
         self.xml_channels = {}
         self.xml_programs = {}
 
-        # We have several sources of logos, the first provides the nice ones, but is not
-        # complete. We use the tvgids logos to fill the missing bits.
         self.logo_source_preference = []
         self.logo_provider = {}
 
@@ -2772,7 +2762,7 @@ class XMLoutput():
 
         self.xml_channels[xmltvid] = []
         self.xml_channels[xmltvid].append(self.add_starttag('channel', 2, 'id="%s%s"' % \
-            (xmltvid, self.config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
+            (xmltvid, self.config.channels[chanid].opt_dict['compat'] and self.config.compat_text or '')))
         self.xml_channels[xmltvid].append(self.add_starttag('display-name', 4, 'lang="%s"' % (self.config.xml_language), \
             self.config.channels[chanid].chan_name, True))
         if (self.config.channels[chanid].opt_dict['logos']):
@@ -2953,18 +2943,18 @@ class XMLoutput():
                 xml.append(self.add_starttag('subtitles', 4, 'type="teletext"', '',True))
 
             # Add any rating items
-            if program.is_set('rating') and self.config.opt_dict['kijkwijzerstijl'] in ('long', 'short', 'single'):
+            if program.is_set('rating') and self.config.opt_dict['ratingstyle'] in ('long', 'short', 'single'):
                 pr = program.get_value('rating')
                 kstring = ''
                 # First only one age limit from high to low
                 for k in self.config.rating['unique_codes'].keys():
                     if k in pr:
-                        if self.config.opt_dict['kijkwijzerstijl'] == 'single':
+                        if self.config.opt_dict['ratingstyle'] == 'single':
                             kstring += (self.config.rating['unique_codes'][k]['code'] + ': ')
 
                         else:
                             xml.append(self.add_starttag('rating', 4, 'system="%s"' % (self.config.rating['name'])))
-                            if self.config.opt_dict['kijkwijzerstijl'] == 'long':
+                            if self.config.opt_dict['ratingstyle'] == 'long':
                                 xml.append(self.add_starttag('value', 6, '', self.config.rating['unique_codes'][k]['text'], True))
 
                             else:
@@ -2977,12 +2967,12 @@ class XMLoutput():
                 # And only one of any of the others
                 for k in self.config.rating['addon_codes'].keys():
                     if k in pr:
-                        if self.config.opt_dict['kijkwijzerstijl'] == 'single':
+                        if self.config.opt_dict['ratingstyle'] == 'single':
                             kstring += k.upper()
 
                         else:
                             xml.append(self.add_starttag('rating', 4, 'system="%s"' % (self.config.rating['name'])))
-                            if self.config.opt_dict['kijkwijzerstijl'] == 'long':
+                            if self.config.opt_dict['ratingstyle'] == 'long':
                                 xml.append(self.add_starttag('value', 6, '', self.config.rating['addon_codes'][k]['text'], True))
 
                             else:
@@ -2991,7 +2981,7 @@ class XMLoutput():
                             xml.append(self.add_starttag('icon', 6, 'src="%s"' % self.config.rating['addon_codes'][k]['icon'], '', True))
                             xml.append(self.add_endtag('rating', 4))
 
-                if self.config.opt_dict['kijkwijzerstijl'] == 'single' and kstring != '':
+                if self.config.opt_dict['ratingstyle'] == 'single' and kstring != '':
                     xml.append(self.add_starttag('rating', 4, 'system="%s"' % (self.config.rating['name'])))
                     xml.append(self.add_starttag('value', 6, '', kstring, True))
                     xml.append(self.add_endtag('rating', 4))

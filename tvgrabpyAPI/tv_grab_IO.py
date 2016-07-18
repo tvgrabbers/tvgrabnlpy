@@ -238,7 +238,7 @@ class Logging(Thread):
 
     def run(self):
         self.log_output = self.config.log_output
-        self.fatal_error = [self.config.text('IO', 4), \
+        self.fatal_error = [self.config.text('IO', 10), \
                 '     %s\n' % (self.config.opt_dict['config_file']), \
                 '     %s\n' % (self.config.opt_dict['log_file'])]
 
@@ -263,10 +263,10 @@ class Logging(Thread):
                 elif isinstance(message, dict) and 'fatal' in message:
                     # A fatal Error has been received, after logging we send all threads the quit signal
                     if 'name'in message and message['name'] != None:
-                        mm =  ['\n', self.config.text('IO', 21, (message['name'], ))]
+                        mm =  ['\n', self.config.text('IO', 11, (message['name'], ))]
 
                     else:
-                        mm = ['\n', self.config.text('IO', 22)]
+                        mm = ['\n', self.config.text('IO', 12)]
 
                     if isinstance(message['fatal'], (str, unicode)):
                         mm.append(message['fatal'])
@@ -319,6 +319,27 @@ class Logging(Thread):
                     if message[0] == 'Closing down\n':
                         self.quit = True
 
+                    elif message[0][:12] == 'DataTreeGrab':
+                        if ltarget == 1:
+                            llevel = 1
+                            ltarget = 3
+
+                        elif ltarget == 2:
+                            ltarget = 3
+                            if llevel == -1:
+                                llevel = 128
+
+                            else:
+                                llevel = 256
+
+                        elif llevel == -1:
+                            llevel = 32768
+                            ltarget = 3
+
+                        else:
+                            llevel = 65536
+                            ltarget = 3
+
                     if isinstance(message[0], (str, unicode)):
                         self.writelog(message[0], llevel, ltarget)
                         continue
@@ -330,7 +351,7 @@ class Logging(Thread):
 
                         continue
 
-                self.writelog(self.config.text('IO', 5, (message, type(message))))
+                self.writelog(self.config.text('IO', 13, (message, type(message))))
 
             except:
                 sys.stderr.write((self.now() + u'An error ocured while logging!\n').encode(self.local_encoding, 'replace'))
@@ -878,7 +899,7 @@ class ProgramCache(Thread):
 
     def open_db(self):
         if self.filename == None:
-            self.functions.log(self.config.text('IO', 6))
+            self.functions.log(self.config.text('IO', 20))
             return
 
         if os.path.isfile(self.filename +'.db'):
@@ -904,7 +925,7 @@ class ProgramCache(Thread):
                 return
 
             except:
-                self.functions.log(self.config.text('IO', 7))
+                self.functions.log(self.config.text('IO', 21))
                 self.filename = None
                 return
 
@@ -920,7 +941,7 @@ class ProgramCache(Thread):
                 self.pconn = sqlite3.connect(database=self.filename + '.db', isolation_level=None, detect_types=sqlite3.PARSE_DECLTYPES)
                 self.pconn.row_factory = sqlite3.Row
                 pcursor = self.pconn.cursor()
-                self.functions.log(self.config.text('IO', 8))
+                self.functions.log(self.config.text('IO', 1, type = 'other'))
                 pcursor.execute("PRAGMA main.integrity_check")
                 if pcursor.fetchone()[0] == 'ok':
                     # Making a backup copy
@@ -936,12 +957,12 @@ class ProgramCache(Thread):
 
                 if try_loading == 0:
                     # The integrity check failed. We restore a backup
-                    self.functions.log([self.config.text('IO', 9, (self.filename, )), self.config.text('IO', 10)])
+                    self.functions.log([self.config.text('IO', 22, (self.filename, )), self.config.text('IO', 23)])
 
             except:
                 if try_loading == 0:
                     # Opening the DB failed. We restore a backup
-                    self.functions.log([self.config.text('IO', 9, (self.filename, )), self.config.text('IO', 10), traceback.format_exc()])
+                    self.functions.log([self.config.text('IO', 22, (self.filename, )), self.config.text('IO', 23), traceback.format_exc()])
 
             try:
                 # Just in case it is still open
@@ -964,7 +985,7 @@ class ProgramCache(Thread):
 
             except:
                 # No luck so we disable all caching related functionality
-                self.functions.log([self.config.text('IO', 11, (self.filename, )), traceback.format_exc(), self.config.text('IO', 12)])
+                self.functions.log([self.config.text('IO', 24, (self.filename, )), traceback.format_exc(), self.config.text('IO', 25)])
                 self.filename = None
                 self.config.opt_dict['disable_ttvdb'] = True
                 return
@@ -1002,7 +1023,7 @@ class ProgramCache(Thread):
                     self.add('ttvdb_alias', {'name': t, 'alias': a})
 
         except:
-            self.functions.log([self.config.text('IO', 11, (self.filename, )), traceback.format_exc(), self.config.text('IO', 12)])
+            self.functions.log([self.config.text('IO', 24, (self.filename, )), traceback.format_exc(), self.config.text('IO', 25)])
             self.filename = None
             self.config.opt_dict['disable_ttvdb'] = True
 
@@ -1588,10 +1609,6 @@ class ProgramCache(Thread):
         pcursor = self.pconn.cursor()
         if table == 'ttvdb':
             tlist = []
-            #~ pcursor.execute('select * from ttvdb')
-            #~ for r in pcursor.fetchall():
-                #~ print 'db',  r[str('tid')], r[str('lang')], r[str('name')]
-
             pcursor.execute(u"SELECT ttvdb.tid, tdate, ttvdb.name, ttvdb.lang FROM ttvdb JOIN ttvdb_alias " + \
                     "ON lower(ttvdb.name) = lower(ttvdb_alias.name) WHERE lower(alias) = ?", \
                     (item['name'].lower(), ))
@@ -2110,7 +2127,7 @@ class ProgramCache(Thread):
                     self.pconn.executemany(qstring, parameters)
 
         except:
-            self.config.log(['Database Error\n', traceback.format_exc(), qstring + '\n'])
+            self.config.log([self.config.text('IO', 26), traceback.format_exc(), qstring + '\n'])
 
 # end ProgramCache
 

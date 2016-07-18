@@ -34,20 +34,21 @@ class Configure(tvgrabpyAPI.Configure):
     def __init__(self):
         self.name ='tv_grab_nl3_py'
         self.datafile = 'tv_grab_nl'
-        self.compat_text = '.tvgids.nl'
         tvgrabpyAPI.Configure.__init__(self)
-        # Version info as returned by the version function
+        # Version info from the frontend as returned by the version function
         self.country = 'The Netherlands'
         self.description = 'Dutch/Flemish grabber combining multiple sources.'
         self.major = 3
         self.minor = 0
         self.patch = 0
-        self.patchdate = u'20160208'
+        self.patchdate = u'20160619'
         self.alfa = True
         self.beta = True
-        self.output_tz = pytz.timezone('Europe/Amsterdam')
-        self.combined_channels_tz = pytz.timezone('Europe/Amsterdam')
-
+        # The default timezone to use in the xmltv output file
+        self.opt_dict['output_tz'] = 'Europe/Amsterdam'
+        # Where to get the json datafile and updates (if different from the API location)
+        self.source_url = 'https://raw.githubusercontent.com/tvgrabbers/sourcematching/master'
+        self.update_url = 'https://github.com/tvgrabbers/tvgrabnlpy/releases/latest'
 
 # end Configure()
 config = Configure()
@@ -69,50 +70,55 @@ def main():
     # We want to handle unexpected errors nicely. With a message to the log
     try:
         config.validate_option('config_file')
-        config.get_sourcematching_file()
+        config.opt_dict['log_level'] = config.opt_dict['log_level'] | 98304
+        config.get_json_datafiles()
 
-        #~ channel ='een'
+        channel ='een'
+        channel = 'npo1'
         # virtual.nl
         #~ source = config.init_sources(11)
 
         # rtl.nl
+        #~ channel = 'RTL4'
         #~ source = config.init_sources(2)
-
-        # npo.nl
-        #~ source = config.init_sources(4)
 
         # humo.be
         #~ source = config.init_sources(6)
-
-        # vpro.nl
-        #~ source = config.init_sources(7)
-
-        # oorboekje.nl
-        #~ source = config.init_sources(12)
 
         # horizon.tv
         #~ channel ='24443943146'
         #~ source = config.init_sources(5)
 
-        # nieuwsblad.be
-        #~ channel ='een'
-        #~ source = config.init_sources(8)
-
         # vrt.be
         #~ channel ='O8'
         #~ source = config.init_sources(10)
 
+        # npo.nl
+        #~ channel = '263'
+        #~ source = config.init_sources(4)
+
+        # vpro.nl
+        #~ source = config.init_sources(7)
+
+        # oorboekje.nl
+        #~ channel = 'npo-radio-1'
+        #~ source = config.init_sources(12)
+
+        # nieuwsblad.be
+        #~ channel ='een'
+        #~ source = config.init_sources(8)
+
         # tvgids.nl
-        channel = '5'
-        source = config.init_sources(0)
+        #~ channel = '5'
+        #~ source = config.init_sources(3)
 
         # tvgids.tv
-        #~ channel ='nederland-1'
-        #~ source = config.init_sources(1)
+        channel ='nederland-1'
+        source = config.init_sources(1)
 
         # primo.eu
-        #~ channel = 'npo1'
         #~ channel ='een'
+        #~ channel = 'npo1'
         #~ source = config.init_sources(9)
 
         source.test_output = sys.stdout
@@ -124,24 +130,34 @@ def main():
 
         sid = source.proc_id
         config.channelsource[sid] = source
-        config.channelsource[sid].init_channel_source_ids()
-        #~ tdict = config.fetch_func.checkout_program_dict()
+        source.init_channel_source_ids()
         tdict = {}
         tdict['detail_url'] = {}
-        tdict['channelid'] = config.channelsource[sid].chanids[channel]
+        tdict['chanid'] = source.chanids[channel]
 
-        #~ config.channelsource[sid].get_channels()
+        #~ source.get_channels()
 
-        #~ data = config.channelsource[sid].get_page_data('base',{'offset': 2, 'channel': channel, 'channelgrp': 'rest', 'cnt-offset': 0, 'start':0, 'days':4})
-        #~ config.channelsource[sid].parse_basepage(data, {'offset': 1, 'channel': channel, 'channelgrp': 'main'})
+        offset = 1
+        first_day = 0
+        max_days = 4
+        last_day = 1
+        data = source.get_page_data('base',{'channels': source.channels,
+                                                                'channel': channel,
+                                                                'channelgrp': 'main',
+                                                                'offset': offset,
+                                                                'start': first_day,
+                                                                'end': min(max_days, last_day),
+                                                                'back':-first_day,
+                                                                'ahead':min(max_days, last_day)-1})
+        source.parse_basepage(data, {'offset': 1, 'channel': channel, 'channelgrp': 'main'})
 
-        tdict['detail_url'][sid] = '20543224'
+        #~ tdict['detail_url'] = '20741005'
         #~ tdict['detail_url'][sid] = '20629464'
-        #~ tdict['detail_url'][sid] = ''
-        #~ tdict['detail_url'][sid] = ''
-        #~ tdict['detail_url'][sid] = ''
-        #~ tdict['detail_url'][sid] = ''
-        config.channelsource[sid].load_detailpage('detail', tdict)
+        #~ tdict['detail_url'][sid] = 'death-in-paradise/15885235'
+        #~ tdict['detail_url'][sid] = "7892935" #'7875065'
+        #~ tdict['detail_url'][sid] = "7897702" #'7879295'
+        #~ tdict['detail_url'][sid] = "20822296" #'7875063'
+        #~ source.load_detailpage('detail', tdict)
 
     except:
         traceback.print_exc()
