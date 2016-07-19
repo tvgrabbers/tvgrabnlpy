@@ -795,16 +795,16 @@ class ChannelNode():
             # It was already there but not matched
             elif type == 33:
                 type = 1
-                self.match_array.append(self.config.text('merge',32 ,(start_stop1, title1, genre1) , type = 'stats'))
+                self.match_array.append(self.config.text('merge',35 ,(start_stop1, title1, genre1) , type = 'stats'))
 
             # Unmatched from the new source
             elif type == 2:
-                self.match_array.append(self.config.text('merge',33 ,(self.adding_from.rjust(13), start_stop2, title2, genre2) , type = 'stats'))
+                self.match_array.append(self.config.text('merge',32 ,(self.adding_from.rjust(14), start_stop2, title2, genre2) , type = 'stats'))
 
             # Matched on title and time
             elif type == 4:
-                self.match_array.append(self.config.text('merge',34 ,(self.adding_from.rjust(14), start_stop2, title2, genre2) , type = 'stats'))
-                self.match_array.append(self.config.text('merge',35 ,(start_stop1, title1, genre1) , type = 'stats'))
+                self.match_array.append(self.config.text('merge',33 ,(self.adding_from.rjust(14), start_stop2, title2, genre2) , type = 'stats'))
+                self.match_array.append(self.config.text('merge',36 ,(start_stop1, title1, genre1) , type = 'stats'))
 
             elif type == 36:
                 # For furure generic matches on Genre
@@ -813,7 +813,7 @@ class ChannelNode():
 
             # Added to a groupslot
             elif type == 8:
-                self.match_array.append(self.config.text('merge',36 ,(self.adding_from.rjust(14), start_stop2, title2, genre2) , type = 'stats'))
+                self.match_array.append(self.config.text('merge',34 ,(self.adding_from.rjust(14), start_stop2, title2, genre2) , type = 'stats'))
 
             # The groupslot
             elif type == 40:
@@ -828,22 +828,22 @@ class ChannelNode():
             # 8 detail adding
             self.merge_stats['new'] -= self.merge_stats['groupslot']
             if self.merge_type & 1:
-                mtype = self.config.text('merge', 2, type = 'stats')
+                mtype = self.config.text('merge', 6, type = 'stats')
 
             else:
-                mtype = self.config.text('merge', 1, type = 'stats')
+                mtype = self.config.text('merge', 5, type = 'stats')
 
             log_array = ['\n']
             if isinstance(source, ChannelNode):
                 addingid = source.chanid
                 addingname = source.shortname
-                stype = self.config.text('merge', 6, type = 'stats')
+                stype = self.config.text('merge', 8, type = 'stats')
                 sn = source.name
 
             else:
                 addingid = source
                 addingname = self.config.channelsource[source].source
-                stype = self.config.text('merge', 5, type = 'stats')
+                stype = self.config.text('merge', 7, type = 'stats')
                 sn = source
 
             log_array.append(self.config.text('merge', 9, \
@@ -856,10 +856,10 @@ class ChannelNode():
                 (self.adding_stats['count'], addingname.ljust(15), self.adding_stats['start-str'], \
                 self.adding_stats['stop-str'], self.adding_stats['groups']), 'stats'))
             log_array.append('\n')
-            log_array.append(self.config.text('merge', 14, (self.merge_stats['matched'], ), 'stats'))
-            log_array.append(self.config.text('merge', 12, (self.merge_stats['new'], ), 'stats'))
-            log_array.append(self.config.text('merge', 15, (self.merge_stats['groupslot'], ), 'stats'))
-            log_array.append(self.config.text('merge', 13, (self.merge_stats['genre'], ), 'stats'))
+            log_array.append(self.config.text('merge', 12, (self.merge_stats['matched'], ), 'stats'))
+            log_array.append(self.config.text('merge', 13, (self.merge_stats['new'], ), 'stats'))
+            log_array.append(self.config.text('merge', 14, (self.merge_stats['groupslot'], ), 'stats'))
+            log_array.append(self.config.text('merge', 15, (self.merge_stats['genre'], ), 'stats'))
             log_array.append(self.config.text('merge', 16, (self.merge_stats['unmatched'], addingname), 'stats'))
             log_array.append(self.config.text('merge', 17, (self.program_count(), len(self.group_slots)), 'stats'))
             log_array.append(self.config.text('merge', 18, (len(self.programs_with_no_genre), ), 'stats'))
@@ -943,9 +943,9 @@ class ChannelNode():
             # Is this the first source?
             if self.program_count() == 0:
                 self.prime_source = source
-                self.config.log(['\n', self.config.text('merge', 7, (self.config.text('merge', 3, type='stats'), \
-                    self.adding_stats['count'], self.config.channelsource[source].source, self.current_stats['count'], self.name), 'stats'), \
-                    self.config.text('merge', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+                self.config.log(['\n', self.config.text('merge', 1, (self.adding_stats['count'], \
+                    self.config.channelsource[source].source, self.name), 'stats'), \
+                    self.config.text('merge', 3, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
 
                 self.merge_type = 0
                 last_stop = self.start
@@ -986,9 +986,9 @@ class ChannelNode():
                     pass
 
             else:
-                self.config.log(['\n', self.config.text('merge', 7, (self.config.text('merge', 4, type='stats'), \
-                    self.adding_stats['count'], self.config.channelsource[source].source, self.current_stats['count'], self.name), 'stats'), \
-                    self.config.text('merge', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+                self.config.log(['\n', self.config.text('merge', 2, (self.adding_stats['count'], \
+                    self.config.channelsource[source].source, self.current_stats['count'], self.name), 'stats'), \
+                    self.config.text('merge', 3, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
 
                 self.merge_type = 1
                 group_slots = []
@@ -1217,9 +1217,8 @@ class ChannelNode():
 
             if self.program_count() == 0:
                 # We add
-                self.config.log(['\n', self.config.text('merge', 7, (self.config.text('merge', 3, type='stats'), \
-                    self.adding_stats['count'], channode.name, self.current_stats['count'], self.name), 'stats'), \
-                    self.config.text('merge', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+                self.config.log(['\n', self.config.text('merge', 1, (self.adding_stats['count'], channode.name, self.name), 'stats'), \
+                    self.config.text('merge', 3, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
 
                 programs.extend(group_slots)
                 programs.sort(key=lambda pnode: (pnode.start))
@@ -1239,9 +1238,9 @@ class ChannelNode():
                 self.log_merge_statistics(channode)
             else:
                 # Try matching on time and name or check if it falls into a groupslot, a gap or outside the range
-                self.config.log(['\n', self.config.text('merge', 7, (self.config.text('merge', 4, type='stats'), \
-                    self.adding_stats['count'], channode.name, self.current_stats['count'], self.name), 'stats'), \
-                    self.config.text('merge', 8, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
+                self.config.log(['\n', self.config.text('merge', 2, (self.adding_stats['count'], \
+                    channode.name, self.current_stats['count'], self.name), 'stats'), \
+                    self.config.text('merge', 3, (self.channel_config.counter, self.config.chan_count), 'stats')], 2)
 
                 self.merge_type += 1
                 programs.sort(key=lambda pnode: (pnode.start))

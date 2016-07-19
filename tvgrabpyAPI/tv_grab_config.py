@@ -437,8 +437,10 @@ class Configure:
                                 self.texts[module][type] = {}
 
                             for tno in fle_dict['texts'][module][type].keys():
-                                if not is_data_value([module, type, tno], self.texts, str, True):
+                                if is_data_value(['texts', module, type, tno], fle_dict, str, True):
                                     self.texts[module][type][tno] = data_value(['texts', module, type, tno], fle_dict, str)
+
+                self.log(self.texts['config']['error'][-2])
 
             else:
                 self.log('Error loading language file: %s.%s\n' % (name, lang))
@@ -464,7 +466,7 @@ class Configure:
                 return self.texts['config']['error'][0] % (module, type, tno)
 
         except:
-            return self.texts['config']['error'][-1] % (module, type, tno)
+            return u'xError creating message text! (%s, %s: %s)\n' % (module, type, tno)
     # end text()
 
     def in_tz(self, cdate, tz = None):
@@ -1141,6 +1143,16 @@ class Configure:
 
     def read_commandline(self):
         """Initiate argparser and read the commandline"""
+        index = 0
+        if '-l' in sys.argv:
+            index = sys.argv.index('-l') + 1
+
+        elif '--language' in sys.argv:
+            index = sys.argv.index('--language') + 1
+
+        if index > 0 and is_data_value(index, sys.argv, str) and sys.argv[index] != 'en' and len(sys.argv[index]) == 2:
+                self.load_text(sys.argv[index].lower())
+
         def check_lang(lang):
             name = 'tv_grab_text'
             fle_name = u'%s/texts/%s.%s' % (self.api_path, name, lang)
@@ -1290,9 +1302,6 @@ class Configure:
         # Handle the sys.exit(0) exception on --help more gracefull
         try:
             self.args = parser.parse_args()
-
-            if self.args.language != 'en' and len(self.args.language) == 2:
-                self.load_text(self.args.language.lower().strip())
 
             if self.args.help:
                 parser.print_help()

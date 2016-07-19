@@ -371,7 +371,7 @@ class FetchURL(Thread):
             return None
 
         except (requests.Timeout) as e:
-            self.config.log(self.config.text('fetch', 5, (self.config.opt_dict['global_timeout'], self.url)), 1, 1)
+            self.config.log(self.config.text('fetch', 1, (self.config.opt_dict['global_timeout'], self.url)), 1, 1)
             if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('Fetch timeout: %s\n' % self.url)
 
