@@ -5907,7 +5907,7 @@ class FetchData(Thread):
                     # Is this the closing item for the channel?
                     if ('last_one' in tdict) and tdict['last_one']:
                         if self.proc_id == 0 and parent.counters['fetch'][9] > 0:
-                            xml_output.channelsource[1].detail_request.put(tdict)
+                            xml_output.channelsource[9].detail_request.put(tdict)
 
                         elif self.proc_id == 9 and parent.counters['fetch'][1] > 0:
                             xml_output.channelsource[1].detail_request.put(tdict)
