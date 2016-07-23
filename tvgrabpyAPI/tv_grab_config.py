@@ -111,8 +111,8 @@ import os, re, sys, argparse, traceback, datetime, time, codecs, pickle
 import tv_grab_IO, tv_grab_fetch, tv_grab_channel, pytz
 from DataTreeGrab import is_data_value, data_value
 from DataTreeGrab import version as dtversion
-if dtversion()[1:4] < (1,1,3):
-    sys.stderr.write("tv_grab_py_API requires DataTreeGrab 1.1.3 or higher\n")
+if dtversion()[1:4] < (1,1,4):
+    sys.stderr.write("tv_grab_py_API requires DataTreeGrab 1.1.4 or higher\n")
     sys.exit(2)
 
 try:
@@ -584,6 +584,7 @@ class Configure:
         if x != None:
             return(x)
 
+        self.only_local_sourcefiles = self.args.only_cache
         x = self.get_json_datafiles(self.args.configure)
         if x != None:
             return(x)
@@ -632,6 +633,10 @@ class Configure:
 
         for s in self.args.disable_detail_source:
             self.validate_option('disable_detail_source', value = s)
+
+        if self.args.only_cache:
+            self.args.fast = True
+            self.args.slowdays  = 0
 
         for (a, o) in ((self.args.compat, 'compat'), \
                               (self.args.legacy_xmltvids, 'legacy_xmltvids'), \
@@ -1238,6 +1243,9 @@ class Configure:
 
         parser.add_argument('-A', '--cache', type = str, default = self.opt_dict['cache_file'], dest = 'cache_file',
                         metavar = '<file>', help =self.text('config', 25, (self.opt_dict['cache_file'], ), type='help'))
+
+        parser.add_argument('-U', '--use-only-cache', action = 'store_true', default = False, dest = 'only_cache',
+                        help =self.text('config', 48, type='help'))
 
         parser.add_argument('--clean_cache', action = 'store_true', default = self.clean_cache, dest = 'clean_cache',
                         help =self.text('config', 26, type='help'))
@@ -1854,10 +1862,17 @@ class Configure:
             pass
 
         try:
-            githubdata = self.fetch_func.get_json_data('tv_grab_API')
+            githubdata = self.fetch_func.get_json_data('tv_grab_API', fpath = self.opt_dict['sources'])
             if not isinstance(githubdata, dict):
                 log_failure()
                 return 2
+
+            raw_json = self.fetch_func.raw_json['tv_grab_API']
+            if raw_json != '':
+                fle = self.IO_func.open_file('%s/%s.json' % (self.opt_dict['sources'], 'tv_grab_API'), 'w', 'utf-8')
+                if fle != None:
+                    fle.write(raw_json)
+                    fle.close()
 
             # Check on program updates
             nv = gitdata_value("program_version", str, '1.0.0')
@@ -1873,7 +1888,7 @@ class Configure:
                 elif is_gitdata_value("version_message", list):
                     loglist.extend(githubdata["version_message"])
 
-                loglist.append(self.text('config', 9, (self.api_update_url), ), type = 'other')
+                loglist.append(self.text('config', 9, (self.api_update_url,  ), type = 'other'))
                 if show_info:
                     self.log(loglist, 0)
 
@@ -1897,10 +1912,17 @@ class Configure:
                 self.xml_output.logo_source_preference.append(k)
 
         try:
-            githubdata = self.fetch_func.get_json_data(self.datafile, url = self.source_url)
+            githubdata = self.fetch_func.get_json_data(self.datafile, url = self.source_url, fpath = self.opt_dict['sources'])
             if not isinstance(githubdata, dict):
                 log_failure()
                 return 2
+
+            raw_json = self.fetch_func.raw_json[self.datafile]
+            if raw_json != '':
+                fle = self.IO_func.open_file('%s/%s.json' % (self.opt_dict['sources'], self.datafile), 'w', 'utf-8')
+                if fle != None:
+                    fle.write(raw_json)
+                    fle.close()
 
             # Check on data updates
             nv = gitdata_value("program_version", str, '1.0.0')
@@ -1917,7 +1939,7 @@ class Configure:
                 elif is_gitdata_value("version_message", list):
                     loglist.extend(githubdata["version_message"])
 
-                loglist.append(self.text('config', 9, (self.update_url), ), type = 'other')
+                loglist.append(self.text('config', 9, (self.update_url, ), type = 'other'))
                 if show_info:
                     self.log(loglist, 0)
 
@@ -3179,6 +3201,10 @@ class Configure:
         log_array.append(self.text('config', 78, (self.fetch_func.get_counter('detail', -99), ), type = 'stats'))
         log_array.append(self.text('config', 79, (self.fetch_func.get_counter('lookup', -1), ), type = 'stats'))
         log_array.append(self.text('config', 80, (self.fetch_func.get_counter('lookup_fail', -1), ), type = 'stats'))
+        if self.args.only_cache:
+            self.log(log_array, 1, 3)
+            return
+
         if fetch_count > 0:
             log_array.extend([self.text('config', 81, ((end - start).total_seconds()/fetch_count, ), type = 'stats'), '\n'])
         log_array.append(self.text('config', 82, (self.fetch_func.get_counter('detail', -1), ), type = 'stats'))

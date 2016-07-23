@@ -1779,8 +1779,11 @@ class ProgramCache(Thread):
                     if f in p.keys():
                         sql_vals.append(p[f])
 
-                    else:
+                    elif self.get_fprop(table, f, 'null', False):
                         sql_vals.append(None)
+
+                    else:
+                        sql_vals.append(self.get_fprop(table, f, 'default', ''))
 
                 for f in self.config.detail_keys['all']:
                     if f in self.field_list:
@@ -2151,7 +2154,7 @@ class InfoFiles():
             self.raw_output =  self.functions.open_file(self.config.opt_dict['xmltv_dir']+'/raw_output3', 'w')
 
     def check_new_channels(self, source, source_channels):
-        if not self.write_info_files:
+        if not self.write_info_files or self.config.args.only_cache:
             return
 
         if source.all_channels == {}:

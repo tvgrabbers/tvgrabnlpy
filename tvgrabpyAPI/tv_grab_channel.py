@@ -376,24 +376,11 @@ class Channel_Config(Thread):
             self.ready = True
             return(97)
 
-    def get_counter(self):
-        with self.channel_lock:
+    def get_details(self, ):
+        def get_counter():
             self.fetch_counter += 1
             return 100*float(self.fetch_counter)/float(self.channel_node.program_count())
 
-    def get_source_id(self, source):
-        if source in self.source_id.keys():
-            return self.source_id[source]
-
-        return ''
-
-    def source_ready(self, source):
-        if not source in self.source_data.keys():
-            self.source_data[source] = Event()
-
-        return self.source_data[source]
-
-    def get_details(self, ):
         """
         Given a list of programs, from the several sources, retrieve program details
         """
@@ -422,7 +409,7 @@ class Channel_Config(Thread):
 
             pn = self.channel_node.programs[i]
             without_details = True
-            counter = self.get_counter()
+            counter = get_counter()
             if not isinstance(pn, ProgramNode) or pn.is_groupslot:
                 self.functions.update_counter('exclude', -99, self.chanid)
                 continue
@@ -526,6 +513,18 @@ class Channel_Config(Thread):
         else:
             self.detail_return.put({'source': None,'last_one': True})
 
+
+    def get_source_id(self, source):
+        if source in self.source_id.keys():
+            return self.source_id[source]
+
+        return ''
+
+    def source_ready(self, source):
+        if not source in self.source_data.keys():
+            self.source_data[source] = Event()
+
+        return self.source_data[source]
 
     def add_tuple_values(self, data, pnode = None, source = None):
         for tk, tv in self.config.tuple_values.items():
@@ -1262,6 +1261,19 @@ class ChannelNode():
                                     self.current_list.remove(pn)
 
                                 pn.add_node_data(programs[index])
+                                for s in self.config.source_order:
+                                    prog_ID = pn.get_value('prog_ID', s)
+                                    if prog_ID not in ('', None):
+                                        if not s in self.programs_by_prog_ID.keys():
+                                            self.programs_by_prog_ID[s] = {}
+                                            self.programs_by_prog_ID[s][prog_ID] = [pn]
+
+                                        elif not prog_ID in self.programs_by_prog_ID[s].keys():
+                                            self.programs_by_prog_ID[s][prog_ID] = [pn]
+
+                                        else:
+                                            self.programs_by_prog_ID[s][prog_ID].append(pn)
+
                                 self.add_stat()
                                 break
 

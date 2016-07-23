@@ -166,7 +166,8 @@ def load_texts():
                 46: u'maximum length of overlap between programming to correct\n' + \
                     '<default 10 minutes>',
                 47: u'Give the language to use for system and log messages.\n' + \
-                    'At present "en" (default) or "nl"'
+                    'At present "en" (default) or "nl"',
+                48: u'Only use data from the cache.'
                 },
             u'confighelp':{
                 0: u'# DO NOT CHANGE THIS VALUE!\n',

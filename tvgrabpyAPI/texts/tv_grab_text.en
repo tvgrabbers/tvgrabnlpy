@@ -742,620 +742,623 @@ p234
 sI47
 VGive the language to use for system and log messages.\u000aAt present "en" (default) or "nl"
 p235
-ssVother
+sI48
+VOnly use data from the cache.
 p236
-(dp237
+ssVother
+p237
+(dp238
 I0
 VGrabber API combining multiple sources.
-p238
+p239
 sI1
 VThe available sources are: 
-p239
+p240
 sI2
 VThe available detail sources are: 
-p240
+p241
 sI3
 VThe available logo sources are: 
-p241
+p242
 sI4
 V 99: Your own full logo url
-p242
+p243
 sI5
 VStart time of this run: %s\u000a
-p243
+p244
 sI6
 VVersion
-p244
+p245
 sI7
 VLanguage
-p245
+p246
 sI8
 VThere is a newer stable API release available on github!\u000a
-p246
+p247
 sI9
 VGoto: %s\u000a
-p247
+p248
 sI10
 VThere is a newer stable frontend release available!\u000a
-p248
+p249
 sI11
 VThe channel/source matching data is newer!\u000a
-p249
+p250
 sI12
 VRun with "--configure" to implement it\u000a
-p250
+p251
 ssg35
-(dp251
+(dp252
 I0
 VText message (%s, %s: %s) not Found!\u000a
-p252
+p253
 sI1
 VNo valid source description for %s found. Disableing it!\u000a
-p253
+p254
 sI2
 VYou can not run this script as root, except with --configure.\u000aIf you run --configure as root, the configuration is placed in\u000a"/etc/tvgrabpyAPI/" and used as fall-back default configuration.\u000a
-p254
+p255
 sI3
 VError updating to new Config.\u000a
-p255
+p256
 sI4
 VPlease remove the old config and Re-run me with the --configure flag.\u000a
-p256
+p257
 sI5
 VUpdated the configfile %s!\u000a
-p257
+p258
 sI6
 VCheck if you are fine with the settings.\u000a
-p258
+p259
 sI7
 VIf this is a first install, you have to enable the desired channels!\u000a
-p259
+p260
 sI8
 VCreating config file: %s\u000a
-p260
+p261
 sI9
 VError writing new Config. Trying to restore an old one.\u000a
-p261
+p262
 sI10
 VCreated the configfile %s!\u000a
-p262
+p263
 sI11
 VUpdated the options in the configfile %s!\u000a
-p263
+p264
 sI12
 VAn offset %s higher then the max is ridiculeous. We reset to %s
-p264
+p265
 sI13
 VWe can look a maximum of 14 days ahead. Resetting!\u000a
-p265
+p266
 sI14
 VCreating %s directory,\u000a
-p266
+p267
 sI15
 VCannot write to outputfile: %s\u000a
-p267
+p268
 sI16
 VCannot access the config/log directory: %s\u000a
-p268
+p269
 sI17
 VCannot open the logfile: %s\u000a
-p269
+p270
 sI18
 VUsing config file: %s\u000a
-p270
+p271
 sI19
 VTrying to fall back on %s.\u000a
-p271
+p272
 sI20
 VCannot write to cachefile: %s\u000a
-p272
+p273
 sI21
 VError accessing cachefile(directory): %s\u000a
-p273
+p274
 sI22
 VSetting All to Fast Mode\u000a
-p274
+p275
 sI23
 VSetting Channel: %s to Fast Mode\u000a
-p275
+p276
 sI24
 VUsing description length: %d for Channel: %s\u000a
-p276
+p277
 sI25
 VMaximum overlap 0 means overlap strategy set to: "%s"\u000a
-p277
+p278
 sI26
 VMaximum overlap 0 means overlap strategy for Channel: %s set to: "%s"\u000a
-p278
+p279
 sI27
 VUsing Maximum Overlap: %d for Channel %s\u000a
-p279
+p280
 sI28
 Voverlap strategy for Channel: %s set to: "%s"\u000a
-p280
+p281
 sI31
 VRe-run me with the --configure flag.\u000a
-p281
+p282
 sI32
 VAdding "legacy_xmltvids = True"\u000a
-p282
+p283
 sI33
 VRun with "--configure" to make it permanent\u000a
-p283
+p284
 sI34
 VIgnoring unknown section "%s"\u000a
-p284
+p285
 sI35
 VIgnoring configuration line "%s". Outside any known section.\u000a
-p285
+p286
 sI36
 VError reading Config\u000a
-p286
+p287
 sI37
 VError while reading a line in the [Configuration] section of config file %s:
-p287
+p288
 sI38
 VError while reading a line in the [Channels] section of config file %s:
-p288
+p289
 sI39
 VChannel section [%s] ignored. Unknown channel\u000a
-p289
+p290
 sI40
 VError while reading a line in the [%s] section of config file %s:
-p290
+p291
 sI41
 VError reading the Defaults file %s\u000a
-p291
+p292
 sI43
 VError reading the datafile on github.\u000a
-p292
+p293
 sI44
 VUnable to continue with configure!\u000a
-p293
+p294
 sI45
 VInvalid starttime for %s in combined channel: %s\u000a  Removing it!
-p294
+p295
 sI46
 VInvalid endtime for %s in combined channel: %s\u000a  Removing it!
-p295
+p296
 sI62
 VNot all channel info could be retrieved.\u000a
-p296
+p297
 sI63
 VTry again in 15 minutes or so; or disable the failing source.\u000a
-p297
+p298
 sI64
 VSource %s (%s) disabled
-p298
+p299
 sI65
 VNo detailfetches from Source %s (%s)
-p299
+p300
 sI66
 VChannel specific settings other then the above (only for the active channels):
-p300
+p301
 sI67
 V  prime_source setting: %s (%s) in sourcematching.json not used\u000a
-p301
+p302
 sI68
 V  Source %s (%s) disabled\u000a
-p302
+p303
 sI69
 V  Detail Source %s (%s) disabled\u000a
-p303
+p304
 sI70
 VError Opening the old config. Creating a new one.\u000a
-p304
+p305
 sI71
 VError reading the old config\u000a
-p305
+p306
 sI-2
 VLoaded the English texts file\u000a
-p306
+p307
 sI-1
 VError creating message text! (%s, %s: %s)\u000a
-p307
-ssVmergeinfo
 p308
-(dp309
+ssVmergeinfo
+p309
+(dp310
 I1
 VWe merged %s into %s\u000a
-p310
+p311
 sI2
 VSince both were active, we have not set an alias\u000a
-p311
+p312
 sI3
 VIf you want to use the old chanid %s as xmltvid\u000a
-p312
+p313
 sI4
 Vyou have to add:\u000a
-p313
+p314
 sI5
 Vto the channel configuration for %s\u000a
-p314
+p315
 sI6
 VSince the old chanid was active, we have set an alias\u000a
-p315
+p316
 sI7
 Vto the channel configuration for %s\u000a
-p316
+p317
 sI8
 VSince %s already has an xmltvid_alias set\u000a
-p317
+p318
 sI9
 Vwe have not changed this.\u000a
-p318
+p319
 sI10
 VIf you want to use the old chanid %s as xmltvid\u000a
-p319
+p320
 sI11
 Vyou have to change:\u000a
-p320
+p321
 sI12
 Vto:
-p321
+p322
 sI13
 Vin the channel configuration for %s\u000a
-p322
+p323
 sI14
 VWe could not check for any selfset options on the old chanid: %s\u000a
-p323
+p324
 sI15
 VSo check the settings for the new chanid: %s\u000a
-p324
-sssVfetch
 p325
-(dp326
+sssVfetch
+p326
+(dp327
 Vreport
-p327
-(dp328
+p328
+(dp329
 I1
 VNow fetching %s(xmltvid=%s%s) from %s\u000a
-p329
+p330
 sI2
 VNow fetching %s channel(s) from %s\u000a
-p330
+p331
 sI3
 VNow fetching the %s channelgroup from %s\u000a
-p331
+p332
 sI4
 V    (channel %s of %s) for day %s of %s.\u000a
-p332
+p333
 sI5
 V    (channel %s of %s) for %s days.\u000a
-p333
+p334
 sI6
 V    (channel %s of %s) for periode %s of %s).\u000a
-p334
+p335
 sI7
 V    (channel %s of %s) for %s days, page %s.\u000a
-p335
+p336
 sI8
 V    for day %s of %s.\u000a
-p336
+p337
 sI9
 V    for %s days.\u000a
-p337
+p338
 sI10
 V    for periode %s of %s.
-p338
+p339
 sI11
 V    for %s days, page %s.\u000a
-p339
+p340
 sI12
 V\u000aRetrieving day %s for channel %s source %s from the cache.\u000a
-p340
+p341
 sI15
 VSkip channel %s on %s, day=%d. No data\u000a
-p341
+p342
 sI16
 VSkip channel %s on %s!. No data
-p342
+p343
 sI17
 VSkip channel %s on %s!, periode=%d. No data\u000a
-p343
+p344
 sI18
 VSkip channel %s on %s!, page=%d. No data\u000a
-p344
+p345
 sI19
 VSkip day %d on %s. No data\u000a
-p345
+p346
 sI20
 VSkip %s. No data\u000a
-p346
+p347
 sI21
 VSkip periode %d on %s. No data\u000a
-p347
+p348
 sI22
 VSkip page %d on %s. No data\u000a
-p348
+p349
 sI23
 VSkip channelgroup %s on %s!, day=%d. No data\u000a
-p349
+p350
 sI24
 VSkip channelgroup %s on %s!. No data
-p350
+p351
 sI25
 VSkip channelgroup %s on %s!, periode=%d. No data\u000a
-p351
+p352
 sI26
 VSkip channelgroup %s on %s!, page=%d. No data\u000a
-p352
+p353
 sI31
 V[fetch failed or timed out] %s:(%3.0f%%) %s\u000a
-p353
+p354
 sI32
 V[%s fetch] %s:(%3.0f%%) %s\u000a
-p354
+p355
 sI33
 V      [cached] %s:(%3.0f%%) %s\u000a
-p355
+p356
 sI34
 V    [no fetch] %s:(%3.0f%%) %s\u000a
-p356
+p357
 sI41
 VNow Checking cache for %s programs on %s(xmltvid=%s%s)\u000a
-p357
+p358
 sI42
 VNow fetching details for %s programs on %s(xmltvid=%s%s)\u000a
-p358
+p359
 sI43
 V    (channel %s of %s) for %s days.\u000a
-p359
-ssg236
-(dp360
+p360
+ssg237
+(dp361
 g34
 g34
 sI1
 V  Downloading %s.json...\u000a
-p361
+p362
 ssg7
-(dp362
+(dp363
 I1
 VDetail statistics for %s (channel %s of %s)\u000a
-p363
+p364
 sI2
 V%6.0f cache hit(s)\u000a
-p364
+p365
 sI3
 V%6.0f without details in cache\u000a
-p365
+p366
 sI4
 V%6.0f succesful ttvdb lookups\u000a
-p366
+p367
 sI5
 V%6.0f    failed ttvdb lookups\u000a
-p367
+p368
 sI6
 V%6.0f detail fetch(es) from %s.\u000a
-p368
+p369
 sI7
 V%6.0f failure(s)\u000a
-p369
+p370
 sI8
 V%6.0f without detail info\u000a
-p370
+p371
 sI9
 V%6.0f left in the %s queue to process\u000a
-p371
+p372
 sI10
 V%6.0f excluded by genre\u000a
-p372
+p373
 ssg35
-(dp373
+(dp374
 I1
 Vget_page timed out on (>%s s): %s\u000a
-p374
+p375
 sI2
 VAn unexpected error "%s:%s" has occured while fetching page: %s\u000a
-p375
+p376
 sI3
 VCannot open url %s\u000a
-p376
+p377
 sI4
 VCannot parse url %s: code=%s\u000a
-p377
+p378
 sI11
 VError processing %s-function %s for source %s\u000a
-p378
+p379
 sI12
 VThe supplied data was: %s\u000a
-p379
+p380
 sI21
 VChannel %s seems to be waiting for %s lost detail requests from %s.\u000a
-p380
+p381
 sI22
 VSetting it to ready\u000a
-p381
+p382
 sI23
 VError processing the detailpage: %s\u000a
-p382
+p383
 sI24
 VError processing the detail2page: %s\u000a
-p383
+p384
 sI25
 VError retrieving the URL for source: %s from the json data_def\u000a
-p384
+p385
 sI26
 VError reading the %s-page: %s\u000a
-p385
+p386
 sI27
 VUnable to veryfy the right offset for the basepage: %s.\u000a
-p386
+p387
 sI28
 VSkip channel=%s on %s!, day=%d. Wrong date!\u000a
-p387
+p388
 sI29
 VUnexpected Error retrieving a %s-page from: %s\u000a
-p388
+p389
 sI30
 VUnable to get channel info from %s\u000a
-p389
+p390
 sI31
 VFatal Error processing the basepages from %s\u000a
-p390
+p391
 sI32
 VSetting them all to being loaded, to let the other sources finish the job\u000a
-p391
+p392
 sI33
 VCan not determine program title for "%s" on channel: %s, source: %s\u000a
-p392
+p393
 sI34
 VCan not determine timings for "%s" on channel: %s, source: %s\u000a
-p393
+p394
 sI35
 VPage %s returned no data\u000a
-p394
+p395
 sI36
 VRemoving "%s" from "%s"\u000a
-p395
+p396
 sI37
 VSplitting title "%s"\u000a
-p396
+p397
 sI38
 VRenaming "%s" to "%s"\u000a
-p397
+p398
 sI51
 VNo Data from %s for channel: %s\u000a
-p398
+p399
 sI52
 VDetail sources: %s died.\u000a
-p399
+p400
 sI53
 VSo we stop waiting for the pending details for channel %s\u000a
-p400
-sssVIO
 p401
-(dp402
-g236
+sssVIO
+p402
 (dp403
+g237
+(dp404
 I1
 VVerifying the database\u000a
-p404
+p405
 ssg35
-(dp405
+(dp406
 I1
 VFile: "%s" not found or could not be accessed.\u000a
-p406
+p407
 sI2
 V%s is not encoded in %s.\u000a
-p407
+p408
 sI3
 V%s has invalid encoding %s.\u000a
-p408
+p409
 sI10
 VIf you want assistence, please attach your configuration and log files!\u000a
-p409
+p410
 sI11
 VAn unexpected error has occured in the %s thread:\u000a
-p410
+p411
 sI12
 VAn unexpected error has occured:\u000a
-p411
+p412
 sI13
 VUnrecognized log-message: %s of type %s\u000a
-p412
+p413
 sI14
 VWhile fetching the base pages\u000a
-p413
+p414
 sI15
 VThe current detail url is: %s\u000a
-p414
+p415
 sI16
 VWhile fetching the detail pages\u000a
-p415
+p416
 sI20
 VNo cachefile given. Cache function disabled!\u000a
-p416
+p417
 sI21
 VThe cache directory is not accesible. Cache function disabled!\u000a
-p417
+p418
 sI22
 VError loading the database: %s.db (possibly corrupt)\u000a
-p418
+p419
 sI23
 VTrying to load a backup copy
-p419
+p420
 sI24
 VFailed to load the database: %s.db\u000a
-p420
+p421
 sI25
 VDisableing Cache function
-p421
+p422
 sI26
 VDatabase Error\u000a
-p422
-sssVttvdb
 p423
-(dp424
+sssVttvdb
+p424
+(dp425
 Vfrontend
-p425
-(dp426
+p426
+(dp427
 I0
 g34
 sI1
 VThe series "%s" is already saved under ttvdbID: %s -> %s
-p427
+p428
 sI2
 V    for the languages: (%s)\u000a
-p428
+p429
 sI3
 VThe series "%s" is not jet known!\u000a
-p429
+p430
 sI4
 VNo match for %s is found on theTVDB.com
-p430
+p431
 sI5
 VtheTVDB Search Results:
-p431
+p432
 sI6
 VEnter choice (first number, q to abort):
-p432
+p433
 sI7
 VRemoving old instance
-p433
+p434
 sI8
 VAdding "%s" under aliasses "%s" and "%s" as ttvdbID: %s to the database for lookups!
-p434
+p435
 sI9
 VAdding "%s" under alias "%s" as ttvdbID: %s to the database for lookups!
-p435
+p436
 sI10
 VAdding "%s" ttvdbID: %s to the database for lookups!
-p436
+p437
 ssg35
-(dp437
+(dp438
 I1
 VSorry, thetvdb.com lookup is disabled!\u000a
-p438
+p439
 sI2
 VPlease supply a series title!\u000a
-p439
+p440
 sI3
 VInvalid language code: "%s" supplied falling back to "en"\u000a
-p440
+p441
 sI11
 VError retreiving an ID from theTVdb.com\u000a
-p441
+p442
 sI12
 VError retreiving episodes from theTVDB.com\u000a
-p442
+p443
 sI13
 V  No ttvdb id for "%s" on channel %s\u000a
-p443
+p444
 sI14
 Vttvdb lookup for "%s: %s"\u000a
-p444
+p445
 sI15
 Vttvdb failure for "%s: %s" on channel %s\u000a
-p445
-ssssVversion
 p446
+ssssVversion
+p447
 (I1
 I0
 I0
-tp447
+tp448
 sVlanguage
-p448
-VEnglish
 p449
+VEnglish
+p450
 s.

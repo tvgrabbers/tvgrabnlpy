@@ -104,7 +104,7 @@ class Functions():
         return self.channel_counters[chanid][cnt_type][source_id]
     # end get_counter()
 
-    def get_page(self, url, encoding = None, accept_header = None, txtdata = None, counter = None, is_json = False):
+    def get_page(self, url, encoding = None, accept_header = None, txtdata = None, is_json = False):
         """
         Wrapper around get_page_internal to catch the
         timeout exception
@@ -125,25 +125,11 @@ class Functions():
 
             fu = FetchURL(self.config, url, txtdata, txtheaders, encoding, is_json)
             self.max_fetches.acquire()
-            if isinstance(counter,(list, tuple)):
-                if len(counter) == 2:
-                    self.update_counter(counter[0], counter[1])
-
-                if len(counter) >= 3:
-                    self.update_counter(counter[0], counter[1], counter[2])
-
             fu.start()
             fu.join(self.config.opt_dict['global_timeout']+1)
             page = fu.result
             self.max_fetches.release()
             if (page == None) or (page =={}) or (isinstance(page, (str, unicode)) and ((re.sub('\n','', page) == '') or (re.sub('\n','', page) =='{}'))):
-                if isinstance(counter,(list, tuple)):
-                    if len(counter) == 2:
-                        self.update_counter('fail', counter[1])
-
-                    if len(counter) >= 3:
-                        self.update_counter('fail', counter[1], counter[2])
-
                 return None
 
             else:
@@ -154,23 +140,15 @@ class Functions():
             if self.config.write_info_files:
                 self.config.infofiles.add_url_failure('Fetch timeout: %s\n' % url)
 
-            if isinstance(counter,(list, tuple)):
-                if len(counter) == 2:
-                    self.update_counter('fail', counter[1])
-
-                if len(counter) >= 3:
-                    self.update_counter('fail', counter[1], counter[2])
-
             self.max_fetches.release()
             return None
     # end get_page()
 
     def get_json_data(self, name, version = None, source = -98, url = None, fpath = None):
         self.raw_json[name] = ''
-        local_name = '%s.json' % (name)
+        local_name = '%s.%s.json' % (name, version) if isinstance(version, int) else '%s.json' % (name)
         # Try to find the source files locally
-        if isinstance(version, int):
-            local_name = '%s.%s.json' % (name, version)
+        if isinstance(version, int) or self.config.only_local_sourcefiles:
             # First we try to get it in the supplied location
             try:
                 if fpath != None:
@@ -827,7 +805,7 @@ class theTVDB_v1(Thread):
             return(98)
 
     def query_ttvdb(self, ptype, pdata, chanid = None):
-        if not ptype in self.datatrees.keys() or not isinstance(pdata, dict):
+        if not ptype in self.datatrees.keys() or not isinstance(pdata, dict) or self.config.args.only_cache:
             return
 
         if 'ttvdbid' in pdata:
@@ -851,14 +829,17 @@ class theTVDB_v1(Thread):
             print url
 
 
-        page = self.functions.get_page(url, counter=['detail', -1, chanid])
+        self.functions.update_counter('detail', -1, chanid)
+        page = self.functions.get_page(url)
         if page == None:
+            self.functions.update_counter('fail', -1, chanid)
             return None
 
         self.datatrees[ptype].init_data(page)
         self.datatrees[ptype].extract_datalist()
         data = self.datatrees[ptype].result
         if len(data) == 0:
+            self.functions.update_counter('fail', -1, chanid)
             return None
 
         if self.show_result:
@@ -972,7 +953,7 @@ class theTVDB_v1(Thread):
 
                 return {'tid': tid, 'tdate': self.last_updated, 'name': name}
 
-            elif tid > 0 and isinstance(self.last_updated, datetime.date) and (datetime.date.today() - self.last_updated).days > 30:
+            elif tid > 0 and isinstance(self.last_updated, datetime.date) and (datetime.date.today() - self.last_updated).days > 30 and not self.config.args.only_cache:
                 data = self.query_ttvdb('seriesname', { 'ttvdbid': tid, 'lang': lang})
                 if is_data_value([0, 'last updated'], data, datetime.date) and \
                     data_value([0, 'last updated'], data, datetime.date) < self.last_updated:
@@ -986,7 +967,7 @@ class theTVDB_v1(Thread):
             langs.append(lang)
 
         try:
-            if tid == 0:
+            if tid == 0 and not self.config.args.only_cache:
                 tid = get_id_from_ttvdb()
 
             if tid == 0:
@@ -1611,13 +1592,13 @@ class FetchData(Thread):
                 pdata['start'] = 0
                 pdata['end'] = 0
                 pdata[ 'offset'] = 0
-                counter = ['base', self.proc_id]
+                counter = ['base', self.proc_id, None]
 
             elif ptype in ('detail', 'detail2'):
                 counter = ['detail', self.proc_id, pdata['channel']]
 
             else:
-                counter = ['base', self.proc_id]
+                counter = ['base', self.proc_id, None]
 
             url_type = self.datatrees[ptype].data_value(["url-type"], int, default = 2)
             url = self.datatrees[ptype].get_url(pdata)
@@ -1629,9 +1610,11 @@ class FetchData(Thread):
                 print '(url, encoding, accept_header, url_data, is_json)'
                 print url
 
-            page = self.functions.get_page(url, counter=counter)
+            self.functions.update_counter(counter[0], counter[1], counter[2])
+            page = self.functions.get_page(url)
             if page in (None, '', '{}'):
                 self.config.log([self.config.text('fetch', 26, (ptype, url[0]))], 1)
+                self.functions.update_counter('fail', counter[1], counter[2])
                 if self.print_searchtree:
                     print 'No Data'
                 return None
@@ -1639,8 +1622,10 @@ class FetchData(Thread):
             self.datatrees[ptype].init_data(page)
             if self.datatrees[ptype].searchtree == None:
                 self.config.log([self.config.text('fetch', 26, (ptype, url[0]))], 1)
+                self.functions.update_counter('fail', counter[1], counter[2])
                 if self.print_searchtree:
                     print 'No Data'
+
                 return None
 
             # We reset the timezone
@@ -1677,6 +1662,7 @@ class FetchData(Thread):
                         elif (url_type & 12) in (0, 8):
                             # offset
                             pass
+                        self.functions.update_counter('fail', counter[1], counter[2])
                         return None
 
             self.datatrees[ptype].extract_datalist()
@@ -1701,6 +1687,7 @@ class FetchData(Thread):
                 self.datatrees[ptype].init_data_def(self.data_value("base", dict))
 
             if len(data) == 0:
+                self.functions.update_counter('fail', counter[1], counter[2])
                 return None
 
             return data
@@ -2125,8 +2112,14 @@ class FetchData(Thread):
             laststop[chanid] = ls['laststop']  if isinstance(ls, dict) and isinstance(ls['laststop'], datetime.datetime) else None
 
         # Determine which days to fetch
+        if self.config.args.only_cache:
+            for chanid in self.channels.keys():
+                do_final_processing(chanid)
+
+            return
+
         # We fetch every day separate
-        if (url_type & 12) == 0:
+        elif (url_type & 12) == 0:
             # vrt.be, tvgids.tv
             if (url_type & 3) == 1:
                 fetch_range = {}
