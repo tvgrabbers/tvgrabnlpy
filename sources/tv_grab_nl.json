@@ -21,7 +21,7 @@
 	"sources":{
 		"5":{
 			"json file":"source-horizon.tv",
-			"version":4,
+			"version":5,
 			"cattrans type":1,
 			"cattransid":2},
 		"6":{
@@ -36,7 +36,7 @@
 			"cattransid":null},
 		"4":{
 			"json file":"source-npo.nl",
-			"version":2,
+			"version":3,
 			"cattrans type":1,
 			"cattransid":1},
 		"12":{
@@ -51,7 +51,7 @@
 			"cattransid":6},
 		"2":{
 			"json file":"source-rtl.nl",
-			"version":2,
+			"version":3,
 			"cattrans type":null,
 			"cattransid":null},
 		"3":{
@@ -66,12 +66,12 @@
 			"cattransid":5},
 		"7":{
 			"json file":"source-vpro.nl",
-			"version":3,
+			"version":4,
 			"cattrans type":1,
 			"cattransid":4},
 		"10":{
 			"json file":"source-vrt.be",
-			"version":2,
+			"version":3,
 			"cattrans type":1,
 			"cattransid":7},
 		"11":{
@@ -79,7 +79,7 @@
 			"version":1,
 			"cattrans type":null,
 			"cattransid":null}},
-	"active_sources":[7,3,1,5,9,6,8,2,4,10,11,12],
+	"active_sources":[7,3,5,9,6,8,2,4,10,11,12],
 	"source_channels":{
 		"3":{"0-1": "1",
 			"0-2": "2",
