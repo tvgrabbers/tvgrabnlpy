@@ -1,6 +1,8 @@
 # tvgrabnlpy
 **NOTE: We have moved from [Google Code](https://code.google.com/p/tvgrabnlpy/) to here**.
 
+The new version 3 included in [tv_grab_py_API v1](https://github.com/tvgrabbers/tvgrabpyAPI) has moved to itst own repository at: https://github.com/tvgrabbers/tvgrabpyAPI
+
 [ACTUELE INFO](https://github.com/tvgrabbers/tvgrabnlpy/wiki/actueel)
 
 [Ga naar de Wiki](https://github.com/tvgrabbers/tvgrabnlpy/wiki)  
