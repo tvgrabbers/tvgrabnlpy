@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 15
-        self.patchdate = u'20160724'
+        self.patchdate = u'20160725'
         self.alfa = False
         self.beta = True
 
@@ -12954,8 +12954,8 @@ class oorboekje_HTML(FetchData):
         self.getnameaddition = re.compile('<SPAN style=".*?">(.*?)</SPAN>')
         self.getdate = re.compile("this.document.title='oorboekje.nl - Programma-overzicht van .*? ([0-9]{2})-([0-9]{2})-([0-9]{4})';")
         self.getchanday = re.compile('<!-- programmablok begin -->(.*?)<!-- programmablok eind -->',re.DOTALL)
-        self.getchannel = re.compile('<A name="(.*?)">(.*?)</A>',re.DOTALL)
-        self.getprogram = re.compile('<DIV class="pgProgOmschr" style="text-indent: -16px; padding-left: 16px">\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
+        self.getchannel = re.compile('<IMG src="/img/logo/(.*?).png".*?>(.*?)</DIV>',re.DOTALL)
+        self.getprogram = re.compile('<DIV class="pgProgOmschr(.*?)>\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
         self.gettime = re.compile('([0-9]{2}):([0-9]{2})')
         self.geticons = re.compile('<IMG src=".*?" alt="(.*?)".*?>',re.DOTALL)
         self.init_channel_source_ids()
@@ -13087,6 +13087,7 @@ class oorboekje_HTML(FetchData):
                         scid = chan.group(1).lower()
                         if scid == 'r100procentnl':
                             scid = '100procentnl'
+
                         channame = self.empersant(re.sub('<SPAN.*?</SPAN>', '', chan.group(2)).strip())
                         if not scid in self.all_channels:
                              self.all_channels[scid] ={}
@@ -13102,19 +13103,22 @@ class oorboekje_HTML(FetchData):
                         scan_date = datetime.date.fromordinal(self.current_date + date_offset)
                         pcount = 0
                         for p in self.getprogram.findall(ch):
+                            if 'style="text-indent: 0px;"' in p[0]:
+                                continue
+
                             tdict = self.checkout_program_dict()
                             tdict['source'] = u'oorboekje'
                             tdict['channelid'] = chanid
                             tdict['channel'] = config.channels[chanid].chan_name
 
                             # The Title
-                            tdict['name'] = self.empersant(p[3].strip())
+                            tdict['name'] = self.empersant(p[4].strip())
                             if  tdict['name'] == None or tdict['name'] == '':
                                 log('Can not determine program title\n')
                                 continue
 
                             pcount+=1
-                            ptime = datetime.time(int(p[0]), int(p[1]), tzinfo=CET_CEST)
+                            ptime = datetime.time(int(p[1]), int(p[2]), tzinfo=CET_CEST)
                             tdict['offset'] = date_offset
                             tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
                             if tdict['start-time'] < last_end:
@@ -13123,7 +13127,7 @@ class oorboekje_HTML(FetchData):
                                     tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
 
                             last_end = tdict['start-time']
-                            ptime = self.gettime.search(p[2])
+                            ptime = self.gettime.search(p[3])
                             if ptime != None:
                                 ptime = datetime.time(int(ptime.group(1)), int(ptime.group(2)), tzinfo=CET_CEST)
                                 tdict['stop-time'] = datetime.datetime.combine(scan_date, ptime)
@@ -13133,14 +13137,14 @@ class oorboekje_HTML(FetchData):
 
                                 last_end = tdict['stop-time']
 
-                            for picon in self.geticons.findall(p[4]):
+                            for picon in self.geticons.findall(p[5]):
                                 if picon == "herhaling":
                                     tdict['rerun'] = True
 
                                 elif picon == "nonstop":
                                     tdict['genre'] = u'muziek'
 
-                            desc = re.sub('<.*?>', '', self.empersant(p[4])).strip()
+                            desc = re.sub('<.*?>', '', self.empersant(p[5])).strip()
                             if tdict['genre'] == u'overige':
                                 if 'muziek' in desc or 'muziek' in tdict['name']:
                                     tdict['genre'] = u'muziek'
