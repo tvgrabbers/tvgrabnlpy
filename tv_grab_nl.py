@@ -358,10 +358,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 14
-        self.patchdate = u'20160610'
+        self.patch = 15
+        self.patchdate = u'20160724'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
@@ -2144,6 +2144,10 @@ class Configure:
         for s in xml_output.prime_source_order[:]:
             if not s in xml_output.channelsource.keys():
                 xml_output.prime_source_order.remove(s)
+
+        for s in xml_output.sourceid_order[:]:
+            if not s in xml_output.channelsource.keys():
+                xml_output.sourceid_order.remove(s)
 
         # Read in the tables needed for normal grabbing
         self.source_base_url = get_githubdict("source_base_url", 1)
@@ -5883,8 +5887,8 @@ class FetchData(Thread):
                             for i in range(len(self.program_data[chanid])):
                                 self.program_data[chanid][i]['prefered description'] = self.program_data[chanid][i]['description']
 
-            if config.write_info_files:
-                infofiles.check_new_channels(self)
+                if config.write_info_files:
+                    infofiles.check_new_channels(self)
 
             if self.detail_processor and  not self.proc_id in config.opt_dict['disable_detail_source']:
                 # We process detail requests, so we loop till we are finished
