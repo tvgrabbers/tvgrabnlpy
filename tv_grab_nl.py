@@ -3842,7 +3842,7 @@ class InfoFiles:
         if config.write_info_files:
             with self.info_lock:
                 self.raw_string = unicode(self.raw_string + string)
-                self.raw_output.write((self.raw_string + u'\n').encode('utf-8', 'replace'))
+                self.raw_output.write(self.raw_string + u'\n')
                 self.raw_string = ''
 
     def addto_raw_list(self, raw_data = None):
@@ -8174,8 +8174,8 @@ class tvgids_JSON(FetchData):
             else:
                 strdetails = strdetails.group(0)
 
-            strdata = (self.clean_html('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')).strip().encode('utf-8')
-            htmldata = ET.fromstring(strdata)
+            strdata = (self.clean_html('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')).strip()
+            htmldata = ET.fromstring(strdata.encode('utf-8'))
 
         except:
             log(['Fetching page %s returned an error:\n' % (tdict['detail_url'][self.proc_id]), traceback.format_exc()])
@@ -8548,8 +8548,8 @@ class tvgidstv_HTML(FetchData):
                 self.fail_count += 1
                 return
 
-            strdata = self.clean_html('<div>' + self.getcontent.search(strdata).group(1)).encode('utf-8')
-            htmldata = ET.fromstring(strdata)
+            strdata = self.clean_html('<div>' + self.getcontent.search(strdata).group(1))
+            htmldata = ET.fromstring(strdata.encode('utf-8'))
 
         except:
             self.fail_count += 1
@@ -8762,7 +8762,7 @@ class tvgidstv_HTML(FetchData):
 
                             if config.write_info_files:
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                                infofiles.write_raw_string(u'<div><div>' + strdata + u'\n')
+                                infofiles.write_raw_string('<div><div>' + strdata + '\n')
 
                             failure_count += 1
                             self.fail_count += 1
@@ -8878,13 +8878,13 @@ class tvgidstv_HTML(FetchData):
             if strdata == None:
                 return
 
-            strdata = self.clean_html('<root><div><div class="section-title">' + self.detaildata.search(strdata).group(1) + '</root>').encode('utf-8')
+            strdata = self.clean_html('<root><div><div class="section-title">' + self.detaildata.search(strdata).group(1) + '</root>')
         except:
             log(['Error Fetching detailpage %s\n' % tdict['detail_url'][self.proc_id], traceback.format_exc()])
             return None
 
         try:
-            htmldata = ET.fromstring(strdata)
+            htmldata = ET.fromstring(strdata.encode('utf-8'))
 
         except:
             log("Error extracting ElementTree from:%s on tvgids.tv\n" % (tdict['detail_url'][self.proc_id]))
@@ -9422,8 +9422,8 @@ class teveblad_HTML(FetchData):
                     return None
 
             else:
-                strdata = self.clean_html('<div>' + self.channeldata.search(strdata).group(1)).encode('utf-8')
-                htmldata = ET.fromstring(strdata)
+                strdata = self.clean_html('<div>' + self.channeldata.search(strdata).group(1))
+                htmldata = ET.fromstring(strdata.encode('utf-8'))
 
         except:
             self.fail_count += 1
@@ -9594,7 +9594,7 @@ class teveblad_HTML(FetchData):
                             log(['Error extracting ElementTree for zendergroup:%s day:%s\n' % (group_page, offset), traceback.format_exc()])
                             if config.write_info_files:
                                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                                infofiles.write_raw_string(unicode(strdata + u'\n'))
+                                infofiles.write_raw_string(strdata + '\n')
 
                             self.day_loaded[group_page][offset] = None
                             self.fail_count += 1
@@ -9869,7 +9869,7 @@ class teveblad_HTML(FetchData):
                         log('Error extracting ElementTree for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
                         if config.write_info_files:
                             infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                            infofiles.write_raw_string(strdata + u'\n')
+                            infofiles.write_raw_string(strdata + '\n')
 
                         self.day_loaded[chanid][offset] = None
                         self.fail_count += 1
@@ -10396,7 +10396,7 @@ class npo_HTML(FetchData):
                     self.fail_count += 1
                     if config.write_info_files:
                         infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                        infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
+                        infofiles.write_raw_string('<root>\n' + strdata + '\n</root>\n')
 
                     continue
 
@@ -10528,7 +10528,7 @@ class npo_HTML(FetchData):
                 self.fail_count += 1
                 if config.write_info_files:
                     infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                    infofiles.write_raw_string(u'<root>\n' + strdata + u'\n</root>\n')
+                    infofiles.write_raw_string('<root>\n' + strdata + '\n</root>\n')
 
                 continue
 
@@ -11849,8 +11849,8 @@ class nieuwsblad_HTML(FetchData):
             else:
                 strdata = self.getchannels.search(strdata).group(1)
                 strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
-                strdata = self.clean_html('<div><div>' + strdata).encode('utf-8')
-                htmldata = ET.fromstring(strdata)
+                strdata = self.clean_html('<div><div>' + strdata)
+                htmldata = ET.fromstring(strdata.encode('utf-8'))
 
                 for item in htmldata.findall('div/div[@class]/div[@class="grid__col__inner"]/a[@href]'):
                     url = item.get('href', '')
@@ -11918,8 +11918,8 @@ class nieuwsblad_HTML(FetchData):
 
             strdata = self.getchannelgroups.search(chandata).group(1)
             strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
-            strdata = self.clean_html('<div><div>' + strdata).encode('utf-8')
-            htmldata = ET.fromstring(strdata)
+            strdata = self.clean_html('<div><div>' + strdata)
+            htmldata = ET.fromstring(strdata.encode('utf-8'))
             for item in htmldata.findall('div/div[@class]'):
                 if item.get('class') == 'accordion__header':
                     group =  self.empersant(item.text).strip()
@@ -12192,8 +12192,8 @@ class primo_HTML(FetchData):
                 chandata = config.get_page(self.get_url(0))
 
             strdata = self.getmain.search(chandata).group(1)
-            strdata = self.clean_html(strdata).encode('utf-8')
-            htmldata = ET.fromstring(strdata)
+            strdata = self.clean_html(strdata)
+            htmldata = ET.fromstring(strdata.encode('utf-8'))
             htmldata = htmldata.find('div/div[@id="tvprograms-main"]/div[@id="tvprograms"]')
             for item in htmldata.findall('div[@id="program-channel-programs"]/div/div/div'):
                 if item.get("style") != None:
@@ -12387,19 +12387,19 @@ class primo_HTML(FetchData):
             if strdata == None:
                 return
 
-            strdata = self.clean_html('<root>' + strdata + '</root>').encode('utf-8')
+            strdata = self.clean_html('<root>' + strdata + '</root>')
         except:
             log(['Error Fetching detailpage %s\n' % tdict['detail_url'][self.proc_id], traceback.format_exc()])
             return None
 
         try:
-            htmldata = ET.fromstring(strdata)
+            htmldata = ET.fromstring(strdata.encode('utf-8'))
 
         except:
             log("Error extracting ElementTree from:%s on primo.eu\n" % (tdict['detail_url'][self.proc_id]))
             if config.write_info_files:
                 infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                infofiles.write_raw_string(strdata + u'\n')
+                infofiles.write_raw_string(strdata + '\n')
 
             return None
 
