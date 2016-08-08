@@ -358,10 +358,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 16
-        self.patchdate = u'20160808'
+        self.patch = 17
+        self.patchdate = u'20160809'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
@@ -2151,6 +2151,7 @@ class Configure:
 
         # Read in the tables needed for normal grabbing
         self.source_base_url = get_githubdict("source_base_url", 1)
+        self.text_replace = get_githubdict("text_replace", 1)
         xml_output.logo_provider = get_githubdata("logo_provider")
         combined_channels = get_githubdict("combined_channels_2")
         self.combined_channels = {}
@@ -6075,6 +6076,7 @@ class FetchData(Thread):
 
     # Helper functions
     def init_channel_source_ids(self):
+        self.text_replace = config.text_replace[self.proc_id]
         for chanid, channel in config.channels.iteritems():
             self.program_data[chanid] = []
             # Is the channel active and this source for the channel not disabled
@@ -6596,6 +6598,18 @@ class FetchData(Thread):
                 tdict['subgenre']  = aheader[0]
 
         return tdict
+
+    def check_text_subs(self, page):
+        if not isinstance(self.text_replace, list) or not isinstance(page, (str, unicode)):
+            return page
+
+        for subset in self.text_replace:
+            if not isinstance(subset, list) or len(subset) < 2:
+                continue
+
+            page = re.sub(subset[0], subset[1], page)
+
+        return page
 
     # Selectie functions
     def get_json_data(self, id, item):
@@ -8020,6 +8034,7 @@ class tvgids_JSON(FetchData):
 
                 # Just let the json library parse it.
                 self.base_count += 1
+                strdata = self.check_text_subs(strdata)
                 for chanid, v in json.loads(strdata).iteritems():
                     # Most channels provide a list of program dicts, some a numbered dict
                     try:
@@ -8175,6 +8190,7 @@ class tvgids_JSON(FetchData):
                 strdetails = strdetails.group(0)
 
             strdata = (self.clean_html('<root>\n' + strtitle + strdesc + strdetails + '\n</root>\n')).strip()
+            strdata = self.check_text_subs(strdata)
             htmldata = ET.fromstring(strdata.encode('utf-8'))
 
         except:
@@ -8331,6 +8347,7 @@ class tvgids_JSON(FetchData):
             if strdata == None or strdata.replace('\n','') == '{}':
                 return None
 
+            strdata = self.check_text_subs(strdata)
             detail_data = json.loads(strdata)
 
         except:
@@ -8753,6 +8770,7 @@ class tvgidstv_HTML(FetchData):
                         try:
                             strdata =self.daydata.search(strdata).group(1)
                             strdata = self.clean_html(strdata)
+                            strdata = self.check_text_subs(strdata)
                             htmldata = ET.fromstring( ('<div><div>' + strdata).encode('utf-8'))
 
                         except:
@@ -8879,9 +8897,7 @@ class tvgidstv_HTML(FetchData):
                 return
 
             strdata = self.clean_html('<root><div><div class="section-title">' + self.detaildata.search(strdata).group(1) + '</root>')
-            # ad-hoc fix for nos-rio-live
-            strdata = re.sub('<a href="/op-tv/tafel<a href="/op-tv/tennis" title="Tennis op tv" class="inconspicuous">tennis</a>" title="Tafel<a href="/op-tv/tennis" title="Tennis op tv" class="inconspicuous">tennis</a> op tv" class="inconspicuous">tafel<a href="/op-tv/tennis" title="Tennis op tv" class="inconspicuous">tennis</a></a>', 'tafeltennis', strdata)
-            strdata = re.sub('<a href="/op-tv/paarden<a href="/op-tv/sport" title="Sport op tv" class="inconspicuous">sport</a>" title="Paarden<a href="/op-tv/sport" title="Sport op tv" class="inconspicuous">sport</a> op tv" class="inconspicuous">paarden<a href="/op-tv/sport" title="Sport op tv" class="inconspicuous">sport</a></a>', 'paardensport', strdata)
+            strdata = self.check_text_subs(strdata)
 
         except:
             log(['Error Fetching detailpage %s\n' % tdict['detail_url'][self.proc_id], traceback.format_exc()])
@@ -9112,6 +9128,7 @@ class rtl_JSON(FetchData):
                 return False
 
         # Just let the json library parse it.
+        strdata = self.check_text_subs(strdata)
         total = json.loads(strdata)
         self.base_count += 1
         # and find relevant programming info
@@ -9216,821 +9233,6 @@ class rtl_JSON(FetchData):
                 pass
 
 # end rtl_JSON
-
-class teveblad_HTML(FetchData):
-    """
-    Get all available days of programming for the requested channels
-    from the teveblad.be page. Based on FetchData
-    """
-    def init_channels(self):
-        """ Site layout
-            <head>
-            <body>
-                <div id="mainbox"></div>
-                    <div>
-                        <div class="epg_container">
-                            <div class="epg_content" style="padding:10px 0 10px 0;">
-                                <div id="epg" class="epg view_channels" baseurl="/tv-gids/{SELECTED_DATE}/zenders/npo-3" api="http://www.teveblad.be/api/teveblad/">
-                                    <div id="epg_c">
-                                        <div id="genrechanneloverview">
-                                            <div id="smallleftcol">
-                                                <div class="greyrounded">
-                                                    <h2>
-                                                        <a href="http://www.teveblad.be/tv-gids/2015-01-16/zendergroep/hoofd-zenders">Hoofdzenders</a>
-                                                    </h2>
-                                                    <a href="/tv-gids/2015-01-16/zenders/een">
-                                                        <img src="http://s4.cdn.sanomamedia.be/a/epg/q100/w60/h/39043/een-nl.jpg" width="60" height="60" title="één" />
-                                                    </a>
-                                                        ...
-                                                    <div class="clear20"></div>
-                                                        ...
-                                                </div>
-                                            </div>
-                                            <div id="middlecolchaine">
-                                                <h1>
-                                                    <img src="http://s3.cdn.sanomamedia.be/a/epg/q100/w50/h/1165805/npo-3.jpg" width="50" height="50" title="NPO 3" align="absmiddle" />&nbsp;&nbsp;NPO 3
-                                                </h1>
-                                                <div id="event_cbbc555459a8cfdd20178ab831d515d9" class="programme">
-                                                    <div class="c">
-                                                        <div class="l">
-                                                            <span class="starttime">22u20</span>
-                                                        </div>
-                                                        <div class="r" class="toowide">
-                                                            <p>
-                                                                <span class="title">
-                                                                    <a href="http://www.teveblad.be/tv-gids/programma/1250435/millennium-mannen-die-vrouwen-haten-1-2-seizoen-1-aflevering-1-6">Millennium</a>
-                                                                </span><br />
-                                                                <span class="title_episode" style="font-style:italic;">Mannen die vrouwen haten (1/2)</span>
-                                                            </p>
-                                                            <p class="desc_short">Misdaadserie</p>
-                                                            <p class="basicinfo">
-                                                                (<span class="year">2009</span>, <span class="country">DEU, DNK, NOR, SWE</span>) -
-                                                                <span class="season">Season 1 (1/6)</span>
-                                                            </p>
-                                                            <div class="desc h">
-                                                                <p>Onderzoeksjournalist Mikael Blomkvist krijgt een ongewone opdracht. De rijke industrieel Henrik Vanger vraagt hem zijn familiegeschiedenis neer te schrijven...</p>
-                                                            </div>
-                                                            <p class="picons">
-                                                                <span class="genre series curvyIgnore">
-                                                                    <a href="http://www.teveblad.be/tv-gids/2015-01-16/genres/serie">Serie</a>
-                                                                </span>
-                                                                <div class="clear"></div>
-                                                            </p>
-                                                        </div>
-                                                        <div class="clear"></div>
-                                                    </div>
-                                                </div>
-                                                    ...
-        Detailpage (not implemented)
-            <head>
-            <body>
-                <div id="mainbox"></div>
-                <div>
-                    <div>
-                        <div id="content" class="narrowcolumn">
-                            <div class="dialog">
-                                <div class="content_rounded">
-                                    <div id="epg_gridselector" class="program_detail_header"></div>
-                                    <div class="epg programdetail">
-                                        <div class="program_detail">
-                                            <div><h2>Zaterdag 17 januari 2015 14u00</h2></div>
-                                            <div class="programdetailsblock">
-                                                <p class="basicinfo">
-                                                    <h3>Care and Protection</h3>
-                                                    <p>
-                                                        <span class="season">Seizoen 1 (1/3)</span>
-                                                    </p>
-                                                    <p class="desc_short">Misdaadserie.</p>
-                                                        (<span class="year">1992</span>,<span class="country">GBR</span>)
-                                                </p>
-                                                <p class="picons">
-                                                    <span class="picon" title="Herhaling">HERH</span>
-                                                    <div class="clear"></div>
-                                                </p>
-                                                <p class="picons">
-                                                    <div class="clear"></div>
-                                                </p>
-                                                <div class="clear"></div>
-                                                <p class="desc">Samen met detective Clive Barnard gaat Jack Frost op zoek naar een vermist meisje. Haar moeder is de prostitutie in gestapt om de rekeningen te kunnen betalen. Tijdens het onderzoek stoten Frost en Barnard op een misdaad die dertig jaar geleden werd begaan. Op het thuisfront heeft Frost het emotioneel erg zwaar met de hopeloze strijd van zijn vrouw tegen een ongeneeslijke ziekte...</p>
-                                            </div>
-                                            <div class="clear"></div>
-                                            <div class="roles">
-                                                <div class="group">
-                                                    <p class="title_h2">Acteurs</p>
-                                                    <ul>
-                                                        <li>David Jason <span class="character">(D.I. Jack Frost)</span></li>
-                                                        <li>Bruce Alexander <span class="character">(Superintendent Mullett)</span></li>
-                                                        <li>Matt Bardock <span class="character">(DC Barnard)</span></li>
-                                                        <li>Claire Hackett <span class="character">(Linda Uphill)</span></li>
-                                                        <li>Ralph Nossek <span class="character">(Gerald Powell)</span></li>
-                                                        <li>Lindy Whiteford <span class="character">(Shirley Fisher)</span></li>
-                                                        <li>Helen Blatch <span class="character">(Annie)</span></li>
-                                                    </ul>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="sidebar">
-                    </div>
-                    <div class="clear"></div>
-                </div>
-                <footer id="footer"></div>
-            </body>
-        """
-
-        self.datecheckdata = re.compile('<input id="epg_dateselector".*?data-value="([0-9]+)-([0-9]+)-([0-9]+)".*?/>',re.DOTALL)
-        self.channeldata = re.compile('<div id="smallleftcol">(.*?)<div id="middlecolchaine">',re.DOTALL)
-        self.progdata = re.compile('<div id="middlecolchaine">(.*?)<div id="epg_grid_view">channels</div>',re.DOTALL)
-        self.groupdata = re.compile('<div id="epg_channel_headers">(.*?)<div id="epg_scroller_right">.*?' + \
-                                                    '<div id="epg_channels">(.*?)<div id="epg_scroller">',re.DOTALL)
-        self.seasondata = re.compile('Season ([0-9]+) \(([0-9]+)/([0-9]+)\)',re.DOTALL)
-
-        basepath = 'div[@id="mainbox"]/div/div[@class="epg_container"]/div[@class="epg_content"]/' + \
-                                    'div[@id="epg"]/div[@id="epg_c"]/div[@id="genrechanneloverview"]/'
-        self.channelpath = basepath + 'div[@id="smallleftcol"]/div[@id="class="greyrounded"]'
-
-        self.init_channel_source_ids()
-
-    def get_url(self, date = '', channel = '', get_group = False):
-
-        teveblad_zoeken = 'http://www.teveblad.be/tv-gids/'
-        if type(date) == datetime.datetime or type(date) == datetime.date:
-            date = date.strftime('%Y-%m-%d') + u'/'
-            if date == datetime.datetime.now(CET_CEST).strftime('%Y-%m-%d') + u'/':
-                date = ''
-
-        if get_group:
-            return u'%s%szendergroep/%s' % (teveblad_zoeken,  date, channel)
-
-        else:
-            return u'%s%szenders/%s' % (teveblad_zoeken,  date, channel)
-
-    def check_date(self, return_date, search_date):
-        try:
-            if return_date.group(1) == search_date.strftime('%Y'):
-                if return_date.group(2) == search_date.strftime('%m'):
-                    if return_date.group(3) == search_date.strftime('%d'):
-                        return True
-
-        except:
-            log(['Invalid page returned by teveblad.be\n', 'return_date: %s search_date: %s\n' % (return_date, search_date)])
-            return False
-
-        log('Wrong date %s-%s-%s returned from teveblad.be, %s requested\n' % \
-             (return_date.group(1),return_date.group(2) ,return_date.group(3) , search_date.strftime('%Y-%m-%d')))
-
-        return False
-
-    def read_channelfile(self):
-        try:
-            if not os.access(u'%s/teveblad_channels.html' % (config.xmltv_dir), os.F_OK):
-                if os.access(u'%s/teveblad_channels.html' % (config.hpath), os.F_OK):
-                    log('copying %s/teveblad_channels.html to %s\n' % (config.hpath, config.xmltv_dir))
-                    shutil.copy(u'%s/teveblad_channels.html' % (config.hpath), config.xmltv_dir)
-                else:
-                    log('teveblad channel info file: %s/teveblad_channels.html not found\n' % (config.hpath))
-                    return None
-
-            f = config.open_file( u'%s/teveblad_channels.html' % config.xmltv_dir)
-            if f == None:
-                return None
-
-            strdata = u''
-            for byteline in f.readlines():
-                line = config.get_line(f, byteline)
-                strdata += self.clean_html(line)
-            f.close()
-
-            return ET.fromstring(strdata.encode('utf-8'))
-
-        except:
-            log(['error parsing %s/teveblad_channels.html\n' % (config.xmltv_dir), traceback.format_exc()])
-            return None
-
-    def get_channels(self):
-        """
-        Get a list of all available channels and store these
-        in all_channels.
-        """
-
-        try:
-            strdata = config.get_page(self.get_url())
-            if strdata == None:
-                self.fail_count += 1
-                htmldata = self.read_channelfile()
-                if htmldata == None:
-                    return None
-
-            else:
-                strdata = self.clean_html('<div>' + self.channeldata.search(strdata).group(1))
-                htmldata = ET.fromstring(strdata.encode('utf-8'))
-
-        except:
-            self.fail_count += 1
-            htmldata = self.read_channelfile()
-            if htmldata == None:
-                return None
-
-        chan_groups = {'Nederlandstalig': 2,
-                                    'Hoofdzenders': 2,
-                                    'Engelstalig': 3,
-                                    'Franstalig': 5,
-                                    'Digitale zenders': 9,
-                                    'Documentaire': 9,
-                                    'Sport': 9,
-                                    'Kids & Jeugd': 9,
-                                    'Anderstalige zenders': 10}
-        self.all_channels ={}
-        self.page_strings = {}
-        changroup = 99
-        for item in htmldata.find('div[@class="greyrounded"]'):
-            if item.tag == 'h2':
-                group =  self.empersant(item.findtext('a[@href]'))
-                if group in chan_groups:
-                    changroup = chan_groups[group]
-
-                else:
-                    changroup = 99
-
-                group_url = item.find('a').get('href')
-                group_url = re.split('/', group_url)[-1]
-                self.page_strings[group] = {}
-                self.page_strings[group]['url'] = group_url
-                self.page_strings[group]['chan_list'] = []
-                self.page_strings[group]['fetch_list'] = []
-
-            elif item.tag == 'a':
-                chan = item.get('href')
-                if chan != None:
-                    chanid = re.split('/', chan)[-1]
-                    i = item.find('img')
-                    icon = '' if i == None else i.get('src', '')
-                    if icon != '':
-                        icon = re.split('/', icon)
-                        icon = '%s/%s' % (icon[-2], icon[-1])
-
-                    self.all_channels[chanid] = {}
-                    t = item.find('img')
-                    self.all_channels[chanid]['name'] = '' if t == None else t.get('title', '')
-                    self.all_channels[chanid]['icon'] = icon
-                    self.all_channels[chanid]['group'] = changroup
-                    self.all_channels[chanid]['group_list'] = []
-                    self.page_strings[group]['chan_list'].append(chanid)
-                    if group == 'Digitale zenders':
-                        self.all_channels[chanid]['HD'] = True
-
-                    else:
-                        self.all_channels[chanid]['HD'] = False
-
-        for g, v in self.page_strings.items():
-            for chanid in v['chan_list']:
-                self.all_channels[chanid]['group_list'].append(g)
-
-
-    def load_pages(self):
-        if config.opt_dict['offset'] > 8:
-            for chanid in self.channels.keys():
-                self.channel_loaded[chanid] = True
-                config.channels[chanid].source_data[self.proc_id].set()
-
-            return
-
-        if len(self.channels) == 0 :
-            return
-
-        # We first try to get the solopages
-        self.load_solopages()
-        # And for the failed pages we try the grouppages
-        self.load_grouppages()
-
-    def load_grouppages(self):
-        # First determin which pages need to be loaded
-        try:
-            self.get_channels()
-            # Init loaded markings for the grouppages
-            for n, v in self.page_strings.items():
-                v['fetch_list'] = []
-                self.day_loaded[n] = {}
-                for day in range( config.opt_dict['offset'], (config.opt_dict['offset'] + config.opt_dict['days'])):
-                    self.day_loaded[n][day] = False
-
-            for chanid, channel in self.channels.items():
-                if not channel in self.all_channels:
-                    # This channel is removed, for it reurns empty
-                    self.channel_loaded[chanid] = True
-                    config.channels[chanid].source_data[self.proc_id].set()
-                    continue
-
-                # Check wich grouppage to load
-                if not self.channel_loaded[chanid] and len(self.all_channels[channel]['group_list']) > 0:
-                    self.page_strings[self.all_channels[channel]['group_list'][0]]['fetch_list'].append(channel)
-
-            for retry in (0, 1):
-                # There are 9 group pages. Check if any channel from a page is wanted
-                for group_page, group_values in self.page_strings.items():
-                    if len(group_values['fetch_list']) == 0:
-                        continue
-
-                    failure_count = 0
-                    if self.quit:
-                        return
-
-                    # teeveeblad.be shows programs per day, so we loop over the number of days
-                    # we are required to grab
-                    days = min((config.opt_dict['offset'] + config.opt_dict['days']), 8)
-                    for offset in range(config.opt_dict['offset'], days):
-                        if self.day_loaded[group_page][offset] != False:
-                            continue
-
-                        day_list = []
-                        for channel in group_values['fetch_list']:
-                            chanid = ''
-                            for k, v in self.channels.items():
-                                if channel == v:
-                                    chanid = k
-                                    if not self.day_loaded[chanid][offset]:
-                                        day_list.append(chanid)
-
-                                    break
-
-                            if len(day_list) > 0:
-                                break
-
-                        else:
-                            if len(day_list) == 0:
-                                # All channels processed for this day
-                                continue
-
-                        log(['\n', 'Now fetching GroupPage: %s from teveblad.be for day %s of %s.\n' % (group_page, offset, days-config.opt_dict['offset'])], 2)
-
-                        date_offset = offset
-                        scan_date = datetime.date.fromordinal(self.current_date + offset)
-                        channel_url =self.get_url(scan_date, group_values['url'], True)
-
-                        # get the raw programming for the day
-                        strdata = config.get_page(channel_url, encoding = 'utf-8')
-
-                        if strdata == None:
-                            log("Skip %s page on teveblad.be, day=%d. No data!\n" % (group_page, offset))
-                            failure_count += 1
-                            self.fail_count += 1
-                            continue
-
-                        if not self.check_date(self.datecheckdata.search(strdata), scan_date):
-                            log("Skip group=%s on teveblad.be, day=%d. Wrong date!\n" % (group_page, offset))
-                            failure_count += 1
-                            self.fail_count += 1
-                            continue
-
-                        # and extract the ElementTree
-                        try:
-                            strdata = self.clean_html(strdata)
-                            strdata = re.sub('<div class="r" class="toowide">', '<div class="r">', strdata)
-                            strdata =self.groupdata.search(strdata)
-                            strdata = u'<root><div>' + strdata.group(1) + u'\n<div>\n' + strdata.group(2) + u'</root>'
-                            htmldata = ET.fromstring(strdata.encode('utf-8'))
-
-                        except:
-                            log(['Error extracting ElementTree for zendergroup:%s day:%s\n' % (group_page, offset), traceback.format_exc()])
-                            if config.write_info_files:
-                                infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                                infofiles.write_raw_string(strdata + '\n')
-
-                            self.day_loaded[group_page][offset] = None
-                            self.fail_count += 1
-                            continue
-
-                        self.base_count += 1
-                        channel_cnt = 0
-                        chan_list = {}
-                        # Retrieve the available channels and add the wanted channels to the channel list
-                        for c in  htmldata.findall('div/div[@id="epg_channel_headers_content"]/div[@class="channel"]'):
-                            url = c.find('div/a').get('href')
-                            if url != None:
-                                channel_cnt += 1
-                                c = re.split('/', url)[-1]
-                                if c in group_values['fetch_list']:
-                                    chan_list[unicode(channel_cnt)] = c
-
-                        for c in  htmldata.findall('div/div[@id="epg_channels_content"]/div[@class="channel"]'):
-                            if not c.get('number') in chan_list.keys():
-                                continue
-
-                            last_program = datetime.datetime.combine(scan_date, datetime.time(1, 0, 0 ,0 ,CET_CEST))
-                            channel = chan_list[c.get('number')]
-                            for k, v in self.channels.items():
-                                if channel == v:
-                                    chanid = k
-
-                            for p in c.findall('div'):
-                                if not( p.get('class') == 'programme even' or p.get('class') == 'programme odd'):
-                                    continue
-
-                                p_duur = int(p.get('duration'))
-                                tdict = self.checkout_program_dict()
-                                p = p.find('div[@class="c"]')
-                                tdict['source'] = 'teveblad'
-                                tdict['channelid'] = chanid
-                                tdict['channel'] = config.channels[chanid].chan_name
-
-                                # The Title
-                                title = p.find('p/span[@class="title"]')
-                                if title == None:
-                                    log('Can not determine program title"\n')
-                                    continue
-
-                                href = title.find('a').get('href')
-                                if href != '' and href != None:
-                                    tdict['detail_url'][self.proc_id] = title.find('a').get('href')
-                                    tdict['prog_ID'][self.proc_id] = u'be-%s' % tdict['detail_url'][self.proc_id].split('/')[5]
-                                tdict['name'] = self.empersant(title.findtext('a'))
-                                if tdict['name'] == None or  tdict['name'] == '':
-                                    log('Can not determine program title for "%s"\n' % tdict['be-url'])
-                                    continue
-
-                                # Starttime
-                                start = p.findtext('p/span[@class="starttime"]')
-                                if start == None or start == '':
-                                    log('Can not determine starttime for "%s"\n' % tdict['name'])
-                                    continue
-
-                                prog_time = datetime.time(int(start.split('u')[0]), int(start.split('u')[1]), 0 ,0 ,CET_CEST)
-
-                                # Make sure the midnight date change is properly crossed
-                                if datetime.datetime.combine(scan_date, prog_time) < last_program:
-                                    date_offset = offset +1
-                                    scan_date = datetime.date.fromordinal(self.current_date + date_offset)
-                                tdict['offset'] = date_offset
-                                tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
-                                last_program = tdict['start-time']
-                                tdict['stop-time'] = tdict['start-time'] + datetime.timedelta(0, 0, 0, 0, p_duur)
-
-                                # Subtitle
-                                subtitle = self.empersant(p.findtext('p/span[@class="title_episode"]'))
-                                tdict['titel aflevering'] = subtitle if (subtitle != None) else ''
-
-                                # Description. There is a possible long and short version. We try to take the long one
-                                descshort = self.empersant(p.findtext('p/span[@class="desc_short"]'))
-                                descshort = '' if (descshort == None) else descshort
-
-                                desc = self.empersant(p.findtext('div[@class="desc h"]/p'))
-                                tdict['description'] = desc if (desc != None) else descshort
-
-                                # The basicinfo section
-                                for d in p.iterfind('div[@class="basicinfo"]/span'):
-
-                                    if d.get('class').lower() == 'year':
-                                        tdict['jaar van premiere'] = d.text
-
-                                    elif d.get('class').lower() == 'episode':
-                                        tdict['episode'] = (re.sub('Episode', '', d.text)).strip()
-                                        tdict['episode'] = int((re.sub('Aflevering', '', d.text)).strip())
-
-                                    elif d.get('class').lower() == 'season':
-                                        try:
-                                            season = self.seasondata.search(d.text)
-                                            if season != None:
-                                                tdict['season'] = int(season.group(1))
-                                                tdict['episode'] = int(season.group(2))
-                                                #stotal = season.group(3)
-
-                                        except:
-                                            if config.write_info_files:
-                                                infofiles.addto_detail_list('error processing seasonstring: %s\n\n' % season)
-
-                                    elif d.get('class').lower() == 'desc_short' and tdict['description'] == '':
-                                        tdict['description'] = self.empersant(d.text)
-
-                                    elif d.get('class').lower() == 'originaltitle':
-                                        tdict['originaltitle'] = self.empersant(d.text)
-
-                                    # We don't use it (yet)
-                                    elif d.get('class').lower() == 'country':
-                                        continue
-
-                                    elif config.write_info_files:
-                                        infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
-
-                                # The picons section
-                                for d in p.iterfind('p[@class="picons"]/span'):
-
-                                    if d.get('class').lower() == 'picon' or d.get('class').lower() == 'curvyignore picon' :
-
-                                        # We don't use these (yet)
-                                        if d.get('title').lower() in ('gedubd', 'live', 'ingekleurd'):
-                                            continue
-
-                                        if d.get('title').lower() == 'herhaling':
-                                            tdict['rerun'] = True
-
-                                        elif d.get('title').lower() == 'nieuw':
-                                            tdict['new'] = True
-
-                                        elif d.get('title').lower() == 'laatste aflevering':
-                                            tdict['last-chance'] = True
-
-                                        elif d.get('title').lower() == 'premiere':
-                                            tdict['premiere'] = True
-
-                                        elif d.get('title').lower() == 'hd':
-                                            tdict['video']['HD'] = True
-
-                                        elif d.get('title').lower() == 'dolby':
-                                            tdict['audio']  = 'dolby'
-
-                                        elif d.get('title').lower() == '16:9':
-                                            tdict['breedbeeld']  = True
-
-                                        elif d.get('title').lower() == 'ondertiteld':
-                                            tdict['teletekst']  = True
-
-                                        elif config.write_info_files:
-                                            infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
-
-                                    elif 'genre' in d.get('class').lower():
-                                        genre = self.empersant(d.findtext('a'))
-                                        if genre == '' or genre == None:
-                                            continue
-
-                                        if genre.lower() in config.source_cattrans[self.proc_id].keys():
-                                            tdict['genre'] = config.source_cattrans[self.proc_id][genre.lower()][0].capitalize()
-                                            tdict['subgenre'] = config.source_cattrans[self.proc_id][genre.lower()][1].capitalize()
-
-                                        else:
-                                            config.new_cattrans[self.proc_id][genre] = (u'Overige', u'')
-
-                                for d in p.iterfind('span[@class]'):
-                                    if 'genre' in d.get('class').lower():
-                                        genre = self.empersant(p.findtext('a'))
-                                        if genre == '' or genre == None:
-                                            continue
-
-                                        if genre.lower() in config.source_cattrans[self.proc_id].keys():
-                                            tdict['genre'] = config.source_cattrans[self.proc_id][genre.lower()][0].capitalize()
-                                            tdict['subgenre'] = config.source_cattrans[self.proc_id][genre.lower()][1].capitalize()
-
-                                        else:
-                                            config.new_cattrans[self.proc_id][genre] = (u'Overige', u'')
-
-                                # and append the program to the list of programs
-                                tdict = self.check_title_name(tdict)
-                                with self.source_lock:
-                                    self.program_data[chanid].append(tdict)
-
-                            self.day_loaded[chanid][offset] = True
-
-                        self.day_loaded[group_page][offset] = True
-                        # be nice to teveblad.be
-                        time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-
-                    # If all went well or it's the last try we set them loaded
-                    if failure_count == 0 or retry == 1:
-                        for chanid, channel in self.channels.items():
-                            if channel in group_values['fetch_list']:
-                                with self.source_lock:
-                                    for tdict in self.program_data[chanid]:
-                                        self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
-
-                                self.channel_loaded[chanid] = True
-                                self.parse_programs(chanid, 0, 'None')
-                                config.channels[chanid].source_data[self.proc_id].set()
-
-                                try:
-                                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
-
-                                except:
-                                    pass
-
-        except:
-            log(['\n', 'An unexpected error has occured in the %s thread:\n' %  (self.source), traceback.format_exc()], 0)
-
-            for chanid in self.channels.keys():
-                self.channel_loaded[chanid] = True
-                config.channels[chanid].source_data[self.proc_id].set()
-            return None
-
-    def load_solopages(self):
-
-        for retry in (0, 1):
-            channel_cnt = 0
-            for chanid in self.channels.keys():
-                channel_cnt += 1
-                failure_count = 0
-                if self.quit:
-                    return
-
-                channel = self.channels[chanid]
-
-                # teeveeblad.be shows programs per day, so we loop over the number of days
-                # we are required to grab
-                days = min((config.opt_dict['offset'] + config.opt_dict['days']), 8)
-                for offset in range(config.opt_dict['offset'], days):
-                    if self.day_loaded[chanid][offset] != False:
-                        continue
-
-                    log(['\n', 'Now fetching %s(xmltvid=%s%s) from teveblad.be\n' % \
-                        (config.channels[chanid].chan_name, config.channels[chanid].xmltvid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
-                        '    (channel %s of %s) for day %s of %s days.\n' % \
-                        ( channel_cnt, len(self.channels), offset, days-config.opt_dict['offset'])], 2)
-
-                    date_offset = offset
-                    scan_date = datetime.date.fromordinal(self.current_date + offset)
-                    last_program = datetime.datetime.combine(scan_date, datetime.time(1, 0, 0 ,0 ,CET_CEST))
-                    channel_url =self.get_url(scan_date, channel)
-
-                    # get the raw programming for the day
-                    strdata = config.get_page(channel_url)
-
-                    if strdata == None:
-                        log("Skip channel=%s on teveblad.be, day=%d. No data!\n" % (config.channels[chanid].chan_name, offset))
-                        failure_count += 1
-                        self.fail_count += 1
-                        continue
-
-                    if not self.check_date(self.datecheckdata.search(strdata), scan_date):
-                        log("Skip channel=%s on teveblad.be, day=%d. Wrong date!\n" % (config.channels[chanid].chan_name, offset))
-                        failure_count += 1
-                        self.fail_count += 1
-                        continue
-
-                    # and extract the ElementTree
-                    try:
-                        strdata = self.clean_html(strdata)
-                        strdata = re.sub('<div class="r" class="toowide">', '<div class="r">', strdata)
-                        strdata = u'<div><div>' + self.progdata.search(strdata).group(1)
-                        htmldata = ET.fromstring(strdata.encode('utf-8'))
-                        if htmldata.findtext('div/p') == "We don't have any events for this broadcaster":
-                            config.channels[chanid].source_data[self.proc_id].set()
-                            for i in range(config.opt_dict['offset'], days):
-                                self.day_loaded[chanid][i] = None
-                            break
-
-                    except:
-                        log('Error extracting ElementTree for channel:%s day:%s\n' % (config.channels[chanid].chan_name, offset))
-                        if config.write_info_files:
-                            infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                            infofiles.write_raw_string(strdata + '\n')
-
-                        self.day_loaded[chanid][offset] = None
-                        self.fail_count += 1
-                        continue
-
-                    self.base_count += 1
-                    for p in htmldata.findall('div/div[@class="programme"]'):
-                        tdict = self.checkout_program_dict()
-                        p = p.find('div[@class="c"]')
-                        tdict['source'] = 'teveblad'
-                        tdict['channelid'] = chanid
-                        tdict['channel'] = config.channels[chanid].chan_name
-
-                        # The Title
-                        title = p.find('div[@class="r"]/p/span[@class="title"]')
-                        if title == None:
-                            log('Can not determine program title"\n')
-                            continue
-
-                        href = title.find('a').get('href')
-                        if href != '' and href != None:
-                            tdict['detail_url'][self.proc_id] = title.find('a').get('href')
-                            tdict['prog_ID'][self.proc_id] = u'be-%s' % tdict['detail_url'][self.proc_id].split('/')[5]
-                        tdict['name'] = self.empersant(title.findtext('a'))
-                        if tdict['name'] == None or  tdict['name'] == '':
-                            log('Can not determine program title for "%s"\n' % tdict['be-url'])
-                            continue
-
-                        # Starttime
-                        start = p.findtext('div[@class="l"]/span[@class="starttime"]')
-                        if start == None or start == '':
-                            log('Can not determine starttime for "%s"\n' % tdict['name'])
-                            continue
-
-                        prog_time = datetime.time(int(start.split('u')[0]), int(start.split('u')[1]), 0 ,0 ,CET_CEST)
-
-                        # Make sure the midnight date change is properly crossed
-                        if datetime.datetime.combine(scan_date, prog_time) < last_program:
-                            date_offset = offset +1
-                            scan_date = datetime.date.fromordinal(self.current_date + date_offset)
-                        tdict['offset'] = date_offset
-                        tdict['start-time'] = datetime.datetime.combine(scan_date, prog_time)
-                        last_program = tdict['start-time']
-
-                        # Subtitle
-                        subtitle = self.empersant(p.findtext('div[@class="r"]/p/span[@class="title_episode"]'))
-                        tdict['titel aflevering'] = subtitle if (subtitle != None) else ''
-
-                        # Description. There is a possible long and short version. We try to take the long one
-                        descshort = self.empersant(p.findtext('div[@class="r"]/p[@class="desc_short"]'))
-                        descshort = '' if (descshort == None) else descshort
-
-                        desc = self.empersant(p.findtext('div[@class="r"]/div[@class="desc h"]/p'))
-                        tdict['description'] = desc if (desc != None) else descshort
-
-                        # The basicinfo section
-                        for d in p.iterfind('div[@class="r"]/p[@class="basicinfo"]/span'):
-
-                            if d.get('class').lower() == 'year':
-                                tdict['jaar van premiere'] = d.text
-
-                            elif d.get('class').lower() == 'episode':
-                                tdict['episode'] = int((re.sub('Episode', '', d.text)).strip())
-
-                            elif d.get('class').lower() == 'season':
-                                season = self.seasondata.search(d.text)
-                                tdict['season'] = int(season.group(1))
-                                tdict['episode'] = int(season.group(2))
-                                #stotal = season.group(3)
-
-                            elif d.get('class').lower() == 'originaltitle':
-                                tdict['originaltitle'] = self.empersant(d.text)
-
-                            elif d.get('class').lower() == 'country':
-                                tdict['country'] = self.empersant(d.text)[0:2]
-                                if config.write_info_files:
-                                    infofiles.addto_detail_list(unicode('new teveblad county => ' + d.text))
-
-
-                            elif config.write_info_files:
-                                infofiles.addto_detail_list(unicode('new teveblad basicinfo => ' + d.get('class') + '=' + d.text))
-
-                        # The picons section
-                        for d in p.iterfind('div[@class="r"]/p[@class="picons"]/span'):
-
-                            if d.get('class').lower() == 'picon' or d.get('class').lower() == 'curvyignore picon' :
-
-                                # We don't use these (yet)
-                                if d.get('title').lower() in ('gedubd', 'live', 'ingekleurd'):
-                                    continue
-
-                                elif d.get('title').lower() == 'herhaling':
-                                    tdict['rerun'] = True
-
-                                elif d.get('title').lower() == 'nieuw':
-                                    tdict['new'] = True
-
-                                elif d.get('title').lower() == 'laatste aflevering':
-                                    tdict['last-chance'] = True
-
-                                elif d.get('title').lower() == 'premiere':
-                                    tdict['premiere'] = True
-
-                                elif d.get('title').lower() == 'hd':
-                                    tdict['video']['HD'] = True
-
-                                elif d.get('title').lower() == 'dolby':
-                                    tdict['audio']  = 'dolby'
-
-                                elif d.get('title').lower() == 'ondertiteld':
-                                    tdict['teletekst']  = True
-
-                                elif config.write_info_files:
-                                    infofiles.addto_detail_list(unicode('new teveblad picondata => ' + d.get('title') + '=' + d.text))
-
-                            elif 'genre' in d.get('class').lower():
-                                genre = self.empersant(d.findtext('a'))
-                                if genre == '' or genre == None:
-                                    continue
-
-                                if genre.lower() in config.source_cattrans[self.proc_id].keys():
-                                    tdict['genre'] = config.source_cattrans[self.proc_id][genre.lower()][0].capitalize()
-                                    tdict['subgenre'] = config.source_cattrans[self.proc_id][genre.lower()][1].capitalize()
-
-                                else:
-                                    config.new_cattrans[self.proc_id][genre] = (u'Overige', u'')
-
-                        # and append the program to the list of programs
-                        tdict = self.check_title_name(tdict)
-                        with self.source_lock:
-                            self.program_data[chanid].append(tdict)
-
-                    self.day_loaded[chanid][offset] = True
-                    # be nice to teveblad.be
-                    time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
-
-                # Add starttime of the next program as the endtime
-                with self.source_lock:
-                    self.program_data[chanid].sort(key=lambda program: (program['start-time']))
-                    self.add_endtimes(chanid, 7)
-
-                    for tdict in self.program_data[chanid]:
-                        self.program_by_id[tdict['prog_ID'][self.proc_id]] = tdict
-
-                # If all went well we set them loaded. Else we give the grouppages a try
-                if failure_count == 0:
-                    self.channel_loaded[chanid] = True
-                    self.parse_programs(chanid, 0, 'None')
-                    config.channels[chanid].source_data[self.proc_id].set()
-
-                try:
-                    infofiles.write_fetch_list(self.program_data[chanid], chanid, self.source, self.proc_id)
-
-                except:
-                    pass
-
-# end teveblad_HTML
 
 class npo_HTML(FetchData):
     """
@@ -10142,6 +9344,7 @@ class npo_HTML(FetchData):
                 log(["Unable to get channel info from %s\n" % self.source])
                 return 69  # EX_UNAVAILABLE
 
+            strdata = self.check_text_subs(strdata)
             htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
             self.get_channel_lineup(htmldata)
 
@@ -10393,6 +9596,7 @@ class npo_HTML(FetchData):
 
                 try:
                     strdata = self.clean_html(strdata)
+                    strdata = self.check_text_subs(strdata)
                     htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
 
                 except:
@@ -10525,6 +9729,7 @@ class npo_HTML(FetchData):
 
             try:
                 strdata = self.clean_html(strdata)
+                strdata = self.check_text_subs(strdata)
                 htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
 
             except:
@@ -10735,13 +9940,13 @@ class horizon_JSON(FetchData):
         """
 
         # download the json feed
-        total = config.get_page(self.get_url(), 'utf-8')
-        if total == None:
+        strdata = config.get_page(self.get_url(), 'utf-8')
+        if strdata == None:
             self.fail_count += 1
             log("Unable to get channel info from %s\n" % self.source)
             return 69  # EX_UNAVAILABLE
 
-        channel_list = json.loads(total)
+        channel_list = json.loads(strdata)
 
         # and create a file with the channels
         self.all_channels ={}
@@ -10823,6 +10028,7 @@ class horizon_JSON(FetchData):
                         continue
 
                     # Just let the json library parse it.
+                    strdata = self.check_text_subs(strdata)
                     program_list = json.loads(strdata)
                     self.base_count += 1
                     for item in program_list['listings']:
@@ -11020,13 +10226,13 @@ class humo_JSON(FetchData):
         """
 
         # download the json feed
-        total = config.get_page(self.get_url(), 'utf-8')
-        if total == None:
+        strdata = config.get_page(self.get_url(), 'utf-8')
+        if strdata == None:
             self.fail_count += 1
             log("Unable to get channel info from %s\n" % self.source)
             return 69  # EX_UNAVAILABLE
 
-        channel_list = json.loads(total)
+        channel_list = json.loads(strdata)
 
         # and create a file with the channels
         self.all_channels ={}
@@ -11085,6 +10291,7 @@ class humo_JSON(FetchData):
                     # Just let the json library parse it.
                     self.base_count += 1
                     self.day_loaded[0][offset] = True
+                    strdata = self.check_text_subs(strdata)
                     jsondata = json.loads(strdata)
                     for channel in jsondata["broadcasters"]:
                         chan_scid = unicode(channel['id'])
@@ -11616,7 +10823,8 @@ class vpro_HTML(FetchData):
                         noquote = re.sub('data-playable\n', 'data-playable=""\n', noquote)
                         noquote = re.sub('data-playable ', 'data-playable="" ', noquote)
 
-                    htmldata = ET.fromstring( noquote.encode('utf-8'))
+                    strdata = self.check_text_subs(noquote)
+                    htmldata = ET.fromstring(strdata.encode('utf-8'))
 
                 except:
                     log('Error extracting ElementTree for day:%s on vpro.nl\n' % (offset))
@@ -12045,6 +11253,7 @@ class nieuwsblad_HTML(FetchData):
                         strdata =self.getprograms.search(strdata).group(1)
                         strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
                         strdata = self.clean_html(strdata)
+                        strdata = self.check_text_subs(strdata)
                         htmldata = ET.fromstring(strdata.encode('utf-8'))
 
                     except:
@@ -12278,6 +11487,7 @@ class primo_HTML(FetchData):
                     try:
                         strdata =self.getmain.search(strdata).group(1)
                         strdata = self.clean_html(strdata)
+                        strdata = self.check_text_subs(strdata)
                         htmldata = ET.fromstring(strdata.encode('utf-8'))
                         htmldata = htmldata.find('div/div[@id="tvprograms-main"]/div[@id="tvprograms"]')
                         sel_date = htmldata.findtext('div[@id="program-header-top"]/div/div[@id="dates"]/ul/li[@class="selected-date"]/a/span[@class="day"]')
@@ -12391,6 +11601,7 @@ class primo_HTML(FetchData):
             if strdata == None:
                 return
 
+            strdata = self.check_text_subs(strdata)
             strdata = self.clean_html('<root>' + strdata + '</root>')
         except:
             log(['Error Fetching detailpage %s\n' % tdict['detail_url'][self.proc_id], traceback.format_exc()])
@@ -12567,12 +11778,12 @@ class vrt_JSON(FetchData):
 
         # download the json feed
         url = self.get_url()
-        total = config.get_page(url[0], 'utf-8', url[1])
-        if total == None:
+        strdata = config.get_page(url[0], 'utf-8', url[1])
+        if strdata == None:
             log("Unable to get channel info from %s\n" % self.source)
             return 69  # EX_UNAVAILABLE
 
-        channel_list = json.loads(total)
+        channel_list = json.loads(strdata)
 
         # and create a file with the channels
         self.all_channels ={}
@@ -12612,8 +11823,8 @@ class vrt_JSON(FetchData):
 
     def get_standaardgenres(self):
         url = self.get_url('genres')
-        total = config.get_page(url[0], 'utf-8', url[1])
-        genredict = json.loads(total)
+        strdata = config.get_page(url[0], 'utf-8', url[1])
+        genredict = json.loads(strdata)
         vrt_genres = {}
         dvb_genres = {}
         ebu_genres = {}
@@ -12719,6 +11930,7 @@ class vrt_JSON(FetchData):
 
                         self.base_count += 1
                         week_loaded[chanid][offset] = True
+                        strdata = self.check_text_subs(strdata)
                         jsondata = json.loads(strdata)
                         for p in jsondata['events']:
                             if not (p['date'] in fetch_dates and p['channel']['code'] in self.channels.values()):
