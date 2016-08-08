@@ -3806,7 +3806,9 @@ class InfoFiles:
     def open_files(self):
 
         if config.write_info_files:
+            config.save_oldfile(config.xmltv_dir + '/fetched-programs')
             self.fetch_list = config.open_file(config.xmltv_dir + '/fetched-programs','w')
+            config.save_oldfile(config.xmltv_dir+'/raw_output')
             self.raw_output =  config.open_file(config.xmltv_dir+'/raw_output', 'w')
 
     def check_new_channels(self, source):
@@ -3840,7 +3842,7 @@ class InfoFiles:
         if config.write_info_files:
             with self.info_lock:
                 self.raw_string = unicode(self.raw_string + string)
-                self.raw_output.write(self.raw_string + u'\n')
+                self.raw_output.write((self.raw_string + u'\n').encode('utf-8', 'replace'))
                 self.raw_string = ''
 
     def addto_raw_list(self, raw_data = None):
