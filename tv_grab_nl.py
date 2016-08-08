@@ -358,8 +358,8 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 15
-        self.patchdate = u'20160731'
+        self.patch = 16
+        self.patchdate = u'20160808'
         self.alfa = False
         self.beta = False
 
@@ -8879,6 +8879,10 @@ class tvgidstv_HTML(FetchData):
                 return
 
             strdata = self.clean_html('<root><div><div class="section-title">' + self.detaildata.search(strdata).group(1) + '</root>')
+            # ad-hoc fix for nos-rio-live
+            strdata = re.sub('<a href="/op-tv/tafel<a href="/op-tv/tennis" title="Tennis op tv" class="inconspicuous">tennis</a>" title="Tafel<a href="/op-tv/tennis" title="Tennis op tv" class="inconspicuous">tennis</a> op tv" class="inconspicuous">tafel<a href="/op-tv/tennis" title="Tennis op tv" class="inconspicuous">tennis</a></a>', 'tafeltennis', strdata)
+            strdata = re.sub('<a href="/op-tv/paarden<a href="/op-tv/sport" title="Sport op tv" class="inconspicuous">sport</a>" title="Paarden<a href="/op-tv/sport" title="Sport op tv" class="inconspicuous">sport</a> op tv" class="inconspicuous">paarden<a href="/op-tv/sport" title="Sport op tv" class="inconspicuous">sport</a></a>', 'paardensport', strdata)
+
         except:
             log(['Error Fetching detailpage %s\n' % tdict['detail_url'][self.proc_id], traceback.format_exc()])
             return None
