@@ -11244,6 +11244,7 @@ class nieuwsblad_HTML(FetchData):
 
                     try:
                         strdata =self.getprograms.search(strdata).group(1)
+                        strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
                         strdata = self.clean_html(strdata)
                         strdata = self.check_text_subs(strdata)
                         htmldata = ET.fromstring(strdata.encode('utf-8'))
@@ -11258,7 +11259,7 @@ class nieuwsblad_HTML(FetchData):
 
                         failure_count += 1
                         self.fail_count += 1
-                        self.day_loaded[chanid][offset] = None
+                        self.day_loaded[chanid][start] = None
                         continue
 
                     for d in htmldata.findall('div[@class="grid channel-block"]/div[@class="grid__col size-1-3--bp4"]'):
