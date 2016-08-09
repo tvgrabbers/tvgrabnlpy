@@ -6603,12 +6603,19 @@ class FetchData(Thread):
         if not isinstance(self.text_replace, list) or not isinstance(page, (str, unicode)):
             return page
 
+        oldpage = page
         for subset in self.text_replace:
             if not isinstance(subset, list) or len(subset) < 2:
                 continue
 
             page = re.sub(subset[0], subset[1], page)
 
+        if page != oldpage and config.write_info_files:
+            infofiles.write_raw_string(u'%sxxxxxxxxxxxxxxxxxxxx' % self.source)
+            infofiles.write_raw_string(u'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n')
+            infofiles.write_raw_string(oldpage + u'\n')
+            infofiles.write_raw_string(u'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n')
+            infofiles.write_raw_string(page + u'\n')
         return page
 
     # Selectie functions
@@ -8683,6 +8690,7 @@ class tvgidstv_HTML(FetchData):
         return tdict
 
     def load_pages(self):
+        failure_count = 0
         first_fetch = True
         try:
             for retry in (0, 1):
@@ -9526,30 +9534,14 @@ class npo_HTML(FetchData):
                     if first_added[offset][chanid] == None:
                         # It's the first program of the day
                         first_added[offset][chanid] = tdict
-                        #~ if offset - 1 in last_added.keys() and chanid in last_added[offset - 1] \
-                          #~ and last_added[offset - 1][chanid] != None and last_added[offset - 1][chanid]['name'] == tdict['name']:
-                            #~ # We merge it with the last program of the previous day
-                            #~ with self.source_lock:
-                                #~ last_added[offset - 1][chanid]['stop-time'] = tdict['stop-time']
-
                         tdict = None
 
                 last_added[offset][chanid] = tdict
-                #~ if tdict != None:
-                    #~ if offset + 1 in first_added.keys() and chanid in first_added[offset + 1] \
-                      #~ and first_added[offset + 1][chanid] != None and first_added[offset + 1][chanid]['name'] == tdict['name']:
-                        #~ # We merge it with the first program of the next day
-                        #~ with self.source_lock:
-                            #~ first_added[offset + 1][chanid]['start-time'] = tdict['start-time']
-
-                    #~ else:
-                        #~ with self.source_lock:
-                            #~ self.program_data[chanid].append(tdict)
 
             except:
                 log(traceback.format_exc())
 
-        if config.opt_dict['offset'] > 7:
+        if config.opt_dict['offset'] >= 7:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
                 config.channels[chanid].source_data[self.proc_id].set()
@@ -11181,6 +11173,7 @@ class nieuwsblad_HTML(FetchData):
 
 
     def load_pages(self):
+        failure_count = 0
         if config.opt_dict['offset'] > 6:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -11251,7 +11244,6 @@ class nieuwsblad_HTML(FetchData):
 
                     try:
                         strdata =self.getprograms.search(strdata).group(1)
-                        strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
                         strdata = self.clean_html(strdata)
                         strdata = self.check_text_subs(strdata)
                         htmldata = ET.fromstring(strdata.encode('utf-8'))
@@ -11435,6 +11427,7 @@ class primo_HTML(FetchData):
             return 69
 
     def load_pages(self):
+        failure_count = 0
         if config.opt_dict['offset'] > 7:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
@@ -11448,7 +11441,6 @@ class primo_HTML(FetchData):
         try:
             for retry in (0, 1):
                 for offset in range( config.opt_dict['offset'], min((config.opt_dict['offset'] + config.opt_dict['days']), 7)):
-                    failure_count = 0
                     if self.quit:
                         return
 
@@ -11852,6 +11844,7 @@ class vrt_JSON(FetchData):
             print(u'%s: %s,' % (k, dvb_genres[k]))
 
     def load_pages(self):
+        failure_count = 0
         radio_channels = ('13','12','03','31','32','41','55','56','11','21','22','23','24','25')
         if config.opt_dict['offset'] > 14:
             for chanid in self.channels.keys():
@@ -12245,6 +12238,7 @@ class oorboekje_HTML(FetchData):
             return 69
 
     def load_pages(self):
+        failure_count = 0
         if config.opt_dict['offset'] > 7:
             for chanid in self.channels.keys():
                 self.channel_loaded[chanid] = True
