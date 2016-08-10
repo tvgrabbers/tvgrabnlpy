@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 17
-        self.patchdate = u'20160809'
+        self.patchdate = u'20160810'
         self.alfa = False
         self.beta = True
 
@@ -6610,12 +6610,12 @@ class FetchData(Thread):
 
             page = re.sub(subset[0], subset[1], page)
 
-        if page != oldpage and config.write_info_files:
-            infofiles.write_raw_string(u'%sxxxxxxxxxxxxxxxxxxxx' % self.source)
-            infofiles.write_raw_string(u'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n')
-            infofiles.write_raw_string(oldpage + u'\n')
-            infofiles.write_raw_string(u'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n')
-            infofiles.write_raw_string(page + u'\n')
+        #~ if page != oldpage and config.write_info_files:
+            #~ infofiles.write_raw_string(u'%sxxxxxxxxxxxxxxxxxxxx' % self.source)
+            #~ infofiles.write_raw_string(u'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n')
+            #~ infofiles.write_raw_string(oldpage + u'\n')
+            #~ infofiles.write_raw_string(u'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n')
+            #~ infofiles.write_raw_string(page + u'\n')
         return page
 
     # Selectie functions
@@ -10464,7 +10464,7 @@ class vpro_HTML(FetchData):
         # These regexes fetch the relevant data out of the vpro.nl pages, which then will be parsed to the ElementTree
         self.available_dates = re.compile('<div class="epg-available-days">(.*?)</div>',re.DOTALL)
         self.fetch_channellist = re.compile('<ul class="epg-channel-names">(.*?)</ul>',re.DOTALL)
-        self.fetch_titels = re.compile('<h6 class="title">(.*?)</h6>',re.DOTALL)
+        self.fetch_titels = re.compile('<h6 class="title[-\s\w]*?">(.*?)</h6>',re.DOTALL)
         self.fetch_data = re.compile('<section class="section-with-layout component-theme theme-white *?">(.*?)</section>',re.DOTALL)
         self.fetch_genre_codes = re.compile("(g[0-9_]+)")
         self.fetch_descr_parts = re.compile("(.*?[\.:]+ |.*?[\.:]+\Z)")
@@ -10799,7 +10799,7 @@ class vpro_HTML(FetchData):
                     strdata = self.fetch_data.search(strdata).group(0)
                     noquote = strdata
                     for t in self.fetch_titels.findall(strdata):
-                        t = re.sub('<span class="broadcaster">(.*?)</span>', '', t)
+                        t = re.sub('<span class="broadcaster[-\s\w]*?">(.*?)</span>', '', t)
                         t = t.strip()
                         tt = t
                         for s in (('"', '&quot;'), ('<', '&lt;'), ('>', '&gt;')):
@@ -10812,11 +10812,11 @@ class vpro_HTML(FetchData):
                         if t != tt:
                             noquote = re.sub(t, tt, noquote, flags = re.IGNORECASE)
 
-                        noquote = re.sub('data-playable\n', 'data-playable=""\n', noquote)
-                        noquote = re.sub('data-playable ', 'data-playable="" ', noquote)
+                        #~ noquote = re.sub('data-playable\n', 'data-playable=""\n', noquote)
+                        #~ noquote = re.sub('data-playable ', 'data-playable="" ', noquote)
 
-                    strdata = self.check_text_subs(noquote)
-                    htmldata = ET.fromstring(strdata.encode('utf-8'))
+                    noquote = self.check_text_subs(noquote)
+                    htmldata = ET.fromstring(noquote.encode('utf-8'))
 
                 except:
                     log('Error extracting ElementTree for day:%s on vpro.nl\n' % (offset))
@@ -11244,7 +11244,7 @@ class nieuwsblad_HTML(FetchData):
 
                     try:
                         strdata =self.getprograms.search(strdata).group(1)
-                        strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
+                        #~ strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
                         strdata = self.clean_html(strdata)
                         strdata = self.check_text_subs(strdata)
                         htmldata = ET.fromstring(strdata.encode('utf-8'))
