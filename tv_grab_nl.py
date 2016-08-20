@@ -359,7 +359,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 17
-        self.patchdate = u'20160810'
+        self.patchdate = u'20160820'
         self.alfa = False
         self.beta = True
 
@@ -10670,7 +10670,7 @@ class vpro_HTML(FetchData):
                         # No title Found
                         continue
 
-                    ptime = p.findtext('div[@class="content"]/div[@class="meta"]/span[@class="epg-start-time"]')
+                    ptime = p.findtext('div[@class="content"]/div[@class="program-data"]/div[@class="meta"]/span[@class="epg-start-time"]')
                     if ptime == None:
                         # No start-stop time Found
                         continue
@@ -10703,6 +10703,10 @@ class vpro_HTML(FetchData):
                         tdict['start-time'] = datetime.datetime.combine(startdate, prog_time)
 
                     tdict['description'] = self.empersant(p.get('data-description','').strip())
+                    eptitle = self.empersant(p.get('data-episode-title','').strip())
+                    if eptitle != tdict['name']:
+                        tdict['episode title'] = eptitle
+
                     omroep = p.findtext('div[@class="content"]/h6[@class="title"]/span[@class="broadcaster"]')
                     if not omroep in ('', None):
                         tdict['omroep'] = self.empersant(omroep)
@@ -10862,7 +10866,7 @@ class vpro_HTML(FetchData):
                 except:
                     log(traceback.format_exc())
 
-                # be nice to npo.nl
+                # be nice to vppo.nl
                 self.day_loaded[0][offset] = True
                 time.sleep(random.randint(config.nice_time[0], config.nice_time[1]))
 
