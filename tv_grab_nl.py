@@ -11013,7 +11013,12 @@ class nieuwsblad_HTML(FetchData):
 
     def get_url(self, channel = None, offset = 0, chan_group = 0):
 
-        scan_day = config.weekdagen[int(datetime.date.fromordinal(self.current_date + offset).strftime("%w"))]
+        if offset == 0:
+            scan_day = 'vandaag'
+
+        else:
+            scan_day = config.weekdagen[int(datetime.date.fromordinal(self.current_date + offset).strftime("%w"))]
+
         if channel == 'base':
             return config.source_base_url[self.proc_id]
 
