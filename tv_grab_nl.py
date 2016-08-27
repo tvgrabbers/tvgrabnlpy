@@ -359,9 +359,9 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 17
-        self.patchdate = u'20160820'
+        self.patchdate = u'20160827'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
@@ -2042,12 +2042,18 @@ class Configure:
                     return githubdata[gvar]
 
                 for s, v in githubdata[gvar].items():
+                    if re.match('--.*?--', s):
+                        continue
+
                     if intlevels == 1:
                         lvar[int(s)] = v
 
                     elif intlevels == 2:
                         lvar[int(s)] = {}
                         for g, clist in v.items():
+                            if re.match('--.*?--', g):
+                                continue
+
                             lvar[int(s)][int(g)] = clist
 
                 return lvar.copy()
@@ -5249,14 +5255,14 @@ class FetchURL(Thread):
         except (urllib.URLError) as e:
             log('Cannot open url %s: %s\n' % (url, e.reason), 1, 1)
             if config.write_info_files:
-                infofiles.add_url_failure('URLError: %s\n' % url)
+                infofiles.add_url_failure('URLError: %s: %s\n' % (e.reason,url))
 
             return None
 
         except (urllib.HTTPError) as e:
             log('Cannot parse url %s: code=%s\n' % (url, e.code), 1, 1)
             if config.write_info_files:
-                infofiles.add_url_failure('HTTPError: %s\n' % url)
+                infofiles.add_url_failure('HTTPError: %s: %s\n' % (e.code, url))
 
             return None
 
@@ -7057,7 +7063,7 @@ class FetchData(Thread):
 
                 if chanid in ('0-4', '0-31', '0-46', '0-92'):
                     if 'rtl nieuws' in mname:
-                        return 'Nieuws'
+                        return 'RTL Nieuws'
 
             name = re.sub(' / ',' - ', name)
             return name
