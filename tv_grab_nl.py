@@ -535,6 +535,8 @@ class Configure:
         self.opt_dict['always_use_json'] = True
 
         self.weekdagen = ('zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag')
+        self.monthnames = ('dummy', 'januari', 'februari', 'maart', 'april', 'mei', 'juni',
+                                    'juli', 'augustus', 'september', 'oktober', 'november', 'december')
         # The values for the Kijkwijzer
         # Possible styles are
         # long, short, single and none
@@ -1025,6 +1027,37 @@ class Configure:
             return (self.name, self.major, self.minor, self.patch, self.patchdate, self.beta)
 
     # end version()
+
+    def create_dayoffset(self, current_date):
+        dayoffset = {}
+        dayoffset['eergisteren'] = -2
+        dayoffset['gisteren'] = -1
+        dayoffset['vandaag'] = 0
+        dayoffset['morgen'] = 1
+        dayoffset['overmorgen'] = 2
+        for d in range(7):
+            dd = self.weekdagen[int(datetime.date.fromordinal(current_date + d).strftime("%w"))]
+            dayoffset[dd] = d
+
+        for d in range(14):
+            day = datetime.date.fromordinal(current_date + d).strftime("%d")
+            month = datetime.date.fromordinal(current_date + d).strftime("%m")
+            monthname = self.monthnames[int(month)]
+            year = datetime.date.fromordinal(current_date + d).strftime("%Y")
+            dayoffset['%s %s' % (int(day), monthname)] = d
+            dayoffset['%s %s' % (day, monthname)] = d
+            dayoffset['%s %s' % (int(day), monthname.capitalize())] = d
+            dayoffset['%s %s' % (day, monthname.capitalize())] = d
+            dayoffset['%s %s %s' % (int(day), monthname, year)] = d
+            dayoffset['%s %s %s' % (day, monthname, year)] = d
+            dayoffset['%s %s %s' % (int(day), monthname.capitalize(), year)] = d
+            dayoffset['%s %s %s' % (day, monthname.capitalize(), year)] = d
+            dayoffset['%s-%s' % (int(day), int(month))] = d
+            dayoffset['%s-%s' % (day, month)] = d
+            dayoffset['%s-%s-%s' % (int(day), int(month), year)] = d
+            dayoffset['%s-%s-%s' % (day, month, year)] = d
+
+        return dayoffset
 
     def save_oldfile(self, fle):
         """ save the old file to .old if it exists """
@@ -2148,11 +2181,11 @@ class Configure:
         # Remove any source that's not (jet) there
         xml_output.prime_source_order = get_githubdata("prime_source_order")
         for s in xml_output.prime_source_order[:]:
-            if not s in xml_output.channelsource.keys():
+            if not s in xml_output.source_order:
                 xml_output.prime_source_order.remove(s)
 
         for s in xml_output.sourceid_order[:]:
-            if not s in xml_output.channelsource.keys():
+            if not s in xml_output.source_order:
                 xml_output.sourceid_order.remove(s)
 
         # Read in the tables needed for normal grabbing
@@ -2202,8 +2235,8 @@ class Configure:
         self.coutrytrans = get_githubdict("coutrytrans")
         self.prime_source = get_githubdict("prime_source")
         # Remove any source that's not (jet) there
-        for c, s in self.prime_source.items():
-            if s not in xml_output.channelsource.keys():
+        for c, s in self.prime_source.items()[:]:
+            if s not in xml_output.source_order:
                 del self.prime_source[c]
 
         self.notitlesplit = get_githubdata("notitlesplit", self.notitlesplit)
@@ -11008,13 +11041,14 @@ class nieuwsblad_HTML(FetchData):
         self.getheader = re.compile("<!-- start block 'tvgids-top' -->(.*?)<!-- end block 'tvgids-top' -->",re.DOTALL)
         self.getprograms = re.compile("<!-- start block 'tvgids-left-center' -->(.*?)<!-- end block 'tvgids-left-center' -->",re.DOTALL)
         self.getchannelgroups = re.compile("<div id=\"accordion\" class=\"accordion\" data-accordion data-jq-plugin=\"accordion\">(.*?)<!-- end block 'tvgids-right-center' -->",re.DOTALL)
+        self.relativedays = ['vandaag', 'morgen', 'overmorgen']
 
         self.init_channel_source_ids()
 
     def get_url(self, channel = None, offset = 0, chan_group = 0):
 
-        if offset == 0:
-            scan_day = 'vandaag'
+        if offset in range(len(self.relativedays)):
+            scan_day = self.relativedays[offset]
 
         else:
             scan_day = config.weekdagen[int(datetime.date.fromordinal(self.current_date + offset).strftime("%w"))]
@@ -11199,13 +11233,7 @@ class nieuwsblad_HTML(FetchData):
         if len(self.channels) == 0:
             return
 
-        dayoffset = {}
-        dayoffset['vandaag'] = 0
-        dayoffset['morgen'] = 1
-        dayoffset['overmorgen'] = 2
-        for d in range(6):
-            dd = config.weekdagen[int(datetime.date.fromordinal(self.current_date + d).strftime("%w"))]
-            dayoffset[dd] = d
+        dayoffset = config.create_dayoffset(self.current_date)
 
         try:
             for retry in (0, 1):
