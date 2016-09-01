@@ -358,10 +358,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 17
-        self.patchdate = u'20160827'
+        self.patch = 18
+        self.patchdate = u'20160901'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
@@ -12638,7 +12638,7 @@ class Channel_Config(Thread):
 
                 if self.source_data[index].is_set():
                     if len(xml_output.channelsource[index].program_data[self.chanid]) == 0:
-                        if not (index == 1 and 0 in self.merge_order):
+                        if not ((index == 1 and 0 in self.merge_order) or index == 11):
                             log('No Data from %s for channel: %s\n'% (xml_output.channelsource[index].source, self.chan_name))
 
                     elif xml_data == False:
