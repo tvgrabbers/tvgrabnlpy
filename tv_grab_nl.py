@@ -10533,6 +10533,7 @@ class vpro_HTML(FetchData):
         try:
             strdata = config.get_page(self.get_url())
             strdata = self.clean_html(strdata)
+            strdata = self.check_text_subs(strdata)
             if strdata == None:
                 self.fail_count += 1
                 log(["Unable to get channel info from %s\n" % self.source])
@@ -10835,6 +10836,7 @@ class vpro_HTML(FetchData):
                 try:
                     noquote = ""
                     strdata = self.clean_html(strdata)
+                    strdata = self.check_text_subs(strdata)
                     if len(self.availabe_days) == 0:
                         self.get_available_days(strdata)
                         lineup = self.get_channel_lineup(strdata)
@@ -10855,10 +10857,6 @@ class vpro_HTML(FetchData):
                         if t != tt:
                             noquote = re.sub(t, tt, noquote, flags = re.IGNORECASE)
 
-                        #~ noquote = re.sub('data-playable\n', 'data-playable=""\n', noquote)
-                        #~ noquote = re.sub('data-playable ', 'data-playable="" ', noquote)
-
-                    noquote = self.check_text_subs(noquote)
                     htmldata = ET.fromstring(noquote.encode('utf-8'))
 
                 except:
