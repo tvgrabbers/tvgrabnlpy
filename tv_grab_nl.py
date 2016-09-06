@@ -427,7 +427,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 19
-        self.patchdate = u'20160906'
+        self.patchdate = u'20160907'
         self.alfa = False
         self.beta = True
 
@@ -1605,9 +1605,16 @@ class Configure:
             for line in self.config_dict[2]:
                 try:
                     channel = line.split(None, 1) # split on first whitespace
-                    self.channels[unicode(channel[0]).strip()] = Channel_Config(unicode(channel[0]).strip(), unicode(channel[1]).strip())
-                    self.channels[unicode(channel[0]).strip()].active = True
-                    channel_names[unicode(channel[1]).strip().lower()] = unicode(channel[0]).strip()
+                    chanid = unicode(channel[0]).strip()
+                    channame = unicode(channel[1]).strip()
+                    self.channels[chanid] = Channel_Config(chanid, channame)
+                    self.channels[chanid].active = True
+                    #~ channel_names[channame.lower()] = chanid
+                    if chanid in channel_names.keys():
+                        channel_names[chanid].append(channame.lower())
+
+                    else:
+                        channel_names[chanid] = [channame.lower()]
 
                 except:
                     log(['Invalid line in Channels section of config file %s:' % (self.config_file),'%r\n' % (line)])
@@ -1674,8 +1681,15 @@ class Configure:
                             continue
 
                         chanid = unicode(channel[2])
-                        channel_names[unicode(channel[0]).strip().lower()] = chanid
-                        self.channels[chanid] = Channel_Config(chanid, unicode(channel[0]).strip(), int(channel[1]))
+                        channame = unicode(channel[0]).strip()
+                        #~ channel_names[channame.lower()] = chanid
+                        if chanid in channel_names.keys():
+                            channel_names[chanid].append(channame.lower())
+
+                        else:
+                            channel_names[chanid] = [channame.lower()]
+
+                        self.channels[chanid] = Channel_Config(chanid, channame, int(channel[1]))
                         for index in range(min(xml_output.source_count,len(channel) - 5)):
                             self.channels[chanid].source_id[index] = unicode(channel[index + 3]).strip()
 
@@ -1697,91 +1711,103 @@ class Configure:
                     log(['Invalid line in Channels section of config file %s:\n' % (self.config_file),'%r\n' % (line), traceback.print_exc()])
 
         # Read the channel specific configuration
-        for section, values in self.config_dict[9].items():
-            if self.configversion == 2.1 or test_as_21:
-                if section in old_chanids.keys():
-                    chanid = old_chanids[section]
+        if self.configversion == 2.1 or test_as_21:
+            for k, v in old_chanids.items():
+                self.process_channel_config(v, [k])
+
+        else:
+            for chanid in self.channels.keys():
+                if chanid in channel_names.keys():
+                    self.process_channel_config(chanid, channel_names[chanid])
 
                 else:
-                    continue
+                    self.process_channel_config(chanid)
 
-            # is the name in the sectionheader a known chanid?
-            elif section in self.channels.keys():
-                chanid = section
+        #~ for section, values in self.config_dict[9].items():
+            #~ if self.configversion == 2.1 or test_as_21:
+                #~ if section in old_chanids.keys():
+                    #~ chanid = old_chanids[section]
 
-            # or a known channelname
-            elif section in channel_names.keys():
-                chanid = channel_names[section]
+                #~ else:
+                    #~ continue
 
-            else:
-                # unknown chanid or channelname
-                log('Channel section "%s" ignored. Unknown channel\n' % section)
-                continue
+            #~ # is the name in the sectionheader a known chanid?
+            #~ elif section in self.channels.keys():
+                #~ chanid = section
 
-            for line in values:
-                try:
-                    # Strip the name from the value
-                    a = re.split('=',line)
-                    cfg_option = a[0].lower().strip()
-                    # Boolean Values
-                    if cfg_option in self.chan_opt['bool']:
-                        if len(a) == 1:
-                            self.channels[chanid].opt_dict[cfg_option] = True
+            #~ # or a known channelname
+            #~ elif section in channel_names.keys():
+                #~ chanid = channel_names[section]
 
-                        elif a[1].lower().strip() in ('true', '1' , 'on'):
-                            self.channels[chanid].opt_dict[cfg_option] = True
+            #~ else:
+                #~ # unknown chanid or channelname
+                #~ log('Channel section "%s" ignored. Unknown channel\n' % section)
+                #~ continue
 
-                        else:
-                            self.channels[chanid].opt_dict[cfg_option] = False
+            #~ for line in values:
+                #~ try:
+                    #~ # Strip the name from the value
+                    #~ a = re.split('=',line)
+                    #~ cfg_option = a[0].lower().strip()
+                    #~ # Boolean Values
+                    #~ if cfg_option in self.chan_opt['bool']:
+                        #~ if len(a) == 1:
+                            #~ self.channels[chanid].opt_dict[cfg_option] = True
 
-                    elif len(a) == 2:
-                        cfg_value = a[1].lower().strip()
-                        if cfg_option == 'use_npo':
-                            if cfg_value in ('false', '0' , 'off'):
-                                self.validate_option('disable_source', self.channels[chanid], 4)
+                        #~ elif a[1].lower().strip() in ('true', '1' , 'on'):
+                            #~ self.channels[chanid].opt_dict[cfg_option] = True
 
-                        # String values
-                        elif cfg_option in self.chan_opt['string']:
-                            self.channels[chanid].opt_dict[cfg_option] = cfg_value.strip()
+                        #~ else:
+                            #~ self.channels[chanid].opt_dict[cfg_option] = False
 
-                        # Select Values
-                        elif cfg_option == 'overlap_strategy':
-                            if cfg_value in ('average', 'stop', 'start'):
-                                self.channels[chanid].opt_dict[cfg_option] = cfg_value
+                    #~ elif len(a) == 2:
+                        #~ cfg_value = a[1].lower().strip()
+                        #~ if cfg_option == 'use_npo':
+                            #~ if cfg_value in ('false', '0' , 'off'):
+                                #~ self.validate_option('disable_source', self.channels[chanid], 4)
 
-                            else:
-                                self.channels[chanid].opt_dict[cfg_option] = 'none'
+                        #~ # String values
+                        #~ elif cfg_option in self.chan_opt['string']:
+                            #~ self.channels[chanid].opt_dict[cfg_option] = cfg_value.strip()
 
-                        # Integer Values
-                        elif cfg_option in self.chan_opt['int']:
-                            try:
-                                cfg_value = int(cfg_value)
+                        #~ # Select Values
+                        #~ elif cfg_option == 'overlap_strategy':
+                            #~ if cfg_value in ('average', 'stop', 'start'):
+                                #~ self.channels[chanid].opt_dict[cfg_option] = cfg_value
 
-                            except ValueError:
-                                if (cfg_option == 'slowdays') and (cfg_value == 'none'):
-                                    self.channels[chanid].opt_dict[cfg_option] = None
+                            #~ else:
+                                #~ self.channels[chanid].opt_dict[cfg_option] = 'none'
 
-                            else:
-                                self.channels[chanid].opt_dict[cfg_option] = cfg_value
+                        #~ # Integer Values
+                        #~ elif cfg_option in self.chan_opt['int']:
+                            #~ try:
+                                #~ cfg_value = int(cfg_value)
 
-                        # Source Values
-                        elif cfg_option in ('prime_source', 'prefered_description', 'disable_source', 'disable_detail_source'):
-                            try:
-                                cfg_value = int(cfg_value)
+                            #~ except ValueError:
+                                #~ if (cfg_option == 'slowdays') and (cfg_value == 'none'):
+                                    #~ self.channels[chanid].opt_dict[cfg_option] = None
 
-                            except ValueError:
-                                continue
+                            #~ else:
+                                #~ self.channels[chanid].opt_dict[cfg_option] = cfg_value
 
-                            else:
-                                if cfg_option == 'prime_source':
-                                    # We have to validate this value after reading sourcematching.json
-                                    self.channels[chanid].prevalidate_opt[cfg_option] = cfg_value
+                        #~ # Source Values
+                        #~ elif cfg_option in ('prime_source', 'prefered_description', 'disable_source', 'disable_detail_source'):
+                            #~ try:
+                                #~ cfg_value = int(cfg_value)
 
-                                else:
-                                    self.validate_option(cfg_option, self.channels[chanid], cfg_value)
+                            #~ except ValueError:
+                                #~ continue
 
-                except:
-                    log(['Invalid line in %s section of config file %s:' % (section, self.config_file),'%r\n' % (line), traceback.format_exc()])
+                            #~ else:
+                                #~ if cfg_option == 'prime_source':
+                                    #~ # We have to validate this value after reading sourcematching.json
+                                    #~ self.channels[chanid].prevalidate_opt[cfg_option] = cfg_value
+
+                                #~ else:
+                                    #~ self.validate_option(cfg_option, self.channels[chanid], cfg_value)
+
+                #~ except:
+                    #~ log(['Invalid line in %s section of config file %s:' % (section, self.config_file),'%r\n' % (line), traceback.format_exc()])
 
         # an extra option for gathering extra info to better the code
         if 'write_info_files' in self.opt_dict.keys():
@@ -1791,6 +1817,89 @@ class Configure:
 
         return True
     # end read_config()
+
+    def process_channel_config(self, chanid, channames = None):
+        if chanid in self.config_dict[9].keys():
+            chan_conf = self.config_dict[9][chanid]
+
+        elif channames != None:
+            for name in channames:
+                if name in self.config_dict[9].keys():
+                    chan_conf = self.config_dict[9][name]
+                    break
+
+            else:
+                return
+
+        else:
+            return
+
+        for line in chan_conf:
+            try:
+                # Strip the name from the value
+                a = re.split('=',line)
+                cfg_option = a[0].lower().strip()
+                # Boolean Values
+                if cfg_option in self.chan_opt['bool']:
+                    if len(a) == 1:
+                        self.channels[chanid].opt_dict[cfg_option] = True
+
+                    elif a[1].lower().strip() in ('true', '1' , 'on'):
+                        self.channels[chanid].opt_dict[cfg_option] = True
+
+                    else:
+                        self.channels[chanid].opt_dict[cfg_option] = False
+
+                elif len(a) == 2:
+                    cfg_value = a[1].lower().strip()
+                    if cfg_option == 'use_npo':
+                        if cfg_value in ('false', '0' , 'off'):
+                            self.validate_option('disable_source', self.channels[chanid], 4)
+
+                    # String values
+                    elif cfg_option in self.chan_opt['string']:
+                        self.channels[chanid].opt_dict[cfg_option] = cfg_value.strip()
+
+                    # Select Values
+                    elif cfg_option == 'overlap_strategy':
+                        if cfg_value in ('average', 'stop', 'start'):
+                            self.channels[chanid].opt_dict[cfg_option] = cfg_value
+
+                        else:
+                            self.channels[chanid].opt_dict[cfg_option] = 'none'
+
+                    # Integer Values
+                    elif cfg_option in self.chan_opt['int']:
+                        try:
+                            cfg_value = int(cfg_value)
+
+                        except ValueError:
+                            if (cfg_option == 'slowdays') and (cfg_value == 'none'):
+                                self.channels[chanid].opt_dict[cfg_option] = None
+
+                        else:
+                            self.channels[chanid].opt_dict[cfg_option] = cfg_value
+
+                    # Source Values
+                    elif cfg_option in ('prime_source', 'prefered_description', 'disable_source', 'disable_detail_source'):
+                        try:
+                            cfg_value = int(cfg_value)
+
+                        except ValueError:
+                            continue
+
+                        else:
+                            if cfg_option == 'prime_source':
+                                # We have to validate this value after reading sourcematching.json
+                                self.channels[chanid].prevalidate_opt[cfg_option] = cfg_value
+
+                            else:
+                                self.validate_option(cfg_option, self.channels[chanid], cfg_value)
+
+            except:
+                log(['Invalid line in %s section of config file %s:' % (section, self.config_file),'%r\n' % (line), traceback.format_exc()])
+
+    # end process_channel_config()
 
     def read_defaults_list(self):
         """
@@ -2355,9 +2464,10 @@ class Configure:
                     for s, channelid in self.virtual_sub_channels[childid]['channelids'].items():
                         self.channels[childid].source_id[s] = channelid
 
-                    for i, v in self.opt_dict.items():
-                        if i in self.channels[childid].opt_dict.keys() and not i in ('disable_source', 'disable_detail_source'):
-                            self.channels[childid].opt_dict[i] = v
+                    self.process_channel_config(childid)
+                    #~ for i, v in self.opt_dict.items():
+                        #~ if i in self.channels[childid].opt_dict.keys() and not i in ('disable_source', 'disable_detail_source'):
+                            #~ self.channels[childid].opt_dict[i] = v
 
                     self.channels[childid].is_child = True
                     self.channels[childid].is_virtual_sub = True
