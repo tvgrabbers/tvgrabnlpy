@@ -2320,10 +2320,9 @@ class Configure:
             for child in chanlist:
                 if isinstance(child, dict) and 'chanid' in child:
                     if "virtual-chanid" in child and child["virtual-chanid"] in self.virtual_sub_channels.keys():
-                        childid = child['virtual-chanid']
+                        child['chanid'] = child['virtual-chanid']
 
-                    else:
-                        childid = child['chanid']
+                    childid = child['chanid']
 
                     if 'start' in child:
                         if not get_time(child['start'], 0):
@@ -12501,6 +12500,7 @@ class Channel_Config(Thread):
                 self.state = 0
                 self.source = None
                 if self.source_data[index].is_set():
+                    #~ print index, xml_output.channelsource[index].program_data.keys()
                     if len(xml_output.channelsource[index].program_data[channelid]) == 0:
                         if not ((index == 1 and 0 in self.merge_order) or index == 11):
                             log('No Data from %s for channel: %s\n'% (xml_output.channelsource[index].source, self.chan_name))
