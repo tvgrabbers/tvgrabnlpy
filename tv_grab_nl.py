@@ -427,7 +427,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 19
-        self.patchdate = u'20160907'
+        self.patchdate = u'20160908'
         self.alfa = False
         self.beta = True
 
@@ -2903,22 +2903,22 @@ class Configure:
 
         elif option == 'channel_settings':
             for chanid, chanlist in self.combined_channels.items():
-                for child in chanlist:
-                    childid = child['chanid']
-                    if childid in self.virtual_sub_channels.keys() and chanid in self.channels.keys() and self.channels[chanid].active:
-                        if not childid in self.channels.keys():
-                            # We start a channel thread
-                            self.channels[childid] = Channel_Config(childid, unicode(childid), -1)
+                if chanid in self.channels.keys() and self.channels[chanid].active:
+                    for child in chanlist:
+                        childid = child['chanid']
+                        if childid in self.virtual_sub_channels.keys():
+                            if not childid in self.channels.keys():
+                                # We start a channel thread
+                                self.channels[childid] = Channel_Config(childid, unicode(childid), -1)
 
-                        print childid
-                        for s, channelid in self.virtual_sub_channels[childid]['channelids'].items():
-                            self.channels[childid].source_id[s] = channelid
+                            for s, channelid in self.virtual_sub_channels[childid]['channelids'].items():
+                                self.channels[childid].source_id[s] = channelid
 
-                        self.process_channel_config(childid)
-                        self.channels[childid].is_child = True
-                        self.channels[childid].is_virtual_sub = True
-                        self.channels[childid].virtual_start = self.virtual_sub_channels[childid]['start']
-                        self.channels[childid].virtual_end = self.virtual_sub_channels[childid]['end']
+                            self.process_channel_config(childid)
+                            self.channels[childid].is_child = True
+                            self.channels[childid].is_virtual_sub = True
+                            self.channels[childid].virtual_start = self.virtual_sub_channels[childid]['start']
+                            self.channels[childid].virtual_end = self.virtual_sub_channels[childid]['end']
 
             for channel in self.channels.values():
                 # But first fill in any not jet set option with the general value
