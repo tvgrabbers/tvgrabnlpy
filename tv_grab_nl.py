@@ -2055,7 +2055,7 @@ class Configure:
                 channel.source_id[index] = ''
 
             # These groupids have changed, so to be sure
-            if self.opt_dict['always_use_json']:
+            if self.opt_dict['always_use_json'] and channel.group != -1 :
                 channel.group = 99
 
             # And all not custom set icons
@@ -2456,23 +2456,6 @@ class Configure:
                 elif isinstance(child, (str, unicode)):
                     childid = child
                     clist.append({'chanid': child})
-
-                if childid in self.virtual_sub_channels.keys() and chanid in self.channels.keys() \
-                  and self.channels[chanid].active and not childid in self.channels.keys():
-                    # We start a channel thread
-                    self.channels[childid] = Channel_Config(childid, unicode(childid), 99)
-                    for s, channelid in self.virtual_sub_channels[childid]['channelids'].items():
-                        self.channels[childid].source_id[s] = channelid
-
-                    self.process_channel_config(childid)
-                    #~ for i, v in self.opt_dict.items():
-                        #~ if i in self.channels[childid].opt_dict.keys() and not i in ('disable_source', 'disable_detail_source'):
-                            #~ self.channels[childid].opt_dict[i] = v
-
-                    self.channels[childid].is_child = True
-                    self.channels[childid].is_virtual_sub = True
-                    self.channels[childid].virtual_start = self.virtual_sub_channels[childid]['start']
-                    self.channels[childid].virtual_end = self.virtual_sub_channels[childid]['end']
 
             self.combined_channels[chanid] = clist
 
@@ -2919,6 +2902,24 @@ class Configure:
                         channel.opt_dict['disable_detail_source'].append(value)
 
         elif option == 'channel_settings':
+            for chanid, chanlist in self.combined_channels.items():
+                for child in chanlist:
+                    childid = child['chanid']
+                    if childid in self.virtual_sub_channels.keys() and chanid in self.channels.keys() and self.channels[chanid].active:
+                        if not childid in self.channels.keys():
+                            # We start a channel thread
+                            self.channels[childid] = Channel_Config(childid, unicode(childid), -1)
+
+                        print childid
+                        for s, channelid in self.virtual_sub_channels[childid]['channelids'].items():
+                            self.channels[childid].source_id[s] = channelid
+
+                        self.process_channel_config(childid)
+                        self.channels[childid].is_child = True
+                        self.channels[childid].is_virtual_sub = True
+                        self.channels[childid].virtual_start = self.virtual_sub_channels[childid]['start']
+                        self.channels[childid].virtual_end = self.virtual_sub_channels[childid]['end']
+
             for channel in self.channels.values():
                 # But first fill in any not jet set option with the general value
                 for o in self.chan_opt['all']:
@@ -3029,8 +3030,8 @@ class Configure:
 
             self.opt_dict['days'] = min(self.opt_dict['days'],(14 - self.opt_dict['offset']))
 
-            if self.opt_dict['slowdays'] == None or self.opt_dict['slowdays'] > config.opt_dict['days']:
-                self.opt_dict['slowdays'] = config.opt_dict['days']
+            #~ if self.opt_dict['slowdays'] != None and self.opt_dict['slowdays'] > config.opt_dict['days']:
+                #~ self.opt_dict['slowdays'] = config.opt_dict['days']
 
         elif option == 'output_file':
             if self.opt_dict['output_file'] != None:
@@ -3134,19 +3135,7 @@ class Configure:
             if channel == None:
                 channel = self
 
-            if channel.opt_dict['slowdays'] == None:
-                channel.opt_dict['slowdays'] = self.opt_dict['days']
-                if channel.opt_dict['desc_length'] == 0:
-                    # no description implies fast == True
-                    if not channel.opt_dict['fast']:
-                        channel.opt_dict['fast'] = True
-                        if channel == self:
-                            log('Setting All to Fast Mode\n',1,1)
-
-                        else:
-                            log('Setting Channel: %s to Fast Mode\n' % channel.chan_name,1,1)
-
-            else:
+            if channel.opt_dict['slowdays'] != None:
                 channel.opt_dict['slowdays'] = min(self.opt_dict['days'], channel.opt_dict['slowdays'])
                 # slowdays implies fast == False
                 if channel.opt_dict['slowdays'] < self.opt_dict['days']:
@@ -3706,6 +3695,9 @@ class Configure:
                 chan_list[unicode(g)] =[]
 
             for chanid, channel in self.channels.items():
+                if channel.group == -1:
+                    continue
+
                 grp = u'0' if self.args.group_active_channels and channel.active else unicode(channel.group)
                 chan_list[grp].append(get_channel_string(chanid))
 
@@ -3748,7 +3740,7 @@ class Configure:
                 if index in self.opt_dict['disable_source']:
                     continue
 
-                if index in chan_def.source_id.keys() and chan_def.get_source_id(index) != '':
+                if chan_def.get_source_id(index) != '':
                     if not chan_name_written:
                         f.write(u'\n')
                         f.write(u'# %s\n' % (chan_def.chan_name))
@@ -3761,7 +3753,7 @@ class Configure:
                 if index in chan_def.opt_dict['disable_source'] or index in self.opt_dict['disable_source'] or index in self.opt_dict['disable_detail_source']:
                     continue
 
-                if index in chan_def.source_id.keys() and chan_def.get_source_id(index) != '':
+                if chan_def.get_source_id(index) != '':
                     if not chan_name_written:
                         f.write(u'\n')
                         f.write(u'# %s\n' % (chan_def.chan_name))
@@ -3798,7 +3790,7 @@ class Configure:
                 f.write(u'prime_source = %s\n' % chan_def.opt_dict['prime_source'])
 
             opt_val = chan_def.opt_dict['prefered_description']
-            if opt_val in chan_def.source_id.keys() and chan_def.get_source_id(opt_val) != '':
+            if chan_def.get_source_id(opt_val) != '':
                 if not chan_name_written:
                     f.write(u'\n')
                     f.write(u'# %s\n' % (chan_def.chan_name))
@@ -12869,7 +12861,25 @@ class Channel_Config(Thread):
 
         return ''
 
-    def get_details(self, ):
+    def get_opt(self, opt):
+        retval = None
+        if opt in self.opt_dict.keys():
+            retval = self.opt_dict[opt]
+
+        elif opt in config.opt_dict.keys():
+            retval = config.opt_dict[opt]
+
+        if retval == None:
+            if opt == 'slowdays':
+                if self.get_opt('fast'):
+                    retval = 0
+
+                else:
+                    retval = config.opt_dict['days']
+
+        return retval
+
+    def get_details(self):
         """
         Given a list of programs, from the several sources, retrieve program details
         """
@@ -12919,7 +12929,7 @@ class Channel_Config(Thread):
                                 p['name'])
 
             # We only fetch when we are in slow mode and slowdays is not set to tight
-            no_fetch = (self.opt_dict['fast'] or p['offset'] >= (config.opt_dict['offset'] + self.opt_dict['slowdays']))
+            no_fetch = (self.opt_dict['fast'] or p['offset'] >= (config.opt_dict['offset'] + self.get_opt('slowdays')))
 
             # check the cache for this program's ID
             # If not found, check the various ID's and (if found) make it the prime one
