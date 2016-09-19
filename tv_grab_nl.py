@@ -1136,6 +1136,7 @@ class Configure:
             dayoffset['%s-%s-%s' % (day, month, year)] = d
 
         return dayoffset
+    # end create_dayoffset()
 
     def save_oldfile(self, fle):
         """ save the old file to .old if it exists """
@@ -1609,7 +1610,6 @@ class Configure:
                     channame = unicode(channel[1]).strip()
                     self.channels[chanid] = Channel_Config(chanid, channame)
                     self.channels[chanid].active = True
-                    #~ channel_names[channame.lower()] = chanid
                     if chanid in channel_names.keys():
                         channel_names[chanid].append(channame.lower())
 
@@ -1682,7 +1682,6 @@ class Configure:
 
                         chanid = unicode(channel[2])
                         channame = unicode(channel[0]).strip()
-                        #~ channel_names[channame.lower()] = chanid
                         if chanid in channel_names.keys():
                             channel_names[chanid].append(channame.lower())
 
@@ -1696,12 +1695,6 @@ class Configure:
                     # The icon defenition
                     self.channels[chanid].icon_source = int(channel[-2])
                     self.channels[chanid].icon = unicode(channel[-1]).strip()
-                    # fill in the default options
-                    #~ for i, v in self.opt_dict.items():
-                        #~ if i in self.channels[chanid].opt_dict.keys() and not i in ('disable_source', 'disable_detail_source'):
-                            #~ self.channels[chanid].opt_dict[i] = v
-
-                    # set the default prime_source
                     # Set active if not remarked out
                     self.channels[chanid].active = active
                     if active:
@@ -1710,104 +1703,18 @@ class Configure:
                 except:
                     log(['Invalid line in Channels section of config file %s:\n' % (self.config_file),'%r\n' % (line), traceback.print_exc()])
 
-        # Read the channel specific configuration
-        if self.configversion == 2.1 or test_as_21:
-            for k, v in old_chanids.items():
-                self.process_channel_config(v, [k])
+            # Read the channel specific configuration
+            if self.configversion == 2.1 or test_as_21:
+                for k, v in old_chanids.items():
+                    self.process_channel_config(v, [k])
 
-        else:
-            for chanid in self.channels.keys():
-                if chanid in channel_names.keys():
-                    self.process_channel_config(chanid, channel_names[chanid])
+            else:
+                for chanid in self.channels.keys():
+                    if chanid in channel_names.keys():
+                        self.process_channel_config(chanid, channel_names[chanid])
 
-                else:
-                    self.process_channel_config(chanid)
-
-        #~ for section, values in self.config_dict[9].items():
-            #~ if self.configversion == 2.1 or test_as_21:
-                #~ if section in old_chanids.keys():
-                    #~ chanid = old_chanids[section]
-
-                #~ else:
-                    #~ continue
-
-            #~ # is the name in the sectionheader a known chanid?
-            #~ elif section in self.channels.keys():
-                #~ chanid = section
-
-            #~ # or a known channelname
-            #~ elif section in channel_names.keys():
-                #~ chanid = channel_names[section]
-
-            #~ else:
-                #~ # unknown chanid or channelname
-                #~ log('Channel section "%s" ignored. Unknown channel\n' % section)
-                #~ continue
-
-            #~ for line in values:
-                #~ try:
-                    #~ # Strip the name from the value
-                    #~ a = re.split('=',line)
-                    #~ cfg_option = a[0].lower().strip()
-                    #~ # Boolean Values
-                    #~ if cfg_option in self.chan_opt['bool']:
-                        #~ if len(a) == 1:
-                            #~ self.channels[chanid].opt_dict[cfg_option] = True
-
-                        #~ elif a[1].lower().strip() in ('true', '1' , 'on'):
-                            #~ self.channels[chanid].opt_dict[cfg_option] = True
-
-                        #~ else:
-                            #~ self.channels[chanid].opt_dict[cfg_option] = False
-
-                    #~ elif len(a) == 2:
-                        #~ cfg_value = a[1].lower().strip()
-                        #~ if cfg_option == 'use_npo':
-                            #~ if cfg_value in ('false', '0' , 'off'):
-                                #~ self.validate_option('disable_source', self.channels[chanid], 4)
-
-                        #~ # String values
-                        #~ elif cfg_option in self.chan_opt['string']:
-                            #~ self.channels[chanid].opt_dict[cfg_option] = cfg_value.strip()
-
-                        #~ # Select Values
-                        #~ elif cfg_option == 'overlap_strategy':
-                            #~ if cfg_value in ('average', 'stop', 'start'):
-                                #~ self.channels[chanid].opt_dict[cfg_option] = cfg_value
-
-                            #~ else:
-                                #~ self.channels[chanid].opt_dict[cfg_option] = 'none'
-
-                        #~ # Integer Values
-                        #~ elif cfg_option in self.chan_opt['int']:
-                            #~ try:
-                                #~ cfg_value = int(cfg_value)
-
-                            #~ except ValueError:
-                                #~ if (cfg_option == 'slowdays') and (cfg_value == 'none'):
-                                    #~ self.channels[chanid].opt_dict[cfg_option] = None
-
-                            #~ else:
-                                #~ self.channels[chanid].opt_dict[cfg_option] = cfg_value
-
-                        #~ # Source Values
-                        #~ elif cfg_option in ('prime_source', 'prefered_description', 'disable_source', 'disable_detail_source'):
-                            #~ try:
-                                #~ cfg_value = int(cfg_value)
-
-                            #~ except ValueError:
-                                #~ continue
-
-                            #~ else:
-                                #~ if cfg_option == 'prime_source':
-                                    #~ # We have to validate this value after reading sourcematching.json
-                                    #~ self.channels[chanid].prevalidate_opt[cfg_option] = cfg_value
-
-                                #~ else:
-                                    #~ self.validate_option(cfg_option, self.channels[chanid], cfg_value)
-
-                #~ except:
-                    #~ log(['Invalid line in %s section of config file %s:' % (section, self.config_file),'%r\n' % (line), traceback.format_exc()])
+                    else:
+                        self.process_channel_config(chanid)
 
         # an extra option for gathering extra info to better the code
         if 'write_info_files' in self.opt_dict.keys():
@@ -2055,7 +1962,7 @@ class Configure:
                 channel.source_id[index] = ''
 
             # These groupids have changed, so to be sure
-            if self.opt_dict['always_use_json'] and channel.group != -1 :
+            if self.opt_dict['always_use_json'] and channel.group != -1:
                 channel.group = 99
 
             # And all not custom set icons
@@ -2431,8 +2338,6 @@ class Configure:
                     if "virtual-chanid" in child and child["virtual-chanid"] in self.virtual_sub_channels.keys():
                         child['chanid'] = child['virtual-chanid']
 
-                    childid = child['chanid']
-
                     if 'start' in child:
                         if not get_time(child['start'], 0):
                             log('Invalid starttime for %s in combined channel: %s\n' % (child['chanid'], chanid))
@@ -2454,7 +2359,6 @@ class Configure:
                     clist.append(child)
 
                 elif isinstance(child, (str, unicode)):
-                    childid = child
                     clist.append({'chanid': child})
 
             self.combined_channels[chanid] = clist
@@ -2921,11 +2825,6 @@ class Configure:
                             self.channels[childid].virtual_end = self.virtual_sub_channels[childid]['end']
 
             for channel in self.channels.values():
-                # But first fill in any not jet set option with the general value
-                for o in self.chan_opt['all']:
-                    if not o in channel.opt_dict.keys():
-                        channel.opt_dict[o] = self.opt_dict[o]
-
                 channel.validate_settings()
 
         elif option == 'prime_source':
@@ -3133,16 +3032,21 @@ class Configure:
 
         elif option == 'slowdays':
             if channel == None:
-                channel = self
+                if self.opt_dict['slowdays'] != None:
+                    self.opt_dict['slowdays'] = min(self.opt_dict['days'], self.opt_dict['slowdays'])
+                    # slowdays implies fast == False
+                    if self.opt_dict['slowdays'] < self.opt_dict['days']:
+                        self.opt_dict['fast']  = False
 
-            if channel.opt_dict['slowdays'] != None:
-                channel.opt_dict['slowdays'] = min(self.opt_dict['days'], channel.opt_dict['slowdays'])
-                # slowdays implies fast == False
-                if channel.opt_dict['slowdays'] < self.opt_dict['days']:
-                    channel.opt_dict['fast']  = False
+            elif 'slowdays' in channel.opt_dict.keys():
+                if channel.get_opt('slowdays') != None:
+                    channel.opt_dict['slowdays'] = min(self.opt_dict['days'], channel.get_opt('slowdays'))
+                    # slowdays implies fast == False
+                    if channel.get_opt('slowdays') < self.opt_dict['days']:
+                        channel.opt_dict['fast']  = False
 
         elif option == 'desc_length':
-            if channel != None and channel.opt_dict['desc_length'] != self.opt_dict['desc_length']:
+            if channel != None and channel.get_opt('desc_length') != self.opt_dict['desc_length']:
                 log('Using description length: %d for Cannel: %s\n' % (channel.opt_dict['desc_length'], channel.chan_name),1,1)
 
         elif option == 'overlap_strategy':
@@ -3150,9 +3054,8 @@ class Configure:
                 if not self.opt_dict['overlap_strategy'] in ['average', 'stop', 'start']:
                     self.opt_dict['overlap_strategy'] = 'none'
 
-            else:
-                if not channel.opt_dict['overlap_strategy'] in ['average', 'stop', 'start']:
-                    channel.opt_dict['overlap_strategy'] = 'none'
+            elif not channel.get_opt('overlap_strategy') in ['average', 'stop', 'start']:
+                channel.opt_dict['overlap_strategy'] = 'none'
 
         elif option == 'max_overlap':
             if channel == None:
@@ -3161,15 +3064,15 @@ class Configure:
                     self.opt_dict['overlap_strategy'] = 'None'
                     log('Maximum overlap 0 means overlap strategy set to: "%s"\n' % (self.opt_dict['overlap_strategy']),1,1)
 
-            elif channel.opt_dict['max_overlap'] == 0:
+            elif channel.get_opt('max_overlap') == 0:
                 # no max_overlap implies strategie == 'None'
                 channel.opt_dict['overlap_strategy'] = 'None'
-                log('Maximum overlap 0 means overlap strategy for Channel: %s set to: "%s"\n' % (channel.chan_name, channel.opt_dict['overlap_strategy']),1,1)
+                log('Maximum overlap 0 means overlap strategy for Channel: %s set to: "%s"\n' % (channel.chan_name, channel.get_opt('overlap_strategy')),1,1)
 
-            elif channel.opt_dict['max_overlap'] != self.opt_dict['max_overlap']:
-                log('Using Maximum Overlap: %d for Channel %s\n' % (channel.opt_dict['max_overlap'], channel.chan_name),1,1)
-                if channel.opt_dict['overlap_strategy'] != self.opt_dict['overlap_strategy']:
-                    log('overlap strategy for Channel: %s set to: "%s"\n' % (channel.chan_name, channel.opt_dict['overlap_strategy']),1,1)
+            elif channel.get_opt('max_overlap') != self.opt_dict['max_overlap']:
+                log('Using Maximum Overlap: %d for Channel %s\n' % (channel.get_opt('max_overlap'), channel.chan_name),1,1)
+                if channel.get_opt('overlap_strategy') != self.opt_dict['overlap_strategy']:
+                    log('overlap strategy for Channel: %s set to: "%s"\n' % (channel.chan_name, channel.get_opt('overlap_strategy')),1,1)
 
     # end validate_option()
 
@@ -3222,8 +3125,8 @@ class Configure:
                 continue
 
             log_array.append(u'[%s (Chanid=%s)]\n' % (chan_def.chan_name, chan_def.chanid))
-            if chan_def.opt_dict['xmltvid_alias'] != None:
-                log_array.append(u'  xmltvID_alias = %s\n' % (chan_def.opt_dict['xmltvid_alias']))
+            if chan_def.get_opt('xmltvid_alias') != None:
+                log_array.append(u'  xmltvID_alias = %s\n' % (chan_def.get_opt('xmltvid_alias')))
 
             src_id = chan_def.opt_dict['prime_source']
             log_array.append(u'  prime_source = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
@@ -3243,7 +3146,7 @@ class Configure:
 
                 log_array.append(u'  Detail Source %s (%s) disabled\n' % (index, xml_output.channelsource[index].source))
 
-            if not chan_def.opt_dict['append_tvgidstv']:
+            if not chan_def.get_opt('append_tvgidstv'):
                 log_array.append(u'  append_tvgidstv = False\n')
 
             src_id = chan_def.opt_dict['prefered_description']
@@ -3251,19 +3154,22 @@ class Configure:
                 if chan_def.get_source_id(src_id) != '':
                     log_array.append(u'  prefered_description = %s (%s)\n' % (src_id, xml_output.channelsource[src_id].source))
 
-            if chan_def.opt_dict['add_hd_id']:
+            if chan_def.get_opt('add_hd_id'):
                 log_array.append(u'  add_hd_id = True\n')
 
-            elif chan_def.opt_dict['mark_hd']:
+            elif chan_def.get_opt('mark_hd'):
                 log_array.append(u'  mark_hd = True\n')
 
-            if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
-                log_array.append(u'  slowdays = %s' % (chan_def.opt_dict['slowdays']))
+            if 'slowdays' in chan_def.opt_dict.keys() and chan_def.opt_dict['slowdays'] not in (self.opt_dict['slowdays'], None):
+                log_array.append(u'  slowdays = %s' % (chan_def.get_opt('slowdays')))
 
-            for val in ( 'fast', 'compat', 'legacy_xmltvids', 'max_overlap', 'overlap_strategy', \
+            if 'compat' in chan_def.opt_dict.keys() and chan_def.opt_dict['compat'] != self.opt_dict['compat']:
+                log_array.append(u'  compat = %s' % (chan_def.get_opt('compat')))
+
+            for val in ( 'fast', 'legacy_xmltvids', 'max_overlap', 'overlap_strategy', \
               'logos', 'desc_length', 'cattrans', 'disable_ttvdb', 'use_split_episodes'):
-                if chan_def.opt_dict[val] != self.opt_dict[val]:
-                    log_array.append(u'  %s = %s\n' % (val, chan_def.opt_dict[val]))
+                if chan_def.get_opt(val) != self.opt_dict[val]:
+                    log_array.append(u'  %s = %s\n' % (val, chan_def.get_opt(val)))
 
         log_array.append(u' \n')
         log(log_array, 1, 2)
@@ -3762,7 +3668,7 @@ class Configure:
 
                     f.write(u'disable_detail_source = %s\n' % index)
 
-            if not chan_def.opt_dict['append_tvgidstv']:
+            if not chan_def.get_opt('append_tvgidstv'):
                 if not chan_name_written:
                     f.write(u'\n')
                     f.write(u'# %s\n' % (chan_def.chan_name))
@@ -3799,7 +3705,7 @@ class Configure:
 
                 f.write(u'prefered_description = %s\n' % ( opt_val))
 
-            if chan_def.opt_dict['add_hd_id']:
+            if chan_def.get_opt('add_hd_id'):
                 if not chan_name_written:
                     f.write(u'\n')
                     f.write(u'# %s\n' % (chan_def.chan_name))
@@ -3808,14 +3714,23 @@ class Configure:
 
                 f.write(u'add_hd_id = True\n')
 
-            if chan_def.opt_dict['slowdays'] != self.opt_dict['slowdays'] and chan_def.opt_dict['slowdays'] != None:
+            if 'slowdays' in chan_def.opt_dict.keys() and chan_def.opt_dict['slowdays'] not in (self.opt_dict['slowdays'], None):
                 if not chan_name_written:
                     f.write(u'\n')
                     f.write(u'# %s\n' % (chan_def.chan_name))
                     f.write(u'[Channel %s]\n' % (chan_def.chanid))
                     chan_name_written = True
 
-                f.write(u'slowdays = %s\n' % (chan_def.opt_dict['slowdays']))
+                f.write(u'slowdays = %s\n' % (chan_def.get_opt('slowdays')))
+
+            if 'compat' in chan_def.opt_dict.keys() and chan_def.opt_dict['compat'] != self.opt_dict['compat']:
+                if not chan_name_written:
+                    f.write(u'\n')
+                    f.write(u'# %s\n' % (chan_def.chan_name))
+                    f.write(u'[Channel %s]\n' % (chan_def.chanid))
+                    chan_name_written = True
+
+                f.write(u'compat = %s\n' % (chan_def.get_opt('compat')))
 
             if self.opt_dict['disable_ttvdb'] == False and chan_def.opt_dict['disable_ttvdb'] == True:
                 if not chan_name_written:
@@ -3826,16 +3741,16 @@ class Configure:
 
                 f.write(u'disable_ttvdb = True\n')
 
-            for val in ( 'fast', 'compat', 'legacy_xmltvids', 'max_overlap', 'overlap_strategy', \
+            for val in ( 'fast', 'legacy_xmltvids', 'max_overlap', 'overlap_strategy', \
               'logos', 'desc_length', 'cattrans', 'mark_hd', 'use_split_episodes'):
-                if chan_def.opt_dict[val] != self.opt_dict[val]:
+                if chan_def.get_opt(val) != self.opt_dict[val]:
                     if not chan_name_written:
                         f.write(u'\n')
                         f.write(u'# %s\n' % (chan_def.chan_name))
                         f.write(u'[Channel %s]\n' % (chan_def.chanid))
                         chan_name_written = True
 
-                    f.write(u'%s = %s\n' % (val, chan_def.opt_dict[val]))
+                    f.write(u'%s = %s\n' % (val, chan_def.get_opt(val)))
 
         f.close()
         return True
@@ -6408,7 +6323,6 @@ class FetchData(Thread):
                 else:
                     self.chanids[channelid] = chanidlist[0]
 
-
     def checkout_program_dict(self, tdict = None):
         """
         Checkout a given dict for invalid values or
@@ -7019,7 +6933,7 @@ class FetchData(Thread):
         # sort all programs by startdate, enddate
         programs.sort(key=lambda program: (program['start-time'],program['stop-time']))
         if overlap_strategy == None:
-            overlap_strategy = channel.opt_dict['overlap_strategy']
+            overlap_strategy = channel.get_opt('overlap_strategy')
 
         # next, correct for missing end time and copy over all good programming to the
         # good_programs list
@@ -7083,7 +6997,7 @@ class FetchData(Thread):
                 overlap = dt.total_seconds()
 
                 # check for the size of the overlap
-                if 0 < abs(overlap) <= channel.opt_dict['max_overlap']*60:
+                if 0 < abs(overlap) <= channel.get_opt('max_overlap')*60:
                     if overlap > 0:
                         log('"%s" and "%s" overlap %s minutes. Adjusting times.\n' % \
                             (good_programs[i]['name'],good_programs[i+1]['name'],overlap // 60), 64)
@@ -7158,7 +7072,7 @@ class FetchData(Thread):
                 l0 = length0.days*24*60*60 + length0.seconds
                 l1 = length1.days*24*60*60 + length0.seconds
 
-                if abs(overlap) >= channel.opt_dict['max_overlap']*60 <= min(l0,l1)*60 and \
+                if abs(overlap) >= channel.get_opt('max_overlap')*60 <= min(l0,l1)*60 and \
                     'clumpidx' not in good_programs[i]   and \
                     'clumpidx' not in good_programs[i+1]:
                     good_programs[i]['clumpidx']   = '0/2'
@@ -7746,7 +7660,7 @@ class FetchData(Thread):
 
         # Get existing gaps in info larger then 'max_overlap'
         for index in range(1, len(info)):
-            if (info[index]['start-time'] -  info[index -1]['stop-time']).total_seconds()  > channel.opt_dict['max_overlap']*60:
+            if (info[index]['start-time'] -  info[index -1]['stop-time']).total_seconds()  > channel.get_opt('max_overlap')*60:
                 info_gaps.append({'start-time': info[index -1]['stop-time'] - datetime.timedelta(seconds = 5 ),
                                                 'stop-time': info[index]['start-time'] + datetime.timedelta(seconds = 5 )})
 
@@ -7939,7 +7853,7 @@ class FetchData(Thread):
                                     twin_gcount += 1
 
                     if len(pset) > 1:
-                        if channel.opt_dict['use_split_episodes']:
+                        if channel.get_opt('use_split_episodes'):
                             ncount += twin_ncount
                             gcount += twin_gcount
                             for pp in pset:
@@ -7995,7 +7909,7 @@ class FetchData(Thread):
                                     # It matches on genre
                                     twin_gcount += 1
 
-                    if len(pset) > 1 and channel.opt_dict['use_split_episodes']:
+                    if len(pset) > 1 and channel.get_opt('use_split_episodes'):
                         ncount += twin_ncount
                         gcount += twin_gcount
                         # So we have to use the timings from programs
@@ -9010,7 +8924,7 @@ class tvgidstv_HTML(FetchData):
                             continue
 
                         log(['\n', 'Now fetching %s(xmltvid=%s%s) from tvgids.tv\n' % \
-                            (config.channels[chanid].chan_name, config.channels[chanid].xmltvid , (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                            (config.channels[chanid].chan_name, config.channels[chanid].xmltvid , config.channels[chanid].get_opt('compat')), \
                             '    (channel %s of %s) for day %s of %s.\n' % \
                             (channel_cnt, len(self.chanids), offset, config.opt_dict['days'])], 2)
                         if not first_fetch:
@@ -10037,7 +9951,7 @@ class horizon_JSON(FetchData):
 
                     page_count += 1
                     log(['\n', 'Now fetching %s(xmltvid=%s%s) from horizon.tv\n' % \
-                        (config.channels[chanid].chan_name, config.channels[chanid].xmltvid, (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                        (config.channels[chanid].chan_name, config.channels[chanid].xmltvid, config.channels[chanid].get_opt('compat')), \
                         '    (channel %s of %s) for %s days, page %s.\n' % \
                         ( channel_cnt, len(self.chanids), config.opt_dict['days'], page_count)], 2)
 
@@ -11228,7 +11142,7 @@ class nieuwsblad_HTML(FetchData):
 
                     log(['\n', 'Now fetching %s(xmltvid=%s%s) from nieuwsblad.be\n' % \
                         (config.channels[chanid].chan_name, config.channels[chanid].xmltvid , \
-                        (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                        config.channels[chanid].get_opt('compat')), \
                         '    (channel %s of %s) for 6 days.\n' % \
                         (channel_cnt, len(self.channels))], 2)
 
@@ -11889,7 +11803,7 @@ class vrt_JSON(FetchData):
                         url = self.get_url('week', fetch_range[offset], channelid)
                         log(['\n', 'Now fetching %s(xmltvid=%s%s) from vrt.be\n' % \
                             (config.channels[chanid].chan_name, config.channels[chanid].xmltvid , \
-                            (config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')), \
+                            config.channels[chanid].get_opt('compat')), \
                             '    (channel %s of %s) for week %s of %s).\n' % \
                             (channel_cnt, len(self.chanids), offset, len(fetch_range))], 2)
 
@@ -12498,17 +12412,6 @@ class Channel_Config(Thread):
         self.opt_dict['disable_source'] = []
         self.opt_dict['disable_detail_source'] = []
         self.opt_dict['disable_ttvdb'] = False
-        #~ self.opt_dict['fast'] = config.opt_dict['fast']
-        #~ self.opt_dict['slowdays'] = config.opt_dict['slowdays']
-        #~ self.opt_dict['compat'] = config.opt_dict['compat']
-        #~ self.opt_dict['legacy_xmltvids'] = config.opt_dict['legacy_xmltvids']
-        #~ self.opt_dict['max_overlap'] = config.opt_dict['max_overlap']
-        #~ self.opt_dict['overlap_strategy'] = config.opt_dict['overlap_strategy']
-        #~ self.opt_dict['logos'] = config.opt_dict['logos']
-        #~ self.opt_dict['desc_length'] = config.opt_dict['desc_length']
-        #~ self.opt_dict['use_split_episodes'] = config.opt_dict['use_split_episodes']
-        #~ self.opt_dict['cattrans'] = config.opt_dict['cattrans']
-        #~ self.opt_dict['mark_hd'] = config.opt_dict['mark_hd']
 
     def validate_settings(self):
 
@@ -12532,7 +12435,7 @@ class Channel_Config(Thread):
         if self.opt_dict['xmltvid_alias'] != None:
             self.xmltvid = self.opt_dict['xmltvid_alias']
 
-        elif (config.configversion < 2.208 or self.opt_dict['legacy_xmltvids'] == True):
+        elif (config.configversion < 2.208 or self.get_opt('legacy_xmltvids') == True):
             xmltvid = self.chanid.split('-',1)
             try:
                 self.xmltvid = xmltvid[1] if int(xmltvid[0]) < 4 else self.chanid
@@ -12557,27 +12460,23 @@ class Channel_Config(Thread):
             # Create the merge order
             self.merge_order = []
             last_merge = []
-            if (self.get_source_id(self.opt_dict['prime_source']) != '') \
-              and not (self.opt_dict['prime_source'] in self.opt_dict['disable_source']) \
-              and not (self.opt_dict['prime_source'] in config.opt_dict['disable_source']):
-                if self.get_source_id(self.opt_dict['prime_source']) in config.no_genric_matching[self.opt_dict['prime_source']]:
-                    last_merge.append(self.opt_dict['prime_source'])
+            ps = self.opt_dict['prime_source']
+            if (self.get_source_id(ps) != '') and not self.get_opt('disable_source', ps):
+                if self.get_source_id(ps) in config.no_genric_matching[ps]:
+                    last_merge.append(ps)
 
                 else:
-                    self.merge_order.append(self.opt_dict['prime_source'])
+                    self.merge_order.append(ps)
 
             for index in xml_output.source_order:
-                if (self.get_source_id(index) != '') \
-                  and index != self.opt_dict['prime_source'] \
-                  and not (index in self.opt_dict['disable_source']) \
-                  and not (index in config.opt_dict['disable_source']):
+                if (self.get_source_id(index) != '') and index != ps and not self.get_opt('disable_source', index):
                     if self.get_source_id(index) in config.no_genric_matching[index]:
                         last_merge.append(index)
 
                     else:
                         self.merge_order.append(index)
 
-                elif index != self.opt_dict['prime_source']:
+                elif index != ps:
                     self.source_data[index].set()
 
             self.merge_order.extend(last_merge)
@@ -12602,7 +12501,6 @@ class Channel_Config(Thread):
                 self.state = 0
                 self.source = None
                 if self.source_data[index].is_set():
-                    #~ print index, xml_output.channelsource[index].program_data.keys()
                     if len(xml_output.channelsource[index].program_data[channelid]) == 0:
                         if not ((index == 1 and 0 in self.merge_order) or index == 11):
                             log('No Data from %s for channel: %s\n'% (xml_output.channelsource[index].source, self.chan_name))
@@ -12694,7 +12592,7 @@ class Channel_Config(Thread):
 
             log_array = ['\n', 'Detail statistics for %s (channel %s of %s)\n' % (self.chan_name, counter, config.chan_count)]
             log_array.append( '%6.0f cache hit(s)\n' % (self.counters['cache']))
-            if self.opt_dict['fast']:
+            if self.get_opt('fast'):
                 log_array.append('%6.0f without details in cache\n' % self.counters['none'])
                 log_array.append('\n')
                 log_array.append('%6.0f succesful ttvdb lookups\n' % self.counters['ttvdb'])
@@ -12738,7 +12636,7 @@ class Channel_Config(Thread):
                 if gen_genre != None and self.all_programs[i]['genre'] in (u'overige', u''):
                     self.all_programs[i]['genre'] = gen_genre
 
-            if self.opt_dict['add_hd_id']:
+            if self.get_opt('add_hd_id'):
                 self.opt_dict['mark_hd'] = False
                 xml_output.create_channel_strings(self.chanid, False)
                 xml_output.create_program_string(self.chanid, False)
@@ -12861,8 +12759,36 @@ class Channel_Config(Thread):
 
         return ''
 
-    def get_opt(self, opt):
+    def get_opt(self, opt, source_id = None):
         retval = None
+        if opt in ('disable_source', 'disable_detail_source'):
+            if source_id in self.opt_dict[opt] or source_id in config.opt_dict[opt]:
+                return True
+
+            else:
+                return False
+
+        if opt == 'disable_ttvdb':
+            if config.opt_dict[opt] or self.opt_dict[opt]:
+                return True
+
+            else:
+                False
+
+        if opt == 'compat':
+            if 'compat' in self.opt_dict.keys():
+                if self.opt_dict['compat']:
+                    return '.tvgids.nl'
+
+                else:
+                    return ''
+
+            elif config.opt_dict['compat']:
+                return '.tvgids.nl'
+
+            else:
+                return ''
+
         if opt in self.opt_dict.keys():
             retval = self.opt_dict[opt]
 
@@ -12890,14 +12816,14 @@ class Channel_Config(Thread):
 
         programs = self.all_programs[:]
 
-        if self.opt_dict['fast']:
+        if self.get_opt('fast'):
             log(['\n', 'Now Checking cache for %s programs on %s(xmltvid=%s%s)\n' % \
-                (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
+                (len(programs), self.chan_name, self.xmltvid, self.get_opt('compat')), \
                 '    (channel %s of %s) for %s days.\n' % (self.counter, config.chan_count, config.opt_dict['days'])], 2)
 
         else:
             log(['\n', 'Now fetching details for %s programs on %s(xmltvid=%s%s)\n' % \
-                (len(programs), self.chan_name, self.xmltvid, (self.opt_dict['compat'] and '.tvgids.nl' or '')), \
+                (len(programs), self.chan_name, self.xmltvid, self.get_opt('compat')), \
                 '    (channel %s of %s) for %s days.\n' % (self.counter, config.chan_count, config.opt_dict['days'])], 2)
 
         # randomize detail requests
@@ -12929,7 +12855,7 @@ class Channel_Config(Thread):
                                 p['name'])
 
             # We only fetch when we are in slow mode and slowdays is not set to tight
-            no_fetch = (self.opt_dict['fast'] or p['offset'] >= (config.opt_dict['offset'] + self.get_opt('slowdays')))
+            no_fetch = (self.get_opt('fast') or p['offset'] >= (config.opt_dict['offset'] + self.get_opt('slowdays')))
 
             # check the cache for this program's ID
             # If not found, check the various ID's and (if found) make it the prime one
@@ -12957,7 +12883,7 @@ class Channel_Config(Thread):
                         log(u'      [cached] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                         self.update_counter('cache')
                         p = self.use_cache(p, cached_program)
-                        if not (config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
+                        if not self.get_opt('disable_ttvdb'):
                             if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
                                 self.update_counter('fetch', -1)
                                 xml_output.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
@@ -12974,7 +12900,7 @@ class Channel_Config(Thread):
             if no_detail_fetch:
                 log(u'    [no fetch] %s:(%3.0f%%) %s\n' % (self.chan_name, self.get_counter(), logstring), 8, 1)
                 self.update_counter('none')
-                if not (config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
+                if not self.get_opt('disable_ttvdb'):
                     if p['genre'].lower() == u'serie/soap' and p['titel aflevering'] != '' and p['season'] == 0:
                         self.update_counter('fetch', -1)
                         xml_output.ttvdb.detail_request.put({'tdict':p, 'parent': self, 'task': 'update_ep_info'})
@@ -12985,9 +12911,7 @@ class Channel_Config(Thread):
                 continue
 
             for src_id in xml_output.detail_sources:
-                if src_id not in config.opt_dict['disable_detail_source'] and \
-                  src_id not in self.opt_dict['disable_detail_source'] and \
-                  p['detail_url'][src_id] != '':
+                if not self.get_opt('disable_detail_source', src_id) and p['detail_url'][src_id] != '':
                     self.update_counter('fetch', src_id)
                     xml_output.channelsource[src_id].detail_request.put({'tdict':p, 'cache_id': cache_id, 'logstring': logstring, 'parent': self})
                     break
@@ -12999,7 +12923,7 @@ class Channel_Config(Thread):
                 break
 
         else:
-            if not (config.opt_dict['disable_ttvdb'] or self.opt_dict['disable_ttvdb']):
+            if not self.get_opt('disable_ttvdb'):
                 xml_output.ttvdb.detail_request.put({'task': 'last_one', 'parent': self})
 
             else:
@@ -13179,10 +13103,10 @@ class XMLoutput:
 
         self.xml_channels[xmltvid] = []
         self.xml_channels[xmltvid].append(self.add_starttag('channel', 2, 'id="%s%s"' % \
-            (xmltvid, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')))
+            (xmltvid, config.channels[chanid].get_opt('compat'))))
         self.xml_channels[xmltvid].append(self.add_starttag('display-name', 4, 'lang="nl"', \
             config.channels[chanid].chan_name, True))
-        if (config.channels[chanid].opt_dict['logos']):
+        if config.channels[chanid].get_opt('logos'):
             if config.channels[chanid].icon_source in range(len(self.logo_provider)):
                 lpath = self.logo_provider[config.channels[chanid].icon_source]
                 lname = config.channels[chanid].icon
@@ -13230,7 +13154,7 @@ class XMLoutput:
             attribs = 'start="%s" stop="%s" channel="%s%s"' % \
                 (self.format_timezone(program['start-time'], config.opt_dict['use_utc']), \
                 self.format_timezone(program['stop-time'], config.opt_dict['use_utc']), \
-                xmltvid, config.channels[chanid].opt_dict['compat'] and '.tvgids.nl' or '')
+                xmltvid, config.channels[chanid].get_opt('compat'))
 
             if 'clumpidx' in program and program['clumpidx'] != '':
                 attribs += 'clumpidx="%s"' % program['clumpidx']
@@ -13265,8 +13189,8 @@ class XMLoutput:
             # Limit the length of the description
             if desc_line != '':
                 desc_line = re.sub('\n', ' ', desc_line)
-                if len(desc_line) > config.channels[chanid].opt_dict['desc_length']:
-                    spacepos = desc_line[0:config.channels[chanid].opt_dict['desc_length']-3].rfind(' ')
+                if len(desc_line) > config.channels[chanid].get_opt('desc_length'):
+                    spacepos = desc_line[0:config.channels[chanid].get_opt('desc_length')-3].rfind(' ')
                     desc_line = desc_line[0:spacepos] + '...'
 
                 xml.append(self.add_starttag('desc', 4, 'lang="nl"', desc_line.strip(),True))
@@ -13297,7 +13221,7 @@ class XMLoutput:
                 xml.append(self.add_starttag('date', 4, '', program['jaar van premiere'],True))
 
             # Genre
-            if config.channels[chanid].opt_dict['cattrans']:
+            if config.channels[chanid].get_opt('cattrans'):
                 cat0 = ('', '')
                 cat1 = (program['genre'].lower(), '')
                 cat2 = (program['genre'].lower(), program['subgenre'].lower())
@@ -13344,7 +13268,7 @@ class XMLoutput:
 
             # Process video/audio/teletext sections if present
             if (program['video']['breedbeeld'] or program['video']['blackwhite'] \
-              or (config.channels[chanid].opt_dict['mark_hd'] \
+              or (config.channels[chanid].get_opt('mark_hd') \
               or add_HD == True) and (program['video']['HD'])):
                 xml.append(self.add_starttag('video', 4))
 
@@ -13354,7 +13278,7 @@ class XMLoutput:
                 if program['video']['blackwhite']:
                     xml.append(self.add_starttag('colour', 6, '', 'no',True))
 
-                if (config.channels[chanid].opt_dict['mark_hd'] \
+                if (config.channels[chanid].get_opt('mark_hd') \
                   or add_HD == True) and (program['video']['HD']):
                     xml.append(self.add_starttag('quality', 6, '', 'HDTV',True))
 
@@ -13457,7 +13381,7 @@ class XMLoutput:
         for channel in config.channels.values():
             if channel.active and channel.xmltvid in self.xml_channels:
                 xml.append(u"".join(self.xml_channels[channel.xmltvid]))
-                if channel.opt_dict['add_hd_id'] and '%s-hd' % (channel.xmltvid) in self.xml_channels:
+                if channel.get_opt('add_hd_id') and '%s-hd' % (channel.xmltvid) in self.xml_channels:
                     xml.append(u"".join(self.xml_channels['%s-hd' % channel.xmltvid]))
 
         for channel in config.channels.values():
@@ -13465,7 +13389,7 @@ class XMLoutput:
                 for program in self.xml_programs[channel.xmltvid]:
                     xml.append(u"".join(program))
 
-                if channel.opt_dict['add_hd_id'] and '%s-hd' % (channel.xmltvid) in self.xml_channels:
+                if channel.get_opt('add_hd_id') and '%s-hd' % (channel.xmltvid) in self.xml_channels:
                     for program in self.xml_programs['%s-hd' % channel.xmltvid]:
                         xml.append(u"".join(program))
 
@@ -13503,16 +13427,6 @@ def main():
 
         log("The Netherlands: %s\n" % config.version(True), 1, 1)
         log('Start time of this run: %s\n' % (start_time.strftime('%Y-%m-%d %H:%M')),4, 1)
-
-        #~ test = vrt_JSON(10, 'vrt.be', 'vrt-ID', 'vrt-url', True)
-        #~ test.get_standaardgenres()
-        #~ test = oorboekje_HTML(12, 'oorboekje.nl', 'ob-ID', 'ob-url')
-        #~ test.init_channels()
-        #~ test.get_channels()
-        #~ config.opt_dict['offset'] = 0
-        #~ config.opt_dict['days'] = 1
-        #~ test.load_pages()
-        #~ return
 
         # Start the seperate fetching threads
         for source in xml_output.channelsource.values():
