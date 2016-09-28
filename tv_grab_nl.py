@@ -9982,7 +9982,6 @@ class horizon_JSON(FetchData):
                             continue
 
                         if item['program']['title'] == 'Zender verstrekt geen informatie':
-                            #~ start = end
                             break
 
                         if item['stationId'] != channelid:
@@ -10744,12 +10743,9 @@ class vpro_HTML(FetchData):
                         for s in (('"', '&quot;'), ('<', '&lt;'), ('>', '&gt;')):
                             if s[0] in t:
                                 tt = re.sub(s[0], s[1], tt)
-                                t = re.sub('\?', '\\?', t)
-                                t = re.sub('\*', '\\*', t)
-                                t = re.sub('\+', '\\+', t)
 
                         if t != tt:
-                            noquote = re.sub(t, tt, noquote, flags = re.IGNORECASE)
+                            noquote = re.sub(re.escape(t), tt, noquote, flags = re.IGNORECASE)
 
                     htmldata = ET.fromstring(noquote.encode('utf-8'))
 
