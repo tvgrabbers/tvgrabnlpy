@@ -426,10 +426,10 @@ class Configure:
         self.name ='tv_grab_nl_py'
         self.major = 2
         self.minor = 2
-        self.patch = 19
-        self.patchdate = u'20160928'
+        self.patch = 20
+        self.patchdate = u'20160930'
         self.alfa = False
-        self.beta = False
+        self.beta = True
 
         self.cache_return = Queue()
         self.channels = {}
@@ -2298,6 +2298,7 @@ class Configure:
         # Read in the tables needed for normal grabbing
         self.source_base_url = get_githubdict("source_base_url", 1)
         self.text_replace = get_githubdict("text_replace", 1)
+        self.unquote_html = get_githubdict("unquote_html", 1)
         xml_output.logo_provider = get_githubdata("logo_provider")
         virtual_sub_channels = get_githubdict("virtual-sub-channels")
         self.virtual_sub_channels = {}
@@ -6266,7 +6267,8 @@ class FetchData(Thread):
 
     # Helper functions
     def init_channel_source_ids(self):
-        self.text_replace = config.text_replace[self.proc_id]
+        self.text_replace = config.text_replace[self.proc_id] if self.proc_id in config.text_replace.keys() else []
+        self.unquote_html = config.unquote_html[self.proc_id] if self.proc_id in config.unquote_html.keys() else []
         for chanid, channel in config.channels.iteritems():
             # Is the channel active and this source for the channel not disabled
             if channel.active and not self.proc_id in channel.opt_dict['disable_source']:
@@ -6817,17 +6819,39 @@ class FetchData(Thread):
         return tdict
 
     def check_text_subs(self, page):
-        if not isinstance(self.text_replace, list) or not isinstance(page, (str, unicode)):
+        if not isinstance(page, (str, unicode)):
             return page
 
-        oldpage = page
-        for subset in self.text_replace:
-            if not isinstance(subset, list) or len(subset) < 2:
-                continue
+        if isinstance(self.text_replace, list):
+            for subset in self.text_replace:
+                if not isinstance(subset, list) or len(subset) < 2:
+                    continue
 
-            page = re.sub(subset[0], subset[1], page)
+                page = re.sub(subset[0], subset[1], page, 0, re.DOTALL)
+
+        if isinstance(self.unquote_html, list):
+            for ut in self.unquote_html:
+                page = re.sub(ut, self.unquote, page, 0, re.DOTALL)
 
         return page
+
+    def unquote(self, matchobj):
+        rval = matchobj.group(0)
+        try:
+            for mg in matchobj.groups():
+                if mg == None:
+                    continue
+
+                tt = mg
+                for s in (('"', '&quot;'), ('<', '&lt;'), ('>', '&gt;')):
+                    if s[0] in tt:
+                        tt = re.sub(s[0], s[1], tt)
+
+                rval = re.sub(re.escape(mg), tt, rval)
+            return rval
+
+        except:
+            return rval
 
     def set_ready(self, channelid = None):
         if channelid == None:
@@ -10402,7 +10426,6 @@ class vpro_HTML(FetchData):
         # These regexes fetch the relevant data out of the vpro.nl pages, which then will be parsed to the ElementTree
         self.available_dates = re.compile('<div class="epg-available-days">(.*?)</div>',re.DOTALL)
         self.fetch_channellist = re.compile('<ul class="epg-channel-names">(.*?)</ul>',re.DOTALL)
-        self.fetch_titels = re.compile('<h6 class="title[-\s\w]*?">(.*?)</h6>',re.DOTALL)
         self.fetch_data = re.compile('<section class="section-with-layout component-theme theme-white *?">(.*?)</section>',re.DOTALL)
         self.fetch_genre_codes = re.compile("(g[0-9_]+)")
         self.fetch_descr_parts = re.compile("(.*?[\.:]+ |.*?[\.:]+\Z)")
@@ -10727,7 +10750,6 @@ class vpro_HTML(FetchData):
                     continue
 
                 try:
-                    noquote = ""
                     strdata = self.clean_html(strdata)
                     strdata = self.check_text_subs(strdata)
                     if len(self.availabe_days) == 0:
@@ -10735,26 +10757,14 @@ class vpro_HTML(FetchData):
                         lineup = self.get_channel_lineup(strdata)
 
                     strdata = self.fetch_data.search(strdata).group(0)
-                    noquote = strdata
-                    for t in self.fetch_titels.findall(strdata):
-                        t = re.sub('<span class="broadcaster[-\s\w]*?">(.*?)</span>', '', t)
-                        t = t.strip()
-                        tt = t
-                        for s in (('"', '&quot;'), ('<', '&lt;'), ('>', '&gt;')):
-                            if s[0] in t:
-                                tt = re.sub(s[0], s[1], tt)
-
-                        if t != tt:
-                            noquote = re.sub(re.escape(t), tt, noquote, flags = re.IGNORECASE)
-
-                    htmldata = ET.fromstring(noquote.encode('utf-8'))
+                    htmldata = ET.fromstring(strdata.encode('utf-8'))
 
                 except:
                     log('Error extracting ElementTree for day:%s on vpro.nl\n' % (offset))
                     self.fail_count += 1
                     if config.write_info_files:
                         infofiles.write_raw_string('Error: %s at line %s\n\n' % (sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
-                        infofiles.write_raw_string(noquote)
+                        infofiles.write_raw_string(strdata)
 
                     continue
 
