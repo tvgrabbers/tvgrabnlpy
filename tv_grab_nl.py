@@ -427,9 +427,9 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 20
-        self.patchdate = u'20160930'
+        self.patchdate = u'20161015'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
@@ -6819,6 +6819,24 @@ class FetchData(Thread):
         return tdict
 
     def check_text_subs(self, page):
+        def unquote(matchobj):
+            rval = matchobj.group(0)
+            try:
+                for mg in matchobj.groups():
+                    if mg == None:
+                        continue
+
+                    tt = mg
+                    for s in (('"', '&quot;'), ('<', '&lt;'), ('>', '&gt;')):
+                        if s[0] in tt:
+                            tt = re.sub(s[0], s[1], tt)
+
+                    rval = re.sub(re.escape(mg), tt, rval)
+                return rval
+
+            except:
+                return rval
+
         if not isinstance(page, (str, unicode)):
             return page
 
@@ -6831,27 +6849,12 @@ class FetchData(Thread):
 
         if isinstance(self.unquote_html, list):
             for ut in self.unquote_html:
-                page = re.sub(ut, self.unquote, page, 0, re.DOTALL)
-
-        return page
-
-    def unquote(self, matchobj):
-        rval = matchobj.group(0)
-        try:
-            for mg in matchobj.groups():
-                if mg == None:
+                if not isinstance(ut, (str, unicode)):
                     continue
 
-                tt = mg
-                for s in (('"', '&quot;'), ('<', '&lt;'), ('>', '&gt;')):
-                    if s[0] in tt:
-                        tt = re.sub(s[0], s[1], tt)
+                page = re.sub(ut, unquote, page, 0, re.DOTALL)
 
-                rval = re.sub(re.escape(mg), tt, rval)
-            return rval
-
-        except:
-            return rval
+        return page
 
     def set_ready(self, channelid = None):
         if channelid == None:
@@ -8820,6 +8823,7 @@ class tvgidstv_HTML(FetchData):
             tdict['genre'] = u'overige'
             return tdict
 
+        dtext = dtext.strip().strip('.')
         if dtext.lower() in config.source_cattrans[self.proc_id].keys():
             tdict['genre'] = config.source_cattrans[self.proc_id][dtext.lower()].capitalize()
             tdict['subgenre'] = dtext
