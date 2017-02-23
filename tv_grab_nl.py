@@ -6268,23 +6268,19 @@ class FetchData(Thread):
 
     # Helper functions
     def init_channel_source_ids(self):
-        self.source_regexes = []
+        self.source_regexes = {}
         if self.proc_id in config.source_regexes.keys() and isinstance(config.source_regexes[self.proc_id], list):
             for i in range(len(config.source_regexes[self.proc_id])):
                 sre = config.source_regexes[self.proc_id][i]
-                csre = None
-                if isinstance(sre, (str, unicode)):
+                if isinstance(sre, (str, unicode)) and len(sre) > 0:
+                    self.source_regexes[i] = re.compile(sre)
 
-                    csre = re.compile(sre)
-
-                elif isinstance(sre, list) and len(sre) > 0 and isinstance(sre[0], (str, unicode)):
-                    if sre[1] == 1:
-                        csre = re.compile(sre[0],re.DOTALL)
+                elif isinstance(sre, list) and len(sre) > 0 and isinstance(sre[0], (str, unicode)) and len(sre[0]) > 0:
+                    if len(sre) > 1 and sre[1] == 1:
+                        self.source_regexes[i] = re.compile(sre[0],re.DOTALL)
 
                     else:
-                        csre = re.compile(sre[0])
-
-                self.source_regexes.append(csre)
+                        self.source_regexes[i] = re.compile(sre[0])
 
         self.text_replace = config.text_replace[self.proc_id] if self.proc_id in config.text_replace.keys() else []
         self.unquote_html = config.unquote_html[self.proc_id] if self.proc_id in config.unquote_html.keys() else []
@@ -6876,8 +6872,8 @@ class FetchData(Thread):
         return page
 
     def get_source_regex(self, data, sr_id, sr_type = 1, sr_group = None):
-        if not isinstance(sr_id, int) or sr_id < 0 or sr_id >= len(self.source_regexes) or self.source_regexes[sr_id] == None:
-            if sr_type in (2, ):
+        if not sr_id in self.source_regexes.keys() or self.source_regexes[sr_id] == None:
+            if sr_type == 2:
                 return []
 
             else:
