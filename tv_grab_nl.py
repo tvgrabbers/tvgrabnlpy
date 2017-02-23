@@ -8524,7 +8524,7 @@ class tvgids_JSON(FetchData):
 
                 elif ctype == 'aflevering':
                     # This contains a subtitle, optionally preseded by an episode number and an episode count
-                    txt = sself.get_source_regex(content, 6)
+                    txt = self.get_source_regex(content, 6)
                     if txt != None:
                         tdict['episode'] = 0 if txt.group(1) in ('', None) else int(txt.group(1))
                         tdict['titel aflevering'] = '' if txt.group(2) in ('', None) else txt.group(2).strip()
