@@ -2297,6 +2297,7 @@ class Configure:
 
         # Read in the tables needed for normal grabbing
         self.source_base_url = get_githubdict("source_base_url", 1)
+        self.source_regexes = get_githubdict("source_regexes", 1)
         self.text_replace = get_githubdict("text_replace", 1)
         self.unquote_html = get_githubdict("unquote_html", 1)
         xml_output.logo_provider = get_githubdata("logo_provider")
@@ -6267,6 +6268,24 @@ class FetchData(Thread):
 
     # Helper functions
     def init_channel_source_ids(self):
+        self.source_regexes = []
+        if self.proc_id in config.source_regexes.keys() and isinstance(config.source_regexes[self.proc_id], list):
+            for i in range(len(config.source_regexes[self.proc_id])):
+                sre = config.source_regexes[self.proc_id][i]
+                csre = None
+                if isinstance(sre, (str, unicode)):
+
+                    csre = re.compile(sre)
+
+                elif isinstance(sre, list) and len(sre) > 0 and isinstance(sre[0], (str, unicode)):
+                    if sre[1] == 1:
+                        csre = re.compile(sre[0],re.DOTALL)
+
+                    else:
+                        csre = re.compile(sre[0])
+
+                self.source_regexes.append(csre)
+
         self.text_replace = config.text_replace[self.proc_id] if self.proc_id in config.text_replace.keys() else []
         self.unquote_html = config.unquote_html[self.proc_id] if self.proc_id in config.unquote_html.keys() else []
         for chanid, channel in config.channels.iteritems():
@@ -6855,6 +6874,31 @@ class FetchData(Thread):
                 page = re.sub(ut, unquote, page, 0, re.DOTALL)
 
         return page
+
+    def get_source_regex(self, data, sr_id, sr_type = 1, sr_group = None):
+        if not isinstance(sr_id, int) or sr_id < 0 or sr_id >= len(self.source_regexes) or self.source_regexes[sr_id] == None:
+            if sr_type in (2, ):
+                return []
+
+            else:
+                return None
+
+        if sr_type == 0:
+            return self.source_regexes[sr_id].match(data)
+
+        if sr_type == 1:
+            sre = self.source_regexes[sr_id].search(data)
+            if sr_group == None or sre == None:
+                return sre
+
+            try:
+                return sre.group(sr_group)
+
+            except:
+                return None
+
+        if sr_type == 2:
+            return self.source_regexes[sr_id].findall(data)
 
     def set_ready(self, channelid = None):
         if channelid == None:
@@ -8141,19 +8185,10 @@ class tvgids_JSON(FetchData):
             </body>
         """
 
-        # These regexes fetch the relevant data out of thetvgids.nl pages, which then will be parsed to the ElementTree
-        self.retime = re.compile(r'(\d\d\d\d)-(\d+)-(\d+) (\d+):(\d+)(?::\d+)')
-        self.tvgidsnlprog = re.compile('<div id="prog-content">(.*?)<div id="prog-banner-content"',re.DOTALL)
-        self.tvgidsnltitle = re.compile('<div class="programmering">(.*?)</h1>',re.DOTALL)
-        self.tvgidsnldesc = re.compile('<p(.*?)</p>',re.DOTALL)
-        self.tvgidsnldesc2 = re.compile('<div class="tekst col-sm-12">(.*?)</div>',re.DOTALL)
-        self.tvgidsnldetails = re.compile('<div class="programmering_info_detail">(.*?)</div>',re.DOTALL)
-        self.aflevering = re.compile('(\d*)/?\d*(.*)')
-
+        self.init_channel_source_ids()
         self.url_channels = ''
         self.cooky_cnt = 0
 
-        self.init_channel_source_ids()
         for channel in self.chanids.keys():
             if self.url_channels == '':
                 self.url_channels = channel
@@ -8181,7 +8216,7 @@ class tvgids_JSON(FetchData):
             return u'%sprogram.php?id=%s/' % (tvgids_json, id)
 
     def match_to_date(self, timestring, time, program):
-        match = self.retime.match(self.unescape(timestring))
+        match = self.get_source_regex(self.unescape(timestring), 0, 0)
 
         if match:
             return datetime.datetime(int(match.group(1)),int(match.group(2)),\
@@ -8376,7 +8411,7 @@ class tvgids_JSON(FetchData):
 
                 return
 
-            strdata = self.tvgidsnlprog.search(strdata)
+            strdata = self.get_source_regex(strdata, 1)
             if strdata == None:
                 log('Page %s returned no data\n' % (tdict['detail_url'][self.proc_id]), 1)
                 return
@@ -8389,7 +8424,7 @@ class tvgids_JSON(FetchData):
             else:
                 # They sometimes forget to close a <p> tag
                 strdata = re.sub('<p>', '</p>xxx<p>', strdata, flags = re.DOTALL)
-                strtitle = self.tvgidsnltitle.search(strdata)
+                strtitle = self.get_source_regex(strdata, 2)
                 if strtitle == None:
                     strtitle = ''
 
@@ -8399,17 +8434,17 @@ class tvgids_JSON(FetchData):
                     strtitle = strtitle + '\n</div>\n'
 
                 strdesc = ''
-                for d in self.tvgidsnldesc.findall(strdata):
+                for d in self.get_source_regex(strdata, 3, 2):
                     strdesc += '<p%s</p>\n' % d
 
                 strdesc = '<div>\n' + strdesc + '\n</div>\n'
 
-                d = self.tvgidsnldesc2.search(strdata)
+                d = self.get_source_regex(strdata, 4)
                 if d != None:
                     d = re.sub('</p>xxx<p>', '<p>', d.group(0), flags = re.DOTALL)
                     strdesc += d + '\n'
 
-            strdetails = self.tvgidsnldetails.search(strdata)
+            strdetails = self.get_source_regex(strdata, 5)
             if strdetails == None:
                 strdetails = ''
 
@@ -8489,7 +8524,7 @@ class tvgids_JSON(FetchData):
 
                 elif ctype == 'aflevering':
                     # This contains a subtitle, optionally preseded by an episode number and an episode count
-                    txt = self.aflevering.search(content)
+                    txt = sself.get_source_regex(content, 6)
                     if txt != None:
                         tdict['episode'] = 0 if txt.group(1) in ('', None) else int(txt.group(1))
                         tdict['titel aflevering'] = '' if txt.group(2) in ('', None) else txt.group(2).strip()
@@ -8711,13 +8746,6 @@ class tvgidstv_HTML(FetchData):
             </div>
         """
 
-        # These regexes are used to get the time offset (whiche day they see as today)
-        self.fetch_datecontent = re.compile('<div class="section-title select-scope">(.*?)<div class="section-content">',re.DOTALL)
-        # These regexes fetch the relevant data out of thetvgids.tv pages, which then will be parsed to the ElementTree
-        self.getcontent = re.compile('<div class="span47 offset1">(.*?)<div class="span30 offset1">',re.DOTALL)
-        self.daydata = re.compile('<div class="section-content">(.*?)<div class="advertisement">',re.DOTALL)
-        self.detaildata = re.compile('<div class="section-title">(.*?)<div class="advertisement">',re.DOTALL)
-
         self.init_channel_source_ids()
 
     def get_url(self, channel = None, offset = 0, href = None):
@@ -8744,7 +8772,7 @@ class tvgidstv_HTML(FetchData):
             log("Skip channel=%s on tvgids.tv!, day=%d. No data\n" % (channel, offset))
             return None
 
-        d = self.fetch_datecontent.search(page_data)
+        d = self.get_source_regex(page_data, 0)
         if d == None:
             log('Unable to veryfy the right offset on .\n' )
             return None
@@ -8792,7 +8820,7 @@ class tvgidstv_HTML(FetchData):
                 self.fail_count += 1
                 return
 
-            strdata = self.clean_html('<div>' + self.getcontent.search(strdata).group(1))
+            strdata = self.clean_html('<div>' + self.get_source_regex(strdata, 1, 1, 1))
             htmldata = ET.fromstring(strdata.encode('utf-8'))
 
         except:
@@ -8997,7 +9025,7 @@ class tvgidstv_HTML(FetchData):
 
                         # and extract the ElementTree
                         try:
-                            strdata =self.daydata.search(strdata).group(1)
+                            strdata = self.get_source_regex(strdata, 2, 1, 1)
                             strdata = self.clean_html(strdata)
                             strdata = self.check_text_subs(strdata)
                             htmldata = ET.fromstring( ('<div><div>' + strdata).encode('utf-8'))
@@ -9121,7 +9149,7 @@ class tvgidstv_HTML(FetchData):
             if strdata == None:
                 return
 
-            strdata = self.clean_html('<root><div><div class="section-title">' + self.detaildata.search(strdata).group(1) + '</root>')
+            strdata = self.clean_html('<root><div><div class="section-title">' + self.get_source_regex(strdata, 3, 1, 1) + '</root>')
             strdata = self.check_text_subs(strdata)
 
         except:
@@ -10427,18 +10455,6 @@ class vpro_HTML(FetchData):
         """ General Site layout
         """
 
-        # These regexes fetch the relevant data out of the vpro.nl pages, which then will be parsed to the ElementTree
-        self.available_dates = re.compile('<div class="epg-available-days">(.*?)</div>',re.DOTALL)
-        self.fetch_channellist = re.compile('<ul class="epg-channel-names">(.*?)</ul>',re.DOTALL)
-        self.fetch_data = re.compile('<section class="section-with-layout component-theme theme-white *?">(.*?)</section>',re.DOTALL)
-        self.fetch_genre_codes = re.compile("(g[0-9_]+)")
-        self.fetch_descr_parts = re.compile("(.*?[\.:]+ |.*?[\.:]+\Z)")
-
-        self.fetch_subgenre = re.compile('^(.*?) uit (\d{4}) van (.*?)(over .*?\.|waarin .*?\.|voor .*?\.|\.)')
-        self.fetch_subgenre2 = re.compile('^([A-Z/]+) (\d{4})\. ?(.*?) van (.*?)\.')
-        self.fetch_subgenre3 = re.compile('^(.*?) uit (\d{4})')
-        self.fetch_subgenre4 = re.compile('^(.*?) (naar|waarin|over).*?')
-
         self.init_channel_source_ids()
         self.availabe_days = []
 
@@ -10473,7 +10489,7 @@ class vpro_HTML(FetchData):
     def get_channel_lineup(self, htmldata):
         chan_list = []
         channel_cnt = 0
-        strdata = self.fetch_channellist.search(htmldata).group(1)
+        strdata = self.get_source_regex(htmldata, 1, 1, 1)
         htmldata = ET.fromstring( (u'<root>\n' + strdata + u'\n</root>\n').encode('utf-8'))
         for c in htmldata.findall('li'):
             channel_cnt+=1
@@ -10496,7 +10512,7 @@ class vpro_HTML(FetchData):
 
     def get_available_days(self, htmldata):
         self.availabe_days = []
-        htmldata = self.available_dates.search(htmldata).group(1)
+        htmldata = self.get_source_regex(htmldata, 0, 1, 1)
         htmldata = ET.fromstring( (htmldata).encode('utf-8'))
         for c in htmldata.findall('li/a'):
             d = re.split('-', c.attrib['rel'])
@@ -10515,10 +10531,10 @@ class vpro_HTML(FetchData):
 
                 # Get subgenre, and possibly jaar van premiere, regisseur, country
                 if di == 'start':
-                    subg = self.fetch_subgenre.search(dt[0])
-                    subg2 = self.fetch_subgenre2.search(dt[0])
-                    subg3 = self.fetch_subgenre3.search(dt[0])
-                    subg4 = self.fetch_subgenre4.search(dt[0])
+                    subg = self.get_source_regex(dt[0], 4)
+                    subg2 = self.get_source_regex(dt[0], 5)
+                    subg3 = self.get_source_regex(dt[0], 6)
+                    subg4 = self.get_source_regex(dt[0], 7)
                     if subg != None:
                         tdict['subgenre'] = subg.group(1)
                         tdict['jaar van premiere'] = subg.group(2)
@@ -10675,7 +10691,7 @@ class vpro_HTML(FetchData):
                         tdict['omroep'] = self.empersant(omroep)
 
                     pgenre = p.get('class','')
-                    pg = self.fetch_genre_codes.findall(pgenre)
+                    pg = self.get_source_regex(pgenre, 3, 2)
                     if len(pg) > 0:
                         for i in range(len(pg)):
                             pg[i] = re.sub('_', '', pg[i])
@@ -10760,7 +10776,7 @@ class vpro_HTML(FetchData):
                         self.get_available_days(strdata)
                         lineup = self.get_channel_lineup(strdata)
 
-                    strdata = self.fetch_data.search(strdata).group(0)
+                    strdata = self.get_source_regex(strdata, 2, 1, 0)
                     htmldata = ET.fromstring(strdata.encode('utf-8'))
 
                 except:
@@ -10936,14 +10952,10 @@ class nieuwsblad_HTML(FetchData):
             </html>
         """
 
-        # These regexes fetch the relevant data out of the nieuwsblad.be pages, which then will be parsed to the ElementTree
-        self.getchannels = re.compile("<div class=\"grid channel__overview\">(.*?)<!-- end block 'tv-gids-channel-overview' -->",re.DOTALL)
-        self.getheader = re.compile("<!-- start block 'tvgids-top' -->(.*?)<!-- end block 'tvgids-top' -->",re.DOTALL)
-        self.getprograms = re.compile("<!-- start block 'tvgids-left-center' -->(.*?)<!-- end block 'tvgids-left-center' -->",re.DOTALL)
-        self.getchannelgroups = re.compile("<div id=\"accordion\" class=\"accordion\" data-accordion data-jq-plugin=\"accordion\">(.*?)<!-- end block 'tvgids-right-center' -->",re.DOTALL)
-        self.relativedays = ['vandaag', 'morgen', 'overmorgen']
-
         self.init_channel_source_ids()
+
+        # These regexes fetch the relevant data out of the nieuwsblad.be pages, which then will be parsed to the ElementTree
+        self.relativedays = ['vandaag', 'morgen', 'overmorgen']
 
     def get_url(self, channel = None, offset = 0, chan_group = 0):
 
@@ -11000,7 +11012,7 @@ class nieuwsblad_HTML(FetchData):
                 self.fail_count += 1
 
             else:
-                strdata = self.getchannels.search(strdata).group(1)
+                strdata = self.get_source_regex(strdata, 0, 1, 1)
                 strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
                 strdata = self.clean_html('<div><div>' + strdata)
                 htmldata = ET.fromstring(strdata.encode('utf-8'))
@@ -11069,7 +11081,7 @@ class nieuwsblad_HTML(FetchData):
             if chandata == None:
                 return 69  # EX_UNAVAILABLE
 
-            strdata = self.getchannelgroups.search(chandata).group(1)
+            strdata = self.get_source_regex(chandata, 2, 1, 1)
             strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
             strdata = self.clean_html('<div><div>' + strdata)
             htmldata = ET.fromstring(strdata.encode('utf-8'))
@@ -11182,7 +11194,7 @@ class nieuwsblad_HTML(FetchData):
                         continue
 
                     try:
-                        strdata =self.getprograms.search(strdata).group(1)
+                        strdata =self.get_source_regex(strdata, 1, 1, 1)
                         #~ strdata = re.sub('<img (.*?)"\s*>', '<img \g<1>"/>', strdata)
                         strdata = self.clean_html(strdata)
                         strdata = self.check_text_subs(strdata)
@@ -11288,11 +11300,6 @@ class primo_HTML(FetchData):
     """
     def init_channels(self):
 
-        # These regexes fetch the relevant data out of the nieuwsblad.be pages, which then will be parsed to the ElementTree
-        self.getmain = re.compile('<!--- HEADER SECTION -->(.*?)<!-- USER PROFILE-->',re.DOTALL)
-        self.getchannelstring = re.compile('(.*?) channel channel-(.*?) channel-.*?')
-        self.getprogduur = re.compile('width:(\d+)px;')
-
         self.init_channel_source_ids()
 
     def get_url(self, offset = 0, detail = None):
@@ -11329,7 +11336,7 @@ class primo_HTML(FetchData):
             if not isinstance(chandata, (str, unicode)):
                 chandata = config.get_page(self.get_url(0))
 
-            strdata = self.getmain.search(chandata).group(1)
+            strdata = self.get_source_regex(chandata, 0, 1, 1)
             strdata = self.clean_html(strdata)
             htmldata = ET.fromstring(strdata.encode('utf-8'))
             htmldata = htmldata.find('div/div[@id="tvprograms-main"]/div[@id="tvprograms"]')
@@ -11337,7 +11344,7 @@ class primo_HTML(FetchData):
                 if item.get("style") != None:
                     continue
 
-                chan_string = self.getchannelstring.search(item.get("class"))
+                chan_string = self.get_source_regex(item.get("class"), 1)
                 channelid = chan_string.group(1)
                 cname = chan_string.group(2)
                 icon_search = 'div[@id="program-channels-list-main"]/div/ul/li/div/a/img[@class="%s"]' % channelid
@@ -11407,7 +11414,7 @@ class primo_HTML(FetchData):
                         continue
 
                     try:
-                        strdata =self.getmain.search(strdata).group(1)
+                        strdata = self.get_source_regex(strdata, 0, 1, 1)
                         strdata = self.clean_html(strdata)
                         strdata = self.check_text_subs(strdata)
                         htmldata = ET.fromstring(strdata.encode('utf-8'))
@@ -11435,7 +11442,7 @@ class primo_HTML(FetchData):
                         if chan.get("style") != None:
                             continue
 
-                        channelid = self.getchannelstring.search(chan.get("class")).group(1)
+                        channelid = self.get_source_regex(chan.get("class"), 1, 1, 1)
                         if not channelid in self.chanids.keys():
                             continue
 
@@ -11463,7 +11470,7 @@ class primo_HTML(FetchData):
 
                                 # Get the starttime and make sure the midnight date change is properly crossed
                                 ptime = p.findtext('span', '')
-                                pduur = int(self.getprogduur.search(p.get('style')).group(1))*12
+                                pduur = int(self.get_source_regex(p.get('style'), 2, 1, 1))*12
                                 if ptime == '':
                                     tdict['start-time'] = last_end
                                     tdict['stop-time'] = last_end + datetime.timedelta(seconds=pduur)
@@ -12073,19 +12080,6 @@ class oorboekje_HTML(FetchData):
     """
     def init_channels(self):
 
-        self.gettable = re.compile('<TABLE (.*?)</TABLE>',re.DOTALL)
-        self.gettablerow = re.compile('<TD valign(.*?)</TD>',re.DOTALL)
-        self.getregional = re.compile("Regionale .*? zenders:")
-        self.getchanid = re.compile('A href="/zenderinformatie/(.*?)"')
-        self.getchannamelogo = re.compile('<P class="pnZender".*?>\s*<IMG src="/img/logo/(.*?)".*/>(.*?)</P>',re.DOTALL)
-        self.getchanname = re.compile('<P class="pnZender".*?>(.*?)</P>',re.DOTALL)
-        self.getnameaddition = re.compile('<SPAN style=".*?">(.*?)</SPAN>')
-        self.getdate = re.compile("this.document.title='oorboekje.nl - Programma-overzicht van .*? ([0-9]{2})-([0-9]{2})-([0-9]{4})';")
-        self.getchanday = re.compile('<!-- programmablok begin -->(.*?)<!-- programmablok eind -->',re.DOTALL)
-        self.getchannel = re.compile('<IMG src="/img/logo/(.*?).png".*?>(.*?)</DIV>',re.DOTALL)
-        self.getprogram = re.compile('<DIV class="pgProgOmschr(.*?)>\s*([0-9]{2}):([0-9]{2})\s*(.*?)<B>(.*?)</B>(.*?)</DIV>',re.DOTALL)
-        self.gettime = re.compile('([0-9]{2}):([0-9]{2})')
-        self.geticons = re.compile('<IMG src=".*?" alt="(.*?)".*?>',re.DOTALL)
         self.init_channel_source_ids()
 
     def get_url(self, type = None, offset = 0):
@@ -12121,27 +12115,27 @@ class oorboekje_HTML(FetchData):
             if not isinstance(chandata, (str, unicode)):
                 return 69
 
-            strdata = self.gettable.search(chandata).group(0)
+            strdata = self.get_source_regex(chandata, 0, 1, 0)
             strdata = self.clean_html(strdata)
             chgroup = 11
-            for ch in self.gettablerow.findall(strdata):
+            for ch in self.get_source_regex(strdata, 1, 2):
                 if not '"/zenderinformatie/' in ch:
-                    if self.getregional.search(ch) != None:
+                    if self.get_source_regex(ch, 2) != None:
                         chgroup = 17
 
                     continue
 
-                channelid = self.getchanid.search(ch).group(1).lower()
-                channame = self.getchannamelogo.search(ch)
+                channelid = self.get_source_regex(ch, 3, 1, 1).lower()
+                channame = self.get_source_regex(ch, 4)
                 if channame:
                     chanlogo = channame.group(1)
                     channame = channame.group(2)
 
                 else:
                     chanlogo = None
-                    channame = self.getchanname.search(ch).group(1)
+                    channame = self.get_source_regex(ch, 5, 1, 1)
 
-                regionname = self.getnameaddition.search(channame)
+                regionname = self.get_source_regex(channame, 6)
                 channame = self.empersant(re.sub('<SPAN.*?</SPAN>', '', channame).strip())
                 if regionname != None and not '(' in regionname.group(1):
                     channame = u'%s %s' % (channame, regionname.group(1))
@@ -12197,7 +12191,7 @@ class oorboekje_HTML(FetchData):
                             self.fail_count += 1
                             continue
 
-                        #~ fetchdate = self.getdate.search(strdata)
+                        #~ fetchdate = self.get_source_regex(strdata, 7)
                         #~ if fetchdate == None or datetime.date.fromordinal(self.current_date + offset) != \
                           #~ datetime.date(int(fetchdate.group(3)), int(fetchdate.group(2)), int(fetchdate.group(1))):
                             #~ log('Invalid date for oorboekje.nl for day %s.\n' % offset)
@@ -12210,8 +12204,8 @@ class oorboekje_HTML(FetchData):
                         continue
 
                     strdata = self.clean_html(strdata)
-                    for ch in self.getchanday.findall(strdata):
-                        chan = self.getchannel.search(ch)
+                    for ch in self.get_source_regex(strdata, 8, 2):
+                        chan = self.get_source_regex(ch, 9)
                         if chan == None:
                             continue
 
@@ -12233,7 +12227,7 @@ class oorboekje_HTML(FetchData):
                                                                                         datetime.time(hour=0, tzinfo=CET_CEST))
                         scan_date = datetime.date.fromordinal(self.current_date + date_offset)
                         pcount = 0
-                        for p in self.getprogram.findall(ch):
+                        for p in self.get_source_regex(ch, 10, 2):
                             if 'style="text-indent: 0px;"' in p[0]:
                                 continue
 
@@ -12258,7 +12252,7 @@ class oorboekje_HTML(FetchData):
                                     tdict['start-time'] = datetime.datetime.combine(scan_date, ptime)
 
                             last_end = tdict['start-time']
-                            ptime = self.gettime.search(p[3])
+                            ptime = self.get_source_regex(p[3], 11)
                             if ptime != None:
                                 ptime = datetime.time(int(ptime.group(1)), int(ptime.group(2)), tzinfo=CET_CEST)
                                 tdict['stop-time'] = datetime.datetime.combine(scan_date, ptime)
@@ -12268,7 +12262,7 @@ class oorboekje_HTML(FetchData):
 
                                 last_end = tdict['stop-time']
 
-                            for picon in self.geticons.findall(p[5]):
+                            for picon in self.get_source_regex(p[5], 12, 2):
                                 if picon == "herhaling":
                                     tdict['rerun'] = True
 
