@@ -427,9 +427,9 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 21
-        self.patchdate = u'20170222'
+        self.patchdate = u'20170316'
         self.alfa = False
-        self.beta = True
+        self.beta = False
 
         self.cache_return = Queue()
         self.channels = {}
