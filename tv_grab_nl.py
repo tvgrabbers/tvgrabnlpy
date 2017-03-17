@@ -427,7 +427,7 @@ class Configure:
         self.major = 2
         self.minor = 2
         self.patch = 21
-        self.patchdate = u'20170316'
+        self.patchdate = u'20170317'
         self.alfa = False
         self.beta = False
 
@@ -11334,6 +11334,7 @@ class primo_HTML(FetchData):
 
             strdata = self.get_source_regex(chandata, 0, 1, 1)
             strdata = self.clean_html(strdata)
+            strdata = self.check_text_subs(strdata)
             htmldata = ET.fromstring(strdata.encode('utf-8'))
             htmldata = htmldata.find('div/div[@id="tvprograms-main"]/div[@id="tvprograms"]')
             for item in htmldata.findall('div[@id="program-channel-programs"]/div/div/div'):
