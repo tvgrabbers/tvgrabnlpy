@@ -5352,7 +5352,7 @@ class ProgramCache(Thread):
         """
         dnow = int(time.mktime(datetime.date.today().timetuple())*1000)
         with self.pconn:
-            self.pconn.execute(u"DELETE FROM programs WHERE 'stop-time' < ?", (dnow,))
+            self.pconn.execute(u"DELETE FROM programs WHERE `stop-time` < ?", (dnow,))
 
         with self.pconn:
             self.pconn.execute(u"DELETE FROM credits WHERE NOT EXISTS (SELECT * FROM programs WHERE programs.pid = credits.pid)")
